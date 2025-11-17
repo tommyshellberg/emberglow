@@ -45,7 +45,7 @@ interface QuestState {
   // Actions
   cancelQuest: () => void;
   startQuest: (quest: Quest) => void;
-  completeQuest: (ignoreDuration?: boolean) => Quest | null;
+  completeQuest: (ignoreDuration?: boolean) => Promise<Quest | null>;
   failQuest: () => void;
   refreshAvailableQuests: () => void;
   resetFailedQuest: () => void;
@@ -132,7 +132,7 @@ export const useQuestStore = create<QuestState>()(
         set({ activeQuest: startedQuest, pendingQuest: null });
       },
 
-      completeQuest: (ignoreDuration = false) => {
+      completeQuest: async (ignoreDuration = false) => {
         const { activeQuest, lastCompletedQuestTimestamp } = get();
         if (activeQuest && activeQuest.startTime) {
           const completionTime = Date.now();
@@ -140,12 +140,51 @@ export const useQuestStore = create<QuestState>()(
 
           if (ignoreDuration || duration >= activeQuest.durationMinutes * 60) {
             // Quest completed successfully
-            const completedQuest: Quest = {
+            const questRunId = QuestTimer.getQuestRunId();
+
+            // Create base completed quest
+            let completedQuest: Quest = {
               ...activeQuest,
               stopTime: completionTime,
               status: 'completed' as const,
-              questRunId: QuestTimer.getQuestRunId() || undefined,
+              questRunId: questRunId || undefined,
             };
+
+            // Fetch quest run data from server to get participant rewards
+            if (questRunId) {
+              try {
+                console.log('[QuestStore] Fetching quest run data to get rewards:', questRunId);
+                const { getQuestRunStatus } = await import('@/lib/services/quest-run-service');
+                const questRunData = await getQuestRunStatus(questRunId);
+
+                console.log('[QuestStore] Quest run data received:', {
+                  questRunId,
+                  status: questRunData.status,
+                  hasParticipants: !!questRunData.participants,
+                  participantCount: questRunData.participants?.length,
+                });
+
+                // Add participants with rewards to the completed quest
+                if (questRunData.participants) {
+                  completedQuest.participants = questRunData.participants.map((p: any) => ({
+                    userId: typeof p === 'string' ? p : p.userId,
+                    ready: typeof p === 'object' ? p.ready : true,
+                    status: typeof p === 'object' ? p.status : 'completed',
+                    phoneLocked: typeof p === 'object' ? p.phoneLocked : undefined,
+                    rewards: typeof p === 'object' ? p.rewards : undefined,
+                  }));
+
+                  console.log('[QuestStore] Added participant rewards to completed quest:', {
+                    questId: completedQuest.id,
+                    participantCount: completedQuest.participants.length,
+                    firstParticipantRewards: completedQuest.participants[0]?.rewards,
+                  });
+                }
+              } catch (error) {
+                console.error('[QuestStore] Failed to fetch quest run data for rewards:', error);
+                // Continue with base completed quest if fetch fails
+              }
+            }
 
             // Track cooperative quest success
             const cooperativeQuestRun = get().cooperativeQuestRun;
@@ -218,6 +257,13 @@ export const useQuestStore = create<QuestState>()(
               '[QuestStore] Setting state with shouldShowStreakCelebration:',
               shouldShowStreakCelebration
             );
+
+            console.log('[QuestStore] Setting recentCompletedQuest:', {
+              questId: completedQuest.id,
+              questRunId: completedQuest.questRunId,
+              hasParticipants: !!(completedQuest as any).participants,
+              xp: completedQuest.reward.xp,
+            });
 
             set((state) => ({
               activeQuest: null, // Quest is no longer active

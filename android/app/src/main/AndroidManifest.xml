@@ -37,9 +37,8 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="unquest"/>
-        <data android:scheme="com.vaedros.unquest"/>
-        <data android:scheme="exp+unquest-app"/>
         <data android:scheme="com.vaedros.unquest.development"/>
+        <data android:scheme="exp+unquest-app"/>
       </intent-filter>
     </activity>
   </application>

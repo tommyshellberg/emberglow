@@ -3,6 +3,24 @@
 export type FilterType = 'all' | 'story' | 'custom' | 'cooperative';
 export type StatusFilter = 'all' | 'completed' | 'failed';
 
+export interface QuestParticipantRewards {
+  baseXP: number;
+  adjustedXP: number;
+  multiplier: number;
+  perksApplied: string[];
+}
+
+export interface QuestParticipant {
+  userId: string;
+  ready: boolean;
+  status: string;
+  userName?: string;
+  characterType?: string;
+  phoneLocked?: boolean;
+  characterName?: string;
+  rewards?: QuestParticipantRewards;
+}
+
 export interface TransformedQuest {
   id: string;
   questRunId: string;
@@ -20,4 +38,5 @@ export interface TransformedQuest {
   story?: string;
   category?: string;
   recap?: string;
+  participants?: QuestParticipant[];
 }

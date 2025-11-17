@@ -5,6 +5,7 @@ import { TextInput } from 'react-native';
 
 // Import UI components
 import { Text, View } from '@/components/ui';
+import { Env } from '@env';
 
 // Simplified props without react-hook-form dependency
 type CombinedQuestInputProps = {
@@ -105,9 +106,9 @@ export const CombinedQuestInput = ({
           <Slider
             testID="duration-slider"
             style={{ width: '100%', height: 40 }}
-            minimumValue={5}
+            minimumValue={Env.APP_ENV === 'development' ? 1 : 5}
             maximumValue={240}
-            step={5}
+            step={Env.APP_ENV === 'development' ? 1 : 5}
             value={duration}
             onValueChange={handleSliderValueChange}
             onSlidingComplete={handleSlidingComplete}

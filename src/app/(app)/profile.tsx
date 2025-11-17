@@ -11,6 +11,7 @@ import { ExperienceCard } from '@/components/profile/experience-card';
 import { FriendsList } from '@/components/profile/friends-list';
 import { ProfileCard } from '@/components/profile/profile-card';
 import { RescindInvitationModal } from '@/components/profile/rescind-invitation-modal';
+import { SkillsCard } from '@/components/profile/skills-card';
 import { StatsCard } from '@/components/profile/stats-card';
 import {
   FocusAwareStatusBar,
@@ -136,6 +137,12 @@ export default function ProfileScreen() {
           <ActionCards
             onLeaderboardPress={() => router.push('/leaderboard')}
             onAchievementsPress={() => router.push('/achievements')}
+          />
+
+          {/* Skills & Perks */}
+          <SkillsCard
+            character={character}
+            onPress={() => router.push('/skill-tree')}
           />
 
           {/* Experience Progress */}

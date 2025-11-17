@@ -11,7 +11,7 @@ import Animated, {
 import { StreakCounter } from '@/components/StreakCounter';
 import { ScreenContainer, Text, View } from '@/components/ui';
 import { Button } from '@/components/ui/button';
-import { primary, red } from '@/components/ui/colors';
+import { red, secondary } from '@/components/ui/colors';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 
@@ -19,7 +19,6 @@ import { AnimatedStreakDay } from './AnimatedStreakDay';
 import {
   ANIMATION_TIMING,
   COLORS,
-  INTERPOLATION,
   LAYOUT,
 } from './streak-celebration.constants';
 import { generateStreakVisualization } from './streak-visualization.util';
@@ -95,18 +94,18 @@ export default function StreakCelebrationScreen() {
           {/* Streak Counter with Confetti Animation */}
           <View
             className="relative mb-6 w-full items-center justify-center"
-            style={{ height: LAYOUT.CONFETTI_CONTAINER_HEIGHT }}
+            style={{ height: 320 }}
           >
             <LottieView
               ref={lottieRef}
               source={require('@/../assets/animations/congrats.json')}
               style={{
                 position: 'absolute',
-                width: '150%',
-                height: '150%',
+                width: '100%',
+                height: '100%',
                 opacity: 0.8,
               }}
-              loop={false}
+              loop={true}
               autoPlay={false}
               resizeMode="cover"
             />
@@ -118,7 +117,7 @@ export default function StreakCelebrationScreen() {
           {/* Streak Text */}
           <Text
             className="mb-12 text-4xl font-bold"
-            style={{ color: red[300] }}
+            style={{ color: red[500] }}
           >
             day streak!
           </Text>
@@ -181,7 +180,7 @@ export default function StreakCelebrationScreen() {
             {/* Continue Button */}
             <Button
               onPress={handleContinue}
-              style={{ backgroundColor: primary[300] }}
+              style={{ backgroundColor: secondary[300] }}
               accessibilityLabel="Continue to home screen"
               accessibilityRole="button"
               accessibilityHint="Returns to the main app"

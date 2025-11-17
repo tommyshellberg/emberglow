@@ -622,7 +622,74 @@ export default class QuestTimer {
 
         if (activeQuest?.id === this.questTemplate.id) {
           console.log('Completing active quest:', activeQuest.id);
+          console.log('[QuestTimer] Quest completion details:', {
+            questId: activeQuest.id,
+            questRunId: this.questRunId,
+            hasQuestRunId: !!this.questRunId,
+          });
+
           questStore.completeQuest(true);
+
+          // Fetch quest run data from server to get participant rewards
+          // Check the completed quest for questRunId (not this.questRunId which might be stale)
+          const completedQuest = questStore.recentCompletedQuest;
+          const questRunId = completedQuest?.questRunId;
+
+          console.log('[QuestTimer] After completion, checking for questRunId:', {
+            hasCompletedQuest: !!completedQuest,
+            questRunId,
+            thisQuestRunId: this.questRunId,
+          });
+
+          if (questRunId) {
+            try {
+              console.log(
+                '[QuestTimer] Fetching quest run data to get participant rewards:',
+                questRunId
+              );
+              const questRunData = await getQuestRunStatus(questRunId);
+              console.log(
+                '[QuestTimer] Quest run data received:',
+                JSON.stringify({
+                  id: questRunData.id,
+                  status: questRunData.status,
+                  participants: questRunData.participants,
+                })
+              );
+
+              // Update recentCompletedQuest with participants data from server
+              if (completedQuest) {
+                const updatedQuest = {
+                  ...completedQuest,
+                  participants: questRunData.participants as any[], // Server returns participants with rewards
+                };
+
+                console.log('[QuestTimer] Updating quest with participants:', {
+                  questId: updatedQuest.id,
+                  participantCount: questRunData.participants.length,
+                  hasRewards: !!(questRunData.participants[0] as any)?.rewards,
+                });
+
+                useQuestStore.setState({
+                  recentCompletedQuest: updatedQuest,
+                  completedQuests: questStore.completedQuests.map((q) =>
+                    q.id === updatedQuest.id && q.stopTime === updatedQuest.stopTime
+                      ? updatedQuest
+                      : q
+                  ),
+                });
+                console.log(
+                  '[QuestTimer] Updated recentCompletedQuest with participants data'
+                );
+              }
+            } catch (error) {
+              console.error(
+                '[QuestTimer] Failed to fetch quest run data:',
+                error
+              );
+              // Continue anyway - quest is still complete, just without adjusted XP display
+            }
+          }
         } else if (pendingQuest?.id === this.questTemplate.id) {
           console.log(
             'Completing quest that was stuck in pending state:',
@@ -662,6 +729,52 @@ export default class QuestTimer {
           const characterStore = useCharacterStore.getState();
           characterStore.addXP(completedQuest.reward.xp);
           characterStore.updateStreak(questStore.lastCompletedQuestTimestamp);
+
+          // Fetch quest run data from server to get participant rewards
+          const questRunIdFromQuest = completedQuest.questRunId;
+          console.log('[QuestTimer] Pending quest - checking for questRunId:', {
+            questRunId: questRunIdFromQuest,
+            thisQuestRunId: this.questRunId,
+          });
+
+          if (questRunIdFromQuest) {
+            try {
+              console.log(
+                '[QuestTimer] Fetching quest run data for pending quest completion:',
+                questRunIdFromQuest
+              );
+              const questRunData = await getQuestRunStatus(questRunIdFromQuest);
+
+              // Update the completed quest with participants data
+              const updatedQuest = {
+                ...completedQuest,
+                participants: questRunData.participants as any[],
+              };
+
+              console.log('[QuestTimer] Updating pending quest with participants:', {
+                questId: updatedQuest.id,
+                participantCount: questRunData.participants.length,
+                hasRewards: !!(questRunData.participants[0] as any)?.rewards,
+              });
+
+              useQuestStore.setState((state) => ({
+                recentCompletedQuest: updatedQuest,
+                completedQuests: state.completedQuests.map((q) =>
+                  q.id === updatedQuest.id && q.stopTime === updatedQuest.stopTime
+                    ? updatedQuest
+                    : q
+                ),
+              }));
+              console.log(
+                '[QuestTimer] Updated pending quest completion with participants data'
+              );
+            } catch (error) {
+              console.error(
+                '[QuestTimer] Failed to fetch quest run data for pending quest:',
+                error
+              );
+            }
+          }
         }
 
         // Update OneSignal Live Activity with completed status

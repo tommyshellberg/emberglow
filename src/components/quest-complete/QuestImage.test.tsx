@@ -7,6 +7,15 @@ import type { QuestWithMode } from './types';
 // Mock Lottie
 jest.mock('lottie-react-native', () => 'LottieView');
 
+// Mock user store
+jest.mock('@/store/user-store', () => ({
+  useUserStore: jest.fn((selector) =>
+    selector({
+      user: { id: 'user-123', name: 'Test User', email: 'test@example.com' },
+    })
+  ),
+}));
+
 describe('QuestImage', () => {
   const mockStoryQuest: QuestWithMode = {
     id: 'quest-1',
@@ -71,6 +80,72 @@ describe('QuestImage', () => {
 
       const { getByText } = render(<QuestImage quest={questWithLargeXP} />);
       expect(getByText('+9999 XP')).toBeTruthy();
+    });
+
+    it('should display adjusted XP when participant rewards are available', () => {
+      // Quest with base XP of 15, but participant has adjusted XP of 21 (1.4x multiplier from perks)
+      const questWithPerkBonus: QuestWithMode = {
+        ...mockCustomQuest,
+        reward: { xp: 15 },
+        participants: [
+          {
+            userId: 'user-123', // Matches the mocked user ID
+            ready: true,
+            status: 'completed',
+            phoneLocked: true,
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 21, // 15 * 1.4 multiplier from alchemist perk
+              multiplier: 1.4,
+              perksApplied: ['alchemist-household-perk'],
+            },
+          },
+        ],
+      };
+
+      const { getByText, queryByText } = render(
+        <QuestImage quest={questWithPerkBonus} />
+      );
+
+      // Should display adjusted XP, not base XP
+      expect(getByText('+21 XP')).toBeTruthy();
+      expect(queryByText('+15 XP')).toBeFalsy();
+    });
+
+    it('should fall back to base XP when participant rewards are not available', () => {
+      const questWithoutRewards: QuestWithMode = {
+        ...mockCustomQuest,
+        reward: { xp: 15 },
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            phoneLocked: true,
+            // No rewards field
+          },
+        ],
+      };
+
+      const { getByText } = render(<QuestImage quest={questWithoutRewards} />);
+
+      // Should fall back to base XP
+      expect(getByText('+15 XP')).toBeTruthy();
+    });
+
+    it('should fall back to base XP when quest has no participants', () => {
+      const questWithoutParticipants: QuestWithMode = {
+        ...mockCustomQuest,
+        reward: { xp: 20 },
+        // No participants array
+      };
+
+      const { getByText } = render(
+        <QuestImage quest={questWithoutParticipants} />
+      );
+
+      // Should fall back to base XP
+      expect(getByText('+20 XP')).toBeTruthy();
     });
   });
 

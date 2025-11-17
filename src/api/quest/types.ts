@@ -41,6 +41,21 @@ export interface NextAvailableQuestsResponse {
   };
 }
 
+export interface QuestParticipantRewards {
+  baseXP: number;
+  adjustedXP: number;
+  multiplier: number;
+  perksApplied: string[];
+}
+
+export interface QuestRunParticipant {
+  userId: string;
+  ready: boolean;
+  phoneLocked: boolean;
+  status: 'active' | 'failed' | 'completed';
+  rewards?: QuestParticipantRewards;
+}
+
 export interface QuestRun {
   _id: string;
   id: string;
@@ -67,12 +82,7 @@ export interface QuestRun {
     category?: string;
     storylineId?: string;
   };
-  participants: {
-    userId: string;
-    ready: boolean;
-    phoneLocked: boolean;
-    status: 'active' | 'failed' | 'completed';
-  }[];
+  participants: QuestRunParticipant[];
   failureReason?: string;
   failedBy?: string;
   createdAt: string;
