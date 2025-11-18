@@ -1,5 +1,5 @@
-import * as Localization from 'expo-localization';
 import { AppState } from 'react-native';
+import { getTimeZone } from 'react-native-localize';
 
 import * as notificationAPI from '@/api/notification-settings';
 import { useUserStore } from '@/store/user-store';
@@ -19,9 +19,11 @@ jest.mock('@/lib/constants/timezones', () => ({
 }));
 
 // Mock dependencies
-jest.mock('expo-localization');
 jest.mock('@/api/notification-settings');
 jest.mock('@/store/user-store');
+
+// Get the mocked function
+const mockGetTimeZone = getTimeZone as jest.MockedFunction<typeof getTimeZone>;
 
 describe('timezone-service', () => {
   const mockUser = { id: '123', email: 'test@example.com' };
@@ -30,8 +32,7 @@ describe('timezone-service', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // @ts-ignore
-    Localization.timezone = mockTimezone;
+    mockGetTimeZone.mockReturnValue(mockTimezone);
     // @ts-ignore
     useUserStore.getState = jest.fn(() => ({ user: mockUser }));
     // @ts-ignore
@@ -60,8 +61,7 @@ describe('timezone-service', () => {
     });
 
     it('should not sync when timezone is not supported', async () => {
-      // @ts-ignore
-      Localization.timezone = mockUnsupportedTimezone;
+      mockGetTimeZone.mockReturnValue(mockUnsupportedTimezone);
 
       await syncTimezoneWithDevice();
 
@@ -102,8 +102,7 @@ describe('timezone-service', () => {
 
       // Change timezone to trigger another sync
       const newTimezone = 'America/Los_Angeles';
-      // @ts-ignore
-      Localization.timezone = newTimezone;
+      mockGetTimeZone.mockReturnValue(newTimezone);
 
       // @ts-ignore
       notificationAPI.getNotificationSettings.mockRejectedValue(

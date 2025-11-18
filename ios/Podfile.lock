@@ -228,7 +228,7 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (14.0.3):
     - ExpoModulesCore
-  - ExpoContacts (14.0.5):
+  - ExpoContacts (14.2.5):
     - ExpoModulesCore
   - ExpoDevice (7.0.3):
     - ExpoModulesCore
@@ -249,8 +249,6 @@ PODS:
   - ExpoLinearGradient (14.0.2):
     - ExpoModulesCore
   - ExpoLinking (7.0.5):
-    - ExpoModulesCore
-  - ExpoLocalization (16.0.1):
     - ExpoModulesCore
   - ExpoModulesCore (2.2.3):
     - DoubleConversion
@@ -348,9 +346,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - OneSignalXCFramework (5.2.14):
-    - OneSignalXCFramework/OneSignalComplete (= 5.2.14)
-  - OneSignalXCFramework/OneSignal (5.2.14):
+  - OneSignalXCFramework (5.2.15):
+    - OneSignalXCFramework/OneSignalComplete (= 5.2.15)
+  - OneSignalXCFramework/OneSignal (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalExtension
     - OneSignalXCFramework/OneSignalLiveActivities
@@ -358,46 +356,46 @@ PODS:
     - OneSignalXCFramework/OneSignalOSCore
     - OneSignalXCFramework/OneSignalOutcomes
     - OneSignalXCFramework/OneSignalUser
-  - OneSignalXCFramework/OneSignalComplete (5.2.14):
+  - OneSignalXCFramework/OneSignalComplete (5.2.15):
     - OneSignalXCFramework/OneSignal
     - OneSignalXCFramework/OneSignalInAppMessages
     - OneSignalXCFramework/OneSignalLocation
-  - OneSignalXCFramework/OneSignalCore (5.2.14)
-  - OneSignalXCFramework/OneSignalExtension (5.2.14):
+  - OneSignalXCFramework/OneSignalCore (5.2.15)
+  - OneSignalXCFramework/OneSignalExtension (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalOutcomes
-  - OneSignalXCFramework/OneSignalInAppMessages (5.2.14):
+  - OneSignalXCFramework/OneSignalInAppMessages (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalNotifications
     - OneSignalXCFramework/OneSignalOSCore
     - OneSignalXCFramework/OneSignalOutcomes
     - OneSignalXCFramework/OneSignalUser
-  - OneSignalXCFramework/OneSignalLiveActivities (5.2.14):
+  - OneSignalXCFramework/OneSignalLiveActivities (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalOSCore
     - OneSignalXCFramework/OneSignalUser
-  - OneSignalXCFramework/OneSignalLocation (5.2.14):
+  - OneSignalXCFramework/OneSignalLocation (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalNotifications
     - OneSignalXCFramework/OneSignalOSCore
     - OneSignalXCFramework/OneSignalUser
-  - OneSignalXCFramework/OneSignalNotifications (5.2.14):
+  - OneSignalXCFramework/OneSignalNotifications (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalExtension
     - OneSignalXCFramework/OneSignalOutcomes
-  - OneSignalXCFramework/OneSignalOSCore (5.2.14):
+  - OneSignalXCFramework/OneSignalOSCore (5.2.15):
     - OneSignalXCFramework/OneSignalCore
-  - OneSignalXCFramework/OneSignalOutcomes (5.2.14):
+  - OneSignalXCFramework/OneSignalOutcomes (5.2.15):
     - OneSignalXCFramework/OneSignalCore
-  - OneSignalXCFramework/OneSignalUser (5.2.14):
+  - OneSignalXCFramework/OneSignalUser (5.2.15):
     - OneSignalXCFramework/OneSignalCore
     - OneSignalXCFramework/OneSignalNotifications
     - OneSignalXCFramework/OneSignalOSCore
     - OneSignalXCFramework/OneSignalOutcomes
-  - PurchasesHybridCommon (14.2.0):
+  - PurchasesHybridCommon (14.3.0):
     - RevenueCat (= 5.32.0)
-  - PurchasesHybridCommonUI (14.2.0):
-    - PurchasesHybridCommon (= 14.2.0)
+  - PurchasesHybridCommonUI (14.3.0):
+    - PurchasesHybridCommon (= 14.3.0)
     - RevenueCatUI (= 5.32.0)
   - RCT-Folly (2024.10.14.00):
     - boost
@@ -1682,7 +1680,7 @@ PODS:
     - React-Core
   - react-native-get-random-values (1.11.0):
     - React-Core
-  - react-native-keyboard-controller (1.17.5):
+  - react-native-keyboard-controller (1.19.5):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1695,7 +1693,7 @@ PODS:
     - React-featureflags
     - React-graphics
     - React-ImageManager
-    - react-native-keyboard-controller/common (= 1.17.5)
+    - react-native-keyboard-controller/common (= 1.19.5)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-rendererdebug
@@ -1704,7 +1702,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-keyboard-controller/common (1.17.5):
+  - react-native-keyboard-controller/common (1.19.5):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1746,8 +1744,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-onesignal (5.2.13):
-    - OneSignalXCFramework (= 5.2.14)
+  - react-native-onesignal (5.2.14):
+    - OneSignalXCFramework (= 5.2.15)
     - React (< 1.0.0, >= 0.13.0)
   - react-native-restart (0.0.27):
     - React-Core
@@ -2240,7 +2238,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNLocalize (3.5.1):
+  - RNLocalize (3.6.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2261,11 +2259,11 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNPaywalls (8.11.10):
-    - PurchasesHybridCommonUI (= 14.2.0)
+  - RNPaywalls (8.12.0):
+    - PurchasesHybridCommonUI (= 14.3.0)
     - React-Core
-  - RNPurchases (8.11.10):
-    - PurchasesHybridCommon (= 14.2.0)
+  - RNPurchases (8.12.0):
+    - PurchasesHybridCommon (= 14.3.0)
     - React-Core
   - RNReanimated (3.16.7):
     - DoubleConversion
@@ -2354,7 +2352,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNScreens (4.4.0):
+  - RNScreens (4.18.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2375,9 +2373,9 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNScreens/common (= 4.4.0)
+    - RNScreens/common (= 4.18.0)
     - Yoga
-  - RNScreens/common (4.4.0):
+  - RNScreens/common (4.18.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2399,7 +2397,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNSentry (6.10.0):
+  - RNSentry (6.22.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2420,7 +2418,7 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - Sentry/HybridSDK (= 8.48.0)
+    - Sentry/HybridSDK (= 8.56.2)
     - Yoga
   - RNSVG (15.8.0):
     - DoubleConversion
@@ -2468,12 +2466,12 @@ PODS:
   - SDWebImage (5.19.7):
     - SDWebImage/Core (= 5.19.7)
   - SDWebImage/Core (5.19.7)
-  - SDWebImageAVIFCoder (0.11.0):
+  - SDWebImageAVIFCoder (0.11.1):
     - libavif/core (>= 0.11.0)
     - SDWebImage (~> 5.10)
   - SDWebImageSVGCoder (1.7.0):
     - SDWebImage/Core (~> 5.6)
-  - Sentry/HybridSDK (8.48.0)
+  - Sentry/HybridSDK (8.56.2)
   - SocketRocket (0.7.1)
   - Yoga (0.0.0)
 
@@ -2503,7 +2501,6 @@ DEPENDENCIES:
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
-  - ExpoLocalization (from `../node_modules/expo-localization/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
@@ -2667,8 +2664,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-linear-gradient/ios"
   ExpoLinking:
     :path: "../node_modules/expo-linking/ios"
-  ExpoLocalization:
-    :path: "../node_modules/expo-localization/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
   ExpoSecureStore:
@@ -2870,7 +2865,7 @@ SPEC CHECKSUMS:
   expo-dev-menu-interface: 00dc42302a72722fdecec3fa048de84a9133bcc4
   ExpoAsset: 48386d40d53a8c1738929b3ed509bcad595b5516
   ExpoBlur: 392c1207f71d0ecf22371621c1fbd44ba84d9742
-  ExpoContacts: 98484e09e4caccd2daa6042f341dc2e62a29697e
+  ExpoContacts: 43f426162ce3c16c3f993dbac8d120b0ffd3bb87
   ExpoDevice: d36ab4186b6799a28fd449bb9a1c77455f23fd1a
   ExpoFileSystem: 42d363d3b96f9afab980dcef60d5657a4443c655
   ExpoFont: f354e926f8feae5e831ec8087f36652b44a0b188
@@ -2879,7 +2874,6 @@ SPEC CHECKSUMS:
   ExpoKeepAwake: b0171a73665bfcefcfcc311742a72a956e6aa680
   ExpoLinearGradient: 35ebd83b16f80b3add053a2fd68cc328ed927f60
   ExpoLinking: 8d12bee174ba0cdf31239706578e29e74a417402
-  ExpoLocalization: 7776ea3bdb112125390745bbaf919b734b2ad1c7
   ExpoModulesCore: c25d77625038b1968ea1afefc719862c0d8dd993
   ExpoSecureStore: 9a3665d7161dd1031be386e278bffd623658f316
   ExpoSplashScreen: 8261985ce9778f904abc7e31bed3538dce67ed4d
@@ -2897,9 +2891,9 @@ SPEC CHECKSUMS:
   LockState: a23b15645ddaf1220b3ed26202c730b2a5ec9f5c
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: 4ba06e2e4985c53dda6595a880f780e7ff551df1
-  OneSignalXCFramework: 7112f3e89563e41ebc23fe807788f11985ac541c
-  PurchasesHybridCommon: f1650b33e9a1dd04d5e8a40dfe757f39e63f935c
-  PurchasesHybridCommonUI: c573749b8317555ddda02d454d58f7a108462e79
+  OneSignalXCFramework: ea9e14a95b92ad48d9b35037cbae88a9542bdea3
+  PurchasesHybridCommon: 7f0944cc5411bdcd1ea5d69affa6a6f9aaf87b13
+  PurchasesHybridCommonUI: 8149f983d0d5fcc6d2536900c934d3dfb7cbed45
   RCT-Folly: ea9d9256ba7f9322ef911169a9f696e5857b9e17
   RCTDeprecation: ebe712bb05077934b16c6bf25228bdec34b64f83
   RCTRequired: ca91e5dd26b64f577b528044c962baf171c6b716
@@ -2932,9 +2926,9 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: d80ff86c8902872d397d9622f1a97aadcc12cead
   react-native-bg-actions: df114b96b3bec0d97403769fefdbd3b752e32821
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
-  react-native-keyboard-controller: b3d68f377e97666bf539ee7d8d6d77ac7a50f9ca
+  react-native-keyboard-controller: 516c8cdeed447e03584786ee34284f71d2441a41
   react-native-mmkv: 5c69dce0d439e1791a884f6b166e76fc7fadaca6
-  react-native-onesignal: 0829ce2a504db26dd80eaf14d4e0211ea626fe62
+  react-native-onesignal: b68c981956150f288c1585889871affcef3c0b8b
   react-native-restart: 0bc732f4461709022a742bb29bcccf6bbc5b4863
   react-native-safe-area-context: cd916088cac5300c3266876218377518987b995e
   react-native-slider: d8c35cc0162af73c9448f4b18c34d09e841cc1ab
@@ -2972,17 +2966,17 @@ SPEC CHECKSUMS:
   RNDateTimePicker: d1b3b7412981ec0d4f9136b7b2566bc612b0045b
   RNFlashList: 648e2273693600985aaa72a2ef4700e815500901
   RNGestureHandler: fffddeb8af59709c6d8de11b6461a6af63cad532
-  RNLocalize: 7656712a8d03c9b9a394613d52f817331e8de2e6
-  RNPaywalls: d171a521a45a58e4fa647d80001266cfc5b3b0e5
-  RNPurchases: f465d1bc4cc84c2ea46c528930ac602275e047b6
+  RNLocalize: 4cdb6831fcacd86a324f6a75c237ef31273f97e5
+  RNPaywalls: fddf48266ff50d13af5c06989c79aba3ebed14fb
+  RNPurchases: 6070b60f5d8f525a58905df50773f7a3252f0cfa
   RNReanimated: 2e5069649cbab2c946652d3b97589b2ae0526220
-  RNScreens: 362f4c861dd155f898908d5035d97b07a3f1a9d1
-  RNSentry: ac7beae04304d95491a512b5abf6926d4501c73c
+  RNScreens: a106235e487ac8b4f92e57fc11f4d1425e37759d
+  RNSentry: bc0d4437ab65513097b88e1b4ee3b63ec6194009
   RNSVG: b889dc9c1948eeea0576a16cc405c91c37a12c19
   SDWebImage: 8a6b7b160b4d710e2a22b6900e25301075c34cb3
-  SDWebImageAVIFCoder: 00310d246aab3232ce77f1d8f0076f8c4b021d90
+  SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
-  Sentry: 1ca8405451040482877dcd344dfa3ef80b646631
+  Sentry: b53951377b78e21a734f5dc8318e333dbfc682d7
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: feb4910aba9742cfedc059e2b2902e22ffe9954a
 
