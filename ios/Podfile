@@ -52,25 +52,6 @@ target 'Emberglow' do
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
-    # Fix LocalizationModule.swift switch statement exhaustiveness
-    localization_module_path = File.join(installer.sandbox.root, '../..', 'node_modules', 'expo-localization', 'ios', 'LocalizationModule.swift')
-    Pod::UI.puts "Checking for LocalizationModule.swift at: #{localization_module_path}"
-    if File.exist?(localization_module_path)
-      Pod::UI.puts "File found! Applying patch..."
-      content = File.read(localization_module_path)
-      # Check if @unknown default is already added
-      unless content.include?('@unknown default:')
-        # Add @unknown default case before the closing brace of the switch statement
-        content.gsub!(/(\s+case \.iso8601:\s+return "iso8601"\s+)(\})/, "\\1    @unknown default:\n      return \"gregory\"\n    \\2")
-        File.write(localization_module_path, content)
-        Pod::UI.puts "Added @unknown default case to LocalizationModule.swift".green
-      else
-        Pod::UI.puts "Patch already applied, skipping".yellow
-      end
-    else
-      Pod::UI.puts "File not found at expected path".red
-    end
-
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
     installer.target_installation_results.pod_target_installation_results
@@ -85,6 +66,9 @@ target 'Emberglow' do
 end
 
 target 'OneSignalNotificationServiceExtension' do
-  pod 'OneSignalXCFramework', '>= 5.0', '< 6.0'
-  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  pod 'OneSignalXCFramework', '>= 5.0.0', '< 6.0'
+end
+
+target 'liveactivitiesExtension' do
+  pod 'OneSignalXCFramework', '>= 5.0.0', '< 6.0'
 end
