@@ -2518,7 +2518,7 @@ DEPENDENCIES:
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - LockState (from `../modules/lock-state/ios`)
   - lottie-react-native (from `../node_modules/lottie-react-native`)
-  - OneSignalXCFramework (< 6.0, >= 5.0)
+  - OneSignalXCFramework (< 6.0, >= 5.0.0)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCT-Folly/Fabric (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2986,6 +2986,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: feb4910aba9742cfedc059e2b2902e22ffe9954a
 
-PODFILE CHECKSUM: ae44cee97f27dbe12c28087e2789ec0dbf3115d6
+PODFILE CHECKSUM: 81a46c4e0fca53ef5e38fa639d9a301d2e9e2572
 
 COCOAPODS: 1.16.2
