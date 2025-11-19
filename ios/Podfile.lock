@@ -228,7 +228,7 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (14.0.3):
     - ExpoModulesCore
-  - ExpoContacts (14.2.5):
+  - ExpoContacts (14.0.5):
     - ExpoModulesCore
   - ExpoDevice (7.0.3):
     - ExpoModulesCore
@@ -1680,29 +1680,7 @@ PODS:
     - React-Core
   - react-native-get-random-values (1.11.0):
     - React-Core
-  - react-native-keyboard-controller (1.19.5):
-    - DoubleConversion
-    - glog
-    - hermes-engine
-    - RCT-Folly (= 2024.10.14.00)
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - react-native-keyboard-controller/common (= 1.19.5)
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - Yoga
-  - react-native-keyboard-controller/common (1.19.5):
+  - react-native-keyboard-controller (1.12.7):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2238,7 +2216,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNLocalize (3.6.0):
+  - RNLocalize (3.2.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2352,7 +2330,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNScreens (4.18.0):
+  - RNScreens (4.8.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2373,9 +2351,9 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNScreens/common (= 4.18.0)
+    - RNScreens/common (= 4.8.0)
     - Yoga
-  - RNScreens/common (4.18.0):
+  - RNScreens/common (4.8.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2865,7 +2843,7 @@ SPEC CHECKSUMS:
   expo-dev-menu-interface: 00dc42302a72722fdecec3fa048de84a9133bcc4
   ExpoAsset: 48386d40d53a8c1738929b3ed509bcad595b5516
   ExpoBlur: 392c1207f71d0ecf22371621c1fbd44ba84d9742
-  ExpoContacts: 43f426162ce3c16c3f993dbac8d120b0ffd3bb87
+  ExpoContacts: 98484e09e4caccd2daa6042f341dc2e62a29697e
   ExpoDevice: d36ab4186b6799a28fd449bb9a1c77455f23fd1a
   ExpoFileSystem: 42d363d3b96f9afab980dcef60d5657a4443c655
   ExpoFont: f354e926f8feae5e831ec8087f36652b44a0b188
@@ -2926,7 +2904,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: d80ff86c8902872d397d9622f1a97aadcc12cead
   react-native-bg-actions: df114b96b3bec0d97403769fefdbd3b752e32821
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
-  react-native-keyboard-controller: 516c8cdeed447e03584786ee34284f71d2441a41
+  react-native-keyboard-controller: 53b42b4bbc3b787de60266a060770ec4439f27d0
   react-native-mmkv: 5c69dce0d439e1791a884f6b166e76fc7fadaca6
   react-native-onesignal: b68c981956150f288c1585889871affcef3c0b8b
   react-native-restart: 0bc732f4461709022a742bb29bcccf6bbc5b4863
@@ -2966,11 +2944,11 @@ SPEC CHECKSUMS:
   RNDateTimePicker: d1b3b7412981ec0d4f9136b7b2566bc612b0045b
   RNFlashList: 648e2273693600985aaa72a2ef4700e815500901
   RNGestureHandler: fffddeb8af59709c6d8de11b6461a6af63cad532
-  RNLocalize: 4cdb6831fcacd86a324f6a75c237ef31273f97e5
+  RNLocalize: 83ee4176cf805d03c548305a1339d1350b38b76e
   RNPaywalls: fddf48266ff50d13af5c06989c79aba3ebed14fb
   RNPurchases: 6070b60f5d8f525a58905df50773f7a3252f0cfa
   RNReanimated: 2e5069649cbab2c946652d3b97589b2ae0526220
-  RNScreens: a106235e487ac8b4f92e57fc11f4d1425e37759d
+  RNScreens: 02590a1c329e5e9d80bd46c9c8f0050acfeddd7b
   RNSentry: bc0d4437ab65513097b88e1b4ee3b63ec6194009
   RNSVG: b889dc9c1948eeea0576a16cc405c91c37a12c19
   SDWebImage: 8a6b7b160b4d710e2a22b6900e25301075c34cb3
