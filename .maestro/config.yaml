@@ -19,7 +19,7 @@
 #   maestro test .maestro/ --env TEST_EMAIL_TIMESTAMP=$(date +%s)
 # =============================================================================
 
-appId: com.vaedros.unquest.staging
+appId: com.vaedros.unquest
 
 # Global configuration for all flows
 config:
