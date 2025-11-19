@@ -49,7 +49,9 @@ const SCHEME = 'unquest'; // app scheme
  */
 
 const withEnvSuffix = (name) => {
-  return APP_ENV === 'production' ? name : `${name}.${APP_ENV}`;
+  // Use single bundle ID for all environments
+  // Environment differentiation now handled via build schemes and service sandbox modes
+  return name;
 };
 
 /**

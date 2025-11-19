@@ -92,7 +92,7 @@ npm install -g mongosh
 - ✅ Have no expo-dev-client (no dev menu/onboarding screens)
 - ✅ Are production-like builds without dev screens
 - ✅ Point to local development server (configured in `.env.staging`)
-- ✅ Use staging bundle ID: `com.vaedros.unquest.staging`
+- ✅ Use bundle ID: `com.vaedros.unquest`
 
 #### iOS Simulator
 
@@ -290,7 +290,7 @@ This ensures we catch any regressions in XP calculations, level progression, or 
 
 **Solutions**:
 1. Verify you're using **staging build**, not development build
-2. Check installed app bundle ID is `com.vaedros.unquest.staging`
+2. Check installed app bundle ID is `com.vaedros.unquest`
 3. Rebuild staging app if accidentally using development build
 4. Staging builds should have NO dev client or dev menu
 
