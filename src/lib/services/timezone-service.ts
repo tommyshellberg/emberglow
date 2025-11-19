@@ -1,5 +1,5 @@
-import * as Localization from 'expo-localization';
 import { AppState, type AppStateStatus } from 'react-native';
+import { getTimeZone } from 'react-native-localize';
 
 import {
   getNotificationSettings,
@@ -14,7 +14,7 @@ let lastKnownTimezone: string | null = null;
  * Get the current device timezone
  */
 export const getDeviceTimezone = (): string => {
-  return Localization.timezone;
+  return getTimeZone();
 };
 
 /**

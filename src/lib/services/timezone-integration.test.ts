@@ -1,18 +1,17 @@
 /**
  * Integration test to verify timezone detection works with the React Native app
  */
-import * as Localization from 'expo-localization';
+import { getTimeZone } from 'react-native-localize';
 
 import { getDeviceTimezone } from './timezone-service';
 
-// Mock expo-localization
-jest.mock('expo-localization');
+// Get the mocked function
+const mockGetTimeZone = getTimeZone as jest.MockedFunction<typeof getTimeZone>;
 
 describe('Timezone Integration', () => {
-  it('should correctly detect device timezone from expo-localization', () => {
+  it('should correctly detect device timezone from react-native-localize', () => {
     const testTimezone = 'America/Chicago';
-    // @ts-ignore
-    Localization.timezone = testTimezone;
+    mockGetTimeZone.mockReturnValue(testTimezone);
 
     const detectedTimezone = getDeviceTimezone();
 
@@ -29,8 +28,7 @@ describe('Timezone Integration', () => {
     ];
 
     timezones.forEach((tz) => {
-      // @ts-ignore
-      Localization.timezone = tz;
+      mockGetTimeZone.mockReturnValue(tz);
       expect(getDeviceTimezone()).toBe(tz);
     });
   });

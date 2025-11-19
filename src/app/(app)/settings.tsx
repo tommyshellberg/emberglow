@@ -130,6 +130,7 @@ export default function Settings() {
       setSelectedTimezone(notificationSettings.timezone);
     } else {
       const deviceTimezone = Localize.getTimeZone();
+      console.log('deviceTimezone', deviceTimezone);
       // Check if the device timezone is in our supported list
       const isSupported = TIMEZONES.some((tz) => tz.value === deviceTimezone);
       if (isSupported) {

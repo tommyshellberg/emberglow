@@ -25,6 +25,30 @@ jest.mock('react-native-purchases-ui', () => ({
   presentPaywall: jest.fn().mockResolvedValue({ result: 'CANCELLED' }),
 }));
 
+// Mock react-native-localize for timezone detection
+jest.mock('react-native-localize', () => ({
+  getTimeZone: jest.fn(() => 'America/New_York'),
+  getLocales: jest.fn(() => [
+    { countryCode: 'US', languageTag: 'en-US', languageCode: 'en', isRTL: false },
+  ]),
+  getNumberFormatSettings: jest.fn(() => ({
+    decimalSeparator: '.',
+    groupingSeparator: ',',
+  })),
+  getCalendar: jest.fn(() => 'gregorian'),
+  getCountry: jest.fn(() => 'US'),
+  getCurrencies: jest.fn(() => ['USD']),
+  getTemperatureUnit: jest.fn(() => 'fahrenheit'),
+  uses24HourClock: jest.fn(() => false),
+  usesMetricSystem: jest.fn(() => false),
+  usesAutoDateAndTime: jest.fn(() => true),
+  usesAutoTimeZone: jest.fn(() => true),
+  findBestLanguageTag: jest.fn(() => ({
+    languageTag: 'en-US',
+    isRTL: false,
+  })),
+}));
+
 // react-hook form setup for testing
 // @ts-ignore
 global.window = {};
