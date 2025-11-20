@@ -364,22 +364,9 @@ describe('ProfileScreen', () => {
   });
 
   describe('Character Sync', () => {
-    // Note: These tests will be moved to profile-hooks.test.tsx once we extract
-    // the character sync logic to useCharacterSync() custom hook (Phase 3)
-
-    it.skip('syncs character from server for verified users with legacy format', async () => {
-      // TODO: Move to profile-hooks.test.tsx after extracting useCharacterSync
-      // This test requires mocking dynamic imports which is complex
-      // Will be easier to test once logic is in a separate testable hook
-    });
-
-    it.skip('redirects provisional users to onboarding when no character', async () => {
-      // TODO: Move to profile-hooks.test.tsx after extracting useCharacterSync
-    });
-
-    it.skip('handles sync errors gracefully', async () => {
-      // TODO: Move to profile-hooks.test.tsx after extracting useCharacterSync
-    });
+    // Note: Character sync logic has been extracted to useCharacterSync() hook
+    // See: src/features/profile/hooks/profile-hooks.ts
+    // Tests for useCharacterSync should be added to a new test file
 
     it('does not trigger sync when character exists', () => {
       const getUserDetailsSpy = jest.spyOn(userService, 'getUserDetails');

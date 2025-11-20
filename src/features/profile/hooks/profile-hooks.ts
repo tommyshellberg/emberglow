@@ -7,6 +7,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
+import { getUserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import type { CharacterType } from '@/store/types';
@@ -21,28 +22,40 @@ import type { UserWithLegacyCharacter } from '@/features/profile/types/profile-t
  * their character data from the server, or provisional users need to be redirected
  * to onboarding.
  *
+ * @param dependencies - Optional dependencies for testing (characterStore, storage, userService, router)
  * @returns isRedirecting - True if user is being redirected to onboarding
  */
-export function useCharacterSync() {
+export function useCharacterSync(dependencies?: {
+  characterStore?: typeof useCharacterStore;
+  getStorageItem?: typeof getItem;
+  getUserDetails?: typeof getUserDetails;
+  router?: ReturnType<typeof useRouter>;
+}) {
+  // Use provided dependencies or defaults for production
+  const characterStore = dependencies?.characterStore || useCharacterStore;
+  const getStorageItem = dependencies?.getStorageItem || getItem;
+  const getUserDetailsFunc = dependencies?.getUserDetails || getUserDetails;
+  const providedRouter = dependencies?.router;
+
   const router = useRouter();
-  const character = useCharacterStore((state) => state.character);
+  const actualRouter = providedRouter || router;
+  const character = characterStore((state) => state.character);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     if (!character && !isRedirecting) {
       const syncCharacterFromUser = async () => {
         try {
-          const { getUserDetails } = await import('@/lib/services/user');
-          const user: UserWithLegacyCharacter = await getUserDetails();
+          const user: UserWithLegacyCharacter = await getUserDetailsFunc();
 
           // Check if user has character data at the top level (legacy format)
-          const hasLegacyCharacterData =
-            user?.type && user?.name && user?.level !== undefined;
+          // Level is optional and will default to 1 if missing
+          const hasLegacyCharacterData = user?.type && user?.name;
 
           if (hasLegacyCharacterData) {
             // Create character from user data
-            const characterStore = useCharacterStore.getState();
-            characterStore.createCharacter(
+            const characterStoreInstance = characterStore.getState();
+            characterStoreInstance.createCharacter(
               user.type as CharacterType,
               user.name!
             );
@@ -50,7 +63,7 @@ export function useCharacterSync() {
             // Update with level and XP data
             const level = user.level || 1;
 
-            characterStore.updateCharacter({
+            characterStoreInstance.updateCharacter({
               type: user.type!,
               name: user.name!,
               level,
@@ -59,22 +72,22 @@ export function useCharacterSync() {
 
             // Update streak if available
             if (user.dailyQuestStreak !== undefined) {
-              characterStore.setStreak(user.dailyQuestStreak);
+              characterStoreInstance.setStreak(user.dailyQuestStreak);
             }
           } else {
             // Only redirect to onboarding if this is truly a new user
             // Check for provisional data to determine if they're in onboarding
             const hasProvisionalData = !!(
-              getItem('provisionalUserId') ||
-              getItem('provisionalAccessToken') ||
-              getItem('provisionalEmail')
+              getStorageItem('provisionalUserId') ||
+              getStorageItem('provisionalAccessToken') ||
+              getStorageItem('provisionalEmail')
             );
 
             if (hasProvisionalData) {
               // User is in onboarding flow, redirect to choose character
               setIsRedirecting(true);
               setTimeout(() => {
-                router.replace('/onboarding/choose-character');
+                actualRouter.replace('/onboarding/choose-character');
               }, CHARACTER_SYNC.redirectDelay);
             }
             // For verified users without character data, we'll show a message
@@ -88,7 +101,7 @@ export function useCharacterSync() {
 
       syncCharacterFromUser();
     }
-  }, [character, router, isRedirecting]);
+  }, [character, actualRouter, isRedirecting, characterStore, getStorageItem, getUserDetailsFunc]);
 
   return { isRedirecting };
 }
