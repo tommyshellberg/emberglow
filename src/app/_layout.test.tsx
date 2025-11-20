@@ -367,13 +367,21 @@ describe('RootLayout', () => {
     });
 
     // Mock last quest completion from yesterday (but less than 24 hours ago)
-    // Need to use a timestamp that is yesterday's date but within 24 hours
+    // Use yesterday at 11:59 PM to ensure it's:
+    // 1. On a different calendar day (yesterday)
+    // 2. Less than 24 hours ago (unless test runs between midnight-12:01 AM)
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(12, 0, 0, 0); // Yesterday at noon - definitely within 24 hours
+    yesterday.setHours(23, 59, 59, 999); // Yesterday at 11:59:59 PM
+
+    // Safety check: if somehow this is >= 24 hours ago, use exactly 20 hours ago
+    const hoursSince = (Date.now() - yesterday.getTime()) / (1000 * 60 * 60);
+    const lastCompletedTimestamp = hoursSince >= 24
+      ? Date.now() - (20 * 60 * 60 * 1000) // 20 hours ago
+      : yesterday.getTime();
 
     useQuestStore.getState.mockReturnValue({
-      lastCompletedQuestTimestamp: yesterday.getTime(),
+      lastCompletedQuestTimestamp: lastCompletedTimestamp,
       cooperativeQuestRun: null,
       activeQuest: null,
       failQuest: jest.fn(),

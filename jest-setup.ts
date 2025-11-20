@@ -245,5 +245,14 @@ jest.mock('react-native-keyboard-controller', () => {
   };
 });
 
+// Mock react-native-edge-to-edge to prevent timers from running after teardown
+jest.mock('react-native-edge-to-edge', () => ({
+  SystemBars: jest.fn(() => null),
+  setStatusBarStyle: jest.fn(),
+  setNavigationBarColor: jest.fn(),
+  setNavigationBarStyle: jest.fn(),
+  setSystemUIVisibility: jest.fn(),
+}));
+
 // Note: Removed invasive global mocks that were breaking other tests
 // Test-specific mocks should be added in individual test files as needed

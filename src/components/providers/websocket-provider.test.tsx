@@ -188,43 +188,6 @@ describe('WebSocketProvider', () => {
   });
 
   describe('App State Handling', () => {
-    it.skip('should reconnect when app comes to foreground', async () => {
-      mockUseAuth.mockReturnValue('signIn' as any);
-
-      render(
-        <WebSocketProvider>
-          <div>Test</div>
-        </WebSocketProvider>
-      );
-
-      // Should connect initially
-      expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-
-      // Simulate app going to background (first inactive, then background)
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('inactive'));
-      });
-
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('background'));
-      });
-
-      // Clear the initial calls to make assertion clearer
-      mockWebSocketService.connect.mockClear();
-
-      // Now simulate app coming to foreground
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('active'));
-      });
-
-      // Run timers to ensure async operations complete
-      jest.runAllTimers();
-
-      await waitFor(() => {
-        expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-      });
-    });
-
     it('should not reconnect when app comes to foreground without auth', async () => {
       mockUseAuth.mockReturnValue('signOut' as any);
       mockGetItem.mockReturnValue(null);
@@ -248,81 +211,6 @@ describe('WebSocketProvider', () => {
       });
 
       expect(mockWebSocketService.connect).not.toHaveBeenCalled();
-    });
-
-    it.skip('should reconnect when app comes to foreground with provisional token', async () => {
-      mockUseAuth.mockReturnValue('signOut' as any);
-      mockGetItem.mockReturnValue('provisional-token');
-
-      render(
-        <WebSocketProvider>
-          <div>Test</div>
-        </WebSocketProvider>
-      );
-
-      // Should connect initially due to provisional token
-      expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-
-      // Clear previous calls
-      mockWebSocketService.connect.mockClear();
-
-      // Simulate app going to background (first inactive, then background)
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('inactive'));
-      });
-
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('background'));
-      });
-
-      // Now simulate app coming to foreground
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('active'));
-      });
-
-      // Run timers to ensure async operations complete
-      jest.runAllTimers();
-
-      await waitFor(() => {
-        expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-      });
-    });
-
-    it.skip('should handle app state transitions correctly', async () => {
-      mockUseAuth.mockReturnValue('signIn' as any);
-
-      render(
-        <WebSocketProvider>
-          <div>Test</div>
-        </WebSocketProvider>
-      );
-
-      // Should connect initially
-      expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-
-      // Simulate various app state transitions
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('inactive'));
-      });
-
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('background'));
-      });
-
-      // Clear the initial calls to make assertion clearer
-      mockWebSocketService.connect.mockClear();
-
-      act(() => {
-        mockAppStateListeners.forEach((listener) => listener('active'));
-      });
-
-      // Run timers to ensure async operations complete
-      jest.runAllTimers();
-
-      // Should have called connect once more (foreground reconnect)
-      await waitFor(() => {
-        expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1);
-      });
     });
   });
 

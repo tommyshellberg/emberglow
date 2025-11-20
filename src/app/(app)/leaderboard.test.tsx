@@ -19,15 +19,15 @@ jest.mock('@/lib/storage');
 
 // Mock useLeaderboardData hook
 const mockUseLeaderboardData = jest.fn();
-jest.mock('./leaderboard/hooks/use-leaderboard-data', () => ({
+jest.mock('@/features/leaderboard/hooks/use-leaderboard-data', () => ({
   useLeaderboardData: (...args: any[]) => mockUseLeaderboardData(...args),
 }));
 
 // Mock sub-components with actual rendered content for tests to find
-jest.mock('./leaderboard/components/empty-states', () => ({
+jest.mock('@/features/leaderboard/components/empty-states', () => ({
   EmptyStates: 'EmptyStates',
 }));
-jest.mock('./leaderboard/components/leaderboard-header', () => ({
+jest.mock('@/features/leaderboard/components/leaderboard-header', () => ({
   LeaderboardHeader: ({ topUser, type }: any) => {
     const React = jest.requireActual('react');
     const { View, Text } = jest.requireActual('react-native');
@@ -43,7 +43,7 @@ jest.mock('./leaderboard/components/leaderboard-header', () => ({
     ]);
   },
 }));
-jest.mock('./leaderboard/components/leaderboard-item', () => ({
+jest.mock('@/features/leaderboard/components/leaderboard-item', () => ({
   LeaderboardItem: ({ entry, type }: any) => {
     const React = jest.requireActual('react');
     const { View, Text } = jest.requireActual('react-native');
@@ -72,7 +72,7 @@ jest.mock('./leaderboard/components/leaderboard-item', () => ({
     ]);
   },
 }));
-jest.mock('./leaderboard/components/leaderboard-tabs', () => ({
+jest.mock('@/features/leaderboard/components/leaderboard-tabs', () => ({
   LeaderboardTabs: ({ selectedType, onTypeChange }: any) => {
     const React = jest.requireActual('react');
     const { View, TouchableOpacity, Text } = jest.requireActual('react-native');
@@ -95,7 +95,7 @@ jest.mock('./leaderboard/components/leaderboard-tabs', () => ({
     ]);
   },
 }));
-jest.mock('./leaderboard/components/scope-toggle', () => ({
+jest.mock('@/features/leaderboard/components/scope-toggle', () => ({
   ScopeToggle: ({ scope, onScopeChange }: any) => {
     const React = jest.requireActual('react');
     const { View, TouchableOpacity, Text } = jest.requireActual('react-native');
