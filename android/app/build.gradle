@@ -88,9 +88,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.vaedros.unquest.development'
+    namespace 'com.vaedros.unquest'
     defaultConfig {
-        applicationId 'com.vaedros.unquest.development'
+        applicationId 'com.vaedros.unquest'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 26

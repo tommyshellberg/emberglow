@@ -32,7 +32,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>unquest</string>
-          <string>com.vaedros.unquest.development</string>
+          <string>com.vaedros.unquest</string>
         </array>
       </dict>
       <dict>

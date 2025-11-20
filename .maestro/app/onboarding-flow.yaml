@@ -1,4 +1,4 @@
-appId: com.vaedros.unquest.staging
+appId: com.vaedros.unquest
 ---
 # NOTE: This test assumes you've already handled the developer menu
 # Run this after manually dismissing the developer menu or after running a setup test

@@ -1,4 +1,4 @@
-package com.vaedros.unquest.development
+package com.vaedros.unquest
 
 import android.app.Application
 import android.content.res.Configuration
