@@ -20,9 +20,9 @@ jest.mock('lottie-react-native', () => {
 
 describe('UnlockCelebrationModal', () => {
   const mockUniversalPerk: Perk = {
-    id: 'resilient_spirit',
-    name: 'Resilient Spirit',
-    description: 'Protect your streak from breaking once per week',
+    id: 'quick_break',
+    name: 'Quick Break',
+    description: 'Short quests (under 15 min) grant +35% XP',
     levelRequired: 2,
     category: 'universal',
     isUnlocked: true,
@@ -131,7 +131,7 @@ describe('UnlockCelebrationModal', () => {
         />
       );
 
-      expect(getByText('Resilient Spirit')).toBeTruthy();
+      expect(getByText('Quick Break')).toBeTruthy();
     });
 
     it('should display perk description', () => {
@@ -144,7 +144,7 @@ describe('UnlockCelebrationModal', () => {
       );
 
       expect(
-        getByText('Protect your streak from breaking once per week')
+        getByText('Short quests (under 15 min) grant +35% XP')
       ).toBeTruthy();
     });
   });
@@ -231,7 +231,7 @@ describe('UnlockCelebrationModal', () => {
       );
 
       // Tap on the perk name (part of card content)
-      const perkName = getByText('Resilient Spirit');
+      const perkName = getByText('Quick Break');
       fireEvent.press(perkName);
 
       // Should NOT call onClose when tapping card content

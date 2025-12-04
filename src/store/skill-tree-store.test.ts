@@ -6,12 +6,12 @@ describe('skill-tree-store', () => {
   const mockSkillTreeData: SkillTreeResponse = {
     currentLevel: 5,
     characterType: 'knight',
-    unlockedNodes: ['resilient_spirit', 'quest_mastery_quick'],
+    unlockedNodes: ['quick_break', 'quest_mastery_quick'],
     availablePerks: [
       {
-        id: 'resilient_spirit',
-        name: 'Resilient Spirit',
-        description: 'Protect your streak from breaking once per week',
+        id: 'quick_break',
+        name: 'Quick Break',
+        description: 'Short quests (under 15 min) grant +35% XP',
         levelRequired: 2,
         category: 'universal',
         isUnlocked: true,
@@ -124,7 +124,7 @@ describe('skill-tree-store', () => {
 
       expect(unlockedPerks).toHaveLength(2);
       expect(unlockedPerks.map((p) => p.id)).toEqual([
-        'resilient_spirit',
+        'quick_break',
         'quest_mastery',
       ]);
       expect(unlockedPerks.every((p) => p.isUnlocked)).toBe(true);
@@ -157,7 +157,7 @@ describe('skill-tree-store', () => {
     it('returns false when no skill tree data', () => {
       const { hasUnlockedPerk } = useSkillTreeStore.getState();
 
-      expect(hasUnlockedPerk('resilient_spirit')).toBe(false);
+      expect(hasUnlockedPerk('quick_break')).toBe(false);
     });
 
     it('returns true for unlocked perk', () => {
@@ -166,7 +166,7 @@ describe('skill-tree-store', () => {
 
       setSkillTreeData(mockSkillTreeData);
 
-      expect(hasUnlockedPerk('resilient_spirit')).toBe(true);
+      expect(hasUnlockedPerk('quick_break')).toBe(true);
       expect(hasUnlockedPerk('quest_mastery')).toBe(true);
     });
 
@@ -193,7 +193,7 @@ describe('skill-tree-store', () => {
     it('returns null when no skill tree data', () => {
       const { getPerkById } = useSkillTreeStore.getState();
 
-      expect(getPerkById('resilient_spirit')).toBeNull();
+      expect(getPerkById('quick_break')).toBeNull();
     });
 
     it('returns perk when found', () => {
@@ -201,11 +201,11 @@ describe('skill-tree-store', () => {
 
       setSkillTreeData(mockSkillTreeData);
 
-      const perk = getPerkById('resilient_spirit');
+      const perk = getPerkById('quick_break');
 
       expect(perk).not.toBeNull();
-      expect(perk?.id).toBe('resilient_spirit');
-      expect(perk?.name).toBe('Resilient Spirit');
+      expect(perk?.id).toBe('quick_break');
+      expect(perk?.name).toBe('Quick Break');
     });
 
     it('returns null when perk not found', () => {

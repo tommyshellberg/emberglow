@@ -13,11 +13,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useWebSocket } from '@/components/providers/websocket-provider';
-import {
-  CompassAnimation,
-  LockInstructions,
-  QuestCard,
-} from '@/components/quest';
+import { LockInstructions, QuestCard } from '@/components/quest';
 import {
   BackgroundImage,
   Button,
@@ -26,7 +22,6 @@ import {
   View,
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
-import { useCooperativeQuest } from '@/lib/hooks/use-cooperative-quest';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -40,9 +35,6 @@ export default function CooperativePendingQuestScreen() {
   const user = useUserStore((state) => state.user);
   const { addListener, removeListener, joinQuestRoom, leaveQuestRoom } =
     useWebSocket();
-
-  // Use the cooperative quest hook to ensure quest run status is being polled
-  const { questRunStatus } = useCooperativeQuest();
 
   // Countdown state
   const [showCountdown, setShowCountdown] = React.useState(true);
@@ -252,8 +244,6 @@ export default function CooperativePendingQuestScreen() {
             title={pendingQuest.title}
             duration={pendingQuest.durationMinutes}
           >
-            <CompassAnimation size={120} delay={300} />
-
             {/* Motivational Header */}
             <Animated.Text
               entering={FadeInDown.delay(600).duration(800)}

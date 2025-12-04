@@ -33,9 +33,9 @@ describe('SkillsCard', () => {
       // So 2 available points remaining
       const getUnlockedPerks = jest.fn(() => [
         {
-          id: 'resilient_spirit',
-          name: 'Resilient Spirit',
-          description: 'Protect your streak',
+          id: 'quick_break',
+          name: 'Quick Break',
+          description: 'Short quests grant +35% XP',
           levelRequired: 2,
           category: 'universal',
           isUnlocked: true,
@@ -70,12 +70,12 @@ describe('SkillsCard', () => {
         skillTreeData: {
           currentLevel: 5,
           characterType: 'knight',
-          unlockedNodes: ['resilient_spirit', 'quest_mastery_quick'],
+          unlockedNodes: ['quick_break', 'quest_mastery_quick'],
           availablePerks: [
             {
-              id: 'resilient_spirit',
-              name: 'Resilient Spirit',
-              description: 'Protect your streak',
+              id: 'quick_break',
+              name: 'Quick Break',
+              description: 'Short quests grant +35% XP',
               levelRequired: 2,
               category: 'universal',
               isUnlocked: true,
@@ -147,7 +147,7 @@ describe('SkillsCard', () => {
     it('shows preview of unlocked perks', () => {
       render(<SkillsCard character={mockCharacter} onPress={jest.fn()} />);
 
-      expect(screen.getByText('Resilient Spirit')).toBeTruthy();
+      expect(screen.getByText('Quick Break')).toBeTruthy();
       expect(screen.getByText('Quest Mastery')).toBeTruthy();
     });
 
@@ -232,9 +232,9 @@ describe('SkillsCard', () => {
       // Mock skill tree with all perks for level 3 unlocked (3 total: levels 2, 3, 4 are unavailable at level 3)
       const getUnlockedPerks = jest.fn(() => [
         {
-          id: 'resilient_spirit',
-          name: 'Resilient Spirit',
-          description: 'Protect your streak',
+          id: 'quick_break',
+          name: 'Quick Break',
+          description: 'Short quests grant +35% XP',
           levelRequired: 2,
           category: 'universal',
           isUnlocked: true,
@@ -249,12 +249,12 @@ describe('SkillsCard', () => {
         skillTreeData: {
           currentLevel: 3,
           characterType: 'knight',
-          unlockedNodes: ['resilient_spirit'],
+          unlockedNodes: ['quick_break'],
           availablePerks: [
             {
-              id: 'resilient_spirit',
-              name: 'Resilient Spirit',
-              description: 'Protect your streak',
+              id: 'quick_break',
+              name: 'Quick Break',
+              description: 'Short quests grant +35% XP',
               levelRequired: 2,
               category: 'universal',
               isUnlocked: true,
@@ -295,9 +295,9 @@ describe('SkillsCard', () => {
       const getUnlockedPerks = jest.fn(() => []);
       const getAvailablePerksToUnlock = jest.fn(() => [
         {
-          id: 'resilient_spirit',
-          name: 'Resilient Spirit',
-          description: 'Protect your streak',
+          id: 'quick_break',
+          name: 'Quick Break',
+          description: 'Short quests grant +35% XP',
           levelRequired: 2,
           category: 'universal',
           isUnlocked: false,

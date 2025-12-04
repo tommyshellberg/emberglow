@@ -18,9 +18,9 @@ jest.mock('./perk-icon', () => ({
 
 describe('PerkCard', () => {
   const mockUnlockedPerk: Perk = {
-    id: 'resilient_spirit',
-    name: 'Resilient Spirit',
-    description: 'Protect your streak from breaking once per week',
+    id: 'quick_break',
+    name: 'Quick Break',
+    description: 'Short quests (under 15 min) grant +35% XP',
     levelRequired: 2,
     category: 'universal',
     isUnlocked: true,
@@ -181,7 +181,7 @@ describe('PerkCard', () => {
       expect(screen.queryByTestId('perk-card-locked')).toBeNull();
 
       // Check that icon is rendered with full opacity for unlocked perk
-      const icon = screen.getByTestId('perk-icon-resilient_spirit');
+      const icon = screen.getByTestId('perk-icon-quick_break');
       expect(icon).toBeTruthy();
       expect(icon.props.style.opacity).toBe(1);
     });

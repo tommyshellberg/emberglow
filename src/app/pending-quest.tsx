@@ -5,11 +5,12 @@ import { ActivityIndicator } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CompassAnimation } from '@/components/quest';
+import { useQuestRewardPreview } from '@/api/quest-runs';
 import { BackgroundImage, Button, Text, Title, View } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 import { QuestInfoCard } from './pending-quest/components/quest-info-card';
 import {
@@ -24,7 +25,28 @@ export default function PendingQuestScreen() {
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
   const character = useCharacterStore((state) => state.character);
   const cancelQuest = useQuestStore((state) => state.cancelQuest);
+  const userId = useUserStore((state) => state.user?.id);
   const insets = useSafeAreaInsets();
+
+  // Fetch quest reward preview (solo quests only - cooperative has separate screen)
+  // Custom quests need questData, story quests need questTemplateId
+  const isCustomQuest = pendingQuest?.mode === 'custom';
+  const { data: rewardPreview, isLoading: isLoadingPreview } =
+    useQuestRewardPreview({
+      questTemplateId: isCustomQuest ? undefined : pendingQuest?.id,
+      questData: isCustomQuest
+        ? {
+            durationMinutes: pendingQuest?.durationMinutes || 0,
+            category: pendingQuest?.category,
+            mode: 'custom',
+            reward: {
+              xp: pendingQuest?.reward?.xp || 0,
+            },
+          }
+        : undefined,
+      participantIds: userId ? [userId] : [],
+      enabled: !!pendingQuest && !!userId,
+    });
 
   // Use animation hook for all screen animations
   const { headerStyle, cardStyle, buttonStyle, shimmerStyle } =
@@ -65,24 +87,15 @@ export default function PendingQuestScreen() {
           </Title>
         </Animated.View>
 
-        {/* Compass Animation */}
-        <Animated.View
-          entering={FadeInDown.delay(
-            ANIMATION_CONFIG.COMPASS_FADE_DELAY
-          ).duration(ANIMATION_CONFIG.COMPASS_FADE_DURATION)}
-          className="mb-8 items-center"
-        >
-          <CompassAnimation
-            size={UI_CONFIG.COMPASS_SIZE}
-            delay={ANIMATION_CONFIG.COMPASS_ANIMATION_DELAY}
-            color={colors.secondary[300]}
-          />
-        </Animated.View>
-
         {/* Card with Quest Info */}
         <View className="flex-1 justify-center">
           <Animated.View style={cardStyle}>
-            <QuestInfoCard quest={pendingQuest} character={character} />
+            <QuestInfoCard
+              quest={pendingQuest}
+              character={character}
+              rewardPreview={rewardPreview}
+              isLoadingPreview={isLoadingPreview}
+            />
           </Animated.View>
         </View>
 

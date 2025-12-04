@@ -43,13 +43,13 @@ describe('useUnlockPerk', () => {
   const mockUnlockPerkResponse: UnlockPerkResponse = {
     success: true,
     unlockedPerk: {
-      nodeId: 'resilient_spirit',
+      nodeId: 'quick_break',
       unlockedAt: '2025-01-15T10:30:00Z',
     },
     updatedSkillTree: {
       currentLevel: 5,
       characterType: 'knight',
-      unlockedNodes: ['resilient_spirit'],
+      unlockedNodes: ['quick_break'],
       availablePerks: [],
       canRespec: false,
       respecsUsed: 0,
@@ -75,13 +75,13 @@ describe('useUnlockPerk', () => {
     expect(result.current.isPending).toBe(false);
 
     result.current.mutate({
-      nodeId: 'resilient_spirit',
+      nodeId: 'quick_break',
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/skill-tree/unlock', {
-      nodeId: 'resilient_spirit',
+    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/unlock', {
+      nodeId: 'quick_break',
     });
     expect(result.current.data).toEqual(mockUnlockPerkResponse);
     expect(result.current.isError).toBe(false);
@@ -101,7 +101,7 @@ describe('useUnlockPerk', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/skill-tree/unlock', {
+    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/unlock', {
       nodeId: 'quest_mastery',
       choice: 'quest_mastery_quick',
     });
@@ -150,7 +150,7 @@ describe('useUnlockPerk', () => {
     const invalidateSpy = jest.spyOn(result.current.client, 'invalidateQueries');
 
     result.current.mutation.mutate({
-      nodeId: 'resilient_spirit',
+      nodeId: 'quick_break',
     });
 
     await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
@@ -168,7 +168,7 @@ describe('useUnlockPerk', () => {
     });
 
     const unlockPromise = result.current.mutateAsync({
-      nodeId: 'resilient_spirit',
+      nodeId: 'quick_break',
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

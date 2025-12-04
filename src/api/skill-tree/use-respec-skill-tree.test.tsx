@@ -68,7 +68,7 @@ describe('useRespecSkillTree', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/skill-tree/respec');
+    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/respec');
     expect(result.current.data).toEqual(mockRespecResponse);
     expect(result.current.isError).toBe(false);
   });

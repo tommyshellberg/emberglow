@@ -28,7 +28,7 @@ describe('ChoiceNodeModal', () => {
     ],
   };
 
-  it('renders modal with perk title', async () => {
+  it('renders modal with perk description and header', async () => {
     render(
       <ChoiceNodeModal
         perk={mockChoicePerk}
@@ -39,7 +39,8 @@ describe('ChoiceNodeModal', () => {
 
     // Wait for modal to present
     await waitFor(() => {
-      expect(screen.getByText('Quest Mastery')).toBeTruthy();
+      expect(screen.getByText('Choose your quest style')).toBeTruthy();
+      expect(screen.getByText('Choose Your Path')).toBeTruthy();
     });
   });
 
@@ -106,10 +107,11 @@ describe('ChoiceNodeModal', () => {
       />
     );
 
-    // Modal provides close functionality
+    // Modal provides accessible choice buttons
     await waitFor(() => {
-      expect(screen.getByText('Quest Mastery')).toBeTruthy();
+      expect(screen.getByText('Choose Your Path')).toBeTruthy();
       expect(screen.getByTestId('choice-button-quest_mastery_quick')).toBeTruthy();
+      expect(screen.getByTestId('choice-button-quest_mastery_endurance')).toBeTruthy();
     });
   });
 

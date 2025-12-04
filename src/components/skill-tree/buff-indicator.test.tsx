@@ -36,8 +36,17 @@ describe('BuffIndicator', () => {
   });
 
   describe('Expiration time', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2025-01-15T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it('shows time remaining when expiresAt is provided', () => {
-      const futureTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+      const futureTime = new Date('2025-01-15T14:00:00Z'); // 2 hours from system time
       render(
         <BuffIndicator
           name="Streak Bonus"
@@ -61,7 +70,7 @@ describe('BuffIndicator', () => {
   describe('Charges', () => {
     it('shows charge count when provided', () => {
       render(
-        <BuffIndicator name="Resilient Spirit" active={true} charges={2} />
+        <BuffIndicator name="Quick Break" active={true} charges={2} />
       );
 
       expect(screen.getByText('2')).toBeTruthy();
@@ -75,7 +84,7 @@ describe('BuffIndicator', () => {
 
     it('shows zero charges correctly', () => {
       render(
-        <BuffIndicator name="Resilient Spirit" active={false} charges={0} />
+        <BuffIndicator name="Quick Break" active={false} charges={0} />
       );
 
       expect(screen.getByText('0')).toBeTruthy();

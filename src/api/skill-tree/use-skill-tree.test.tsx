@@ -53,12 +53,12 @@ describe('useSkillTree', () => {
   const mockSkillTreeResponse: SkillTreeResponse = {
     currentLevel: 5,
     characterType: 'knight',
-    unlockedNodes: ['resilient_spirit', 'quest_mastery_quick'],
+    unlockedNodes: ['quick_break', 'quest_mastery_quick'],
     availablePerks: [
       {
-        id: 'resilient_spirit',
-        name: 'Resilient Spirit',
-        description: 'Protect your streak from breaking once per week',
+        id: 'quick_break',
+        name: 'Quick Break',
+        description: 'Short quests (under 15 min) grant +35% XP',
         levelRequired: 2,
         category: 'universal',
         isUnlocked: true,
@@ -124,7 +124,7 @@ describe('useSkillTree', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockApiClient.get).toHaveBeenCalledWith('/skill-tree');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/users/me/skill-tree');
       expect(result.current.data).toEqual(mockSkillTreeResponse);
       expect(result.current.isError).toBe(false);
     });
@@ -143,7 +143,7 @@ describe('useSkillTree', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockProvisionalApiClient.get).toHaveBeenCalledWith('/skill-tree');
+      expect(mockProvisionalApiClient.get).toHaveBeenCalledWith('/users/me/skill-tree');
       expect(mockApiClient.get).not.toHaveBeenCalled();
       expect(result.current.data).toEqual(mockSkillTreeResponse);
     });
@@ -170,7 +170,7 @@ describe('useSkillTree', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockApiClient.get).toHaveBeenCalledWith('/skill-tree');
+      expect(mockApiClient.get).toHaveBeenCalledWith('/users/me/skill-tree');
     });
   });
 

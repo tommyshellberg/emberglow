@@ -1,7 +1,11 @@
 import React from 'react';
 
 import { BackgroundImage, ScreenContainer, View } from '@/components/ui';
+import { CompactRewardBreakdown } from '@/features/quest-result/components';
 import { useCustomQuestStory } from '@/hooks/useCustomQuestStory';
+import { calculatePerkBonuses } from '@/lib/perks';
+import { getCurrentUserRewards } from '@/lib/utils/quest-utils';
+import { useUserStore } from '@/store/user-store';
 
 import { QuestCompleteActions } from './quest-complete/QuestCompleteActions';
 import { QuestCompleteHeader } from './quest-complete/QuestCompleteHeader';
@@ -18,6 +22,17 @@ export function QuestComplete({
 }: QuestCompleteProps) {
   const customStory = useCustomQuestStory(quest);
   const displayStory = customStory || story;
+  const currentUserId = useUserStore((state) => state.user?.id);
+
+  // Get reward breakdown data if perks were applied
+  const rewardsData = getCurrentUserRewards(quest, currentUserId);
+  const perksWithBonuses = rewardsData
+    ? calculatePerkBonuses(
+        rewardsData.baseXP,
+        rewardsData.adjustedXP,
+        rewardsData.perksApplied
+      )
+    : [];
 
   return (
     <View className="relative flex-1">
@@ -36,11 +51,24 @@ export function QuestComplete({
           disableAnimations={disableEnteringAnimations}
         />
 
-        <QuestCompleteStory
-          story={displayStory}
-          quest={quest}
-          disableAnimations={disableEnteringAnimations}
-        />
+        <View className="w-full px-2">
+          <QuestCompleteStory
+            story={displayStory}
+            quest={quest}
+            disableAnimations={disableEnteringAnimations}
+          />
+        </View>
+
+        {/* Compact reward breakdown - after story, before actions */}
+        {rewardsData && perksWithBonuses.length > 0 && (
+          <View className="mt-3 w-full px-2">
+            <CompactRewardBreakdown
+              baseXP={rewardsData.baseXP}
+              adjustedXP={rewardsData.adjustedXP}
+              perksApplied={perksWithBonuses}
+            />
+          </View>
+        )}
 
         {showActionButton && (
           <QuestCompleteActions

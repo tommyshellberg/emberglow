@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, useWindowDimensions } from 'react-native';
 import Animated, {
   FadeInDown,
   useAnimatedStyle,
@@ -21,6 +21,7 @@ export function QuestCompleteStory({
   quest,
   disableAnimations = false,
 }: QuestCompleteStoryProps) {
+  const { height: screenHeight } = useWindowDimensions();
   const storyOpacity = useSharedValue(0);
 
   const storyStyle = useAnimatedStyle(() => ({
@@ -41,6 +42,9 @@ export function QuestCompleteStory({
   const isStory = isStoryQuest(quest);
   const displayStory = story || 'Congratulations on completing your quest!';
 
+  // Fixed height: 1/4 of screen height
+  const storyHeight = Math.round(screenHeight * 0.25);
+
   return (
     <Animated.View
       entering={
@@ -48,8 +52,8 @@ export function QuestCompleteStory({
           ? undefined
           : FadeInDown.delay(ANIMATION_TIMING.ENTERING_DELAY_1).duration(600)
       }
-      className="my-2 w-full flex-1"
-      style={storyStyle}
+      className="my-2 w-full"
+      style={[storyStyle, { height: storyHeight }]}
       accessibilityLabel="Quest completion story"
     >
       <Card className="flex-1 rounded-xl">

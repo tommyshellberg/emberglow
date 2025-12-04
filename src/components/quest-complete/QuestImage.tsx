@@ -42,7 +42,7 @@ export function QuestImage({
 
   return (
     <View
-      className="relative mx-auto size-[160px] overflow-hidden rounded-xl shadow-lg"
+      className="relative mx-auto size-[140px] overflow-hidden rounded-xl shadow-lg"
       accessibilityLabel="Quest completion image"
       testID="quest-image-container"
     >
@@ -76,11 +76,11 @@ export function QuestImage({
       {/* XP badge positioned at bottom center */}
       <View className="absolute inset-x-0 bottom-2 items-center">
         <View
-          className="rounded-full bg-white/90 px-3 py-1 shadow-md"
+          className="rounded-full bg-primary-500 px-3 py-1 shadow-md"
           accessibilityLabel={`Experience points reward: ${displayXP} XP`}
           accessibilityRole="text"
         >
-          <Text className="text-sm font-bold text-neutral-800">
+          <Text className="text-sm font-bold text-cream-500">
             +{displayXP} XP
           </Text>
         </View>

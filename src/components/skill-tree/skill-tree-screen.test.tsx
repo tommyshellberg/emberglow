@@ -37,12 +37,12 @@ describe('SkillTreeScreen', () => {
   const mockSkillTreeData: SkillTreeResponse = {
     currentLevel: 5,
     characterType: 'knight',
-    unlockedNodes: ['resilient_spirit'],
+    unlockedNodes: ['quick_break'],
     availablePerks: [
       {
-        id: 'resilient_spirit',
-        name: 'Resilient Spirit',
-        description: 'Protect your streak from breaking once per week',
+        id: 'quick_break',
+        name: 'Quick Break',
+        description: 'Short quests (under 15 min) grant +35% XP',
         levelRequired: 2,
         category: 'universal',
         isUnlocked: true,
@@ -158,7 +158,7 @@ describe('SkillTreeScreen', () => {
     it('renders all perks', () => {
       render(<SkillTreeScreen />);
 
-      expect(screen.getByText('Resilient Spirit')).toBeTruthy();
+      expect(screen.getByText('Quick Break')).toBeTruthy();
       expect(screen.getByText('Quest Mastery')).toBeTruthy();
       expect(screen.getByText('Streak Master')).toBeTruthy();
       expect(screen.getByText('Iron Will')).toBeTruthy();
@@ -178,7 +178,7 @@ describe('SkillTreeScreen', () => {
       fireEvent.press(unlockedFilter);
 
       await waitFor(() => {
-        expect(screen.getByText('Resilient Spirit')).toBeTruthy();
+        expect(screen.getByText('Quick Break')).toBeTruthy();
         // Quest Mastery should not be visible (it's not unlocked)
         const questMasteryElements = screen.queryAllByText('Quest Mastery');
         expect(questMasteryElements).toHaveLength(0);
@@ -193,8 +193,8 @@ describe('SkillTreeScreen', () => {
       fireEvent.press(lockedFilter);
 
       await waitFor(() => {
-        // Resilient Spirit should not be visible (it's unlocked, not locked)
-        const resilientSpiritElements = screen.queryAllByText('Resilient Spirit');
+        // Quick Break should not be visible (it's unlocked, not locked)
+        const resilientSpiritElements = screen.queryAllByText('Quick Break');
         expect(resilientSpiritElements).toHaveLength(0);
         expect(screen.getByText('Streak Master')).toBeTruthy();
       });
@@ -210,8 +210,8 @@ describe('SkillTreeScreen', () => {
         // Quest Mastery and Iron Will are available (level 4 and 3, current level is 5)
         expect(screen.getByText('Quest Mastery')).toBeTruthy();
         expect(screen.getByText('Iron Will')).toBeTruthy();
-        // Resilient Spirit is unlocked, should not show
-        expect(screen.queryByText('Resilient Spirit')).toBeNull();
+        // Quick Break is unlocked, should not show
+        expect(screen.queryByText('Quick Break')).toBeNull();
         // Streak Master is locked (level 6 > 5), should not show
         expect(screen.queryByText('Streak Master')).toBeNull();
       });
@@ -297,16 +297,16 @@ describe('SkillTreeScreen', () => {
 
       // Get all perk cards by their text content
       const perkNames = screen
-        .getAllByText(/Quest Mastery|Iron Will|Resilient Spirit|Streak Master/)
+        .getAllByText(/Quest Mastery|Iron Will|Quick Break|Streak Master/)
         .map((node) => node.props.children);
 
       // Expected order: available perks first (sorted by level), then unlocked, then locked
       // Available: Iron Will (level 3), Quest Mastery (level 4)
-      // Unlocked: Resilient Spirit (level 2)
+      // Unlocked: Quick Break (level 2)
       // Locked: Streak Master (level 6 > current level 5)
       expect(perkNames[0]).toBe('Iron Will'); // available, level 3
       expect(perkNames[1]).toBe('Quest Mastery'); // available, level 4
-      expect(perkNames[2]).toBe('Resilient Spirit'); // unlocked
+      expect(perkNames[2]).toBe('Quick Break'); // unlocked
       expect(perkNames[3]).toBe('Streak Master'); // locked
     });
   });

@@ -5,6 +5,7 @@ module.exports = {
   black: '#00121b', // Very dark midnight blue for main backgrounds
   background: '#162034', // Very dark midnight blue
   brown: '#f7a44b', // sandy brown
+  cinnamon: '#d94928', // brand
 
   cream: {
     100: '#faf8f4',
