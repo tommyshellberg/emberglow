@@ -54,6 +54,7 @@ export type Quest = (StoryQuestTemplate | CustomQuestTemplate) & {
   customId?: string; // Preserve the original quest template ID (e.g., 'quest-1', 'quest-4')
   questRunId?: string; // Server quest run ID for reflection tracking
   reflection?: QuestReflection; // Optional reflection data
+  participants?: QuestParticipant[]; // Quest participants with rewards (for completed quests)
 };
 
 export interface Character {
@@ -103,6 +104,13 @@ export type POI = {
 };
 
 // Cooperative Quest Types
+export interface QuestParticipantRewards {
+  baseXP: number;
+  adjustedXP: number;
+  multiplier: number;
+  perksApplied: string[];
+}
+
 export interface QuestParticipant {
   userId: string;
   ready: boolean;
@@ -117,6 +125,7 @@ export interface QuestParticipant {
   characterType?: CharacterType;
   phoneLocked?: boolean;
   characterName?: string;
+  rewards?: QuestParticipantRewards;
 }
 
 export interface CooperativeQuestRun {

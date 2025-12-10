@@ -10,8 +10,6 @@ import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { FocusAwareStatusBar, ScreenHeader, Text, View } from '@/components/ui';
 import colors from '@/components/ui/colors';
-import { useQuestStore } from '@/store/quest-store';
-
 import {
   ADD_REFLECTION_BUTTON_TEXT,
   APP_HOME_ROUTE,
@@ -26,6 +24,7 @@ import {
   REFLECTION_ROUTE,
   SCREEN_TITLE,
 } from '@/features/quest/constants/quest-details.constants';
+import { useQuestStore } from '@/store/quest-store';
 
 export default function AppQuestDetailsScreen() {
   const { id, timestamp, from, questData } = useLocalSearchParams<{
@@ -191,126 +190,124 @@ export default function AppQuestDetailsScreen() {
           onBackPress={handleBackNavigation}
         />
 
-        {/* Show reflection section - only for completed quests */}
-        {from === 'journal' && quest.status === 'completed' && (
+        {/* Show existing reflection section at top - only when viewing from journal */}
+        {from === 'journal' && hasReflection && (
           <View className="mx-4 mb-4">
-            {hasReflection ? (
-              <>
-                {/* Collapsible reflection header */}
-                <TouchableOpacity
-                  onPress={() => setIsReflectionExpanded(!isReflectionExpanded)}
-                  className="flex-row items-center justify-between rounded-lg bg-cardBackground p-4 shadow-md"
-                  accessibilityLabel={`${REFLECTION_HEADER_TEXT} section`}
-                  accessibilityRole="button"
-                  accessibilityHint={`${isReflectionExpanded ? 'Collapse' : 'Expand'} reflection details`}
-                  accessibilityState={{ expanded: isReflectionExpanded }}
-                >
-                  <View className="flex-row items-center">
-                    <Notebook size={22} color={colors.secondary[300]} />
-                    <Text className="ml-3 text-base font-semibold text-white">
-                      {REFLECTION_HEADER_TEXT}
-                    </Text>
-                    <View className="ml-3 rounded-full bg-secondary-400 px-3 py-1">
-                      <Text className="text-xs font-medium text-white">
-                        {REFLECTION_ADDED_BADGE_TEXT}
+            {/* Collapsible reflection header */}
+            <TouchableOpacity
+              onPress={() => setIsReflectionExpanded(!isReflectionExpanded)}
+              className="flex-row items-center justify-between rounded-lg bg-cardBackground p-4 shadow-md"
+              accessibilityLabel={`${REFLECTION_HEADER_TEXT} section`}
+              accessibilityRole="button"
+              accessibilityHint={`${isReflectionExpanded ? 'Collapse' : 'Expand'} reflection details`}
+              accessibilityState={{ expanded: isReflectionExpanded }}
+            >
+              <View className="flex-row items-center">
+                <Notebook size={22} color={colors.secondary[300]} />
+                <Text className="ml-3 text-base font-semibold text-white">
+                  {REFLECTION_HEADER_TEXT}
+                </Text>
+                <View className="ml-3 rounded-full bg-secondary-400 px-3 py-1">
+                  <Text className="text-xs font-medium text-white">
+                    {REFLECTION_ADDED_BADGE_TEXT}
+                  </Text>
+                </View>
+              </View>
+              {isReflectionExpanded ? (
+                <ChevronUp size={20} color={colors.secondary[300]} />
+              ) : (
+                <ChevronDown size={20} color={colors.secondary[300]} />
+              )}
+            </TouchableOpacity>
+
+            {/* Expandable reflection content */}
+            {isReflectionExpanded && (
+              <View className="mt-2 rounded-lg bg-cardBackground p-4 shadow-md">
+                <View className="flex-row">
+                  {/* Left side: Mood emoji */}
+                  {(serverReflection?.mood || quest.reflection?.mood) && (
+                    <View className="mr-4 items-center justify-center">
+                      <Text className="text-4xl">
+                        {
+                          MOOD_EMOJIS[
+                            (serverReflection?.mood ||
+                              quest.reflection
+                                ?.mood) as keyof typeof MOOD_EMOJIS
+                          ]
+                        }
                       </Text>
                     </View>
-                  </View>
-                  {isReflectionExpanded ? (
-                    <ChevronUp size={20} color={colors.secondary[300]} />
-                  ) : (
-                    <ChevronDown size={20} color={colors.secondary[300]} />
                   )}
-                </TouchableOpacity>
 
-                {/* Expandable reflection content */}
-                {isReflectionExpanded && (
-                  <View className="mt-2 rounded-lg bg-cardBackground p-4 shadow-md">
-                    <View className="flex-row">
-                      {/* Left side: Mood emoji */}
-                      {(serverReflection?.mood || quest.reflection?.mood) && (
-                        <View className="mr-4 items-center justify-center">
-                          <Text className="text-4xl">
-                            {
-                              MOOD_EMOJIS[
-                                (serverReflection?.mood ||
-                                  quest.reflection
-                                    ?.mood) as keyof typeof MOOD_EMOJIS
-                              ]
-                            }
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Right side: Activities and Note */}
-                      <View className="flex-1">
-                        {/* Activities as title */}
-                        {(serverReflection?.activities?.length ||
-                          quest.reflection?.activities?.length) && (
-                          <View className="mb-2 flex-row flex-wrap">
-                            {(
-                              serverReflection?.activities ||
-                              quest.reflection?.activities ||
-                              []
-                            ).map((activity: string) => (
-                              <View
-                                className="mr-2 rounded-xl border-primary-500 bg-primary-200 px-2 py-1 shadow-sm"
-                                key={activity}
-                              >
-                                <Text className="font-bold capitalize text-black">
-                                  {activity}{' '}
-                                </Text>
-                              </View>
-                            ))}
+                  {/* Right side: Activities and Note */}
+                  <View className="flex-1">
+                    {/* Activities as title */}
+                    {(serverReflection?.activities?.length ||
+                      quest.reflection?.activities?.length) && (
+                      <View className="mb-2 flex-row flex-wrap">
+                        {(
+                          serverReflection?.activities ||
+                          quest.reflection?.activities ||
+                          []
+                        ).map((activity: string) => (
+                          <View
+                            className="mr-2 rounded-xl border-primary-500 bg-primary-200 px-2 py-1 shadow-sm"
+                            key={activity}
+                          >
+                            <Text className="font-bold capitalize text-black">
+                              {activity}{' '}
+                            </Text>
                           </View>
-                        )}
-
-                        {/* Note underneath */}
-                        {(serverReflection?.text || quest.reflection?.text) && (
-                          <Text className="text-sm leading-relaxed text-neutral-200">
-                            {serverReflection?.text || quest.reflection?.text}
-                          </Text>
-                        )}
+                        ))}
                       </View>
-                    </View>
+                    )}
+
+                    {/* Note underneath */}
+                    {(serverReflection?.text || quest.reflection?.text) && (
+                      <Text className="text-sm leading-relaxed text-neutral-200">
+                        {serverReflection?.text || quest.reflection?.text}
+                      </Text>
+                    )}
                   </View>
-                )}
-              </>
-            ) : (
-              // Show "Add Reflection" button if no reflection exists
-              quest.questRunId && (
-                <TouchableOpacity
-                  onPress={() => {
-                    router.push({
-                      pathname: REFLECTION_ROUTE,
-                      params: {
-                        questId: quest.id,
-                        questRunId: quest.questRunId,
-                        duration: quest.durationMinutes,
-                        from: REFLECTION_PARAM_FROM_VALUE,
-                      },
-                    });
-                  }}
-                  className="flex-row items-center justify-center rounded-lg px-6 py-4 shadow-lg"
-                  style={{
-                    backgroundColor: colors.primary[400],
-                    shadowColor: colors.primary[400],
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 3,
-                    elevation: 3,
-                  }}
-                  accessibilityLabel={ADD_REFLECTION_BUTTON_TEXT}
-                  accessibilityRole="button"
-                  accessibilityHint="Navigate to the reflection screen to add your thoughts about this quest"
-                >
-                  <Notebook size={22} color={colors.white} />
-                  <Text className="ml-3 text-base font-semibold text-white">
-                    {ADD_REFLECTION_BUTTON_TEXT}
-                  </Text>
-                </TouchableOpacity>
-              )
+                </View>
+              </View>
             )}
+          </View>
+        )}
+
+        {/* Add Reflection button at top - only when no reflection exists */}
+        {from === 'journal' && !hasReflection && quest.questRunId && (
+          <View className="mx-4 mb-4">
+            <TouchableOpacity
+              onPress={() => {
+                router.push({
+                  pathname: REFLECTION_ROUTE,
+                  params: {
+                    questId: quest.id,
+                    questRunId: quest.questRunId,
+                    duration: quest.durationMinutes,
+                    from: REFLECTION_PARAM_FROM_VALUE,
+                  },
+                });
+              }}
+              className="flex-row items-center justify-center rounded-lg px-4 py-2.5 shadow-md"
+              style={{
+                backgroundColor: colors.cinnamon,
+                shadowColor: colors.cinnamon,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 2,
+                elevation: 2,
+              }}
+              accessibilityLabel={ADD_REFLECTION_BUTTON_TEXT}
+              accessibilityRole="button"
+              accessibilityHint="Navigate to the reflection screen to add your thoughts about this quest"
+            >
+              <Notebook size={18} color={colors.white} />
+              <Text className="ml-2 text-sm font-semibold text-white">
+                {ADD_REFLECTION_BUTTON_TEXT}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 

@@ -24,6 +24,7 @@ jest.mock('expo-router', () => ({
 jest.mock('lucide-react-native', () => ({
   Award: () => null,
   TrendingUp: () => null,
+  Sparkles: () => null,
 }));
 
 // Mock UI components

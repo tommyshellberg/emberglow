@@ -72,6 +72,7 @@ export function transformQuestRun(run: QuestRun): TransformedQuest | null {
     story: run.quest.story,
     category: run.quest.category,
     recap: run.quest.recap,
+    participants: run.participants,
   };
 }
 

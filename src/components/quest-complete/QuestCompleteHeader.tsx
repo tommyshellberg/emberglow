@@ -6,7 +6,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Text, Title } from '@/components/ui';
+import { Text } from '@/components/ui';
 
 import { ANIMATION_TIMING } from './constants';
 import { QuestImage } from './QuestImage';
@@ -39,9 +39,9 @@ export function QuestCompleteHeader({
       style={headerStyle}
       accessibilityRole="header"
     >
-      <Title variant="centered" className="mb-2 drop-shadow-md">
+      <Text className="mb-2 text-center font-quest text-3xl text-cream-500 drop-shadow-md">
         Quest Complete!
-      </Title>
+      </Text>
 
       {quest.title && (
         <Text className="mb-4 text-center text-lg font-medium italic text-white drop-shadow-md">

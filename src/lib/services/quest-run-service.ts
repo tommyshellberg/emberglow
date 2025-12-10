@@ -26,10 +26,22 @@ export interface QuestRunResponse {
   scheduledEndTime?: number;
 }
 
+interface QuestParticipantRewards {
+  baseXP: number;
+  adjustedXP: number;
+  multiplier: number;
+  perksApplied: string[];
+}
+
 interface QuestParticipant {
   userId: string;
   ready: boolean;
   status: string;
+  userName?: string;
+  characterType?: string;
+  phoneLocked?: boolean;
+  characterName?: string;
+  rewards?: QuestParticipantRewards;
 }
 
 const generateQuestRunBodyCustom = (questTemplate: CustomQuestTemplate) => {

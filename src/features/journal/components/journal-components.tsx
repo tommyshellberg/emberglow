@@ -7,6 +7,8 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from '@/components/ui';
 import { Chip } from '@/components/ui/chip';
 import colors from '@/components/ui/colors';
+import { getCurrentUserAdjustedXP } from '@/lib/utils/quest-utils';
+import { useUserStore } from '@/store/user-store';
 
 import type {
   FilterType,
@@ -116,6 +118,19 @@ interface QuestStatsRowProps {
 }
 
 export function QuestStatsRow({ quest }: QuestStatsRowProps) {
+  const currentUserId = useUserStore((state) => state.user?.id);
+
+  // Get the XP to display - use adjusted XP from rewards if available
+  const displayXP = getCurrentUserAdjustedXP(quest, currentUserId);
+
+  // Debug: Log what XP we're displaying
+  console.log('[JournalQuestStatsRow] Displaying XP:', {
+    questId: quest.id,
+    displayXP,
+    baseXP: quest.reward.xp,
+    hasParticipants: !!quest.participants,
+  });
+
   return (
     <View className="mt-2 flex-row items-center">
       {/* XP - only show for completed quests */}
@@ -123,7 +138,7 @@ export function QuestStatsRow({ quest }: QuestStatsRowProps) {
         <View className="mr-3 flex-row items-center">
           <Feather name="award" size={14} color={colors.secondary[100]} />
           <Text className="ml-1 text-sm text-secondary-100">
-            {quest.reward.xp} XP
+            {displayXP} XP
           </Text>
         </View>
       )}

@@ -2,6 +2,8 @@ import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef } from 'react';
 
 import { Image, Text, View } from '@/components/ui';
+import { getCurrentUserAdjustedXP } from '@/lib/utils/quest-utils';
+import { useUserStore } from '@/store/user-store';
 
 import { ANIMATION_TIMING } from './constants';
 import type { QuestImageProps } from './types';
@@ -12,6 +14,19 @@ export function QuestImage({
   disableAnimations = false,
 }: QuestImageProps) {
   const lottieRef = useRef<LottieView>(null);
+  const currentUserId = useUserStore((state) => state.user?.id);
+
+  // Get the XP to display - use adjusted XP from rewards if available
+  const displayXP = getCurrentUserAdjustedXP(quest, currentUserId);
+
+  // Debug: Log what XP we're displaying
+  console.log('[QuestImage] Displaying XP:', {
+    displayXP,
+    baseXP: quest.reward.xp,
+    hasParticipants: !!quest.participants,
+    participantCount: quest.participants?.length,
+    currentUserId,
+  });
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -27,7 +42,7 @@ export function QuestImage({
 
   return (
     <View
-      className="relative mx-auto size-[160px] overflow-hidden rounded-xl shadow-lg"
+      className="relative mx-auto size-[140px] overflow-hidden rounded-xl shadow-lg"
       accessibilityLabel="Quest completion image"
       testID="quest-image-container"
     >
@@ -47,7 +62,7 @@ export function QuestImage({
       {/* Lottie animation overlay */}
       <LottieView
         ref={lottieRef}
-        source={require('@/../assets/animations/congrats.lottie')}
+        source={require('@/../assets/animations/congrats.json')}
         autoPlay={false}
         loop={false}
         style={{
@@ -61,12 +76,12 @@ export function QuestImage({
       {/* XP badge positioned at bottom center */}
       <View className="absolute inset-x-0 bottom-2 items-center">
         <View
-          className="rounded-full bg-white/90 px-3 py-1 shadow-md"
-          accessibilityLabel={`Experience points reward: ${quest.reward.xp} XP`}
+          className="rounded-full bg-primary-500 px-3 py-1 shadow-md"
+          accessibilityLabel={`Experience points reward: ${displayXP} XP`}
           accessibilityRole="text"
         >
-          <Text className="text-sm font-bold text-neutral-800">
-            +{quest.reward.xp} XP
+          <Text className="text-sm font-bold text-cream-500">
+            +{displayXP} XP
           </Text>
         </View>
       </View>

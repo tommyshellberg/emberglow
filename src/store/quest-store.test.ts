@@ -192,7 +192,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     jest.clearAllMocks();
   });
 
-  test('should return quest-1 when no quests are completed', () => {
+  test('should return quest-1 when no quests are completed', async () => {
     // Act
     useQuestStore.getState().refreshAvailableQuests();
 
@@ -202,7 +202,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests[0].id).toBe('quest-1');
   });
 
-  test('should return quest-1a and quest-1b when quest-1 is completed', () => {
+  test('should return quest-1a and quest-1b when quest-1 is completed', async () => {
     // Arrange
     const completedQuest = createCompletedQuest('quest-1', Date.now());
     useQuestStore.setState({
@@ -221,7 +221,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     ]);
   });
 
-  test('should return quest-2 when quest-1 and quest-1a are completed', () => {
+  test('should return quest-2 when quest-1 and quest-1a are completed', async () => {
     // Arrange
     const completedQuests = [
       createCompletedQuest('quest-1', Date.now() - 3000), // Older completion
@@ -241,7 +241,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests[0].id).toBe('quest-2');
   });
 
-  test('should return quest-3 when all previous quests in the chosen path are completed', () => {
+  test('should return quest-3 when all previous quests in the chosen path are completed', async () => {
     // Arrange - quest-1 → quest-1a → quest-2 → quest-2a path is completed
     const completedQuests = [
       createCompletedQuest('quest-1', Date.now() - 7000),
@@ -263,7 +263,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests[0].id).toBe('quest-3');
   });
 
-  test('should not return quest-1b if player already progressed through quest-1a path', () => {
+  test('should not return quest-1b if player already progressed through quest-1a path', async () => {
     // Arrange - player went through quest-1 → quest-1a → quest-2
     const completedQuests = [
       createCompletedQuest('quest-1', Date.now() - 5000),
@@ -286,7 +286,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     ).toBeUndefined();
   });
 
-  test('should correctly handle completing a quest with no options', () => {
+  test('should correctly handle completing a quest with no options', async () => {
     // Arrange - quest with no options (quest-3 doesn't have options in our fixture)
     const completedQuests = [
       createCompletedQuest('quest-1', Date.now() - 7000),
@@ -309,7 +309,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests.length).toBe(0);
   });
 
-  test('should start a quest and move it from pending to active', () => {
+  test('should start a quest and move it from pending to active', async () => {
     // Arrange
     const pendingQuest = {
       id: 'quest-1',
@@ -339,7 +339,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.pendingQuest).toBeNull();
   });
 
-  test('should cancel an active quest', () => {
+  test('should cancel an active quest', async () => {
     // Arrange
     const activeQuest = {
       id: 'quest-1',
@@ -370,7 +370,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(QuestTimer.stopQuest).toHaveBeenCalled();
   });
 
-  test('should cancel a pending quest', () => {
+  test('should cancel a pending quest', async () => {
     // Arrange
     const pendingQuest = {
       id: 'quest-1',
@@ -395,7 +395,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(QuestTimer.stopQuest).toHaveBeenCalled();
   });
 
-  test('should reset failed quest', () => {
+  test('should reset failed quest', async () => {
     // Arrange
     const failedQuest = {
       id: 'quest-1',
@@ -418,7 +418,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.failedQuest).toBeNull();
   });
 
-  test('should clear recent completed quest', () => {
+  test('should clear recent completed quest', async () => {
     // Arrange
     const completedQuest = {
       id: 'quest-1',
@@ -441,7 +441,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.recentCompletedQuest).toBeNull();
   });
 
-  test('should get completed quests', () => {
+  test('should get completed quests', async () => {
     // Arrange
     const completedQuests = [
       createCompletedQuest('quest-1', Date.now() - 2000),
@@ -457,7 +457,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(result).toEqual(completedQuests);
   });
 
-  test('should set live activity ID', () => {
+  test('should set live activity ID', async () => {
     // Act
     useQuestStore.getState().setLiveActivityId('activity-123');
 
@@ -473,7 +473,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.currentLiveActivityId).toBeNull();
   });
 
-  test('should set current invitation', () => {
+  test('should set current invitation', async () => {
     // Arrange
     const invitation: any = {
       id: 'inv-123',
@@ -490,7 +490,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.currentInvitation).toEqual(invitation);
   });
 
-  test('should set pending invitations', () => {
+  test('should set pending invitations', async () => {
     // Arrange
     const invitations: any[] = [
       { id: 'inv-1', questId: 'quest-1', status: 'pending' },
@@ -505,7 +505,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.pendingInvitations).toEqual(invitations);
   });
 
-  test('should set server available quests', () => {
+  test('should set server available quests', async () => {
     // Arrange
     const serverQuests: any[] = [
       {
@@ -569,7 +569,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       } = require('@/lib/services/notifications');
 
       // Act
-      const result = useQuestStore.getState().completeQuest();
+      const result = await await useQuestStore.getState().completeQuest();
 
       // Assert
       expect(result).toMatchObject({
@@ -600,7 +600,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(scheduleStreakWarningNotification).toHaveBeenCalledWith(true);
     });
 
-    test('should complete quest with ignoreDuration flag', () => {
+    test('should complete quest with ignoreDuration flag', async () => {
       // Arrange - quest that hasn't met duration
       const startTime = Date.now() - 60000; // 1 minute ago
       const activeQuest = {
@@ -619,7 +619,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Act
-      const result = useQuestStore.getState().completeQuest(true); // ignore duration
+      const result = await useQuestStore.getState().completeQuest(true); // ignore duration
 
       // Assert
       expect(result).toMatchObject({
@@ -630,7 +630,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(mockAddXP).toHaveBeenCalledWith(100);
     });
 
-    test('should fail quest when duration not met', () => {
+    test('should fail quest when duration not met', async () => {
       // Arrange - quest that hasn't met duration
       const startTime = Date.now() - 60000; // 1 minute ago
       const activeQuest = {
@@ -649,7 +649,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Act
-      const result = useQuestStore.getState().completeQuest();
+      const result = await await useQuestStore.getState().completeQuest();
 
       // Assert
       expect(result).toBeNull();
@@ -661,7 +661,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
     });
 
-    test('should not update streak if quest completed on same day', () => {
+    test('should not update streak if quest completed on same day', async () => {
       // Arrange - last quest completed earlier today
       const now = new Date();
       const earlierToday = new Date(now);
@@ -689,14 +689,14 @@ describe('QuestStore - refreshAvailableQuests', () => {
       } = require('@/lib/services/notifications');
 
       // Act
-      useQuestStore.getState().completeQuest();
+      await useQuestStore.getState().completeQuest();
 
       // Assert - should not schedule new notifications
       expect(cancelStreakWarningNotification).not.toHaveBeenCalled();
       expect(scheduleStreakWarningNotification).not.toHaveBeenCalled();
     });
 
-    test('should handle quest with no start time', () => {
+    test('should handle quest with no start time', async () => {
       // Arrange
       const activeQuest = {
         id: 'quest-1',
@@ -711,25 +711,25 @@ describe('QuestStore - refreshAvailableQuests', () => {
       useQuestStore.setState({ activeQuest });
 
       // Act
-      const result = useQuestStore.getState().completeQuest();
+      const result = await await useQuestStore.getState().completeQuest();
 
       // Assert
       expect(result).toBeNull();
     });
 
-    test('should handle no active quest', () => {
+    test('should handle no active quest', async () => {
       // Arrange
       useQuestStore.setState({ activeQuest: null });
 
       // Act
-      const result = useQuestStore.getState().completeQuest();
+      const result = await await useQuestStore.getState().completeQuest();
 
       // Assert
       expect(result).toBeNull();
     });
   });
 
-  test('should prepare quest and clear cooperative data for non-cooperative quest', () => {
+  test('should prepare quest and clear cooperative data for non-cooperative quest', async () => {
     // Arrange
     const quest = {
       id: 'quest-1',
@@ -757,7 +757,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.currentInvitation).toBeNull();
   });
 
-  test('should prepare cooperative quest and preserve cooperative data', () => {
+  test('should prepare cooperative quest and preserve cooperative data', async () => {
     // Arrange
     const quest = {
       id: 'quest-1',
@@ -786,7 +786,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.currentInvitation).toEqual(invitation);
   });
 
-  test('should cancel cooperative quest and clear cooperative data', () => {
+  test('should cancel cooperative quest and clear cooperative data', async () => {
     // Arrange
     const pendingQuest = {
       id: 'quest-1',
@@ -814,7 +814,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(QuestTimer.stopQuest).toHaveBeenCalled();
   });
 
-  test('should not refresh available quests when there is an active quest', () => {
+  test('should not refresh available quests when there is an active quest', async () => {
     // Arrange
     const activeQuest = {
       id: 'quest-1',
@@ -839,7 +839,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests).toEqual([]);
   });
 
-  test('should handle refreshAvailableQuests with only custom quests completed', () => {
+  test('should handle refreshAvailableQuests with only custom quests completed', async () => {
     // Arrange - only custom quests completed, no story quests
     const completedQuests = [
       {
@@ -861,7 +861,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
     expect(state.availableQuests).toEqual([]);
   });
 
-  test('should reset the entire store', () => {
+  test('should reset the entire store', async () => {
     // Arrange - set up various state
     useQuestStore.setState({
       activeQuest: createCompletedQuest('quest-1', Date.now()),
@@ -920,7 +920,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
     });
 
-    test('should set cooperative quest run', () => {
+    test('should set cooperative quest run', async () => {
       // Arrange
       const cooperativeQuestRun = {
         id: 'coop-quest-123',
@@ -946,7 +946,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.cooperativeQuestRun).toEqual(cooperativeQuestRun);
     });
 
-    test('should fail cooperative quest and clear cooperative quest run', () => {
+    test('should fail cooperative quest and clear cooperative quest run', async () => {
       // Arrange
       const cooperativeQuestRun = {
         id: 'coop-quest-123',
@@ -994,7 +994,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       );
     });
 
-    test('should update participant ready status', () => {
+    test('should update participant ready status', async () => {
       // Arrange
       const cooperativeQuestRun = {
         id: 'coop-quest-123',
@@ -1025,7 +1025,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(participant?.ready).toBe(true);
     });
 
-    test('should handle quest failure for single-player quest', () => {
+    test('should handle quest failure for single-player quest', async () => {
       // Arrange
       const activeQuest = {
         id: 'quest-1',
@@ -1060,7 +1060,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       );
     });
 
-    test('should not fail quest if no active quest', () => {
+    test('should not fail quest if no active quest', async () => {
       // Arrange
       useQuestStore.setState({
         activeQuest: null,
@@ -1080,7 +1080,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
   });
 
   describe('Additional Coverage Tests', () => {
-    test('should handle refreshAvailableQuests with no first quest found', () => {
+    test('should handle refreshAvailableQuests with no first quest found', async () => {
       // Mock AVAILABLE_QUESTS to not have quest-1
       const originalQuests = require('@/app/data/quests').AVAILABLE_QUESTS;
       require('@/app/data/quests').AVAILABLE_QUESTS = [];
@@ -1100,7 +1100,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       require('@/app/data/quests').AVAILABLE_QUESTS = originalQuests;
     });
 
-    test('should handle refreshAvailableQuests with only custom quests completed', () => {
+    test('should handle refreshAvailableQuests with only custom quests completed', async () => {
       const customQuest: Quest = {
         id: 'custom-quest',
         mode: 'custom',
@@ -1125,7 +1125,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.availableQuests).toEqual([]);
     });
 
-    test('should handle storage functions in persist middleware', () => {
+    test('should handle storage functions in persist middleware', async () => {
       const { getItem, setItem, removeItem } = require('@/lib/storage');
 
       // Reset mock call history
@@ -1170,7 +1170,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Complete the quest
-      const completedQuest = useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore.getState().completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(cancelStreakWarningNotification).toHaveBeenCalled();
@@ -1181,7 +1181,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(scheduleStreakWarningNotification).toHaveBeenCalled();
     });
 
-    test('should handle quest completion with missing fields', () => {
+    test('should handle quest completion with missing fields', async () => {
       const incompleteQuest: Quest = {
         id: 'incomplete-quest',
         mode: 'story',
@@ -1198,13 +1198,13 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore.getState().completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(completedQuest?.status).toBe('completed');
     });
 
-    test('should handle quest failure with missing quest details', () => {
+    test('should handle quest failure with missing quest details', async () => {
       const minimalQuest: Quest = {
         id: 'minimal-quest',
         mode: 'story',
@@ -1264,7 +1264,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
         lastCompletedQuestTimestamp: null,
       });
 
-      const completedQuest = useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore.getState().completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockAddXP).toHaveBeenCalledWith(150);
@@ -1288,13 +1288,13 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore.getState().completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockRevealLocation).toHaveBeenCalledWith('test-poi');
     });
 
-    test('should handle cooperative quest participant update with non-existent participant', () => {
+    test('should handle cooperative quest participant update with non-existent participant', async () => {
       const cooperativeRun: CooperativeQuestRun = {
         id: 'coop-run',
         questId: 'coop-quest',
@@ -1324,7 +1324,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.cooperativeQuestRun?.participants[1].ready).toBe(true);
     });
 
-    test('should handle null cooperative quest run when updating participant', () => {
+    test('should handle null cooperative quest run when updating participant', async () => {
       useQuestStore.setState({
         cooperativeQuestRun: null,
       });
@@ -1357,7 +1357,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
     });
 
-    test('should block quest progression when user has seen signup prompt but not signed up', () => {
+    test('should block quest progression when user has seen signup prompt but not signed up', async () => {
       // Arrange - user completed quest-1 and should be at signup screen
       mockHasSeenSignupPrompt.mockReturnValue(true);
       mockIsOnboardingComplete.mockReturnValue(false);
@@ -1383,7 +1383,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.storylineComplete).toBe(false);
     });
 
-    test('should allow quest progression when onboarding is complete', () => {
+    test('should allow quest progression when onboarding is complete', async () => {
       // Arrange - user has completed signup
       mockIsOnboardingComplete.mockReturnValue(true);
       mockHasSeenSignupPrompt.mockReturnValue(true);
@@ -1411,7 +1411,7 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.availableQuests[0].id).toBe('quest-1a');
     });
 
-    test('should allow initial quest-1 fetch before signup prompt is shown', () => {
+    test('should allow initial quest-1 fetch before signup prompt is shown', async () => {
       // Arrange - user hasn't seen signup prompt yet
       mockHasSeenSignupPrompt.mockReturnValue(false);
       mockIsOnboardingComplete.mockReturnValue(false);

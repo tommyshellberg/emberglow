@@ -8,7 +8,6 @@ import {
   cleanup,
   render,
   screen,
-  setup,
   waitFor,
   within,
 } from '@/lib/test-utils';
@@ -89,12 +88,12 @@ describe('CustomQuestScreen', () => {
     expect(startButton).toBeDisabled();
   });
 
-  it('enables Start Quest button when quest name is entered', async () => {
-    const { user } = setup(<CustomQuestScreen />);
+  it('enables Start Quest button when quest name is entered', () => {
+    render(<CustomQuestScreen />);
 
     // Find the input field and enter text
     const input = screen.getByPlaceholderText('go for a run');
-    await user.type(input, 'My test quest');
+    fireEvent.changeText(input, 'My test quest');
 
     // Button should be enabled
     const startButton = screen.getByText('Start Quest');
@@ -148,7 +147,7 @@ describe('CustomQuestScreen', () => {
   });
 
   it('can select different quest categories', async () => {
-    const { user } = setup(<CustomQuestScreen />);
+    render(<CustomQuestScreen />);
 
     // Initially fitness is selected
     const fitnessOption = screen.getByTestId('category-option-fitness');
@@ -156,7 +155,7 @@ describe('CustomQuestScreen', () => {
 
     // Select a different category (social)
     const socialCategory = screen.getByTestId('category-option-social');
-    await user.press(socialCategory);
+    fireEvent.press(socialCategory);
 
     // Social should now be selected
     await waitFor(() => {
@@ -165,11 +164,11 @@ describe('CustomQuestScreen', () => {
   });
 
   it('calls prepareQuest when form is submitted with valid data', async () => {
-    const { user } = setup(<CustomQuestScreen />);
+    render(<CustomQuestScreen />);
 
     // Fill out the form
     const nameInput = screen.getByPlaceholderText('go for a run');
-    await user.type(nameInput, 'Test Quest');
+    fireEvent.changeText(nameInput, 'Test Quest');
 
     // Set duration
     const slider = screen.getByTestId('duration-slider');
@@ -178,7 +177,7 @@ describe('CustomQuestScreen', () => {
 
     // Submit the form
     const startButton = screen.getByText('Start Quest');
-    await user.press(startButton);
+    fireEvent.press(startButton);
 
     // Verify prepareQuest was called
     await waitFor(() => {
@@ -208,29 +207,31 @@ describe('CustomQuestScreen', () => {
     });
 
     it('tracks trigger event when form is submitted', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       // Fill form and submit
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
-      expect(mockPostHogCapture).toHaveBeenCalledWith(
-        'trigger_start_custom_quest'
-      );
+      await waitFor(() => {
+        expect(mockPostHogCapture).toHaveBeenCalledWith(
+          'trigger_start_custom_quest'
+        );
+      });
     });
 
     it('tracks success event when quest is created successfully', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       // Fill form and submit
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockPostHogCapture).toHaveBeenCalledWith(
@@ -242,14 +243,14 @@ describe('CustomQuestScreen', () => {
 
   describe('XP Calculation', () => {
     it('calculates XP correctly for 30 minute quest', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       // Default duration is 30 minutes
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockedPrepareQuest).toHaveBeenCalledWith(
@@ -261,10 +262,10 @@ describe('CustomQuestScreen', () => {
     });
 
     it('calculates XP correctly for 60 minute quest', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       // Set duration to 60 minutes
       const slider = screen.getByTestId('duration-slider');
@@ -272,7 +273,7 @@ describe('CustomQuestScreen', () => {
       fireEvent(slider, 'slidingComplete', 60);
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockedPrepareQuest).toHaveBeenCalledWith(
@@ -284,10 +285,10 @@ describe('CustomQuestScreen', () => {
     });
 
     it('calculates XP correctly for 240 minute quest', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       // Set duration to 240 minutes (max)
       const slider = screen.getByTestId('duration-slider');
@@ -295,7 +296,7 @@ describe('CustomQuestScreen', () => {
       fireEvent(slider, 'slidingComplete', 240);
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockedPrepareQuest).toHaveBeenCalledWith(
@@ -316,13 +317,13 @@ describe('CustomQuestScreen', () => {
         }),
       });
 
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       // Should show error message (once we implement it)
       await waitFor(() => {
@@ -336,13 +337,13 @@ describe('CustomQuestScreen', () => {
         new Error('Timer error')
       );
 
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       // Should show error message (once we implement it)
       await waitFor(() => {
@@ -356,21 +357,21 @@ describe('CustomQuestScreen', () => {
         .mockRejectedValueOnce(new Error('Timer error'))
         .mockResolvedValueOnce(undefined);
 
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       // First attempt - should fail
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(screen.queryByText(/Failed to start quest/i)).toBeOnTheScreen();
       });
 
       // Second attempt - should succeed
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockedRouter.push).toHaveBeenCalledWith('/pending-quest');
@@ -380,13 +381,13 @@ describe('CustomQuestScreen', () => {
 
   describe('Navigation', () => {
     it('navigates to pending-quest screen on successful quest creation', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
-      await user.press(startButton);
+      fireEvent.press(startButton);
 
       await waitFor(() => {
         expect(mockedRouter.push).toHaveBeenCalledWith('/pending-quest');
@@ -395,11 +396,11 @@ describe('CustomQuestScreen', () => {
   });
 
   describe('Accessibility', () => {
-    it('Start Quest button has proper accessibility label when enabled', async () => {
-      const { user } = setup(<CustomQuestScreen />);
+    it('Start Quest button has proper accessibility label when enabled', () => {
+      render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
-      await user.type(nameInput, 'Test Quest');
+      fireEvent.changeText(nameInput, 'Test Quest');
 
       const startButton = screen.getByText('Start Quest');
 

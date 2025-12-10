@@ -1,8 +1,9 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 
 import { useWebSocket } from '@/components/providers/websocket-provider';
+import { render } from '@/lib/test-utils';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -52,7 +53,6 @@ jest.mock('@/lib/hooks/use-cooperative-quest', () => ({
 jest.mock('expo-blur', () => ({
   BlurView: 'BlurView',
 }));
-jest.mock('@/../assets/animations/compass.json', () => ({}));
 jest.mock('@/../assets/images/background/active-quest.jpg', () => ({}));
 
 // Mock the quest components
@@ -71,12 +71,6 @@ jest.mock('@/components/quest', () => {
         ),
         children,
       ]),
-    CompassAnimation: ({ size, delay }: any) =>
-      React.createElement(RN.View, {
-        testID: 'compass-animation',
-        size,
-        delay,
-      }),
     LockInstructions: ({ variant, delay }: any) =>
       React.createElement(RN.View, {
         testID: 'lock-instructions',

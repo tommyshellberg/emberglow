@@ -2,16 +2,29 @@ import { Clock } from 'lucide-react-native';
 import React from 'react';
 import Animated, { FadeInDown, FadeInLeft } from 'react-native-reanimated';
 
-import { Card, View } from '@/components/ui';
+import { Card, Text, View } from '@/components/ui';
 import colors from '@/components/ui/colors';
 
 interface QuestCardProps {
   title: string;
   duration: number;
+  /** Adjusted duration after perk effects (optional) */
+  adjustedDuration?: number | null;
   children: React.ReactNode;
 }
 
-export function QuestCard({ title, duration, children }: QuestCardProps) {
+export function QuestCard({
+  title,
+  duration,
+  adjustedDuration,
+  children,
+}: QuestCardProps) {
+  // Only show reduction if adjusted is different AND less than original
+  const hasDurationReduction =
+    adjustedDuration != null &&
+    adjustedDuration !== duration &&
+    adjustedDuration < duration;
+
   return (
     <Card
       className="rounded-xl p-6"
@@ -43,12 +56,29 @@ export function QuestCard({ title, duration, children }: QuestCardProps) {
             >
               Duration
             </Animated.Text>
-            <Animated.Text
-              className="text-lg font-bold text-white"
-              style={{ fontWeight: '700' }}
-            >
-              {duration} minutes
-            </Animated.Text>
+            {hasDurationReduction ? (
+              <View className="flex-row items-baseline">
+                <Text
+                  className="text-lg text-neutral-400"
+                  style={{ textDecorationLine: 'line-through' }}
+                >
+                  {duration}
+                </Text>
+                <Text
+                  className="ml-2 text-lg font-bold"
+                  style={{ color: colors.primary[400], fontWeight: '700' }}
+                >
+                  {adjustedDuration} min
+                </Text>
+              </View>
+            ) : (
+              <Animated.Text
+                className="text-lg font-bold text-white"
+                style={{ fontWeight: '700' }}
+              >
+                {duration} minutes
+              </Animated.Text>
+            )}
           </View>
         </Animated.View>
       </View>

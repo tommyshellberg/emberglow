@@ -42,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       }),
     },
-    buildNumber: Env.VERSION.split('.').pop() || '0',
+    // Build number managed by EAS autoIncrement in eas.json
   },
   experiments: {
     typedRoutes: true,
@@ -59,8 +59,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.WAKE_LOCK',
       'com.android.vending.BILLING',
     ],
-    // use the last digit of semver
-    versionCode: parseInt(Env.VERSION.split('.').pop() || '0'),
+    // versionCode managed by EAS autoIncrement in eas.json
     // Allow HTTP connections in staging for local dev server
     ...(Env.APP_ENV !== 'production' && {
       usesCleartextTraffic: true,

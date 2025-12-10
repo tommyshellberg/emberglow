@@ -228,6 +228,12 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="skill-tree"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

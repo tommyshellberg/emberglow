@@ -1,9 +1,11 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 
+import { render } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 import PendingQuestScreen from './pending-quest';
 
@@ -12,7 +14,6 @@ jest.mock('expo-router');
 jest.mock('expo-blur', () => ({
   BlurView: 'BlurView',
 }));
-jest.mock('@/../assets/animations/compass.json', () => ({}));
 jest.mock('@/../assets/images/background/active-quest.jpg', () => ({}));
 
 // Mock character utils
@@ -23,6 +24,20 @@ jest.mock('@/app/utils/character-utils', () => ({
     }
     return require('@/../assets/images/characters/alchemist-profile.jpg');
   }),
+}));
+
+// Mock the quest reward preview hook
+jest.mock('@/api/quest-runs', () => ({
+  useQuestRewardPreview: jest.fn(() => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+// Mock the RewardPreviewCard component
+jest.mock('@/components/quest-preview', () => ({
+  RewardPreviewCard: jest.fn(() => null),
 }));
 
 // Don't mock the pending-quest module - we want to test the real implementation
@@ -65,12 +80,6 @@ jest.mock('@/components/quest', () => {
         ),
         children,
       ]),
-    CompassAnimation: ({ size, delay }: any) =>
-      React.createElement(RN.View, {
-        testID: 'compass-animation',
-        size,
-        delay,
-      }),
     LockInstructions: ({ variant, delay }: any) =>
       React.createElement(RN.View, {
         testID: 'lock-instructions',
@@ -105,10 +114,17 @@ describe('PendingQuestScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Reset store
+    // Reset stores
     useQuestStore.setState({
       pendingQuest: mockStoryQuest,
       cancelQuest: jest.fn(),
+    });
+
+    useUserStore.setState({
+      user: {
+        id: 'test-user-id',
+        email: 'test@example.com',
+      },
     });
 
     (router.back as jest.Mock).mockImplementation(() => {});
@@ -144,13 +160,6 @@ describe('PendingQuestScreen', () => {
 
     const lockInstructions = getByTestId('lock-instructions');
     expect(lockInstructions).toBeTruthy();
-  });
-
-  it('shows compass animation', () => {
-    const { getByTestId } = render(<PendingQuestScreen />);
-
-    const compass = getByTestId('compass-animation');
-    expect(compass).toBeTruthy();
   });
 
   it('handles cancel quest button', () => {
