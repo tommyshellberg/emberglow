@@ -16,7 +16,7 @@ export const PERK_ICON_MAP: Record<string, any> = {
   // Alchemist perks
   alchemist_alchemical_precision: require('@/../assets/icons/perks/alchemist_alchemical_precision.svg'),
   alchemist_crafting_prowess: require('@/../assets/icons/perks/alchemist_crafting_prowess.svg'),
-  alchemist_philosophers_focus: require('@/../assets/icons/perks/alchemist_philosophers_focus.svg'),
+  alchemist_transmuters_efficiency: require('@/../assets/icons/perks/alchemist_transmuters_efficiency.svg'),
 
   // Bard perks
   bard_charismatic_flair: require('@/../assets/icons/perks/bard_charismatic_flair.svg'),

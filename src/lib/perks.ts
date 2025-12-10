@@ -30,7 +30,7 @@ export const PERK_DATA: Record<string, PerkMetadata> = {
   // Alchemist perks
   alchemist_alchemical_precision: { name: 'Alchemical Precision', icon: 'flask-conical', value: 0.75 },
   alchemist_crafting_prowess: { name: 'Crafting Prowess', icon: 'hammer', value: 0.4 },
-  alchemist_philosophers_focus: { name: "Philosopher's Focus", icon: 'clock', value: 1.0 },
+  alchemist_transmuters_efficiency: { name: "Transmuter's Efficiency", icon: 'hourglass', value: 0.6 },
 
   // Knight perks
   knight_warriors_might: { name: "Warrior's Might", icon: 'sword', value: 0.4 },

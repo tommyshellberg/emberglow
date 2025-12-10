@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useQuestRewardPreview } from '@/api/quest-runs';
 import { useWebSocket } from '@/components/providers/websocket-provider';
 import { LockInstructions, QuestCard } from '@/components/quest';
 import {
@@ -23,7 +24,15 @@ import {
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { useQuestStore } from '@/store/quest-store';
+import { type CustomQuestTemplate } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
+
+// Type guard for custom quests
+function isCustomQuest(
+  quest: { mode?: string } | null | undefined
+): quest is CustomQuestTemplate {
+  return quest?.mode === 'custom';
+}
 
 export default function CooperativePendingQuestScreen() {
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
@@ -39,6 +48,28 @@ export default function CooperativePendingQuestScreen() {
   // Countdown state
   const [showCountdown, setShowCountdown] = React.useState(true);
   const [countdownSeconds, setCountdownSeconds] = React.useState(5);
+
+  // Fetch cooperative reward preview
+  const participantIds =
+    cooperativeQuestRun?.participants?.map(
+      (p: { userId: string }) => p.userId
+    ) || [];
+  const { data: rewardPreview } = useQuestRewardPreview({
+    questData: pendingQuest
+      ? {
+          durationMinutes: pendingQuest.durationMinutes || 0,
+          category: isCustomQuest(pendingQuest)
+            ? pendingQuest.category
+            : undefined,
+          mode: pendingQuest.mode || 'custom',
+          reward: {
+            xp: pendingQuest.reward?.xp || 0,
+          },
+        }
+      : undefined,
+    participantIds,
+    enabled: !!pendingQuest && participantIds.length > 0 && !showCountdown,
+  });
 
   // Header animation using react-native-reanimated
   const headerOpacity = useSharedValue(0);
@@ -69,10 +100,12 @@ export default function CooperativePendingQuestScreen() {
       questRunId: cooperativeQuestRun?.id,
       participants: cooperativeQuestRun?.participants,
       userId: user?.id,
-      questCategory: pendingQuest?.category,
+      questCategory: isCustomQuest(pendingQuest)
+        ? pendingQuest.category
+        : undefined,
       hasCooperativeQuestRun: !!cooperativeQuestRun,
     });
-  }, [cooperativeQuestRun, user?.id, pendingQuest?.category]);
+  }, [cooperativeQuestRun, user?.id, pendingQuest]);
 
   // Join the quest room for real-time updates
   useEffect(() => {
@@ -243,6 +276,7 @@ export default function CooperativePendingQuestScreen() {
           <QuestCard
             title={pendingQuest.title}
             duration={pendingQuest.durationMinutes}
+            adjustedDuration={rewardPreview?.effects?.duration}
           >
             {/* Motivational Header */}
             <Animated.Text
@@ -290,6 +324,63 @@ export default function CooperativePendingQuestScreen() {
                 </Text>
               )}
             </Animated.View>
+
+            {/* Pooled Rewards Preview */}
+            {rewardPreview && (
+              <Animated.View
+                entering={FadeInDown.delay(1400).duration(800)}
+                className="mb-6 rounded-lg p-4"
+                style={{ backgroundColor: colors.primary[100] }}
+              >
+                <Text
+                  className="mb-2 text-center text-sm font-bold"
+                  style={{ color: colors.primary[500], fontWeight: '700' }}
+                >
+                  Pooled Rewards
+                </Text>
+                <View className="flex-row justify-center">
+                  <View className="items-center">
+                    <Text
+                      className="text-xl font-bold"
+                      style={{ color: colors.primary[500], fontWeight: '700' }}
+                    >
+                      +{rewardPreview.participantRewards[0]?.adjustedXP || 0} XP
+                    </Text>
+                    {(rewardPreview.participantRewards[0]?.multiplier || 1) >
+                      1 && (
+                      <Text
+                        className="text-xs"
+                        style={{ color: colors.primary[400] }}
+                      >
+                        {Math.round(
+                          ((rewardPreview.participantRewards[0]?.multiplier ||
+                            1) -
+                            1) *
+                            100
+                        )}
+                        % bonus from perks
+                      </Text>
+                    )}
+                  </View>
+                  {rewardPreview.effects?.duration && (
+                    <View className="ml-6 items-center">
+                      <Text
+                        className="text-xl font-bold"
+                        style={{ color: colors.primary[500], fontWeight: '700' }}
+                      >
+                        {rewardPreview.effects.duration} min
+                      </Text>
+                      <Text
+                        className="text-xs"
+                        style={{ color: colors.primary[400] }}
+                      >
+                        reduced duration
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            )}
 
             {/* Lock Instructions */}
             <LockInstructions variant="cooperative" delay={1500} />

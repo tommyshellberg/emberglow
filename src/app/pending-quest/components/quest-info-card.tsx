@@ -1,4 +1,3 @@
-import { Clock } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -8,6 +7,7 @@ import { getCharacterAvatar } from '@/app/utils/character-utils';
 import { RewardPreviewCard } from '@/components/quest-preview';
 import { Card, Text, View } from '@/components/ui';
 import colors from '@/components/ui/colors';
+import { DurationBadge } from '@/components/ui/duration-badge';
 
 import { ANIMATION_CONFIG, TEST_IDS, UI_CONFIG } from '../constants';
 import { type CharacterData, type PendingQuestData } from '../types';
@@ -34,9 +34,7 @@ export function QuestInfoCard({
 }: QuestInfoCardProps) {
   const subtitle = getQuestSubtitle(quest.mode);
 
-  // Check if duration is adjusted
   const adjustedDuration = rewardPreview?.effects.duration;
-  const hasDurationChange = adjustedDuration && adjustedDuration !== quest.durationMinutes;
 
   return (
     <Card
@@ -60,32 +58,13 @@ export function QuestInfoCard({
           >
             {quest.title}
           </Text>
-          <View className="ml-3 flex-row items-center">
-            <Clock
-              size={UI_CONFIG.CLOCK_ICON_SIZE}
-              color={colors.secondary[300]}
+          <View className="ml-3">
+            <DurationBadge
+              duration={quest.durationMinutes}
+              adjustedDuration={adjustedDuration}
+              iconSize={UI_CONFIG.CLOCK_ICON_SIZE}
+              iconColor={colors.secondary[300]}
             />
-            {hasDurationChange ? (
-              <View className="ml-1 flex-row items-baseline">
-                <Text
-                  className="text-sm text-neutral-400"
-                  style={{ textDecorationLine: 'line-through' }}
-                  accessibilityLabel={`Original duration: ${quest.durationMinutes} minutes`}
-                >
-                  {quest.durationMinutes}
-                </Text>
-                <Text className="mx-1 text-sm font-semibold" style={{ color: colors.primary[400] }}>
-                  {adjustedDuration} min
-                </Text>
-              </View>
-            ) : (
-              <Text
-                className="ml-1 text-sm text-neutral-200"
-                accessibilityLabel={`Duration: ${quest.durationMinutes} minutes`}
-              >
-                {quest.durationMinutes} min
-              </Text>
-            )}
           </View>
         </Animated.View>
 
