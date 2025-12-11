@@ -20,9 +20,7 @@ export function SkillsCard({ character, onPress }: SkillsCardProps) {
   // Get unlocked perks and sort by unlock date (most recent first)
   const unlockedPerks = getUnlockedPerks().sort((a, b) => {
     if (!a.unlockedAt || !b.unlockedAt) return 0;
-    return (
-      new Date(b.unlockedAt).getTime() - new Date(a.unlockedAt).getTime()
-    );
+    return new Date(b.unlockedAt).getTime() - new Date(a.unlockedAt).getTime();
   });
 
   // Get available perks to unlock
@@ -53,7 +51,8 @@ export function SkillsCard({ character, onPress }: SkillsCardProps) {
             className="rounded-full bg-primary-400 px-3 py-1"
           >
             <Text className="text-xs font-bold text-white">
-              {availablePoints} Point{availablePoints !== 1 ? 's' : ''} Available
+              {availablePoints} Point{availablePoints !== 1 ? 's' : ''}{' '}
+              Available
             </Text>
           </Animated.View>
         )}

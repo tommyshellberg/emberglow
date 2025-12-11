@@ -1,7 +1,8 @@
 {
   "cli": {
     "version": ">= 3.8.1",
-    "promptToConfigurePushNotifications": false
+    "promptToConfigurePushNotifications": false,
+    "appVersionSource": "remote"
   },
   "build": {
     "production": {
@@ -10,13 +11,11 @@
       "autoIncrement": true,
       "pnpm": "9.12.3",
       "ios": {
-        "image": "latest",
-        "buildNumber": "27"
+        "image": "latest"
       },
       "android": {
         "buildType": "app-bundle",
-        "image": "latest",
-        "versionCode": "27"
+        "image": "latest"
       },
       "env": {
         "EXPO_NO_DOTENV": "1",

@@ -57,15 +57,17 @@ export function RewardPreviewCard({
       {/* XP - Inline Format */}
       <View className="mb-4 rounded-xl p-3" style={{ backgroundColor: '#02111a50' }}>
         <Text className="text-center text-sm text-cream-500">
-          <Text>{baseXP} Base XP</Text>
-          {hasBonus && (
+          {hasBonus ? (
             <>
+              <Text>{baseXP} Base XP</Text>
               <Text> + </Text>
               <Text style={{ color: primary[400] }}>{bonusXP} Bonus XP</Text>
+              <Text> = </Text>
+              <Text className="font-bold">{adjustedXP} Total XP</Text>
             </>
+          ) : (
+            <Text className="font-bold">{adjustedXP} Total XP</Text>
           )}
-          <Text> = </Text>
-          <Text className="font-bold">{adjustedXP} Total XP</Text>
         </Text>
       </View>
 

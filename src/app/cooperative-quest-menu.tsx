@@ -218,7 +218,6 @@ export default function CooperativeQuestMenu() {
             setShowPaywallModal(false);
             handlePaywallSuccess();
           }}
-          featureName="Cooperative Quests"
         />
       </View>
     );

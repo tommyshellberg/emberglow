@@ -151,7 +151,7 @@ describe('RewardPreviewCard', () => {
     });
   });
 
-  it('renders with no bonus when XP is not adjusted', () => {
+  it('shows simplified display when no bonus is applied', () => {
     const participantNoBonus: QuestRewardPreviewParticipant = {
       ...mockParticipant,
       baseXP: 90,
@@ -162,9 +162,9 @@ describe('RewardPreviewCard', () => {
 
     render(<RewardPreviewCard participant={participantNoBonus} />);
 
-    // Should not show bonus text when bonus is 0
-    expect(screen.getByText(/90 Base XP/)).toBeTruthy();
+    // Should show only "Total XP" without "Base XP" when no bonus
     expect(screen.getByText(/90 Total XP/)).toBeTruthy();
+    expect(screen.queryByText(/Base XP/)).toBeNull();
     expect(screen.queryByText(/Bonus XP/)).toBeNull();
   });
 });
