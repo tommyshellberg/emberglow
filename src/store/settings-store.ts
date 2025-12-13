@@ -27,6 +27,8 @@ type SettingsState = {
   setHasBeenPromptedForReminder: (value: boolean) => void;
   hasSeenBranchingAnnouncement: boolean;
   setHasSeenBranchingAnnouncement: (value: boolean) => void;
+  hasSeenSkillTreeAnnouncement: boolean;
+  setHasSeenSkillTreeAnnouncement: (value: boolean) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -53,6 +55,9 @@ export const useSettingsStore = create<SettingsState>()(
       hasSeenBranchingAnnouncement: false,
       setHasSeenBranchingAnnouncement: (value) =>
         set({ hasSeenBranchingAnnouncement: value }),
+      hasSeenSkillTreeAnnouncement: false,
+      setHasSeenSkillTreeAnnouncement: (value) =>
+        set({ hasSeenSkillTreeAnnouncement: value }),
     }),
     {
       name: 'unquest-settings',

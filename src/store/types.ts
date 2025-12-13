@@ -92,6 +92,7 @@ export interface User {
   completedQuests: string[];
   dailyQuestStreak: number;
   featureFlags: string[];
+  isProvisional: boolean;
 }
 
 export type POI = {

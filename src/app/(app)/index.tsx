@@ -14,6 +14,22 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useResetStoryline } from '@/api/quest';
+import { AVAILABLE_QUESTS } from '@/app/data/quests';
+import QuestCard from '@/components/home/quest-card';
+import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
+import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
+import { PremiumPaywall } from '@/components/paywall';
+import { StreakCounter } from '@/components/StreakCounter';
+import {
+  BackgroundImage,
+  Button,
+  FocusAwareStatusBar,
+  ScreenContainer,
+  ScreenHeader,
+  useModal,
+  View,
+} from '@/components/ui';
+import Colors from '@/components/ui/colors';
 import { StoryOptionButtons } from '@/features/home/components/story-option-buttons';
 import {
   CARD_HEIGHT,
@@ -28,21 +44,6 @@ import { useCarouselState } from '@/features/home/hooks/use-carousel-state';
 import { useHomeData } from '@/features/home/hooks/use-home-data';
 import { useQuestSelection } from '@/features/home/hooks/use-quest-selection';
 import { useStoryOptions } from '@/features/home/hooks/use-story-options';
-import { AVAILABLE_QUESTS } from '@/app/data/quests';
-import QuestCard from '@/components/home/quest-card';
-import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
-import { PremiumPaywall } from '@/components/paywall';
-import { StreakCounter } from '@/components/StreakCounter';
-import {
-  BackgroundImage,
-  Button,
-  FocusAwareStatusBar,
-  ScreenContainer,
-  ScreenHeader,
-  useModal,
-  View,
-} from '@/components/ui';
-import Colors from '@/components/ui/colors';
 import { useAudioPreloader } from '@/hooks/use-audio-preloader';
 import { useServerQuests } from '@/hooks/use-server-quests';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
@@ -51,6 +52,7 @@ import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/use
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useSettingsStore } from '@/store/settings-store';
+import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
 
 export default function Home() {
@@ -66,14 +68,18 @@ export default function Home() {
   const { handlePaywallSuccess } = usePremiumAccess();
 
   // Carousel state with paywall reset
-  const { activeIndex, setActiveIndex: _setActiveIndex, progress, handleMomentumScrollEnd } =
-    useCarouselState({
-      onPaywallReset: () => {
-        if (showPaywallModal) {
-          setShowPaywallModal(false);
-        }
-      },
-    });
+  const {
+    activeIndex,
+    setActiveIndex: _setActiveIndex,
+    progress,
+    handleMomentumScrollEnd,
+  } = useCarouselState({
+    onPaywallReset: () => {
+      if (showPaywallModal) {
+        setShowPaywallModal(false);
+      }
+    },
+  });
 
   // Branching story announcement modal
   const branchingModal = useModal();
@@ -85,6 +91,16 @@ export default function Home() {
   // Check if user has completed first branching quest (quest-1a or quest-1b)
   const hasCompletedFirstBranch = completedQuests.some(
     (quest) => quest.id === 'quest-1a' || quest.id === 'quest-1b'
+  );
+
+  // Skill tree announcement modal
+  const skillTreeModal = useModal();
+  const hasSeenSkillTreeAnnouncement = useSettingsStore(
+    (state) => state.hasSeenSkillTreeAnnouncement
+  );
+  const user = useUserStore((state) => state.user);
+  const availablePerks = useSkillTreeStore((state) =>
+    state.getAvailablePerksToUnlock()
   );
 
   // Use server-driven quests
@@ -109,18 +125,22 @@ export default function Home() {
   useAudioPreloader({ storylineId: 'vaedros', enabled: isOnboardingComplete });
 
   // Use extracted hooks for data management
-  const { carouselData, currentMapName: _currentMapName, storyProgress: _storyProgress, isStorylineComplete } =
-    useHomeData({
-      serverQuests,
-      availableQuests,
-      storyOptions: [],
-      completedQuests,
-      isLoadingQuests,
-      storylineProgress,
-      totalStoryQuests: AVAILABLE_QUESTS.filter(
-        (quest) => quest.mode === 'story' && !/quest-\d+b$/.test(quest.id)
-      ).length,
-    });
+  const {
+    carouselData,
+    currentMapName: _currentMapName,
+    storyProgress: _storyProgress,
+    isStorylineComplete,
+  } = useHomeData({
+    serverQuests,
+    availableQuests,
+    storyOptions: [],
+    completedQuests,
+    isLoadingQuests,
+    storylineProgress,
+    totalStoryQuests: AVAILABLE_QUESTS.filter(
+      (quest) => quest.mode === 'story' && !/quest-\d+b$/.test(quest.id)
+    ).length,
+  });
 
   const { storyOptions } = useStoryOptions({
     completedQuests,
@@ -228,6 +248,26 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [hasSeenBranchingAnnouncement, hasCompletedFirstBranch, branchingModal]);
+
+  // Check if skill tree announcement should be shown
+  useEffect(() => {
+    const isRegistered = user && !user.isProvisional;
+    const hasAvailablePerks = availablePerks.length > 0;
+    const shouldShow =
+      isRegistered && !hasSeenSkillTreeAnnouncement && hasAvailablePerks;
+
+    if (shouldShow) {
+      const timer = setTimeout(() => {
+        skillTreeModal.present();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    hasSeenSkillTreeAnnouncement,
+    user,
+    availablePerks.length,
+    skillTreeModal,
+  ]);
 
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
@@ -510,13 +550,13 @@ export default function Home() {
           // Refresh quests to update premium access
           refreshAvailableQuests();
         }}
-        featureName={
-          activeIndex === 2 ? 'Cooperative Quests' : 'Vaedros Storyline Quests'
-        }
       />
 
       {/* Branching Story Announcement Modal */}
       <BranchingStoryAnnouncementModal ref={branchingModal.ref} />
+
+      {/* Skill Tree Announcement Modal */}
+      <SkillTreeAnnouncementModal ref={skillTreeModal.ref} />
     </View>
   );
 }

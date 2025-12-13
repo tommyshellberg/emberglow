@@ -9,8 +9,10 @@ import {
   useUnlockPerk,
 } from '@/api/skill-tree';
 import type { Perk } from '@/api/skill-tree/types';
+import { PremiumPaywall } from '@/components/paywall';
 import { Button, Text } from '@/components/ui';
 import { Chip } from '@/components/ui/chip';
+import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 
 import { ChoiceNodeModal } from './choice-node-modal';
@@ -24,6 +26,12 @@ export function SkillTreeScreen() {
   const { mutate: unlockPerk, isPending: isUnlocking } = useUnlockPerk();
   const { mutate: respecSkillTree, isPending: isRespecing } =
     useRespecSkillTree();
+  const {
+    requirePremium,
+    showPaywall,
+    handlePaywallClose,
+    handlePaywallSuccess,
+  } = usePremiumAccess();
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedChoicePerk, setSelectedChoicePerk] = useState<Perk | null>(
     null
@@ -147,50 +155,59 @@ export function SkillTreeScreen() {
       {
         onSuccess: (response) => {
           setSelectedChoicePerk(null);
-          // Find the unlocked perk from the updated data
+          // Find the unlocked perk - server returns the selected child perk (choiceId), not the parent
           const unlockedPerk = response.updatedSkillTree.availablePerks.find(
-            (p) => p.id === perkId
+            (p) => p.id === choiceId
           );
           if (unlockedPerk) {
             setCelebratedPerk(unlockedPerk);
           }
+        },
+        onError: (error) => {
+          setSelectedChoicePerk(null);
+          Alert.alert(
+            'Unlock Failed',
+            error.message || 'Failed to unlock perk. Please try again.'
+          );
         },
       }
     );
   };
 
   const handleResetSkills = () => {
-    Alert.alert(
-      'Reset Skill Tree',
-      'Are you sure you want to reset all your skills? This will refund your skill points but cannot be undone.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: () => {
-            respecSkillTree(undefined, {
-              onSuccess: (response) => {
-                Alert.alert(
-                  'Skills Reset',
-                  response.message ||
-                    'Your skill tree has been reset successfully.'
-                );
-              },
-              onError: (error) => {
-                Alert.alert(
-                  'Reset Failed',
-                  error.message || 'Failed to reset skill tree. Please try again.'
-                );
-              },
-            });
+    requirePremium(() => {
+      Alert.alert(
+        'Reset Skill Tree',
+        'Are you sure you want to reset all your skills? This will refund your skill points but cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
           },
-        },
-      ]
-    );
+          {
+            text: 'Reset',
+            style: 'destructive',
+            onPress: () => {
+              respecSkillTree(undefined, {
+                onSuccess: (response) => {
+                  Alert.alert(
+                    'Skills Reset',
+                    response.message ||
+                      'Your skill tree has been reset successfully.'
+                  );
+                },
+                onError: (error) => {
+                  Alert.alert(
+                    'Reset Failed',
+                    error.message || 'Failed to reset skill tree. Please try again.'
+                  );
+                },
+              });
+            },
+          },
+        ]
+      );
+    });
   };
 
   return (
@@ -218,18 +235,16 @@ export function SkillTreeScreen() {
             <Text className="text-sm text-cream-500">
               {unlockedCount} of {totalCount} unlocked
             </Text>
-            {data.canRespec && (
-              <Button
-                label="Reset Skills"
-                variant="outline"
-                size="sm"
-                onPress={handleResetSkills}
-                disabled={isRespecing}
-                className="border-primary-400/50"
-                textClassName="text-primary-400"
-                testID="reset-skills-button"
-              />
-            )}
+            <Button
+              label="Reset Skills"
+              variant="outline"
+              size="sm"
+              onPress={handleResetSkills}
+              disabled={isRespecing}
+              className="border-primary-400/50"
+              textClassName="text-primary-400"
+              testID="reset-skills-button"
+            />
           </View>
         </Animated.View>
 
@@ -319,6 +334,7 @@ export function SkillTreeScreen() {
           onSelectChoice={(choiceId) =>
             handleChoiceSelected(selectedChoicePerk.id, choiceId)
           }
+          isLoading={isUnlocking}
         />
       )}
 
@@ -327,6 +343,13 @@ export function SkillTreeScreen() {
         perk={celebratedPerk}
         visible={!!celebratedPerk}
         onClose={() => setCelebratedPerk(null)}
+      />
+
+      {/* Premium Paywall */}
+      <PremiumPaywall
+        isVisible={showPaywall}
+        onClose={handlePaywallClose}
+        onSuccess={handlePaywallSuccess}
       />
     </View>
   );

@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react-native';
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import type { Perk } from '@/api/skill-tree/types';
@@ -11,12 +11,14 @@ interface ChoiceNodeModalProps {
   perk: Perk;
   onClose: () => void;
   onSelectChoice: (choiceId: string) => void;
+  isLoading?: boolean;
 }
 
 export function ChoiceNodeModal({
   perk,
   onClose,
   onSelectChoice,
+  isLoading = false,
 }: ChoiceNodeModalProps) {
   const { ref, present, dismiss } = useModal();
 
@@ -30,7 +32,7 @@ export function ChoiceNodeModal({
   };
 
   const handleSelectChoice = (choiceId: string) => {
-    dismiss();
+    if (isLoading) return;
     onSelectChoice(choiceId);
   };
 
@@ -75,7 +77,8 @@ export function ChoiceNodeModal({
               <Pressable
                 testID={`choice-button-${choice.id}`}
                 onPress={() => handleSelectChoice(choice.id)}
-                className="rounded-lg border-2 border-neutral-400/30 bg-background/50 p-4 active:border-primary-400"
+                disabled={isLoading}
+                className={`rounded-lg border-2 border-neutral-400/30 bg-background/50 p-4 active:border-primary-400 ${isLoading ? 'opacity-50' : ''}`}
               >
                 {/* Choice Header */}
                 <View className="mb-3 flex-row items-center justify-between">
@@ -98,6 +101,14 @@ export function ChoiceNodeModal({
             </Animated.View>
           ))}
         </View>
+
+        {/* Loading Indicator */}
+        {isLoading && (
+          <View className="mt-6 items-center">
+            <ActivityIndicator size="small" color="#E55838" />
+            <Text className="mt-2 text-sm text-cream-500/60">Unlocking...</Text>
+          </View>
+        )}
 
         {/* Helper Text */}
         <Animated.View

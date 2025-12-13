@@ -32,8 +32,9 @@ export const ANIMATION_CONFIG = {
  */
 export const UI_CONFIG = {
   // Sizes
-  HEADER_IMAGE_HEIGHT: 280,
+  HEADER_IMAGE_HEIGHT: 250,
   CLOCK_ICON_SIZE: 14,
+  DURATION_OVERLAY_ICON_SIZE: 18,
   LOCK_ICON_SIZE: 18,
 
   // Padding and spacing

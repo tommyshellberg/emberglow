@@ -2,35 +2,17 @@ import { renderHook, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-import * as storage from '@/lib/storage';
-
 import { apiClient } from '../common';
-import { provisionalApiClient } from '../common/provisional-client';
 import type { SkillTreeResponse } from './types';
 import { useSkillTree } from './use-skill-tree';
 
-// Mock the API clients
 jest.mock('../common', () => ({
   apiClient: {
     get: jest.fn(),
   },
 }));
 
-jest.mock('../common/provisional-client', () => ({
-  provisionalApiClient: {
-    get: jest.fn(),
-  },
-}));
-
-// Mock storage
-jest.mock('@/lib/storage', () => ({
-  getItem: jest.fn(),
-}));
-
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
-const mockProvisionalApiClient =
-  provisionalApiClient as jest.Mocked<typeof provisionalApiClient>;
-const mockStorage = storage as jest.Mocked<typeof storage>;
 
 describe('useSkillTree', () => {
   let queryClient: QueryClient;
@@ -53,45 +35,33 @@ describe('useSkillTree', () => {
   const mockSkillTreeResponse: SkillTreeResponse = {
     currentLevel: 5,
     characterType: 'knight',
-    unlockedNodes: ['quick_break', 'quest_mastery_quick'],
+    unlockedNodes: ['quick_break', 'weekend_warrior'],
     availablePerks: [
       {
         id: 'quick_break',
         name: 'Quick Break',
         description: 'Short quests (under 15 min) grant +35% XP',
-        levelRequired: 2,
+        levelRequired: 3,
         category: 'universal',
         isUnlocked: true,
         isChoice: false,
         unlockedAt: '2025-01-15T10:30:00Z',
       },
       {
-        id: 'quest_mastery',
-        name: 'Quest Mastery',
-        description: 'Choose your quest style',
-        levelRequired: 4,
+        id: 'weekend_warrior',
+        name: 'Weekend Warrior',
+        description: '+40% XP on Saturday and Sunday',
+        levelRequired: 9,
         category: 'universal',
         isUnlocked: true,
-        isChoice: true,
-        selectedChoice: 'quest_mastery_quick',
-        choices: [
-          {
-            id: 'quest_mastery_quick',
-            name: 'Quick Start',
-            description: 'Reduce quest durations by 10%',
-          },
-          {
-            id: 'quest_mastery_endurance',
-            name: 'Endurance Focus',
-            description: 'Quests over 45 minutes grant +50% XP',
-          },
-        ],
+        isChoice: false,
+        unlockedAt: '2025-01-16T14:00:00Z',
       },
       {
         id: 'streak_master',
         name: 'Streak Master',
-        description: '7-day streaks grant 2x XP multiplier for 24 hours',
-        levelRequired: 6,
+        description: '+50% XP while on a 7+ day streak',
+        levelRequired: 12,
         category: 'universal',
         isUnlocked: false,
         isChoice: false,
@@ -104,17 +74,15 @@ describe('useSkillTree', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockStorage.getItem.mockReturnValue(null);
   });
 
   afterEach(() => {
     queryClient?.clear();
   });
 
-  describe('when user is authenticated', () => {
+  describe('fetching skill tree', () => {
     it('fetches skill tree data using apiClient', async () => {
       mockApiClient.get.mockResolvedValue({ data: mockSkillTreeResponse });
-      mockStorage.getItem.mockReturnValue(null); // No provisional token
 
       const { result } = renderHook(() => useSkillTree(), {
         wrapper: createWrapper(),
@@ -130,25 +98,6 @@ describe('useSkillTree', () => {
     });
   });
 
-  describe('when user is provisional', () => {
-    it('fetches skill tree data using provisionalApiClient', async () => {
-      mockProvisionalApiClient.get.mockResolvedValue({
-        data: mockSkillTreeResponse,
-      });
-      mockStorage.getItem.mockReturnValue('provisional-token-123');
-
-      const { result } = renderHook(() => useSkillTree(), {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(mockProvisionalApiClient.get).toHaveBeenCalledWith('/users/me/skill-tree');
-      expect(mockApiClient.get).not.toHaveBeenCalled();
-      expect(result.current.data).toEqual(mockSkillTreeResponse);
-    });
-  });
-
   describe('with enabled option', () => {
     it('does not fetch when enabled is false', async () => {
       const { result } = renderHook(() => useSkillTree({ enabled: false }), {
@@ -158,7 +107,6 @@ describe('useSkillTree', () => {
       expect(result.current.isLoading).toBe(false);
       expect(result.current.fetchStatus).toBe('idle');
       expect(mockApiClient.get).not.toHaveBeenCalled();
-      expect(mockProvisionalApiClient.get).not.toHaveBeenCalled();
     });
 
     it('fetches when enabled is true', async () => {
@@ -175,8 +123,6 @@ describe('useSkillTree', () => {
   });
 
   describe('error handling', () => {
-    // Skip this test for now - retry behavior makes it slow
-    // The hook correctly handles errors, but the retry delay makes testing slow
     it.skip(
       'handles API errors correctly',
       async () => {
@@ -187,7 +133,6 @@ describe('useSkillTree', () => {
           wrapper: createWrapper(),
         });
 
-        // Wait for error state with longer timeout to account for retries
         await waitFor(
           () => expect(result.current.isError).toBe(true),
           { timeout: 10000 }
@@ -196,7 +141,7 @@ describe('useSkillTree', () => {
         expect(result.current.error).toEqual(error);
         expect(result.current.data).toBeUndefined();
       },
-      15000 // 15 second timeout for this test
+      15000
     );
   });
 

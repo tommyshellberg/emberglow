@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { showMessage } from 'react-native-flash-message';
-import type { CustomerInfo } from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 
 import { revenueCatService } from '@/lib/services/revenuecat-service';
@@ -11,133 +10,15 @@ interface PremiumPaywallProps {
   isVisible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  featureName?: string;
 }
 
 export function PremiumPaywall({
   isVisible,
   onClose,
   onSuccess,
-  featureName: _featureName = 'this feature',
 }: PremiumPaywallProps) {
   console.log('[PremiumPaywall] Component rendered with isVisible:', isVisible);
-  const [isPurchasing, setIsPurchasing] = useState(false);
   const [hasPresented, setHasPresented] = useState(false);
-
-  // Handle purchase started
-  const _handlePurchaseStarted = useCallback(() => {
-    console.log('[PremiumPaywall] Purchase started');
-    setIsPurchasing(true);
-  }, []);
-
-  // Handle successful purchase
-  const _handlePurchaseCompleted = useCallback(
-    async (customerInfo: { customerInfo: CustomerInfo }) => {
-      console.log('[PremiumPaywall] Purchase completed', customerInfo);
-      setIsPurchasing(false);
-
-      // Immediately refresh premium access from RevenueCat SDK
-      try {
-        const hasAccess = await revenueCatService.hasPremiumAccess();
-        console.log(
-          '[PremiumPaywall] Premium access after purchase:',
-          hasAccess
-        );
-
-        if (hasAccess) {
-          showMessage({
-            message: 'Welcome to the emberglow Circle!',
-            description: 'You now have access to all premium features.',
-            type: 'success',
-            duration: 3000,
-          });
-
-          // Call success callback to trigger any parent updates
-          if (onSuccess) {
-            onSuccess();
-          }
-        }
-      } catch (error) {
-        console.error('[PremiumPaywall] Error checking premium access:', error);
-      }
-
-      onClose();
-    },
-    [onSuccess, onClose]
-  );
-
-  // Handle purchase error
-  const _handlePurchaseError = useCallback((error: { error: any }) => {
-    console.error('[PremiumPaywall] Purchase error:', error);
-    setIsPurchasing(false);
-
-    Alert.alert(
-      'Purchase Error',
-      'Unable to complete purchase. Please try again.',
-      [{ text: 'OK' }]
-    );
-  }, []);
-
-  // Handle purchase cancelled
-  const _handlePurchaseCancelled = useCallback(() => {
-    console.log('[PremiumPaywall] Purchase cancelled');
-    setIsPurchasing(false);
-  }, []);
-
-  // Handle restore completed
-  const _handleRestoreCompleted = useCallback(
-    async (customerInfo: { customerInfo: CustomerInfo }) => {
-      console.log('[PremiumPaywall] Restore completed', customerInfo);
-
-      // Check if user now has premium access
-      try {
-        const hasAccess = await revenueCatService.hasPremiumAccess();
-        if (hasAccess) {
-          showMessage({
-            message: 'Premium Access Restored!',
-            description: 'Your premium features have been restored.',
-            type: 'success',
-            duration: 3000,
-          });
-
-          if (onSuccess) {
-            onSuccess();
-          }
-        } else {
-          showMessage({
-            message: 'No Purchases Found',
-            description: 'No previous purchases were found to restore.',
-            type: 'info',
-            duration: 3000,
-          });
-        }
-      } catch (error) {
-        console.error('[PremiumPaywall] Error checking premium access:', error);
-      }
-
-      onClose();
-    },
-    [onSuccess, onClose]
-  );
-
-  // Handle restore error
-  const _handleRestoreError = useCallback((error: { error: any }) => {
-    console.error('[PremiumPaywall] Restore error:', error);
-
-    Alert.alert(
-      'Restore Error',
-      'Unable to restore purchases. Please try again.',
-      [{ text: 'OK' }]
-    );
-  }, []);
-
-  // Handle paywall dismiss
-  const _handleDismiss = useCallback(() => {
-    console.log('[PremiumPaywall] Paywall dismissed');
-    if (!isPurchasing) {
-      onClose();
-    }
-  }, [isPurchasing, onClose]);
 
   // Reset hasPresented when isVisible changes from true to false
   useEffect(() => {

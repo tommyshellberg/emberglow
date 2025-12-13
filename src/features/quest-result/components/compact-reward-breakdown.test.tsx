@@ -3,6 +3,18 @@ import React from 'react';
 
 import { CompactRewardBreakdown } from './compact-reward-breakdown';
 
+// Mock PerkIcon to avoid SVG/image loading issues in tests
+jest.mock('@/components/skill-tree/perk-icon', () => ({
+  PerkIcon: ({ perkId }: { perkId: string }) => {
+    const { View, Text } = require('react-native');
+    return (
+      <View testID={`mock-perk-icon-${perkId}`}>
+        <Text>{perkId}</Text>
+      </View>
+    );
+  },
+}));
+
 describe('CompactRewardBreakdown', () => {
   const mockPerksApplied = [
     { id: 'quick_break', name: 'Quick Break', bonusXP: 9, icon: 'zap' },
@@ -18,10 +30,10 @@ describe('CompactRewardBreakdown', () => {
       />
     );
 
-    expect(screen.getByText('Perks used on this quest')).toBeTruthy();
+    expect(screen.getByText('Active Perks')).toBeTruthy();
   });
 
-  it('renders total XP', () => {
+  it('renders bonus XP (adjustedXP - baseXP)', () => {
     render(
       <CompactRewardBreakdown
         baseXP={45}
@@ -30,11 +42,11 @@ describe('CompactRewardBreakdown', () => {
       />
     );
 
-    expect(screen.getByText('Total XP')).toBeTruthy();
-    expect(screen.getByText('68')).toBeTruthy();
+    // 68 - 45 = 23 bonus XP
+    expect(screen.getByText('+23 XP')).toBeTruthy();
   });
 
-  it('renders perk badges with bonus XP', () => {
+  it('renders perk badges for each perk', () => {
     render(
       <CompactRewardBreakdown
         baseXP={45}
@@ -45,8 +57,6 @@ describe('CompactRewardBreakdown', () => {
 
     expect(screen.getByTestId('perk-badge-quick_break')).toBeTruthy();
     expect(screen.getByTestId('perk-badge-endurance_focus')).toBeTruthy();
-    expect(screen.getByText('+9')).toBeTruthy();
-    expect(screen.getByText('+14')).toBeTruthy();
   });
 
   it('handles empty perks array', () => {
@@ -54,8 +64,8 @@ describe('CompactRewardBreakdown', () => {
       <CompactRewardBreakdown baseXP={45} adjustedXP={45} perksApplied={[]} />
     );
 
-    expect(screen.getByText('Perks used on this quest')).toBeTruthy();
-    expect(screen.getByText('Total XP')).toBeTruthy();
+    expect(screen.getByText('Active Perks')).toBeTruthy();
+    expect(screen.getByText('+0 XP')).toBeTruthy();
     expect(screen.queryByTestId('perk-badge-quick_break')).toBeNull();
   });
 
@@ -69,7 +79,7 @@ describe('CompactRewardBreakdown', () => {
     );
 
     expect(screen.getByLabelText('Reward breakdown')).toBeTruthy();
-    expect(screen.getByLabelText('Quick Break: +9 XP. Tap to flip')).toBeTruthy();
-    expect(screen.getByLabelText('Endurance Focus: +14 XP. Tap to flip')).toBeTruthy();
+    expect(screen.getByLabelText('Quick Break: +9 XP')).toBeTruthy();
+    expect(screen.getByLabelText('Endurance Focus: +14 XP')).toBeTruthy();
   });
 });

@@ -59,7 +59,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.WAKE_LOCK',
       'com.android.vending.BILLING',
     ],
-    // versionCode managed by EAS autoIncrement in eas.json
+    // versionCode managed by EAS remote version source (eas build:version:set)
     // Allow HTTP connections in staging for local dev server
     ...(Env.APP_ENV !== 'production' && {
       usesCleartextTraffic: true,
