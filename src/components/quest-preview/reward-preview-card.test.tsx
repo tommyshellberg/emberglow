@@ -93,9 +93,9 @@ describe('RewardPreviewCard', () => {
   it('renders inline XP text', () => {
     render(<RewardPreviewCard participant={mockParticipant} />);
 
-    expect(screen.getByText(/90 Base XP/)).toBeTruthy();
+    expect(screen.getByText(/90 XP/)).toBeTruthy();
     expect(screen.getByText(/45 Bonus XP/)).toBeTruthy();
-    expect(screen.getByText(/135 Total XP/)).toBeTruthy();
+    expect(screen.getByText(/135 XP/)).toBeTruthy();
   });
 
   it('renders perk badges for each applied perk', () => {
@@ -117,8 +117,8 @@ describe('RewardPreviewCard', () => {
     render(<RewardPreviewCard participant={participantWithoutPerks} />);
 
     // Should still render XP inline
-    expect(screen.getByText(/90 Base XP/)).toBeTruthy();
-    expect(screen.getByText(/135 Total XP/)).toBeTruthy();
+    expect(screen.getByText(/90 XP/)).toBeTruthy();
+    expect(screen.getByText(/135 XP/)).toBeTruthy();
 
     // No perk icons
     expect(screen.queryByTestId(/perk-icon/)).toBeNull();
@@ -162,9 +162,8 @@ describe('RewardPreviewCard', () => {
 
     render(<RewardPreviewCard participant={participantNoBonus} />);
 
-    // Should show only "Total XP" without "Base XP" when no bonus
-    expect(screen.getByText(/90 Total XP/)).toBeTruthy();
-    expect(screen.queryByText(/Base XP/)).toBeNull();
+    // Should show only XP without bonus breakdown when no perks applied
+    expect(screen.getByText(/90 XP/)).toBeTruthy();
     expect(screen.queryByText(/Bonus XP/)).toBeNull();
   });
 });

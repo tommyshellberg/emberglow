@@ -1,4 +1,5 @@
 import React from 'react';
+import { ScrollView } from 'react-native';
 
 import { BackgroundImage, ScreenContainer, View } from '@/components/ui';
 import { CompactRewardBreakdown } from '@/features/quest-result/components';
@@ -45,39 +46,45 @@ export function QuestComplete({
       </BackgroundImage>
 
       {/* Content */}
-      <ScreenContainer fullScreen className="items-center justify-between px-4">
-        <QuestCompleteHeader
-          quest={quest}
-          disableAnimations={disableEnteringAnimations}
-        />
-
-        <View className="w-full px-2">
-          <QuestCompleteStory
-            story={displayStory}
+      <ScreenContainer fullScreen className="px-4">
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', alignItems: 'center' }}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <QuestCompleteHeader
             quest={quest}
             disableAnimations={disableEnteringAnimations}
           />
-        </View>
 
-        {/* Compact reward breakdown - after story, before actions */}
-        {rewardsData && perksWithBonuses.length > 0 && (
-          <View className="mt-3 w-full px-2">
-            <CompactRewardBreakdown
-              baseXP={rewardsData.baseXP}
-              adjustedXP={rewardsData.adjustedXP}
-              perksApplied={perksWithBonuses}
+          <View className="w-full px-2">
+            <QuestCompleteStory
+              story={displayStory}
+              quest={quest}
+              disableAnimations={disableEnteringAnimations}
             />
           </View>
-        )}
 
-        {showActionButton && (
-          <QuestCompleteActions
-            quest={quest}
-            onContinue={onContinue}
-            continueText={continueText}
-            disableAnimations={disableEnteringAnimations}
-          />
-        )}
+          {/* Compact reward breakdown - after story, before actions */}
+          {rewardsData && perksWithBonuses.length > 0 && (
+            <View className="mt-3 w-full px-2">
+              <CompactRewardBreakdown
+                baseXP={rewardsData.baseXP}
+                adjustedXP={rewardsData.adjustedXP}
+                perksApplied={perksWithBonuses}
+              />
+            </View>
+          )}
+
+          {showActionButton && (
+            <QuestCompleteActions
+              quest={quest}
+              onContinue={onContinue}
+              continueText={continueText}
+              disableAnimations={disableEnteringAnimations}
+            />
+          )}
+        </ScrollView>
       </ScreenContainer>
     </View>
   );

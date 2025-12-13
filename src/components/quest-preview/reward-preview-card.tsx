@@ -59,14 +59,14 @@ export function RewardPreviewCard({
         <Text className="text-center text-sm text-cream-500">
           {hasBonus ? (
             <>
-              <Text>{baseXP} Base XP</Text>
+              <Text>{baseXP} XP</Text>
               <Text> + </Text>
               <Text style={{ color: primary[400] }}>{bonusXP} Bonus XP</Text>
               <Text> = </Text>
-              <Text className="font-bold">{adjustedXP} Total XP</Text>
+              <Text className="font-bold">{adjustedXP} XP</Text>
             </>
           ) : (
-            <Text className="font-bold">{adjustedXP} Total XP</Text>
+            <Text className="font-bold">{adjustedXP} XP</Text>
           )}
         </Text>
       </View>
