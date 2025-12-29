@@ -6,6 +6,8 @@ import React, { useEffect, useState } from 'react';
 import { cooperativeQuestApi } from '@/api/cooperative-quest';
 import { CombinedQuestInput } from '@/components/QuestForm/combined-quest-input';
 import { FriendSelector } from '@/components/QuestForm/friend-selector';
+import { GuildSelector } from '@/components/QuestForm/guild-selector';
+import type { Guild } from '@/features/guilds';
 import {
   Button,
   FocusAwareStatusBar,
@@ -15,15 +17,26 @@ import {
   TouchableOpacity,
   View,
 } from '@/components/ui';
+import colors from '@/components/ui/colors';
 import { useCooperativeLobbyStore } from '@/store/cooperative-lobby-store';
 import { useUserStore } from '@/store/user-store';
+
+type InviteMode = 'friends' | 'guild';
 
 export default function CreateCooperativeQuestScreen() {
   const router = useRouter();
   const [questName, setQuestName] = useState('');
   const [questDuration, setQuestDuration] = useState(30);
+  const [inviteMode, setInviteMode] = useState<InviteMode>('friends');
+
+  // Friends mode state
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [selectedFriendData, setSelectedFriendData] = useState<any[]>([]);
+
+  // Guild mode state
+  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null);
+  const [guildMemberIds, setGuildMemberIds] = useState<string[]>([]);
+
   const [isCreating, setIsCreating] = useState(false);
   const posthog = usePostHog();
   const createLobby = useCooperativeLobbyStore((state) => state.createLobby);
@@ -36,24 +49,81 @@ export default function CreateCooperativeQuestScreen() {
     leaveLobby();
   }, [posthog]);
 
-  const canCreate = questName.trim().length > 0 && selectedFriends.length > 0;
+  // Handle mode switching - clear the other selection
+  const handleModeChange = (mode: InviteMode) => {
+    if (mode === inviteMode) return;
+
+    setInviteMode(mode);
+    if (mode === 'friends') {
+      // Switching to friends mode - clear guild selection
+      setSelectedGuild(null);
+      setGuildMemberIds([]);
+    } else {
+      // Switching to guild mode - clear friend selection
+      setSelectedFriends([]);
+      setSelectedFriendData([]);
+    }
+  };
+
+  // Get invitee IDs based on current mode
+  const getInviteeIds = (): string[] => {
+    if (inviteMode === 'friends') {
+      return selectedFriends;
+    }
+    return guildMemberIds;
+  };
+
+  const inviteeIds = getInviteeIds();
+  const canCreate = questName.trim().length > 0 && inviteeIds.length > 0;
 
   const handleCreate = async () => {
     if (!canCreate || !currentUser) return;
 
     setIsCreating(true);
-    posthog.capture('trigger_create_cooperative_quest');
+    posthog.capture('trigger_create_cooperative_quest', {
+      inviteMode,
+      inviteeCount: inviteeIds.length,
+    });
 
     try {
       // Call the new API endpoint to initialize the cooperative quest
       const response = await cooperativeQuestApi.initializeCooperativeQuest({
         title: questName.trim(),
         duration: questDuration,
-        inviteeIds: selectedFriends, // Changed from 'invitees' to 'inviteeIds'
+        inviteeIds,
         questData: {
-          category: 'social', // Cooperative quests are social by nature
-          // Removed reward field - server will calculate this
+          category: 'cooperative',
         },
+      });
+
+      // Build participants list based on invite mode
+      const invitedParticipants = inviteeIds.map((inviteeId) => {
+        if (inviteMode === 'friends') {
+          const friendData = selectedFriendData.find(
+            (f) =>
+              f._id === inviteeId || f.userId === inviteeId || f.id === inviteeId
+          );
+          return {
+            id: inviteeId,
+            username:
+              friendData?.character?.name ||
+              friendData?.displayName ||
+              'Friend',
+            invitationStatus: 'pending' as const,
+            isReady: false,
+            isCreator: false,
+          };
+        } else {
+          // Guild mode
+          const member = selectedGuild?.members.find((m) => m.id === inviteeId);
+          return {
+            id: inviteeId,
+            username: member?.character?.name || 'Guildmate',
+            invitationStatus: 'pending' as const,
+            isReady: false,
+            isCreator: false,
+          };
+        }
       });
 
       // Create the lobby in local state
@@ -71,22 +141,7 @@ export default function CreateCooperativeQuestScreen() {
             isCreator: true,
             joinedAt: new Date(),
           },
-          ...selectedFriends.map((friendId) => {
-            const friendData = selectedFriendData.find(
-              (f) =>
-                f._id === friendId || f.userId === friendId || f.id === friendId
-            );
-            return {
-              id: friendId,
-              username:
-                friendData?.character?.name ||
-                friendData?.displayName ||
-                'Friend',
-              invitationStatus: 'pending' as const,
-              isReady: false,
-              isCreator: false,
-            };
-          }),
+          ...invitedParticipants,
         ],
         status: 'waiting' as const,
         createdAt: new Date(),
@@ -95,7 +150,6 @@ export default function CreateCooperativeQuestScreen() {
           title: questName.trim(),
           duration: questDuration,
           category: 'social',
-          // Note: reward will be calculated by server when quest is created
         },
       };
 
@@ -117,16 +171,19 @@ export default function CreateCooperativeQuestScreen() {
       <FocusAwareStatusBar />
 
       {/* Header */}
-      <View className="border-b border-neutral-200 px-5 py-4">
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color="#333" />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold">
-            Create Cooperative Quest
-          </Text>
-          <View className="w-6" />
-        </View>
+      <View className="mb-4 mt-2 px-4">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mb-4 flex-row items-center"
+        >
+          <ArrowLeft size={24} color={colors.white} />
+          <Text className="ml-2 text-lg text-white">Back</Text>
+        </TouchableOpacity>
+
+        <Text className="mb-2 text-3xl font-bold text-white">Create Quest</Text>
+        <Text style={{ color: colors.neutral[200] }}>
+          Start a cooperative quest and invite friends or your guild
+        </Text>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -155,28 +212,109 @@ export default function CreateCooperativeQuestScreen() {
             onDurationChange={setQuestDuration}
           />
 
-          {/* Friend Selection */}
+          {/* Invite Mode Toggle */}
           <View className="mt-6">
-            <Text className="mb-3 text-lg font-semibold">Invite Friends</Text>
-            <Text className="mb-4 text-sm text-neutral-600">
-              Select friends to join your quest. You need at least one friend to
-              start a cooperative quest.
+            <Text className="mb-3 text-lg font-semibold text-white">
+              Invite Participants
             </Text>
-            <FriendSelector
-              onSelectionChange={(ids, friendData) => {
-                setSelectedFriends(ids);
-                setSelectedFriendData(friendData || []);
-              }}
-            />
+
+            {/* Toggle Tabs */}
+            <View
+              className="mb-4 flex-row rounded-lg p-1"
+              style={{ backgroundColor: colors.neutral[500] }}
+            >
+              <TouchableOpacity
+                onPress={() => handleModeChange('friends')}
+                className="flex-1 rounded-md py-2"
+                style={{
+                  backgroundColor:
+                    inviteMode === 'friends'
+                      ? colors.primary[400]
+                      : 'transparent',
+                }}
+              >
+                <Text
+                  className="text-center font-semibold"
+                  style={{
+                    color:
+                      inviteMode === 'friends'
+                        ? colors.white
+                        : colors.neutral[200],
+                  }}
+                >
+                  Friends
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleModeChange('guild')}
+                className="flex-1 rounded-md py-2"
+                style={{
+                  backgroundColor:
+                    inviteMode === 'guild'
+                      ? colors.primary[400]
+                      : 'transparent',
+                }}
+              >
+                <Text
+                  className="text-center font-semibold"
+                  style={{
+                    color:
+                      inviteMode === 'guild'
+                        ? colors.white
+                        : colors.neutral[200],
+                  }}
+                >
+                  Guild
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Mode-specific selector */}
+            {inviteMode === 'friends' ? (
+              <View>
+                <Text
+                  className="mb-4 text-sm"
+                  style={{ color: colors.neutral[200] }}
+                >
+                  Select friends to join your quest.
+                </Text>
+                <FriendSelector
+                  onSelectionChange={(ids, friendData) => {
+                    setSelectedFriends(ids);
+                    setSelectedFriendData(friendData || []);
+                  }}
+                />
+              </View>
+            ) : (
+              <View>
+                <Text
+                  className="mb-4 text-sm"
+                  style={{ color: colors.neutral[200] }}
+                >
+                  Select a guild to invite all members.
+                </Text>
+                <GuildSelector
+                  onSelectionChange={(guildIds, guilds, memberIds) => {
+                    setSelectedGuild(guilds[0] || null);
+                    setGuildMemberIds(memberIds);
+                  }}
+                  currentUserId={currentUser?.id}
+                  maxSelections={1}
+                />
+              </View>
+            )}
           </View>
 
-          {/* Selected Friends Count */}
-          {selectedFriends.length > 0 && (
+          {/* Invitees Count */}
+          {inviteeIds.length > 0 && (
             <View className="mt-4 flex-row items-center">
-              <Users size={20} color="#666" />
-              <Text className="ml-2 text-sm text-neutral-600">
-                {selectedFriends.length} friend
-                {selectedFriends.length > 1 ? 's' : ''} selected
+              <Users size={20} color={colors.neutral[200]} />
+              <Text
+                className="ml-2 text-sm"
+                style={{ color: colors.neutral[200] }}
+              >
+                {inviteeIds.length} participant
+                {inviteeIds.length !== 1 ? 's' : ''} will be invited
               </Text>
             </View>
           )}

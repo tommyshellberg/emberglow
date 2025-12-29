@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getItem, removeItem, setItem } from '@/lib/storage';
+import type { QuestParticipant } from './types';
 
 export interface LobbyParticipant {
   id: string;
@@ -215,3 +216,64 @@ export const useCooperativeLobbyStore = create<CooperativeLobbyState>()(
 );
 
 // Zustand already provides getState method, no need to override
+
+/**
+ * Adapter functions to convert between LobbyParticipant and QuestParticipant formats.
+ *
+ * LobbyParticipant uses:       QuestParticipant uses:
+ * - id                         - userId
+ * - isReady                    - ready
+ * - invitationStatus           - status (with more values)
+ * - username                   - userName
+ *
+ * Use these functions when transitioning from lobby phase to active quest phase.
+ */
+
+/**
+ * Convert a LobbyParticipant to a QuestParticipant.
+ * Call this when the quest is created and participants move from lobby to active quest.
+ */
+export function lobbyParticipantToQuestParticipant(
+  lobbyParticipant: LobbyParticipant
+): QuestParticipant {
+  return {
+    userId: lobbyParticipant.id,
+    ready: lobbyParticipant.isReady,
+    status: lobbyParticipant.invitationStatus,
+    userName: lobbyParticipant.username,
+  };
+}
+
+/**
+ * Convert a QuestParticipant to a LobbyParticipant.
+ * Call this when rejoining a lobby or syncing state from server.
+ */
+export function questParticipantToLobbyParticipant(
+  questParticipant: QuestParticipant,
+  isCreator: boolean = false
+): LobbyParticipant {
+  // Map quest participant status back to lobby invitation status
+  const invitationStatus: LobbyParticipant['invitationStatus'] =
+    questParticipant.status === 'pending' ||
+    questParticipant.status === 'accepted' ||
+    questParticipant.status === 'declined'
+      ? questParticipant.status
+      : 'accepted'; // Active/completed/failed implies they accepted
+
+  return {
+    id: questParticipant.userId,
+    username: questParticipant.userName || questParticipant.userId,
+    invitationStatus,
+    isReady: questParticipant.ready,
+    isCreator,
+  };
+}
+
+/**
+ * Convert an array of LobbyParticipants to QuestParticipants.
+ */
+export function lobbyParticipantsToQuestParticipants(
+  lobbyParticipants: LobbyParticipant[]
+): QuestParticipant[] {
+  return lobbyParticipants.map(lobbyParticipantToQuestParticipant);
+}

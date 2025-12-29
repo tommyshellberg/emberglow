@@ -26,6 +26,7 @@ import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
 
+import { GuildsSection } from '@/features/guilds/components/guilds-section';
 import { ActionCards } from '@/features/profile/components/profile-components';
 import { PROFILE_COLORS } from '@/features/profile/constants/profile-constants';
 import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
@@ -147,6 +148,9 @@ export default function ProfileScreen() {
 
           {/* Experience Progress */}
           <ExperienceCard character={character} />
+
+          {/* Guilds Section */}
+          <GuildsSection />
 
           {/* Friends Section */}
           <FriendsList

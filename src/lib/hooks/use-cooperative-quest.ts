@@ -234,6 +234,11 @@ export function useParticipantReady(questRunId: string | undefined) {
     async (ready: boolean) => {
       if (!questRunId || !user) return;
 
+      // Save previous state for rollback on error
+      const previousReady =
+        cooperativeQuestRun?.participants.find((p) => p.userId === user.id)
+          ?.ready ?? false;
+
       try {
         // Update local state optimistically
         updateParticipantReady(user.id, ready);
@@ -281,6 +286,8 @@ export function useParticipantReady(questRunId: string | undefined) {
 
         return false;
       } catch (error) {
+        // Rollback optimistic update on failure
+        updateParticipantReady(user.id, previousReady);
         console.error('Failed to update ready state:', error);
         throw error;
       }

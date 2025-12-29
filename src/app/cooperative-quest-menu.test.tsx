@@ -44,17 +44,6 @@ jest.mock('@/store/user-store', () => ({
   ),
 }));
 
-// Mock premium access hook
-jest.mock('@/lib/hooks/use-premium-access', () => ({
-  usePremiumAccess: jest.fn(() => ({
-    hasPremiumAccess: true,
-    isLoading: false,
-    showPaywall: false,
-    handlePaywallClose: jest.fn(),
-    handlePaywallSuccess: jest.fn(),
-  })),
-}));
-
 // Mock user services
 jest.mock('@/lib/services/user', () => ({
   getUserFriends: jest.fn(() =>

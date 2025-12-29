@@ -269,7 +269,7 @@ describe('JoinCooperativeQuest', () => {
 
     // Wait for the component to load
     await waitFor(() => {
-      const headerText = screen.getByText('Join a Cooperative Quest');
+      const headerText = screen.getByText('Join a Quest');
       expect(headerText).toBeTruthy();
     });
 

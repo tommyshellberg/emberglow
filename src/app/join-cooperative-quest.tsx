@@ -265,21 +265,21 @@ export default function JoinCooperativeQuest() {
       <FocusAwareStatusBar />
 
       {/* Header */}
-      <View
-        className="border-b px-5 pb-4"
-        style={{
-          borderBottomColor: colors.neutral[200],
-        }}
-      >
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={24} color={colors.black} />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold" style={{ fontWeight: '700' }}>
-            Join a Cooperative Quest
-          </Text>
-          <View className="w-6" />
-        </View>
+      <View className="mb-6 mt-2 px-4">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mb-4 flex-row items-center"
+        >
+          <ArrowLeft size={24} color={colors.white} />
+          <Text className="ml-2 text-lg text-white">Back</Text>
+        </TouchableOpacity>
+
+        <Text className="mb-2 text-3xl font-bold text-white">
+          Join a Quest
+        </Text>
+        <Text style={{ color: colors.neutral[200] }}>
+          View and respond to quest invitations from friends
+        </Text>
       </View>
 
       <ScrollView
@@ -296,7 +296,7 @@ export default function JoinCooperativeQuest() {
         {isLoading ? (
           <View className="flex-1 items-center justify-center py-20">
             <ActivityIndicator size="large" />
-            <Text className="mt-4 text-neutral-600">
+            <Text className="mt-4" style={{ color: colors.neutral[200] }}>
               Loading invitations...
             </Text>
           </View>
@@ -304,7 +304,7 @@ export default function JoinCooperativeQuest() {
           <>
             {/* No Invitations */}
             <View className="items-center py-10">
-              <Inbox size={48} color={colors.neutral[400]} />
+              <Inbox size={48} color={colors.neutral[200]} />
               <Text
                 className="mt-3 text-lg font-semibold"
                 style={{ fontWeight: '700' }}
@@ -313,7 +313,7 @@ export default function JoinCooperativeQuest() {
               </Text>
               <Text
                 className="mt-2 text-center text-base"
-                style={{ color: colors.neutral[500] }}
+                style={{ color: colors.neutral[200] }}
               >
                 You don't have any pending quest invitations.
               </Text>
@@ -365,10 +365,10 @@ export default function JoinCooperativeQuest() {
                         {quest.title}
                       </Text>
                       <View className="mt-2 flex-row items-center">
-                        <User size={16} color={colors.neutral[400]} />
+                        <User size={16} color={colors.neutral[200]} />
                         <Text
                           className="ml-1 text-sm"
-                          style={{ color: colors.neutral[500] }}
+                          style={{ color: colors.neutral[200] }}
                         >
                           Hosted by {quest.host}
                         </Text>
@@ -377,19 +377,19 @@ export default function JoinCooperativeQuest() {
 
                     <View className="mb-3 flex-row justify-between">
                       <View className="flex-row items-center">
-                        <Clock size={16} color={colors.neutral[400]} />
+                        <Clock size={16} color={colors.neutral[200]} />
                         <Text
                           className="ml-1 text-sm"
-                          style={{ color: colors.neutral[500] }}
+                          style={{ color: colors.neutral[200] }}
                         >
                           {quest.duration} min
                         </Text>
                       </View>
                       <View className="flex-row items-center">
-                        <Users size={16} color={colors.neutral[400]} />
+                        <Users size={16} color={colors.neutral[200]} />
                         <Text
                           className="ml-1 text-sm"
-                          style={{ color: colors.neutral[500] }}
+                          style={{ color: colors.neutral[200] }}
                         >
                           {quest.participants}
                         </Text>
@@ -408,12 +408,12 @@ export default function JoinCooperativeQuest() {
                     <TouchableOpacity
                       disabled
                       className="rounded-lg px-4 py-2"
-                      style={{ backgroundColor: colors.neutral[200] }}
+                      style={{ backgroundColor: colors.neutral[300] }}
                     >
                       <Text
                         className="text-center text-sm font-semibold"
                         style={{
-                          color: colors.neutral[400],
+                          color: colors.neutral[50],
                           fontWeight: '600',
                         }}
                       >

@@ -108,9 +108,9 @@ describe('CooperativeQuestLobby', () => {
   it('should render the lobby with all participants', () => {
     render(<CooperativeQuestLobby />);
 
-    // Check quest info
-    expect(screen.getByText('Test Quest')).toBeTruthy();
-    expect(screen.getByText('30 minutes')).toBeTruthy();
+    // Check header
+    expect(screen.getByText('Quest Lobby')).toBeTruthy();
+    expect(screen.getByText(/Test Quest.*30.*minutes/)).toBeTruthy();
 
     // Check participants
     expect(screen.getByText('Creator (You) 👑')).toBeTruthy();

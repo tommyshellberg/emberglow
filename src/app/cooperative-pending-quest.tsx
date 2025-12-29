@@ -1,37 +1,43 @@
-import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
+import { Clock, Lock, Users } from 'lucide-react-native';
 import React, { useEffect } from 'react';
-import { ActivityIndicator } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
+import { ActivityIndicator, Image, type ImageStyle } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestRewardPreview } from '@/api/quest-runs';
+import { getCharacterAvatar } from '@/app/utils/character-utils';
 import { useWebSocket } from '@/components/providers/websocket-provider';
-import { LockInstructions, QuestCard } from '@/components/quest';
+import { RewardPreviewCard } from '@/components/quest-preview';
 import {
   BackgroundImage,
   Button,
-  ScreenContainer,
+  Card,
   Text,
+  Title,
   View,
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
+import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { type CustomQuestTemplate } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
-// Type guard for custom quests
-function isCustomQuest(
-  quest: { mode?: string } | null | undefined
-): quest is CustomQuestTemplate {
-  return quest?.mode === 'custom';
+import {
+  ANIMATION_CONFIG,
+  STRINGS,
+  UI_CONFIG,
+} from './pending-quest/constants';
+import { usePendingQuestAnimations } from './pending-quest/hooks/use-pending-quest-animations';
+
+// Type guard for quests with category (custom or cooperative)
+function hasCategory(
+  quest: { mode?: string; category?: string } | null | undefined
+): quest is { mode: string; category: string } {
+  return (
+    (quest?.mode === 'custom' || quest?.mode === 'cooperative') &&
+    !!quest?.category
+  );
 }
 
 export default function CooperativePendingQuestScreen() {
@@ -39,11 +45,16 @@ export default function CooperativePendingQuestScreen() {
   const cooperativeQuestRun = useQuestStore(
     (state) => state.cooperativeQuestRun
   );
+  const character = useCharacterStore((state) => state.character);
   const insets = useSafeAreaInsets();
   const cancelQuest = useQuestStore((state) => state.cancelQuest);
   const user = useUserStore((state) => state.user);
   const { addListener, removeListener, joinQuestRoom, leaveQuestRoom } =
     useWebSocket();
+
+  // Use animation hook for all screen animations
+  const { headerStyle, cardStyle, buttonStyle, shimmerStyle } =
+    usePendingQuestAnimations(!!pendingQuest);
 
   // Countdown state
   const [showCountdown, setShowCountdown] = React.useState(true);
@@ -53,59 +64,33 @@ export default function CooperativePendingQuestScreen() {
   const participantIds =
     cooperativeQuestRun?.participants?.map(
       (p: { userId: string }) => p.userId
-    ) || [];
-  const { data: rewardPreview } = useQuestRewardPreview({
-    questData: pendingQuest
-      ? {
-          durationMinutes: pendingQuest.durationMinutes || 0,
-          category: isCustomQuest(pendingQuest)
-            ? pendingQuest.category
-            : undefined,
-          mode: pendingQuest.mode || 'custom',
-          reward: {
-            xp: pendingQuest.reward?.xp || 0,
-          },
-        }
-      : undefined,
-    participantIds,
-    enabled: !!pendingQuest && participantIds.length > 0 && !showCountdown,
-  });
+    ) || (user?.id ? [user.id] : []);
 
-  // Header animation using react-native-reanimated
-  const headerOpacity = useSharedValue(0);
-  const headerScale = useSharedValue(0.9);
-  const cardOpacity = useSharedValue(0);
-  const cardScale = useSharedValue(0.9);
-  const buttonOpacity = useSharedValue(0);
-  const buttonScale = useSharedValue(0.9);
-
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-    transform: [{ scale: headerScale.value }],
-  }));
-
-  const cardAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: cardOpacity.value,
-    transform: [{ scale: cardScale.value }],
-  }));
-
-  const buttonAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: buttonOpacity.value,
-    transform: [{ scale: buttonScale.value }],
-  }));
-
-  // Debug logging for cooperative quest state
-  useEffect(() => {
-    console.log('[CooperativePendingQuest] State:', {
-      questRunId: cooperativeQuestRun?.id,
-      participants: cooperativeQuestRun?.participants,
-      userId: user?.id,
-      questCategory: isCustomQuest(pendingQuest)
-        ? pendingQuest.category
+  const { data: rewardPreview, isLoading: isLoadingPreview } =
+    useQuestRewardPreview({
+      questData: pendingQuest
+        ? {
+            durationMinutes: pendingQuest.durationMinutes || 0,
+            category: hasCategory(pendingQuest)
+              ? pendingQuest.category
+              : undefined,
+            mode: pendingQuest.mode || 'cooperative',
+            reward: {
+              xp: pendingQuest.reward?.xp || 0,
+            },
+          }
         : undefined,
-      hasCooperativeQuestRun: !!cooperativeQuestRun,
+      participantIds,
+      enabled: !!pendingQuest && participantIds.length > 0 && !showCountdown,
     });
-  }, [cooperativeQuestRun, user?.id, pendingQuest]);
+
+  const adjustedDuration = rewardPreview?.effects?.duration;
+  const hasDurationReduction =
+    adjustedDuration != null &&
+    pendingQuest &&
+    adjustedDuration !== pendingQuest.durationMinutes &&
+    adjustedDuration < pendingQuest.durationMinutes;
+
 
   // Join the quest room for real-time updates
   useEffect(() => {
@@ -130,13 +115,10 @@ export default function CooperativePendingQuestScreen() {
   useEffect(() => {
     const handleQuestStarted = (data: any) => {
       console.log('[CooperativePendingQuest] Quest started:', data);
-      // DO NOT navigate here - the phone is unlocked if we're viewing this screen
-      // The navigation state resolver will handle routing when appropriate
     };
 
     const handleParticipantReady = (data: any) => {
       console.log('[CooperativePendingQuest] Participant ready update:', data);
-      // The websocket provider already handles updating the store
     };
 
     addListener('questStarted', handleQuestStarted);
@@ -158,7 +140,7 @@ export default function CooperativePendingQuestScreen() {
             clearInterval(countdownInterval);
             setTimeout(() => {
               setShowCountdown(false);
-            }, 500); // Show 0 for half a second before transitioning
+            }, 500);
           }
           return newCount;
         });
@@ -168,34 +150,13 @@ export default function CooperativePendingQuestScreen() {
     }
   }, [showCountdown]);
 
-  // Run animations when countdown ends
-  useEffect(() => {
-    if (pendingQuest && !showCountdown) {
-      headerOpacity.value = withTiming(1, { duration: 500 });
-      headerScale.value = withTiming(1, { duration: 500 });
-      cardOpacity.value = withDelay(500, withTiming(1, { duration: 500 }));
-      cardScale.value = withDelay(500, withTiming(1, { duration: 500 }));
-      buttonOpacity.value = withDelay(1000, withTiming(1, { duration: 500 }));
-      buttonScale.value = withDelay(1000, withTiming(1, { duration: 500 }));
-    }
-  }, [
-    pendingQuest,
-    showCountdown,
-    buttonOpacity,
-    buttonScale,
-    cardOpacity,
-    cardScale,
-    headerOpacity,
-    headerScale,
-  ]);
-
   const handleCancelQuest = () => {
     cancelQuest();
     router.back();
   };
 
-  // Loading state while waiting for data
-  if (!pendingQuest || !cooperativeQuestRun) {
+  // Loading state
+  if (!pendingQuest) {
     return (
       <View className="flex-1 items-center justify-center">
         <ActivityIndicator />
@@ -245,151 +206,243 @@ export default function CooperativePendingQuestScreen() {
     );
   }
 
+  const participantCount = cooperativeQuestRun?.participants?.length || 2;
+
   // Main quest ready screen
   return (
     <View className="flex-1">
       {/* Full-screen Background Image */}
       <BackgroundImage
+        testID="background-image"
         source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
-      >
-        {/* BlurView for a subtle overlay effect */}
-        <BlurView intensity={30} tint="regular" className="absolute inset-0" />
-      </BackgroundImage>
+      />
 
-      <ScreenContainer
-        fullScreen
+      <View
+        className="flex-1 justify-between"
         style={{
-          paddingTop: insets.top + 20,
-          paddingHorizontal: 20,
+          paddingTop: insets.top,
+          paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
         }}
       >
-        <Animated.View
-          className="mb-8 items-center"
-          style={headerAnimatedStyle}
-        >
-          <Text className="text-3xl font-bold" style={{ fontWeight: '700' }}>
+        {/* Title */}
+        <Animated.View style={headerStyle}>
+          <Title variant="centered" className="text-4xl">
             Cooperative Quest
+          </Title>
+        </Animated.View>
+
+        {/* Card with Quest Info */}
+        <View className="flex-1 justify-center">
+          <Animated.View style={cardStyle}>
+            <Card>
+              {/* Header with Character Image */}
+              <View
+                style={{
+                  height: UI_CONFIG.HEADER_IMAGE_HEIGHT,
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                {/* Character Image */}
+                <Image
+                  source={getCharacterAvatar(character?.type)}
+                  style={
+                    {
+                      width: '100%',
+                      height: UI_CONFIG.HEADER_IMAGE_HEIGHT * 1.5,
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                    } as ImageStyle
+                  }
+                  resizeMode="cover"
+                />
+
+                {/* White tint overlay */}
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  }}
+                />
+
+                {/* Gradient overlay for text readability */}
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 80,
+                    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                  }}
+                />
+
+                {/* Title Overlay - Top Left */}
+                <Animated.View
+                  entering={FadeInDown.delay(
+                    ANIMATION_CONFIG.QUEST_TITLE_DELAY
+                  ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                  style={{
+                    position: 'absolute',
+                    top: 16,
+                    left: 16,
+                    right: 80,
+                  }}
+                >
+                  <Text
+                    className="text-xl font-bold text-white"
+                    style={{
+                      fontWeight: '700',
+                      textShadowColor: 'rgba(0, 0, 0, 0.5)',
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 3,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {pendingQuest.title}
+                  </Text>
+                </Animated.View>
+
+                {/* Duration Overlay - Top Right */}
+                <Animated.View
+                  entering={FadeInDown.delay(
+                    ANIMATION_CONFIG.QUEST_TITLE_DELAY
+                  ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                  style={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    borderRadius: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Clock
+                    size={UI_CONFIG.DURATION_OVERLAY_ICON_SIZE}
+                    color={colors.white}
+                  />
+                  {hasDurationReduction ? (
+                    <View className="ml-2 flex-row items-baseline">
+                      <Text
+                        className="text-base text-neutral-400"
+                        style={{ textDecorationLine: 'line-through' }}
+                      >
+                        {pendingQuest.durationMinutes}
+                      </Text>
+                      <Text
+                        className="mx-1 text-base font-bold"
+                        style={{ color: colors.primary[400] }}
+                      >
+                        {adjustedDuration} min
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text className="ml-2 text-base font-semibold text-white">
+                      {pendingQuest.durationMinutes} min
+                    </Text>
+                  )}
+                </Animated.View>
+
+                {/* Participants Badge - Bottom Left */}
+                <Animated.View
+                  entering={FadeInDown.delay(
+                    ANIMATION_CONFIG.QUEST_TITLE_DELAY + 100
+                  ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                  style={{
+                    position: 'absolute',
+                    bottom: 16,
+                    left: 16,
+                    backgroundColor: colors.primary[500],
+                    borderRadius: 20,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Users size={16} color={colors.white} />
+                  <Text
+                    className="ml-2 text-sm font-semibold text-white"
+                    style={{ fontWeight: '600' }}
+                  >
+                    {participantCount} Companions
+                  </Text>
+                </Animated.View>
+              </View>
+
+              {/* Card Content */}
+              <View className="p-6">
+                {/* Subtitle */}
+                <Animated.Text
+                  entering={FadeInDown.delay(
+                    ANIMATION_CONFIG.QUEST_SUBTITLE_DELAY
+                  ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                  className="leading-relaxed text-neutral-200"
+                >
+                  Stronger together — complete this quest with your companions
+                </Animated.Text>
+
+                {/* Reward Preview */}
+                {isLoadingPreview ? (
+                  <Animated.View
+                    entering={FadeInDown.delay(
+                      ANIMATION_CONFIG.QUEST_SUBTITLE_DELAY + 200
+                    ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                    className="mt-4 items-center justify-center py-8"
+                  >
+                    <ActivityIndicator color={colors.primary[400]} />
+                    <Text className="mt-2 text-sm text-neutral-300">
+                      Loading rewards...
+                    </Text>
+                  </Animated.View>
+                ) : rewardPreview &&
+                  rewardPreview.participantRewards.length > 0 ? (
+                  <Animated.View
+                    entering={FadeInDown.delay(
+                      ANIMATION_CONFIG.QUEST_SUBTITLE_DELAY + 200
+                    ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+                    className="mt-4"
+                  >
+                    <RewardPreviewCard
+                      participant={rewardPreview.participantRewards[0]}
+                    />
+                  </Animated.View>
+                ) : null}
+              </View>
+            </Card>
+          </Animated.View>
+        </View>
+
+        {/* Lock Instructions - Outside Card with Shimmer */}
+        <Animated.View
+          entering={FadeInDown.delay(
+            ANIMATION_CONFIG.LOCK_INSTRUCTIONS_DELAY
+          ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
+          style={shimmerStyle}
+          className="mb-6 flex-row items-center justify-center"
+        >
+          <Lock
+            size={UI_CONFIG.LOCK_ICON_SIZE}
+            color={colors.white}
+            accessibilityHidden
+          />
+          <Text className="ml-2 text-base font-semibold text-white">
+            All companions must lock phones to begin
           </Text>
         </Animated.View>
 
-        <Animated.View className="flex-0" style={cardAnimatedStyle}>
-          <QuestCard
-            title={pendingQuest.title}
-            duration={pendingQuest.durationMinutes}
-            adjustedDuration={rewardPreview?.effects?.duration}
-          >
-            {/* Motivational Header */}
-            <Animated.Text
-              entering={FadeInDown.delay(600).duration(800)}
-              className="mb-2 text-center text-lg font-bold"
-              style={{ color: colors.primary[500], fontWeight: '700' }}
-            >
-              Stronger Together
-            </Animated.Text>
-
-            {/* Concise Quest Info */}
-            <Animated.Text
-              entering={FadeInDown.delay(900).duration(800)}
-              className="mb-6 text-center text-base"
-              style={{ color: colors.neutral[500] }}
-            >
-              {cooperativeQuestRun.participants?.length || 2} companions
-              embarking on this journey
-            </Animated.Text>
-
-            {/* Companions List */}
-            <Animated.View
-              entering={FadeInDown.delay(1200).duration(800)}
-              className="mb-6"
-            >
-              {cooperativeQuestRun.participants?.map(
-                (participant: any, index: number) => (
-                  <Animated.View
-                    key={participant.userId}
-                    entering={FadeInDown.delay(1200 + index * 100).duration(
-                      600
-                    )}
-                    className="mb-2 flex-row items-center justify-center"
-                  >
-                    <Text className="text-base" style={{ fontWeight: '600' }}>
-                      {participant.userId === user?.id
-                        ? '✨ You'
-                        : `⚔️ ${participant.userName || participant.characterName || 'Quest Companion'}`}
-                    </Text>
-                  </Animated.View>
-                )
-              ) || (
-                <Text className="text-center text-base">
-                  You and your quest companion
-                </Text>
-              )}
-            </Animated.View>
-
-            {/* Pooled Rewards Preview */}
-            {rewardPreview && (
-              <Animated.View
-                entering={FadeInDown.delay(1400).duration(800)}
-                className="mb-6 rounded-lg p-4"
-                style={{ backgroundColor: colors.primary[100] }}
-              >
-                <Text
-                  className="mb-2 text-center text-sm font-bold"
-                  style={{ color: colors.primary[500], fontWeight: '700' }}
-                >
-                  Pooled Rewards
-                </Text>
-                <View className="flex-row justify-center">
-                  <View className="items-center">
-                    <Text
-                      className="text-xl font-bold"
-                      style={{ color: colors.primary[500], fontWeight: '700' }}
-                    >
-                      +{rewardPreview.participantRewards[0]?.adjustedXP || 0} XP
-                    </Text>
-                    {(rewardPreview.participantRewards[0]?.multiplier || 1) >
-                      1 && (
-                      <Text
-                        className="text-xs"
-                        style={{ color: colors.primary[400] }}
-                      >
-                        {Math.round(
-                          ((rewardPreview.participantRewards[0]?.multiplier ||
-                            1) -
-                            1) *
-                            100
-                        )}
-                        % bonus from perks
-                      </Text>
-                    )}
-                  </View>
-                  {rewardPreview.effects?.duration && (
-                    <View className="ml-6 items-center">
-                      <Text
-                        className="text-xl font-bold"
-                        style={{ color: colors.primary[500], fontWeight: '700' }}
-                      >
-                        {rewardPreview.effects.duration} min
-                      </Text>
-                      <Text
-                        className="text-xs"
-                        style={{ color: colors.primary[400] }}
-                      >
-                        reduced duration
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Lock Instructions */}
-            <LockInstructions variant="cooperative" delay={1500} />
-          </QuestCard>
-        </Animated.View>
-
-        <View className="flex-1" />
-
-        <Animated.View style={buttonAnimatedStyle}>
+        {/* Cancel Button */}
+        <Animated.View
+          style={[buttonStyle, { marginBottom: UI_CONFIG.BOTTOM_PADDING }]}
+        >
           <Button
             onPress={handleCancelQuest}
             variant="destructive"
@@ -399,11 +452,11 @@ export default function CooperativePendingQuestScreen() {
               className="text-base font-semibold"
               style={{ fontWeight: '700' }}
             >
-              Cancel Quest
+              {STRINGS.CANCEL_BUTTON}
             </Text>
           </Button>
         </Animated.View>
-      </ScreenContainer>
+      </View>
     </View>
   );
 }

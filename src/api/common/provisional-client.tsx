@@ -1,11 +1,12 @@
-import { Env } from '@env';
 import axios from 'axios';
 
 import { getItem } from '@/lib/storage';
 
+import { getApiUrl } from './get-api-url';
+
 // Create a separate axios instance for provisional users
 const provisionalApiClient = axios.create({
-  baseURL: Env.API_URL,
+  baseURL: getApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -20,8 +21,8 @@ provisionalApiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${provisionalToken}`;
     }
 
-    // Log invitation-related requests
-    if (config.url?.includes('/invitations/')) {
+    // Log invitation-related requests in development only
+    if (__DEV__ && config.url?.includes('/invitations/')) {
       console.log('========================================');
       console.log('[Provisional API Client] Invitation Request');
       console.log('Method:', config.method?.toUpperCase());
@@ -41,8 +42,8 @@ provisionalApiClient.interceptors.request.use(
 // Add response interceptor for logging
 provisionalApiClient.interceptors.response.use(
   (response) => {
-    // Log invitation-related responses
-    if (response.config.url?.includes('/invitations/')) {
+    // Log invitation-related responses in development only
+    if (__DEV__ && response.config.url?.includes('/invitations/')) {
       console.log('========================================');
       console.log('[Provisional API Client] Invitation Response');
       console.log('Status:', response.status);

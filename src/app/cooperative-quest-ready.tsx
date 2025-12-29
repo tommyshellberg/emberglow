@@ -1,13 +1,15 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Check, Circle, Clock } from 'lucide-react-native';
+import { Check, Circle, Clock } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Alert } from 'react-native';
 
 import { useWebSocket } from '@/components/providers/websocket-provider';
 import {
   Button,
   FocusAwareStatusBar,
+  ScreenContainer,
+  ScreenHeader,
   ScrollView,
   Text,
   View,
@@ -34,7 +36,7 @@ function ParticipantReadyRow({
     if (participant.isReady) {
       return <Check size={20} color={colors.primary[400]} />;
     }
-    return <Circle size={20} color={colors.neutral[400]} />;
+    return <Circle size={20} color={colors.neutral[200]} />;
   };
 
   return (
@@ -44,10 +46,20 @@ function ParticipantReadyRow({
     >
       <View className="mr-3">{getStatusIcon()}</View>
       <View className="flex-1">
-        <Text className="font-semibold" style={{ fontWeight: '700' }}>
+        <Text
+          className="font-semibold"
+          style={{ fontWeight: '700', color: colors.white }}
+        >
           {participant.username} {isCurrentUser && '(You)'}
         </Text>
-        <Text className="text-sm" style={{ color: colors.neutral[500] }}>
+        <Text
+          className="text-sm"
+          style={{
+            color: participant.isReady
+              ? colors.primary[300]
+              : colors.neutral[200],
+          }}
+        >
           {participant.isReady ? 'Ready!' : 'Not ready yet'}
         </Text>
       </View>
@@ -92,13 +104,17 @@ export default function CooperativeQuestReady() {
     }
 
     // Join the lobby room to receive updates
-    console.log('Ready screen joining lobby:', currentLobby.lobbyId);
+    if (__DEV__) {
+      console.log('Ready screen joining lobby:', currentLobby.lobbyId);
+    }
     emit('lobby:join', { lobbyId: currentLobby.lobbyId });
     setHasJoined(true);
 
     // Listen for lobby joined event to get latest participant data
     const handleLobbyJoined = (data: any) => {
-      console.log('Ready screen - lobby joined data:', data);
+      if (__DEV__) {
+        console.log('Ready screen - lobby joined data:', data);
+      }
       if (data.lobbyId === currentLobby.lobbyId && data.participants) {
         // Update participant names and ready states from server
         data.participants.forEach((p: any) => {
@@ -115,13 +131,17 @@ export default function CooperativeQuestReady() {
 
     // Listen for ready status updates
     const handleReadyStatus = (data: LobbyReadyStatusPayload) => {
-      console.log('Ready status update:', data);
+      if (__DEV__) {
+        console.log('Ready status update:', data);
+      }
       markUserReady(data.userId, data.isReady);
     };
 
     // Listen for participant ready events (server sends these)
     const handleParticipantReady = (data: any) => {
-      console.log('Participant ready event:', data);
+      if (__DEV__) {
+        console.log('Participant ready event:', data);
+      }
       if (data.userId && data.participant) {
         markUserReady(data.userId, data.participant.ready || false);
       }
@@ -129,7 +149,9 @@ export default function CooperativeQuestReady() {
 
     // Listen for all participants ready event
     const handleAllReady = (data: any) => {
-      console.log('All participants ready:', data);
+      if (__DEV__) {
+        console.log('All participants ready:', data);
+      }
       if (data.allReady && data.lobbyId === currentLobby.lobbyId) {
         updateLobbyStatus('ready');
       }
@@ -137,7 +159,9 @@ export default function CooperativeQuestReady() {
 
     // Listen for quest created event
     const handleQuestCreated = async (data: any) => {
-      console.log('Quest created event received:', data);
+      if (__DEV__) {
+        console.log('Quest created event received:', data);
+      }
       // Server sends { questRun, startCountdown }
       if (data.questRun && data.startCountdown) {
         handleQuestCreatedResponse(data.questRun);
@@ -167,6 +191,7 @@ export default function CooperativeQuestReady() {
     on,
     off,
     router,
+    handleQuestCreatedResponse, // Include to avoid stale closure
   ]);
 
   if (!currentLobby || !currentUser) {
@@ -190,17 +215,21 @@ export default function CooperativeQuestReady() {
   // Define the quest created handler
   const handleQuestCreatedResponse = useCallback(
     async (questRun: any) => {
-      console.log('Quest created, preparing quest:', questRun);
+      if (__DEV__) {
+        console.log('Quest created, preparing quest:', questRun);
+      }
 
       // Transform questRun data to match CustomQuestTemplate format
       const questId =
         questRun.questId || questRun._id || questRun.id || `coop-${Date.now()}`;
-      console.log(
-        'Creating quest template with ID:',
-        questId,
-        'from questRun:',
-        questRun
-      );
+      if (__DEV__) {
+        console.log(
+          'Creating quest template with ID:',
+          questId,
+          'from questRun:',
+          questRun
+        );
+      }
 
       const questTemplate: CustomQuestTemplate = {
         id: questId,
@@ -212,7 +241,7 @@ export default function CooperativeQuestReady() {
           currentLobby.questDuration,
         reward: questRun.reward ||
           questRun.quest?.reward || { xp: currentLobby.questDuration * 10 },
-        mode: 'custom',
+        mode: 'cooperative',
         category: 'cooperative',
         // Don't include inviteeIds in the template - the server already created the quest
         // with all participants. Including inviteeIds would trigger a new quest creation
@@ -245,10 +274,16 @@ export default function CooperativeQuestReady() {
         updatedAt: questRun.updatedAt || Date.now(),
       };
 
-      console.log(
-        '[CooperativeQuestReady] Setting cooperative quest run:',
-        cooperativeQuestRunData
-      );
+      if (__DEV__) {
+        console.log(
+          '[CooperativeQuestReady] Raw questRun.participants:',
+          JSON.stringify(questRun.participants, null, 2)
+        );
+        console.log(
+          '[CooperativeQuestReady] Setting cooperative quest run:',
+          cooperativeQuestRunData
+        );
+      }
       questStore.setCooperativeQuestRun(cooperativeQuestRunData);
 
       // Prepare quest with transformed data
@@ -269,7 +304,9 @@ export default function CooperativeQuestReady() {
     if (allReady && isCreator && currentLobby?.lobbyId) {
       // Small delay to ensure everyone sees the "all ready" state
       const timer = setTimeout(() => {
-        console.log('Creating cooperative quest as creator via WebSocket...');
+        if (__DEV__) {
+          console.log('Creating cooperative quest as creator via WebSocket...');
+        }
         // Send WebSocket event to create quest, server will emit lobby:quest-created to all
         emit('lobby:create-quest', {
           lobbyId: currentLobby.lobbyId,
@@ -322,6 +359,7 @@ export default function CooperativeQuestReady() {
 
     setIsLoading(true);
     const newReadyState = !isReady;
+    const previousReadyState = isReady;
 
     posthog.capture(
       newReadyState
@@ -329,35 +367,38 @@ export default function CooperativeQuestReady() {
         : 'cooperative_quest_unready_clicked'
     );
 
-    emit(newReadyState ? 'lobby:ready' : 'lobby:unready', {
+    // Optimistically update local state
+    markUserReady(currentUser.id, newReadyState);
+
+    // Emit WebSocket event - check if it succeeded
+    const emitSuccess = emit(newReadyState ? 'lobby:ready' : 'lobby:unready', {
       lobbyId: currentLobby.lobbyId,
     });
-    markUserReady(currentUser.id, newReadyState);
+
+    if (!emitSuccess) {
+      // Rollback on failure - WebSocket not connected
+      markUserReady(currentUser.id, previousReadyState);
+      Alert.alert(
+        'Connection Error',
+        'Unable to update ready status. Please check your connection and try again.'
+      );
+    }
+
     setIsLoading(false);
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.background }}>
+    <ScreenContainer fullScreen noPadding>
       <FocusAwareStatusBar />
 
-      {/* Header */}
-      <View
-        className="border-b px-5 pb-4"
-        style={{ borderBottomColor: colors.neutral[200] }}
-      >
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity onPress={handleBackPress}>
-            <ArrowLeft size={24} color={colors.black} />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold" style={{ fontWeight: '700' }}>
-            Get Ready
-          </Text>
-          <View className="w-6" />
-        </View>
-      </View>
+      <View className="flex-1 px-4">
+        <ScreenHeader
+          title="Get Ready"
+          showBackButton
+          onBackPress={handleBackPress}
+        />
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-5">
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {/* Quest Info */}
           <View
             className="mb-6 rounded-lg p-4"
@@ -365,15 +406,15 @@ export default function CooperativeQuestReady() {
           >
             <Text
               className="mb-2 text-xl font-bold"
-              style={{ fontWeight: '700' }}
+              style={{ fontWeight: '700', color: colors.white }}
             >
               {currentLobby.questTitle}
             </Text>
             <View className="flex-row items-center">
-              <Clock size={16} color={colors.neutral[400]} />
+              <Clock size={16} color={colors.neutral[200]} />
               <Text
                 className="ml-1 text-sm"
-                style={{ color: colors.neutral[500] }}
+                style={{ color: colors.neutral[200] }}
               >
                 {currentLobby.questDuration} minutes
               </Text>
@@ -389,7 +430,7 @@ export default function CooperativeQuestReady() {
           {/* Participants Ready Status */}
           <Text
             className="mb-3 mt-6 text-lg font-semibold"
-            style={{ fontWeight: '700' }}
+            style={{ fontWeight: '700', color: colors.white }}
           >
             Ready Status
           </Text>
@@ -414,22 +455,19 @@ export default function CooperativeQuestReady() {
               </Text>
             </View>
           )}
-        </View>
-      </ScrollView>
+        </ScrollView>
 
-      {/* Ready Button */}
-      <View
-        className="border-t p-5"
-        style={{ borderTopColor: colors.neutral[200] }}
-      >
-        <Button
-          label={isReady ? 'Not Ready' : "I'm Ready!"}
-          onPress={handleReadyToggle}
-          disabled={isLoading}
-          className={`rounded-lg ${isReady ? 'bg-red-300' : 'bg-primary-400'}`}
-          textClassName={`font-bold text-lg ${isReady ? 'text-neutral-700' : 'text-white'}`}
-        />
+        {/* Ready Button */}
+        <View className="py-4">
+          <Button
+            label={isReady ? 'Not Ready' : "I'm Ready!"}
+            onPress={handleReadyToggle}
+            disabled={isLoading}
+            className={`rounded-lg ${isReady ? 'bg-red-300' : 'bg-primary-400'}`}
+            textClassName={`font-bold text-lg ${isReady ? 'text-neutral-700' : 'text-white'}`}
+          />
+        </View>
       </View>
-    </View>
+    </ScreenContainer>
   );
 }

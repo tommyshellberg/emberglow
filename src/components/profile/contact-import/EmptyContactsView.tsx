@@ -3,6 +3,7 @@ import React from 'react';
 import { View } from 'react-native';
 
 import { Button, Text } from '@/components/ui';
+import colors from '@/components/ui/colors';
 
 interface EmptyContactsViewProps {
   onImportContacts: () => void;
@@ -20,43 +21,54 @@ export const EmptyContactsView: React.FC<EmptyContactsViewProps> = ({
         {/* Benefit Items */}
         <View>
           <View className="mb-4 flex-row items-center">
-            <View className="mr-4 size-12 items-center justify-center rounded-full bg-secondary-100">
-              <Users size={24} color="#36B6D3" />
+            <View
+              className="mr-4 size-12 items-center justify-center rounded-full"
+              style={{ backgroundColor: colors.secondary[100] }}
+            >
+              <Users size={24} color={colors.secondary[500]} />
             </View>
             <View className="flex-1">
               <Text className="text-base font-semibold text-white">
                 Play cooperative quests together
               </Text>
-              <Text className="text-sm text-neutral-200">
+              <Text className="text-sm" style={{ color: colors.neutral[200] }}>
                 Motivate each other to stay focused
               </Text>
-              <Text className="text-sm text-neutral-200">(coming soon)</Text>
+              <Text className="text-sm" style={{ color: colors.neutral[200] }}>
+                (coming soon)
+              </Text>
             </View>
           </View>
 
           <View className="mb-4 flex-row items-center">
-            <View className="mr-4 size-12 items-center justify-center rounded-full bg-secondary-100">
-              <TrendingUp size={24} color="#36B6D3" />
+            <View
+              className="mr-4 size-12 items-center justify-center rounded-full"
+              style={{ backgroundColor: colors.secondary[100] }}
+            >
+              <TrendingUp size={24} color={colors.secondary[500]} />
             </View>
             <View className="flex-1">
               <Text className="text-base font-semibold text-white">
                 Track shared progress
               </Text>
-              <Text className="text-sm text-neutral-200">
+              <Text className="text-sm" style={{ color: colors.neutral[200] }}>
                 See your friends' achievements & streaks
               </Text>
             </View>
           </View>
 
           <View className="flex-row items-center">
-            <View className="mr-4 size-12 items-center justify-center rounded-full bg-secondary-100">
-              <Shield size={24} color="#36B6D3" />
+            <View
+              className="mr-4 size-12 items-center justify-center rounded-full"
+              style={{ backgroundColor: colors.secondary[100] }}
+            >
+              <Shield size={24} color={colors.secondary[500]} />
             </View>
             <View className="flex-1">
               <Text className="text-base font-semibold text-white">
                 Build accountability
               </Text>
-              <Text className="text-sm text-neutral-200">
+              <Text className="text-sm" style={{ color: colors.neutral[200] }}>
                 Stay committed with friend support
               </Text>
             </View>

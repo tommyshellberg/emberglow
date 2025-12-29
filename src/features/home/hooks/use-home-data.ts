@@ -155,7 +155,7 @@ export function useHomeData({
       xp: 15,
     });
 
-    // Cooperative quest card (always premium)
+    // Cooperative quest card (available to all users)
     data.push({
       id: 'cooperative',
       mode: 'cooperative',
@@ -165,7 +165,7 @@ export function useHomeData({
         'Invite a friend on a quest or join a quest and stay off your phone together',
       duration: 5,
       xp: 15,
-      isPremium: true,
+      isPremium: false,
     });
 
     return data;

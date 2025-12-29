@@ -80,4 +80,13 @@ module.exports = {
     400: '#4A6663', // Deep muted teal
     500: '#2F4442', // Very deep muted teal
   },
+
+  // Guild palette (warm amber/gold - "shared flame" aesthetic)
+  guild: {
+    100: '#F5E6D3', // Very light amber
+    200: '#E8CEB0', // Light amber
+    300: '#D4A574', // Main guild amber (primary)
+    400: '#B8864E', // Deep amber
+    500: '#8C6434', // Dark amber
+  },
 };

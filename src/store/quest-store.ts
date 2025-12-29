@@ -109,8 +109,11 @@ export const useQuestStore = create<QuestState>()(
       prepareQuest: (quest: CustomQuestTemplate | StoryQuestTemplate) => {
         const currentCooperativeQuestRun = get().cooperativeQuestRun;
         // Only clear cooperative quest data when preparing a non-cooperative quest
-        const shouldClearCooperativeData =
-          quest.mode !== 'custom' || quest.category !== 'cooperative';
+        // A quest is cooperative if mode is 'cooperative' OR if it's a custom quest with cooperative category
+        const isCooperativeQuest =
+          quest.mode === 'cooperative' ||
+          (quest.mode === 'custom' && quest.category === 'cooperative');
+        const shouldClearCooperativeData = !isCooperativeQuest;
 
         set({
           pendingQuest: quest,

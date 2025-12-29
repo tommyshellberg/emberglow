@@ -17,6 +17,7 @@ import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import QuestCard from '@/components/home/quest-card';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
+import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
 import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
@@ -99,6 +100,12 @@ export default function Home() {
     (state) => state.hasSeenSkillTreeAnnouncement
   );
   const user = useUserStore((state) => state.user);
+
+  // Guilds announcement modal
+  const guildsModal = useModal();
+  const hasSeenGuildsAnnouncement = useSettingsStore(
+    (state) => state.hasSeenGuildsAnnouncement
+  );
   const availablePerks = useSkillTreeStore((state) =>
     state.getAvailablePerksToUnlock()
   );
@@ -268,6 +275,22 @@ export default function Home() {
     availablePerks.length,
     skillTreeModal,
   ]);
+
+  // Check if guilds announcement should be shown
+  useEffect(() => {
+    const isRegistered = user && !user.isProvisional;
+    // Show after user has completed at least 3 quests (engaged user)
+    const hasCompletedEnoughQuests = completedQuests.length >= 3;
+    const shouldShow =
+      isRegistered && !hasSeenGuildsAnnouncement && hasCompletedEnoughQuests;
+
+    if (shouldShow) {
+      const timer = setTimeout(() => {
+        guildsModal.present();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasSeenGuildsAnnouncement, user, completedQuests.length, guildsModal]);
 
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
@@ -557,6 +580,9 @@ export default function Home() {
 
       {/* Skill Tree Announcement Modal */}
       <SkillTreeAnnouncementModal ref={skillTreeModal.ref} />
+
+      {/* Guilds Announcement Modal */}
+      <GuildsAnnouncementModal ref={guildsModal.ref} />
     </View>
   );
 }
