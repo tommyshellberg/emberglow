@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { InfoCard } from '@/components/ui/info-card';
+import { showErrorMessage } from '@/components/ui/utils';
 import type {
   LobbyInvitationResponsePayload,
   LobbyParticipantJoinedPayload,
@@ -36,15 +37,15 @@ interface ParticipantRowProps {
 function ParticipantRow({ participant, isCurrentUser }: ParticipantRowProps) {
   const getStatusIcon = () => {
     if (participant.invitationStatus === 'pending') {
-      return <Clock size={20} color={colors.neutral[400]} />;
+      return <Clock size={20} color={colors.neutral[200]} />;
     }
     if (participant.invitationStatus === 'declined') {
-      return <X size={20} color={colors.red[400]} />;
+      return <X size={20} color={colors.red[300]} />;
     }
     if (participant.isReady) {
       return <Check size={20} color={colors.primary[400]} />;
     }
-    return <Circle size={20} color={colors.neutral[400]} />;
+    return <Circle size={20} color={colors.neutral[200]} />;
   };
 
   return (
@@ -58,7 +59,7 @@ function ParticipantRow({ participant, isCurrentUser }: ParticipantRowProps) {
           {participant.username} {isCurrentUser && '(You)'}{' '}
           {participant.isCreator && '👑'}
         </Text>
-        <Text className="text-sm" style={{ color: colors.neutral[500] }}>
+        <Text className="text-sm" style={{ color: colors.neutral[200] }}>
           {participant.invitationStatus === 'pending' &&
             'Waiting for response...'}
           {participant.invitationStatus === 'declined' && 'Declined invitation'}
@@ -110,7 +111,7 @@ export default function CooperativeQuestLobby() {
     // Only connect if user is properly authenticated
     if (currentUser?.id) {
       connectWebSocket();
-    } else {
+    } else if (__DEV__) {
       console.warn(
         '[CooperativeQuestLobby] No authenticated user, skipping WebSocket connection'
       );
@@ -122,18 +123,22 @@ export default function CooperativeQuestLobby() {
     if (lobbyId) {
       // Listen for lobby joined event (response to joining)
       const handleLobbyJoined = (data: any) => {
-        console.log('=======================================');
-        console.log('LOBBY JOINED EVENT DATA:');
-        console.log('Lobby ID:', data.lobbyId);
-        console.log('Quest data:', data.quest);
-        console.log('Metadata:', data.metadata);
-        console.log('Participants:', data.participants);
-        console.log('Full data:', JSON.stringify(data, null, 2));
-        console.log('=======================================');
+        if (__DEV__) {
+          console.log('=======================================');
+          console.log('LOBBY JOINED EVENT DATA:');
+          console.log('Lobby ID:', data.lobbyId);
+          console.log('Quest data:', data.quest);
+          console.log('Metadata:', data.metadata);
+          console.log('Participants:', data.participants);
+          console.log('Full data:', JSON.stringify(data, null, 2));
+          console.log('=======================================');
+        }
 
         if (data.lobbyId === lobbyId) {
           // Always use fresh data from the server to avoid stale state
-          console.log('Updating lobby with fresh server data');
+          if (__DEV__) {
+            console.log('Updating lobby with fresh server data');
+          }
           // Check multiple possible locations for quest data
           const questTitle =
             data.quest?.title ||
@@ -173,7 +178,9 @@ export default function CooperativeQuestLobby() {
             questData: data.quest || data.questData || data.metadata,
           };
 
-          console.log('Created lobby data:', lobbyData);
+          if (__DEV__) {
+            console.log('Created lobby data:', lobbyData);
+          }
 
           // Update the lobby store
           joinLobby(lobbyData);
@@ -193,9 +200,11 @@ export default function CooperativeQuestLobby() {
             acceptedCount > 1 &&
             data.waitingForResponses === 0
           ) {
-            console.log(
-              'All already responded on join - will transition to ready screen'
-            );
+            if (__DEV__) {
+              console.log(
+                'All already responded on join - will transition to ready screen'
+              );
+            }
             // Set a flag to transition after the component renders
             setTimeout(() => {
               setHasTransitioned(true);
@@ -209,14 +218,18 @@ export default function CooperativeQuestLobby() {
 
       // For cooperative quests, inviter joins with invitation ID
       // The lobbyId for cooperative quests IS the invitation ID
-      console.log('Joining lobby with ID:', lobbyId);
+      if (__DEV__) {
+        console.log('Joining lobby with ID:', lobbyId);
+      }
 
       // Then join the lobby
       emit('lobby:join', { lobbyId });
 
       // Listen for WebSocket events
       const handleParticipantJoined = (data: LobbyParticipantJoinedPayload) => {
-        console.log('Participant joined:', data);
+        if (__DEV__) {
+          console.log('Participant joined:', data);
+        }
         // Update local state with the new participant
         if (data.participant && data.lobbyId === lobbyId) {
           updateParticipant(data.participant.userId || data.userId, {
@@ -233,18 +246,22 @@ export default function CooperativeQuestLobby() {
       const handleParticipantUpdated = (
         data: LobbyParticipantUpdatedPayload
       ) => {
-        console.log('Participant updated:', data);
+        if (__DEV__) {
+          console.log('Participant updated:', data);
+        }
         // Update local state
       };
 
       const handleInvitationResponse = (
         data: LobbyInvitationResponsePayload
       ) => {
-        console.log('Invitation response:', data);
-        console.log(
-          'Current participants before update:',
-          currentLobby?.participants
-        );
+        if (__DEV__) {
+          console.log('Invitation response:', data);
+          console.log(
+            'Current participants before update:',
+            currentLobby?.participants
+          );
+        }
 
         // Get the status from either 'status' or 'action' field
         const responseStatus = data.status || data.action;
@@ -277,15 +294,19 @@ export default function CooperativeQuestLobby() {
                 (p) => p.invitationStatus === 'accepted'
               ).length;
 
-              console.log(
-                `After invitation response - pending: ${pendingCount}, accepted: ${acceptedCount}`
-              );
+              if (__DEV__) {
+                console.log(
+                  `After invitation response - pending: ${pendingCount}, accepted: ${acceptedCount}`
+                );
+              }
 
               // If no more pending and we have multiple accepted participants, transition
               if (pendingCount === 0 && acceptedCount > 1) {
-                console.log(
-                  'All responded with multiple participants - transitioning to ready screen'
-                );
+                if (__DEV__) {
+                  console.log(
+                    'All responded with multiple participants - transitioning to ready screen'
+                  );
+                }
                 setHasTransitioned(true);
               }
             }
@@ -297,7 +318,9 @@ export default function CooperativeQuestLobby() {
 
       // Add handler for invitationAccepted event (the actual event emitted by server)
       const handleInvitationAccepted = (data: any) => {
-        console.log('Invitation accepted event received:', data);
+        if (__DEV__) {
+          console.log('Invitation accepted event received:', data);
+        }
 
         // Convert to the expected format and call the existing handler
         handleInvitationResponse({
@@ -311,7 +334,9 @@ export default function CooperativeQuestLobby() {
       };
 
       const handleReadyStatus = (data: LobbyReadyStatusPayload) => {
-        console.log('Ready status update:', data);
+        if (__DEV__) {
+          console.log('Ready status update:', data);
+        }
         markUserReady(data.userId, data.isReady);
       };
 
@@ -375,7 +400,9 @@ export default function CooperativeQuestLobby() {
 
     if (hasTransitioned && currentLobby) {
       // Navigate after the flag is set
-      console.log('Transitioning to ready screen...');
+      if (__DEV__) {
+        console.log('Transitioning to ready screen...');
+      }
       timer = setTimeout(() => {
         router.replace('/cooperative-quest-ready');
       }, 1500);
@@ -481,6 +508,11 @@ export default function CooperativeQuestLobby() {
         }
       } catch (error) {
         console.error('Error responding to invitation:', error);
+        showErrorMessage(
+          accept
+            ? 'Failed to accept invitation. Please try again.'
+            : 'Failed to decline invitation. Please try again.'
+        );
       }
     },
     [invitationId, currentUser, updateInvitationResponse, leaveLobby, router]
@@ -490,6 +522,7 @@ export default function CooperativeQuestLobby() {
     if (!currentUser || !currentLobby) return;
 
     const newReadyState = !isReady;
+    const previousReadyState = isReady;
 
     posthog.capture(
       newReadyState
@@ -497,8 +530,21 @@ export default function CooperativeQuestLobby() {
         : 'cooperative_quest_unready_clicked'
     );
 
-    emit(newReadyState ? 'lobby:ready' : 'lobby:unready', { lobbyId });
+    // Optimistically update local state
     markUserReady(currentUser.id, newReadyState);
+
+    // Emit WebSocket event - check if it succeeded
+    const emitSuccess = emit(newReadyState ? 'lobby:ready' : 'lobby:unready', {
+      lobbyId,
+    });
+
+    if (!emitSuccess) {
+      // Rollback on failure - WebSocket not connected
+      markUserReady(currentUser.id, previousReadyState);
+      showErrorMessage(
+        'Unable to update ready status. Please check your connection.'
+      );
+    }
   }, [
     currentUser,
     currentLobby,
@@ -517,6 +563,7 @@ export default function CooperativeQuestLobby() {
       router.replace('/cooperative-quest-ready');
     } catch (error) {
       console.error('Error starting quest:', error);
+      showErrorMessage('Failed to start quest. Please try again.');
     }
   }, [isCreator, router]);
 
@@ -538,52 +585,32 @@ export default function CooperativeQuestLobby() {
     );
   }
 
-  console.log('Current lobby participants:', currentLobby.participants);
+  if (__DEV__) {
+    console.log('Current lobby participants:', currentLobby.participants);
+  }
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background }}>
       <FocusAwareStatusBar />
 
       {/* Header */}
-      <View
-        className="border-b px-5 pb-4"
-        style={{ borderBottomColor: colors.neutral[200] }}
-      >
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity onPress={handleBackPress}>
-            <ArrowLeft size={24} color={colors.black} />
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold" style={{ fontWeight: '700' }}>
-            Quest Lobby
-          </Text>
-          <View className="w-6" />
-        </View>
+      <View className="mb-6 mt-2 px-4">
+        <TouchableOpacity
+          onPress={handleBackPress}
+          className="mb-4 flex-row items-center"
+        >
+          <ArrowLeft size={24} color={colors.white} />
+          <Text className="ml-2 text-lg text-white">Back</Text>
+        </TouchableOpacity>
+
+        <Text className="mb-2 text-3xl font-bold text-white">Quest Lobby</Text>
+        <Text style={{ color: colors.neutral[200] }}>
+          {currentLobby.questTitle} • {currentLobby.questDuration} minutes
+        </Text>
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-5">
-          {/* Quest Info */}
-          <View
-            className="mb-6 rounded-lg p-4"
-            style={{ backgroundColor: colors.cardBackground }}
-          >
-            <Text
-              className="mb-2 text-xl font-bold"
-              style={{ fontWeight: '700' }}
-            >
-              {currentLobby.questTitle}
-            </Text>
-            <View className="flex-row items-center">
-              <Clock size={16} color={colors.neutral[400]} />
-              <Text
-                className="ml-1 text-sm"
-                style={{ color: colors.neutral[500] }}
-              >
-                {currentLobby.questDuration} minutes
-              </Text>
-            </View>
-          </View>
-
+        <View className="px-4">
           {/* Participants */}
           <Text
             className="mb-3 text-lg font-semibold"

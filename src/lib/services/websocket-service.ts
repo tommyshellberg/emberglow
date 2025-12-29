@@ -1,6 +1,6 @@
-import { Env } from '@env';
 import { io, type Socket } from 'socket.io-client';
 
+import { getApiUrl } from '@/api/common/get-api-url';
 import { getToken } from '@/lib/auth/utils';
 import { getItem } from '@/lib/storage';
 
@@ -26,9 +26,7 @@ class WebSocketService {
   }
 
   connect(): void {
-    console.log('[WebSocket] Connect method called');
     if (this.socket?.connected) {
-      console.log('[WebSocket] Already connected');
       return;
     }
 
@@ -37,33 +35,14 @@ class WebSocketService {
     const provisionalToken = getItem('provisionalAccessToken');
     const accessToken = tokenData?.access || provisionalToken;
 
-    console.log('[WebSocket] Token check:', {
-      hasTokenData: !!tokenData,
-      tokenDataAccess: tokenData?.access,
-      hasProvisionalToken: !!provisionalToken,
-      hasAccessToken: !!accessToken,
-    });
-
     if (!accessToken) {
-      console.warn(
-        '[WebSocket] No access token available, skipping connection'
-      );
-      console.log('[WebSocket] Checking stored tokens:', {
-        tokenData: tokenData,
-        provisionalAccessToken: provisionalToken,
-      });
+      console.warn('[WebSocket] No access token available, skipping connection');
       return;
     }
 
-    // Extract base URL from API_URL
-    const baseUrl = Env.API_URL.replace('/v1', '');
-
-    console.log('[WebSocket] Connection details:', {
-      apiUrl: Env.API_URL,
-      baseUrl: baseUrl,
-      hasToken: !!accessToken,
-      tokenType: getItem('accessToken') ? 'full' : 'provisional',
-    });
+    // Extract base URL from API_URL (remove /v1 path)
+    const apiUrl = getApiUrl();
+    const baseUrl = apiUrl.replace('/v1', '');
 
     this.socket = io(baseUrl, {
       auth: {
@@ -75,11 +54,7 @@ class WebSocketService {
       reconnectionDelay: this.reconnectDelay,
       // Add timeout options
       timeout: 20000,
-      // Force new connection
-      forceNew: true,
     });
-
-    console.log('[WebSocket] Socket created, setting up listeners');
 
     this.setupEventListeners();
   }
@@ -88,39 +63,19 @@ class WebSocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('[WebSocket] Connected successfully');
       this.isConnected = true;
       this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('[WebSocket] Disconnected:', reason);
       this.isConnected = false;
+      if (__DEV__) {
+        console.log('[WebSocket] Disconnected:', reason);
+      }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('[WebSocket] Connection error:', {
-        message: error.message,
-        type: error.type,
-        data: error.data,
-        context: error.context,
-      });
-
-      // Log more details about the error
-      if (error.message.includes('xhr')) {
-        console.error('[WebSocket] XHR/Polling error - possible CORS issue');
-      } else if (error.message.includes('websocket')) {
-        console.error(
-          '[WebSocket] WebSocket error - check if server supports WebSocket'
-        );
-      } else if (
-        error.message.includes('unauthorized') ||
-        error.message.includes('401')
-      ) {
-        console.error(
-          '[WebSocket] Authentication error - token might be invalid'
-        );
-      }
+      console.error('[WebSocket] Connection error:', error.message);
 
       this.reconnectAttempts++;
 
@@ -133,30 +88,28 @@ class WebSocketService {
     this.socket.on('error', (error) => {
       console.error('[WebSocket] Error:', error);
     });
-
-    // Debug: log all incoming events
-    this.socket.onAny((eventName, ...args) => {
-      console.log('[WebSocket] Received event:', eventName, args);
-    });
   }
 
   disconnect(): void {
     if (this.socket) {
-      console.log('[WebSocket] Disconnecting...');
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
     }
   }
 
-  emit(event: string, data?: any): void {
+  /**
+   * Emit a WebSocket event. Returns true if the event was sent, false if not connected.
+   * Callers should check the return value and handle disconnected state appropriately.
+   */
+  emit(event: string, data?: any): boolean {
     if (!this.socket || !this.isConnected) {
-      console.warn('[WebSocket] Cannot emit, not connected');
-      return;
+      console.warn('[WebSocket] Cannot emit - not connected:', event);
+      return false;
     }
 
-    console.log(`[WebSocket] Emitting event: ${event}`, data);
     this.socket.emit(event, data);
+    return true;
   }
 
   on<K extends keyof TypedWebSocketEvents>(
@@ -166,11 +119,10 @@ class WebSocketService {
   on(event: string, handler: (...args: any[]) => void): void;
   on(event: string, handler: (...args: any[]) => void): void {
     if (!this.socket) {
-      console.warn('[WebSocket] Cannot subscribe to events, not connected');
+      console.warn('[WebSocket] Cannot subscribe to events, socket not initialized');
       return;
     }
 
-    console.log(`[WebSocket] Subscribing to event: ${event}`);
     this.socket.on(event, handler);
   }
 
@@ -182,7 +134,6 @@ class WebSocketService {
   off(event: string, handler?: (...args: any[]) => void): void {
     if (!this.socket) return;
 
-    console.log(`[WebSocket] Unsubscribing from event: ${event}`);
     if (handler) {
       this.socket.off(event, handler);
     } else {
@@ -210,9 +161,10 @@ class WebSocketService {
     return this.socket;
   }
 
-  // Debug method to force reconnection
+  /**
+   * Force a reconnection by disconnecting and reconnecting.
+   */
   forceReconnect(): void {
-    console.log('[WebSocket] Force reconnect requested');
     this.disconnect();
     this.reconnectAttempts = 0;
     setTimeout(() => {

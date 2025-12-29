@@ -243,8 +243,10 @@ const _useAuth = create<AuthState>((set, get) => ({
             fetchError
           );
           // Don't sign out on user fetch failure - might just be network issue
-          // Keep the token and let the user continue
+          // Keep the token and let the user continue with cached data
           console.log('[Auth] Keeping user signed in despite fetch failure');
+          // CRITICAL: Must set status to signIn so app can proceed offline
+          set({ status: 'signIn', token: userToken });
         }
       } else if (provisionalToken) {
         // Handle provisional users

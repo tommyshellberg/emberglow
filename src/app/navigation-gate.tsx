@@ -42,6 +42,10 @@ export default function NavigationGate() {
         // Use push instead of replace so cancel button can navigate back
         router.push('/pending-quest');
         break;
+      case 'cooperative-pending-quest':
+        console.log('[NavigationGate] Redirecting to cooperative-pending-quest');
+        router.push('/cooperative-pending-quest');
+        break;
       case 'first-quest-result':
         console.log('[NavigationGate] Redirecting to first-quest-result');
         router.replace(`/first-quest-result?outcome=${target.outcome}`);

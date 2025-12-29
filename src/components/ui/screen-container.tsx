@@ -9,6 +9,11 @@ interface ScreenContainerProps extends ViewProps {
   noPadding?: boolean;
   noHorizontalPadding?: boolean;
   fullScreen?: boolean;
+  /**
+   * Reverse the gradient direction (dark at top, light at bottom).
+   * Useful for screens with headers for smoother visual transition.
+   */
+  reverseGradient?: boolean;
 }
 
 /**
@@ -21,12 +26,16 @@ interface ScreenContainerProps extends ViewProps {
  * - Bottom: 32px above safe area (for full screens without tab bar, use fullScreen={true})
  * - Horizontal: 16px (4 in Tailwind = 16px)
  */
+// Gradient colors from light to dark
+const GRADIENT_COLORS = ['#102442', '#0e203b', '#0d1d35', '#0b1a2e', '#0a1628'] as const;
+
 export function ScreenContainer({
   children,
   bottomPadding,
   noPadding = false,
   noHorizontalPadding = false,
   fullScreen = false,
+  reverseGradient = false,
   style,
   ...props
 }: ScreenContainerProps) {
@@ -36,9 +45,14 @@ export function ScreenContainer({
   const defaultBottomPadding = fullScreen ? 32 : 8;
   const finalBottomPadding = bottomPadding ?? defaultBottomPadding;
 
+  // Use reversed gradient for smoother header transition when needed
+  const gradientColors = reverseGradient
+    ? [...GRADIENT_COLORS].reverse()
+    : [...GRADIENT_COLORS];
+
   return (
     <LinearGradient
-      colors={['#102442', '#0e203b', '#0d1d35', '#0b1a2e', '#0a1628']}
+      colors={gradientColors}
       style={[
         {
           flex: 1,

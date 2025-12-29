@@ -117,7 +117,7 @@ describe('useHomeData', () => {
       expect(customCard?.mode).toBe('custom');
     });
 
-    it('should always include cooperative quest card with premium flag', () => {
+    it('should always include cooperative quest card available to all users', () => {
       const { result } = renderHook(() =>
         useHomeData({
           serverQuests: [],
@@ -134,7 +134,7 @@ describe('useHomeData', () => {
       expect(coopCard).toBeDefined();
       expect(coopCard?.title).toBe('Cooperative Quest');
       expect(coopCard?.mode).toBe('cooperative');
-      expect(coopCard?.isPremium).toBe(true);
+      expect(coopCard?.isPremium).toBe(false);
     });
   });
 

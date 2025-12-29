@@ -234,6 +234,18 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="guild/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="guild/create"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

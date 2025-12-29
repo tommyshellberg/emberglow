@@ -2,10 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  CheckCircle,
   ChevronRight,
   Info,
-  Lock,
   PlusCircle,
   UserPlus,
   Users,
@@ -14,7 +12,6 @@ import { usePostHog } from 'posthog-react-native';
 import React, { useRef } from 'react';
 import { ActivityIndicator } from 'react-native';
 
-import { PremiumPaywall } from '@/components/paywall';
 import {
   ContactsImportModal,
   type ContactsImportModalRef,
@@ -24,14 +21,12 @@ import {
   Card,
   FocusAwareStatusBar,
   ScreenContainer,
-  ScreenHeader,
   Text,
   TouchableOpacity,
   View,
 } from '@/components/ui';
 import { useAuth } from '@/lib';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
-import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import { getUserFriends } from '@/lib/services/user';
 import { useUserStore } from '@/store/user-store';
 
@@ -79,7 +74,6 @@ export default function CooperativeQuestMenu() {
   const userEmail = currentUser?.email || '';
   const user = useUserStore((state) => state.user);
   const { connect: connectWebSocket } = useLazyWebSocket();
-  const [showPaywallModal, setShowPaywallModal] = React.useState(false);
 
   // Connect WebSocket when entering cooperative quest flow
   React.useEffect(() => {
@@ -94,14 +88,14 @@ export default function CooperativeQuestMenu() {
 
   const hasFriends = friendsData?.friends && friendsData.friends.length > 0;
 
-  // Premium access check
-  const {
-    hasPremiumAccess,
-    isLoading: isPremiumLoading,
-    showPaywall,
-    handlePaywallClose,
-    handlePaywallSuccess,
-  } = usePremiumAccess();
+  // Premium access check disabled - cooperative quests now available to all users
+  // const {
+  //   hasPremiumAccess,
+  //   isLoading: isPremiumLoading,
+  //   showPaywall,
+  //   handlePaywallClose,
+  //   handlePaywallSuccess,
+  // } = usePremiumAccess();
 
   // Friend management hook for bulk invites
   const { sendBulkInvites } = useFriendManagement(userEmail, contactsModalRef);
@@ -119,8 +113,8 @@ export default function CooperativeQuestMenu() {
     }
   };
 
-  // Show loading state while checking friends or premium status
-  if (isLoading || isPremiumLoading) {
+  // Show loading state while checking friends
+  if (isLoading) {
     return (
       <View className="flex-1">
         <FocusAwareStatusBar />
@@ -128,97 +122,6 @@ export default function CooperativeQuestMenu() {
           <ActivityIndicator size="large" color="#36B6D3" />
           <Text className="mt-4 text-neutral-200">Loading...</Text>
         </View>
-      </View>
-    );
-  }
-
-  // Check if user has premium access
-  if (!hasPremiumAccess) {
-    return (
-      <View className="flex-1">
-        <FocusAwareStatusBar />
-
-        <ScreenContainer fullScreen className="px-4">
-          {/* Header */}
-          <ScreenHeader
-            title="Cooperative Quests"
-            subtitle="Team up with friends to complete quests together!"
-            showBackButton
-          />
-
-          {/* Premium Feature Message */}
-          <View className="flex-1 items-center justify-center px-4">
-            <View className="mb-6 rounded-full bg-secondary-400 p-6">
-              <Lock size={64} color="#FFFFFF" />
-            </View>
-
-            <Text className="mb-4 text-center text-2xl font-bold text-white">
-              Join the emberglow Circle
-            </Text>
-
-            <Text className="mb-6 text-center text-neutral-200">
-              Cooperative quests are a premium feature available exclusively to
-              emberglow Circle members.
-            </Text>
-
-            <Card className="bg-cardBackground p-6">
-              <Text className="mb-4 text-center text-lg font-semibold text-white">
-                What's included:
-              </Text>
-              <View className="gap-3">
-                <View className="flex-row items-start">
-                  <CheckCircle
-                    size={20}
-                    color="#36B6D3"
-                    style={{ marginTop: 2 }}
-                  />
-                  <Text className="ml-2 flex-1 text-neutral-200">
-                    Create and join unlimited cooperative quests
-                  </Text>
-                </View>
-                <View className="flex-row items-start">
-                  <CheckCircle
-                    size={20}
-                    color="#36B6D3"
-                    style={{ marginTop: 2 }}
-                  />
-                  <Text className="ml-2 flex-1 text-neutral-200">
-                    Quest with multiple friends simultaneously
-                  </Text>
-                </View>
-                <View className="flex-row items-start">
-                  <CheckCircle
-                    size={20}
-                    color="#36B6D3"
-                    style={{ marginTop: 2 }}
-                  />
-                  <Text className="ml-2 flex-1 text-neutral-200">
-                    Access to exclusive quest types and rewards
-                  </Text>
-                </View>
-              </View>
-            </Card>
-
-            <TouchableOpacity
-              onPress={() => setShowPaywallModal(true)}
-              className="mt-6 rounded-lg bg-primary-400 px-6 py-3"
-            >
-              <Text className="text-center text-lg font-semibold text-white">
-                View Subscription Options
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScreenContainer>
-
-        {/* Premium Paywall Modal */}
-        <PremiumPaywall
-          isVisible={showPaywallModal}
-          onClose={() => setShowPaywallModal(false)}
-          onSuccess={() => {
-            setShowPaywallModal(false);
-            handlePaywallSuccess();
-          }}
-        />
       </View>
     );
   }

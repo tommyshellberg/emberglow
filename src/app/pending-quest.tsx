@@ -28,17 +28,18 @@ export default function PendingQuestScreen() {
   const userId = useUserStore((state) => state.user?.id);
   const insets = useSafeAreaInsets();
 
-  // Fetch quest reward preview (solo quests only - cooperative has separate screen)
-  // Custom quests need questData, story quests need questTemplateId
-  const isCustomQuest = pendingQuest?.mode === 'custom';
+  // Fetch quest reward preview
+  // Custom and cooperative quests need questData, story quests need questTemplateId
+  const needsQuestData =
+    pendingQuest?.mode === 'custom' || pendingQuest?.mode === 'cooperative';
   const { data: rewardPreview, isLoading: isLoadingPreview } =
     useQuestRewardPreview({
-      questTemplateId: isCustomQuest ? undefined : pendingQuest?.id,
-      questData: isCustomQuest
+      questTemplateId: needsQuestData ? undefined : pendingQuest?.id,
+      questData: needsQuestData
         ? {
             durationMinutes: pendingQuest?.durationMinutes || 0,
             category: pendingQuest?.category,
-            mode: 'custom',
+            mode: pendingQuest?.mode || 'custom',
             reward: {
               xp: pendingQuest?.reward?.xp || 0,
             },

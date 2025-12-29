@@ -31,7 +31,7 @@ interface LazyWebSocketContextValue {
     ): void;
     (event: string, handler?: (...args: any[]) => void): void;
   };
-  emit: (event: string, data?: any) => void;
+  emit: (event: string, data?: any) => boolean;
   joinQuestRoom: (questRunId: string) => void;
   leaveQuestRoom: (questRunId: string) => void;
   forceReconnect: () => void;
@@ -92,26 +92,32 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Manual connect function
   const connect = () => {
-    console.log(
-      '[LazyWebSocket] Connect called - authStatus:',
-      authStatus,
-      'hasProvisionalToken:',
-      hasProvisionalToken,
-      'isEnabled:',
-      isEnabled
-    );
+    if (__DEV__) {
+      console.log(
+        '[LazyWebSocket] Connect called - authStatus:',
+        authStatus,
+        'hasProvisionalToken:',
+        hasProvisionalToken,
+        'isEnabled:',
+        isEnabled
+      );
+    }
     if ((authStatus === 'signIn' || hasProvisionalToken) && !isEnabled) {
-      console.log('[LazyWebSocket] Manually connecting WebSocket...');
+      if (__DEV__) {
+        console.log('[LazyWebSocket] Manually connecting WebSocket...');
+      }
       setIsEnabled(true);
       webSocketService.connect();
-    } else {
+    } else if (__DEV__) {
       console.log('[LazyWebSocket] Not connecting - conditions not met');
     }
   };
 
   // Manual disconnect function
   const disconnect = () => {
-    console.log('[LazyWebSocket] Manually disconnecting WebSocket...');
+    if (__DEV__) {
+      console.log('[LazyWebSocket] Manually disconnecting WebSocket...');
+    }
     setIsEnabled(false);
     webSocketService.disconnect();
   };
@@ -119,12 +125,16 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   // Handle connection state changes
   useEffect(() => {
     const handleConnect = () => {
-      console.log('[LazyWebSocket] Connected');
+      if (__DEV__) {
+        console.log('[LazyWebSocket] Connected');
+      }
       setIsConnected(true);
     };
 
     const handleDisconnect = () => {
-      console.log('[LazyWebSocket] Disconnected');
+      if (__DEV__) {
+        console.log('[LazyWebSocket] Disconnected');
+      }
       setIsConnected(false);
     };
 
@@ -148,14 +158,18 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
         (authStatus === 'signIn' || hasProvisionalToken)
       ) {
         // App has come to foreground, reconnect
-        console.log('[LazyWebSocket] App foregrounded, reconnecting...');
+        if (__DEV__) {
+          console.log('[LazyWebSocket] App foregrounded, reconnecting...');
+        }
         webSocketService.forceReconnect();
       } else if (
         appStateRef.current === 'active' &&
         nextAppState.match(/inactive|background/)
       ) {
         // App going to background
-        console.log('[LazyWebSocket] App backgrounded');
+        if (__DEV__) {
+          console.log('[LazyWebSocket] App backgrounded');
+        }
       }
       appStateRef.current = nextAppState;
     });

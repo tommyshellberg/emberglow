@@ -1,4 +1,3 @@
-import { Env } from '@env';
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import { signOut } from '@/lib/auth';
@@ -6,10 +5,11 @@ import { getToken } from '@/lib/auth/utils';
 import { getItem } from '@/lib/storage';
 
 import { refreshAccessToken } from '../auth';
+import { getApiUrl } from './get-api-url';
 
 // Create axios instance with base configuration
 const apiClient = axios.create({
-  baseURL: Env.API_URL,
+  baseURL: getApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -75,8 +75,8 @@ apiClient.interceptors.request.use(
     } else {
     }
 
-    // Log invitation-related requests
-    if (config.url?.includes('/invitations/')) {
+    // Log invitation-related requests in development only
+    if (__DEV__ && config.url?.includes('/invitations/')) {
       console.log('========================================');
       console.log('[API Client] Invitation Request');
       console.log('Method:', config.method?.toUpperCase());
@@ -96,8 +96,8 @@ apiClient.interceptors.request.use(
 // Response Interceptor: Handles 401 and token refresh
 apiClient.interceptors.response.use(
   (response) => {
-    // Log invitation-related responses
-    if (response.config.url?.includes('/invitations/')) {
+    // Log invitation-related responses in development only
+    if (__DEV__ && response.config.url?.includes('/invitations/')) {
       console.log('========================================');
       console.log('[API Client] Invitation Response');
       console.log('Status:', response.status);
@@ -158,9 +158,11 @@ apiClient.interceptors.response.use(
       recordRefreshAttempt();
 
       try {
-        console.log(
-          `[API Client] Refreshing token (attempt ${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`
-        );
+        if (__DEV__) {
+          console.log(
+            `[API Client] Refreshing token (attempt ${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`
+          );
+        }
         const newTokens = await refreshAccessToken();
 
         if (newTokens?.access?.token) {
@@ -170,7 +172,9 @@ apiClient.interceptors.response.use(
 
           // Reset refresh attempts on success
           refreshAttempts = 0;
-          console.log('[API Client] Token refresh successful, attempts reset');
+          if (__DEV__) {
+            console.log('[API Client] Token refresh successful, attempts reset');
+          }
 
           return apiClient(originalRequest);
         } else {
@@ -186,7 +190,7 @@ apiClient.interceptors.response.use(
           const hasProvisionalToken = !!getItem('provisionalAccessToken');
           if (!hasProvisionalToken) {
             signOut();
-          } else {
+          } else if (__DEV__) {
             console.log(
               '[API Client] Not signing out provisional user on token refresh failure'
             );
@@ -201,7 +205,7 @@ apiClient.interceptors.response.use(
         const hasProvisionalToken = !!getItem('provisionalAccessToken');
         if (!hasProvisionalToken) {
           signOut();
-        } else {
+        } else if (__DEV__) {
           console.log(
             '[API Client] Not signing out provisional user on catastrophic token refresh failure'
           );

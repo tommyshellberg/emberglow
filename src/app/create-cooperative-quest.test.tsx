@@ -161,6 +161,19 @@ jest.mock('@/components/QuestForm/friend-selector', () => {
   };
 });
 
+jest.mock('@/components/QuestForm/guild-selector', () => {
+  return {
+    GuildSelector: ({ onSelectionChange }: any) => {
+      // Return empty by default - no guilds selected
+      const React = require('react');
+      React.useEffect(() => {
+        onSelectionChange([], [], []);
+      }, []);
+      return null;
+    },
+  };
+});
+
 describe('CreateCooperativeQuestScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -171,8 +184,9 @@ describe('CreateCooperativeQuestScreen', () => {
   it('should render the create cooperative quest form', () => {
     render(<CreateCooperativeQuestScreen />);
 
-    // Check header
-    expect(screen.getByText('Create Cooperative Quest')).toBeTruthy();
+    // Check header - "Create Quest" appears in both header and button
+    const createQuestElements = screen.getAllByText('Create Quest');
+    expect(createQuestElements.length).toBeGreaterThanOrEqual(1);
 
     // Check info card
     expect(screen.getByText('Team Challenge')).toBeTruthy();
@@ -182,25 +196,26 @@ describe('CreateCooperativeQuestScreen', () => {
       )
     ).toBeTruthy();
 
-    // Check friend selection section
-    expect(screen.getByText('Invite Friends')).toBeTruthy();
+    // Check invite participants section with toggle tabs
+    expect(screen.getByText('Invite Participants')).toBeTruthy();
+    expect(screen.getByText('Friends')).toBeTruthy();
+    expect(screen.getByText('Guild')).toBeTruthy();
+
+    // Friends mode is active by default
     expect(
-      screen.getByText(
-        'Select friends to join your quest. You need at least one friend to start a cooperative quest.'
-      )
+      screen.getByText('Select friends to join your quest.')
     ).toBeTruthy();
 
-    // Check create button (should be enabled after mocked inputs)
-    const createButton = screen.getByText('Create Quest');
-    expect(createButton).toBeTruthy();
+    // Check create button exists (header title and button = 2 elements)
+    expect(createQuestElements.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('should show selected friends count', async () => {
+  it('should show selected participants count', async () => {
     render(<CreateCooperativeQuestScreen />);
 
     // Wait for the mocked friend selector to update
     await waitFor(() => {
-      expect(screen.getByText('2 friends selected')).toBeTruthy();
+      expect(screen.getByText(/2 participants will be invited/)).toBeTruthy();
     });
   });
 
@@ -215,14 +230,15 @@ describe('CreateCooperativeQuestScreen', () => {
 
     render(<CreateCooperativeQuestScreen />);
 
-    // Wait for form to be filled
+    // Wait for form to be filled - "Create Quest" appears in both header and button
     await waitFor(() => {
-      const createButton = screen.getByText('Create Quest');
-      expect(createButton).toBeTruthy();
+      const createQuestElements = screen.getAllByText('Create Quest');
+      expect(createQuestElements.length).toBeGreaterThanOrEqual(2);
     });
 
-    // Click create button
-    const createButton = screen.getByText('Create Quest');
+    // Click create button (second element, after the header title)
+    const createQuestElements = screen.getAllByText('Create Quest');
+    const createButton = createQuestElements[createQuestElements.length - 1];
     fireEvent.press(createButton);
 
     // Wait for async operations
@@ -235,7 +251,7 @@ describe('CreateCooperativeQuestScreen', () => {
         duration: 30,
         inviteeIds: ['friend-1', 'friend-2'],
         questData: {
-          category: 'social',
+          category: 'cooperative',
         },
       });
 
@@ -268,8 +284,8 @@ describe('CreateCooperativeQuestScreen', () => {
   it('should navigate back when back button is pressed', () => {
     render(<CreateCooperativeQuestScreen />);
 
-    // Find the back icon by its content
-    const backButton = screen.getByText('arrow-left');
+    // Find the back button by its text
+    const backButton = screen.getByText('Back');
     fireEvent.press(backButton);
 
     expect(mockBack).toHaveBeenCalled();
@@ -288,8 +304,9 @@ describe('CreateCooperativeQuestScreen', () => {
 
     render(<CreateCooperativeQuestScreen />);
 
-    const createButton = screen.getByText('Create Quest');
-    // The button should be disabled (you might need to check the actual disabled prop)
-    // This depends on how your Button component handles the disabled state
+    // "Create Quest" appears in both header and button, get all matches
+    const createQuestElements = screen.getAllByText('Create Quest');
+    // The button is the second element (after the header title)
+    expect(createQuestElements.length).toBeGreaterThanOrEqual(1);
   });
 });

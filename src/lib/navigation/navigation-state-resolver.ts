@@ -8,6 +8,7 @@ import { useQuestStore } from '@/store/quest-store';
 
 export type NavigationTarget =
   | { type: 'pending-quest'; questId: string }
+  | { type: 'cooperative-pending-quest'; questId: string }
   | { type: 'quest-result'; questId: string; outcome: 'completed' | 'failed' }
   | { type: 'first-quest-result'; outcome: 'completed' | 'failed' }
   | { type: 'quest-completed-signup' }
@@ -151,6 +152,15 @@ export function useNavigationTarget(): NavigationTarget {
 
   // Priority 2: Active quest states
   if (pendingQuest) {
+    // Check if it's a cooperative quest
+    const isCooperative = pendingQuest.mode === 'cooperative';
+    if (isCooperative) {
+      console.log(
+        '🧭 Found cooperative pending quest, should redirect to cooperative-pending-quest:',
+        pendingQuest.id
+      );
+      return { type: 'cooperative-pending-quest', questId: pendingQuest.id };
+    }
     console.log(
       '🧭 Found pending quest, should redirect to pending-quest:',
       pendingQuest.id

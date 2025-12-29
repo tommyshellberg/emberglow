@@ -1,4 +1,3 @@
-import { Env } from '@env';
 import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
@@ -8,11 +7,12 @@ import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
+import { getApiUrl } from './common/get-api-url';
 import * as tokenService from './token';
 
 // Create a separate axios instance for auth requests to avoid circular dependencies
 export const authClient = axios.create({
-  baseURL: Env.API_URL,
+  baseURL: getApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },

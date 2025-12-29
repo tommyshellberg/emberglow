@@ -29,6 +29,8 @@ type SettingsState = {
   setHasSeenBranchingAnnouncement: (value: boolean) => void;
   hasSeenSkillTreeAnnouncement: boolean;
   setHasSeenSkillTreeAnnouncement: (value: boolean) => void;
+  hasSeenGuildsAnnouncement: boolean;
+  setHasSeenGuildsAnnouncement: (value: boolean) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -58,6 +60,9 @@ export const useSettingsStore = create<SettingsState>()(
       hasSeenSkillTreeAnnouncement: false,
       setHasSeenSkillTreeAnnouncement: (value) =>
         set({ hasSeenSkillTreeAnnouncement: value }),
+      hasSeenGuildsAnnouncement: false,
+      setHasSeenGuildsAnnouncement: (value) =>
+        set({ hasSeenGuildsAnnouncement: value }),
     }),
     {
       name: 'unquest-settings',
