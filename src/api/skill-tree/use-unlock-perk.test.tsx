@@ -80,9 +80,12 @@ describe('useUnlockPerk', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/unlock', {
-      nodeId: 'quick_break',
-    });
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/users/me/skill-tree/unlock',
+      {
+        nodeId: 'quick_break',
+      }
+    );
     expect(result.current.data).toEqual(mockUnlockPerkResponse);
     expect(result.current.isError).toBe(false);
   });
@@ -101,10 +104,13 @@ describe('useUnlockPerk', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/unlock', {
-      nodeId: 'quest_mastery',
-      choice: 'quest_mastery_quick',
-    });
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/users/me/skill-tree/unlock',
+      {
+        nodeId: 'quest_mastery',
+        choice: 'quest_mastery_quick',
+      }
+    );
     expect(result.current.data).toEqual(mockUnlockPerkResponse);
   });
 
@@ -126,7 +132,7 @@ describe('useUnlockPerk', () => {
     expect(result.current.data).toBeUndefined();
   });
 
-  it('invalidates skill-tree query on success', async () => {
+  it('invalidates skill-tree and quest-reward-preview queries on success', async () => {
     mockApiClient.post.mockResolvedValue({ data: mockUnlockPerkResponse });
 
     const { result } = renderHook(
@@ -147,7 +153,10 @@ describe('useUnlockPerk', () => {
     });
 
     // Spy on invalidateQueries
-    const invalidateSpy = jest.spyOn(result.current.client, 'invalidateQueries');
+    const invalidateSpy = jest.spyOn(
+      result.current.client,
+      'invalidateQueries'
+    );
 
     result.current.mutation.mutate({
       nodeId: 'quick_break',
@@ -157,6 +166,9 @@ describe('useUnlockPerk', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['skill-tree'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['quest-reward-preview'],
     });
   });
 

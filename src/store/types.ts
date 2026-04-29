@@ -69,7 +69,7 @@ export type CharacterType =
   | 'bard'
   | 'druid'
   | 'knight'
-  | 'scholar'
+  | 'scout'
   | 'wizard';
 
 export interface Account {

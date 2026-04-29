@@ -68,7 +68,9 @@ describe('useRespecSkillTree', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockApiClient.post).toHaveBeenCalledWith('/users/me/skill-tree/respec');
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/users/me/skill-tree/respec'
+    );
     expect(result.current.data).toEqual(mockRespecResponse);
     expect(result.current.isError).toBe(false);
   });
@@ -89,7 +91,7 @@ describe('useRespecSkillTree', () => {
     expect(result.current.data).toBeUndefined();
   });
 
-  it('invalidates skill-tree query on success', async () => {
+  it('invalidates skill-tree and quest-reward-preview queries on success', async () => {
     mockApiClient.post.mockResolvedValue({ data: mockRespecResponse });
 
     const { result } = renderHook(
@@ -110,7 +112,10 @@ describe('useRespecSkillTree', () => {
     });
 
     // Spy on invalidateQueries
-    const invalidateSpy = jest.spyOn(result.current.client, 'invalidateQueries');
+    const invalidateSpy = jest.spyOn(
+      result.current.client,
+      'invalidateQueries'
+    );
 
     result.current.mutation.mutate();
 
@@ -118,6 +123,9 @@ describe('useRespecSkillTree', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['skill-tree'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['quest-reward-preview'],
     });
   });
 
