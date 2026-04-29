@@ -30,31 +30,23 @@ describe('perks utilities', () => {
   });
 
   describe('calculatePerkBonuses', () => {
-    it('calculates bonuses proportionally based on perk values', () => {
-      // quick_break: 0.2 (20%), endurance_focus: 0.3 (30%)
-      // Total value: 0.5, so quick_break gets 40% of bonus, endurance_focus gets 60%
-      const result = calculatePerkBonuses(100, 150, [
+    test('calculatePerkBonuses splits XP proportionally using server-aligned values', () => {
+      // baseXP=100, +Quick Break (0.10) + Endurance Focus (0.15) = total 0.25 bonus = 125
+      const result = calculatePerkBonuses(100, 125, [
         'quick_break',
         'endurance_focus',
       ]);
-
-      expect(result).toHaveLength(2);
-
-      const quickBreak = result.find((p) => p.id === 'quick_break');
-      const endurance = result.find((p) => p.id === 'endurance_focus');
-
-      expect(quickBreak).toBeDefined();
-      expect(endurance).toBeDefined();
-
-      // 50 total bonus: 40% = 20, 60% = 30
-      expect(quickBreak!.bonusXP).toBe(20);
-      expect(endurance!.bonusXP).toBe(30);
-
-      // Verify names and icons
-      expect(quickBreak!.name).toBe('Quick Break');
-      expect(quickBreak!.icon).toBe('zap');
-      expect(endurance!.name).toBe('Endurance Focus');
-      expect(endurance!.icon).toBe('dumbbell');
+      // 0.10 / 0.25 * 25 = 10 → quick_break: 10
+      // remainder for endurance_focus: 15
+      expect(result).toEqual([
+        { id: 'quick_break', name: 'Quick Break', bonusXP: 10, icon: 'zap' },
+        {
+          id: 'endurance_focus',
+          name: 'Endurance Focus',
+          bonusXP: 15,
+          icon: 'dumbbell',
+        },
+      ]);
     });
 
     it('returns empty array when no bonus XP', () => {

@@ -21,8 +21,9 @@ jest.mock('../common/provisional-client', () => ({
 }));
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
-const mockProvisionalApiClient =
-  provisionalApiClient as jest.Mocked<typeof provisionalApiClient>;
+const mockProvisionalApiClient = provisionalApiClient as jest.Mocked<
+  typeof provisionalApiClient
+>;
 
 describe('useQuestRewardPreview', () => {
   let queryClient: QueryClient;
@@ -49,7 +50,7 @@ describe('useQuestRewardPreview', () => {
         baseXP: 90,
         adjustedXP: 135,
         multiplier: 1.5,
-        perksApplied: ['quest_mastery_endurance'],
+        perksApplied: ['endurance_focus'],
       },
     ],
     effects: {
@@ -116,7 +117,8 @@ describe('useQuestRewardPreview', () => {
 
     it('does not fetch when enabled is false', () => {
       const { result } = renderHook(
-        () => useQuestRewardPreview({ questTemplateId: 'quest-3', enabled: false }),
+        () =>
+          useQuestRewardPreview({ questTemplateId: 'quest-3', enabled: false }),
         {
           wrapper: createWrapper(),
         }
