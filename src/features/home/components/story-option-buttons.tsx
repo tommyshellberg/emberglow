@@ -18,7 +18,7 @@ interface StoryOptionButtonsProps {
   activeIndex: number;
   serverQuests: ServerQuest[];
   storyOptions: QuestOption[];
-  isStorylineComplete: boolean;
+  hasStartedStoryline: boolean;
   hasPremiumAccess: boolean;
   onQuestSelect: (questId: string | null) => void;
   onShowPaywall: () => void;
@@ -52,7 +52,7 @@ export function StoryOptionButtons({
   activeIndex,
   serverQuests,
   storyOptions,
-  isStorylineComplete,
+  hasStartedStoryline,
   hasPremiumAccess,
   onQuestSelect,
   onShowPaywall,
@@ -88,7 +88,7 @@ export function StoryOptionButtons({
             label={
               quest.isPremium && !hasPremiumAccess
                 ? 'Unlock full Vaedros storyline'
-                : isStorylineComplete
+                : !hasStartedStoryline
                   ? 'Begin your journey'
                   : 'Start Quest'
             }
@@ -151,9 +151,7 @@ export function StoryOptionButtons({
             label={
               questIsPremium && !hasPremiumAccess
                 ? 'Unlock full Vaedros storyline'
-                : isStorylineComplete
-                  ? 'Begin your journey'
-                  : option.text
+                : option.text
             }
             onPress={() => {
               if (questIsPremium && !hasPremiumAccess) {
@@ -256,9 +254,7 @@ export function StoryOptionButtons({
                 label={
                   questIsPremium && !hasPremiumAccess
                     ? 'Unlock full Vaedros storyline'
-                    : isStorylineComplete
-                      ? 'Begin your journey'
-                      : option.text
+                    : option.text
                 }
                 onPress={() => {
                   if (questIsPremium && !hasPremiumAccess) {
