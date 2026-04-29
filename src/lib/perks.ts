@@ -11,52 +11,84 @@ interface PerkMetadata {
  * Maps perk IDs to their metadata
  */
 export const PERK_DATA: Record<string, PerkMetadata> = {
-  // Universal perks (values match server /unquest-server/src/data/perks.js)
-  quick_break: { name: 'Quick Break', icon: 'zap', value: 0.35 },
-  morning_ritual: { name: 'Morning Ritual', icon: 'sunrise', value: 0.3 },
-  endurance_focus: { name: 'Endurance Focus', icon: 'dumbbell', value: 0.5 },
-  thoughtful_adventurer: { name: 'Thoughtful Adventurer', icon: 'brain', value: 0.25 },
-  first_timer: { name: 'First Timer', icon: 'star', value: 0.5 },
-  weekend_warrior: { name: 'Weekend Warrior', icon: 'sword', value: 0.4 },
-  weekday_grind: { name: 'Weekday Grind', icon: 'calendar', value: 0.25 },
-  quick_start: { name: 'Quick Start', icon: 'zap', value: 0.0 }, // Duration perk, no XP bonus
-  streak_master: { name: 'Streak Master', icon: 'flame', value: 0.5 },
-  streak_god: { name: 'Streak God', icon: 'flame', value: 1.0 },
-
-  // Aliases (same icon, different unlock paths)
-  quest_mastery_quick: { name: 'Quick Start', icon: 'zap', value: 0.0 },
-  quest_mastery_endurance: { name: 'Endurance Focus', icon: 'dumbbell', value: 0.5 },
+  // Universal perks (values match server /unquest-server/src/data/perks.js — verified 2026-04-28)
+  quick_break: { name: 'Quick Break', icon: 'zap', value: 0.1 },
+  morning_ritual: { name: 'Morning Ritual', icon: 'sunrise', value: 0.1 },
+  endurance_focus: { name: 'Endurance Focus', icon: 'dumbbell', value: 0.15 },
+  thoughtful_adventurer: {
+    name: 'Thoughtful Adventurer',
+    icon: 'brain',
+    value: 0.15,
+  },
+  first_timer: { name: 'First Timer', icon: 'star', value: 0.2 },
+  weekend_warrior: { name: 'Weekend Warrior', icon: 'sword', value: 0.25 },
+  weekday_grind: { name: 'Weekday Grind', icon: 'calendar', value: 0.15 },
+  quick_start: { name: 'Quick Start', icon: 'zap', value: 0.0 }, // Server value is 0.1 (duration_reduction); client uses 0.0 so calculatePerkBonuses excludes it from the XP-bonus split.
+  streak_master: { name: 'Streak Master', icon: 'flame', value: 0.35 },
+  streak_god: { name: 'Streak God', icon: 'flame', value: 0.5 },
 
   // Alchemist perks
-  alchemist_alchemical_precision: { name: 'Alchemical Precision', icon: 'flask-conical', value: 0.75 },
-  alchemist_crafting_prowess: { name: 'Crafting Prowess', icon: 'hammer', value: 0.4 },
-  alchemist_transmuters_efficiency: { name: "Transmuter's Efficiency", icon: 'hourglass', value: 0.6 },
+  alchemist_alchemical_precision: {
+    name: 'Alchemical Precision',
+    icon: 'flask-conical',
+    value: 0.3,
+  },
+  alchemist_crafting_prowess: {
+    name: 'Crafting Prowess',
+    icon: 'hammer',
+    value: 0.1,
+  },
+  alchemist_transmuters_efficiency: {
+    name: "Transmuter's Efficiency",
+    icon: 'hourglass',
+    value: 0.2,
+  },
 
   // Knight perks
-  knight_warriors_might: { name: "Warrior's Might", icon: 'sword', value: 0.4 },
-  knight_champions_endurance: { name: "Champion's Endurance", icon: 'medal', value: 0.6 },
-  knight_tactical_discipline: { name: 'Tactical Discipline', icon: 'target', value: 0.6 },
+  knight_warriors_might: { name: "Warrior's Might", icon: 'sword', value: 0.1 },
+  knight_champions_endurance: {
+    name: "Champion's Endurance",
+    icon: 'medal',
+    value: 0.2,
+  },
+  knight_tactical_discipline: {
+    name: 'Tactical Discipline',
+    icon: 'target',
+    value: 0.3,
+  },
 
   // Bard perks
-  bard_charismatic_flair: { name: 'Charismatic Flair', icon: 'sparkles', value: 0.4 },
-  bard_master_performer: { name: 'Master Performer', icon: 'mic', value: 0.75 },
-  bard_inspiring_presence: { name: 'Inspiring Presence', icon: 'users', value: 0.5 },
+  bard_charismatic_flair: {
+    name: 'Charismatic Flair',
+    icon: 'sparkles',
+    value: 0.1,
+  },
+  bard_master_performer: { name: 'Master Performer', icon: 'mic', value: 0.2 },
+  bard_inspiring_presence: {
+    name: 'Inspiring Presence',
+    icon: 'users',
+    value: 0.3,
+  },
 
   // Wizard perks
-  wizard_scholars_mind: { name: "Scholar's Mind", icon: 'book', value: 0.4 },
-  wizard_arcane_focus: { name: 'Arcane Focus', icon: 'wand', value: 0.75 },
-  fire_path: { name: 'Fire Path', icon: 'flame', value: 0.5 },
-  water_path: { name: 'Water Path', icon: 'droplet', value: 0.5 },
+  wizard_scholars_mind: { name: "Scholar's Mind", icon: 'book', value: 0.1 },
+  wizard_arcane_focus: { name: 'Arcane Focus', icon: 'wand', value: 0.2 },
+  fire_path: { name: 'Fire Path', icon: 'flame', value: 0.3 },
+  water_path: { name: 'Water Path', icon: 'droplet', value: 0.3 },
 
   // Scout perks
-  scout_lone_wanderer: { name: 'Lone Wanderer', icon: 'compass', value: 0.4 },
-  scout_survivalist: { name: 'Survivalist', icon: 'tent', value: 0.6 },
-  scout_master_tracker: { name: 'Master Tracker', icon: 'binoculars', value: 0.75 },
+  scout_lone_wanderer: { name: 'Lone Wanderer', icon: 'compass', value: 0.1 },
+  scout_survivalist: { name: 'Survivalist', icon: 'tent', value: 0.2 },
+  scout_master_tracker: {
+    name: 'Master Tracker',
+    icon: 'binoculars',
+    value: 0.3,
+  },
 
   // Druid perks
-  druid_natures_touch: { name: "Nature's Touch", icon: 'leaf', value: 0.4 },
-  druid_vitality: { name: 'Vitality', icon: 'heart-pulse', value: 1.0 },
-  druid_harmony: { name: 'Harmony', icon: 'yin-yang', value: 0.6 },
+  druid_natures_touch: { name: "Nature's Touch", icon: 'leaf', value: 0.1 },
+  druid_vitality: { name: 'Vitality', icon: 'heart-pulse', value: 0.2 },
+  druid_harmony: { name: 'Harmony', icon: 'yin-yang', value: 0.3 },
 };
 
 /**

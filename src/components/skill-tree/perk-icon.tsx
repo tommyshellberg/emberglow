@@ -55,10 +55,6 @@ export const PERK_ICON_MAP: Record<string, any> = {
   thoughtful_adventurer: require('@/../assets/icons/perks/thoughtful-adventurer.svg'),
   weekday_grind: require('@/../assets/icons/perks/weekday_grind.svg'),
   weekend_warrior: require('@/../assets/icons/perks/weekend_warrior.svg'),
-
-  // Aliases (same icon, different unlock paths)
-  quest_mastery_quick: require('@/../assets/icons/perks/quick_start.svg'),
-  quest_mastery_endurance: require('@/../assets/icons/perks/endurance_focus.svg'),
 };
 
 export function PerkIcon({ perkId, isUnlocked, size = 32 }: PerkIconProps) {

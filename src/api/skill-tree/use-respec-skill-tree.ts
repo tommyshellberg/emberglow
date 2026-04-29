@@ -12,10 +12,8 @@ export const useRespecSkillTree = () => {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate skill-tree query to refetch latest data
-      queryClient.invalidateQueries({
-        queryKey: ['skill-tree'],
-      });
+      queryClient.invalidateQueries({ queryKey: ['skill-tree'] });
+      queryClient.invalidateQueries({ queryKey: ['quest-reward-preview'] });
     },
   });
 };
