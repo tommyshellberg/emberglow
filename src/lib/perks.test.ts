@@ -49,6 +49,36 @@ describe('perks utilities', () => {
       ]);
     });
 
+    test('proportional split discriminates server-aligned values from the prior inflated table', () => {
+      // Three perks whose *integer* split diverges between old and new value tables.
+      // baseXP=100, adjustedXP=160 (total bonus 60).
+      // New values: quick_break=0.10, endurance_focus=0.15, streak_master=0.35
+      //   ratios sum to 0.60. Splits: floor(0.10/0.60*60)=10, floor(0.15/0.60*60)=15, remainder=35.
+      // Old values would have been: 0.35, 0.50, 0.50 — sum 1.35.
+      //   Splits: floor(0.35/1.35*60)=15, floor(0.50/1.35*60)=22, remainder=23.
+      // [10, 15, 35] vs [15, 22, 23] — different. This test fails on the old table.
+      const result = calculatePerkBonuses(100, 160, [
+        'quick_break',
+        'endurance_focus',
+        'streak_master',
+      ]);
+      expect(result).toEqual([
+        { id: 'quick_break', name: 'Quick Break', bonusXP: 10, icon: 'zap' },
+        {
+          id: 'endurance_focus',
+          name: 'Endurance Focus',
+          bonusXP: 15,
+          icon: 'dumbbell',
+        },
+        {
+          id: 'streak_master',
+          name: 'Streak Master',
+          bonusXP: 35,
+          icon: 'flame',
+        },
+      ]);
+    });
+
     it('returns empty array when no bonus XP', () => {
       const result = calculatePerkBonuses(100, 100, ['quick_break']);
       expect(result).toEqual([]);

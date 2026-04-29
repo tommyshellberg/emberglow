@@ -23,7 +23,7 @@ export const PERK_DATA: Record<string, PerkMetadata> = {
   first_timer: { name: 'First Timer', icon: 'star', value: 0.2 },
   weekend_warrior: { name: 'Weekend Warrior', icon: 'sword', value: 0.25 },
   weekday_grind: { name: 'Weekday Grind', icon: 'calendar', value: 0.15 },
-  quick_start: { name: 'Quick Start', icon: 'zap', value: 0.0 }, // Duration perk, no XP bonus
+  quick_start: { name: 'Quick Start', icon: 'zap', value: 0.0 }, // Server value is 0.1 (duration_reduction); client uses 0.0 so calculatePerkBonuses excludes it from the XP-bonus split.
   streak_master: { name: 'Streak Master', icon: 'flame', value: 0.35 },
   streak_god: { name: 'Streak God', icon: 'flame', value: 0.5 },
 
