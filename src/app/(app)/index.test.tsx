@@ -231,9 +231,15 @@ describe('Home Component - Integration Tests', () => {
 
       const { unmount } = render(<Home />);
 
-      // User sees the quest title and a start button
+      // User sees the quest title and a start button. The label is
+      // 'Begin your journey' (not 'Start Quest') because the mock state
+      // has no completed story quests, which is the first-time-player CTA.
+      // The recap text also says 'Begin your journey' for fresh players,
+      // so we expect to see it appear at least once on the screen.
       expect(screen.getByText('The Lake Discovery')).toBeTruthy();
-      expect(screen.getByText('Start Quest')).toBeTruthy();
+      expect(screen.getAllByText('Begin your journey').length).toBeGreaterThan(
+        0
+      );
 
       unmount();
     });

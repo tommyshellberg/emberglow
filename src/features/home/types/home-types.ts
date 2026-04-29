@@ -65,6 +65,7 @@ export interface HomeData {
   currentMapName: string;
   storyProgress: number;
   isStorylineComplete: boolean;
+  hasStartedStoryline: boolean;
 }
 
 /**

@@ -137,6 +137,7 @@ export default function Home() {
     currentMapName: _currentMapName,
     storyProgress: _storyProgress,
     isStorylineComplete,
+    hasStartedStoryline,
   } = useHomeData({
     serverQuests,
     availableQuests,
@@ -469,7 +470,7 @@ export default function Home() {
                 activeIndex={activeIndex}
                 serverQuests={serverQuests}
                 storyOptions={storyOptions}
-                isStorylineComplete={isStorylineComplete}
+                hasStartedStoryline={hasStartedStoryline}
                 hasPremiumAccess={hasPremiumAccess}
                 onQuestSelect={handleQuestOptionSelect}
                 onShowPaywall={() => setShowPaywallModal(true)}

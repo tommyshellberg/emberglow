@@ -80,6 +80,11 @@ export function useHomeData({
   // Check if storyline is complete
   const isStorylineComplete = storyProgress >= STORYLINE_COMPLETE_THRESHOLD;
 
+  // True once the user has completed at least one story quest. Used to
+  // gate the "Begin your journey" first-quest CTA so it only appears for
+  // brand-new players, not at every label decision.
+  const hasStartedStoryline = storyProgress > 0;
+
   // Get quest recap text
   const getQuestRecap = useMemo(() => {
     // Use server quest recap if available
@@ -184,5 +189,6 @@ export function useHomeData({
     currentMapName,
     storyProgress,
     isStorylineComplete,
+    hasStartedStoryline,
   };
 }
