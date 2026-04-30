@@ -111,8 +111,10 @@ jest.mock('@/store/settings-store', () => {
   const useSettingsStore = create((set: any) => ({
     dailyReminder: { enabled: false, time: null },
     streakWarning: { enabled: false, time: null },
+    reEngagement: { enabled: true },
     setDailyReminder: (reminder: any) => set({ dailyReminder: reminder }),
     setStreakWarning: (streakWarning: any) => set({ streakWarning }),
+    setReEngagement: (reEngagement: any) => set({ reEngagement }),
     narratorVoice: null,
     setNarratorVoice: (voice: any) => set({ narratorVoice: voice }),
   }));
@@ -272,9 +274,7 @@ describe('Settings Screen', () => {
 
     it('confirms before wiping when a guest chooses Start Over', async () => {
       const { Alert } = require('react-native');
-      const alertSpy = jest
-        .spyOn(Alert, 'alert')
-        .mockImplementation(() => {});
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
       const { wipeGuestSession } = require('@/lib/auth');
 
       const { getByText } = render(<Settings />);
@@ -364,5 +364,47 @@ describe('Settings Screen', () => {
 
     expect(useSettingsStore.getState().narratorVoice).toBe('female');
     expect(await findByText('Female')).toBeOnTheScreen();
+  });
+});
+
+describe('Settings — re-engagement toggle', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+    useSettingsStore.setState({ reEngagement: { enabled: true } });
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('renders the re-engagement toggle reflecting the store value', async () => {
+    const { getByLabelText } = render(<Settings />);
+    await waitFor(() => {
+      const toggle = getByLabelText(/re-engagement reminders/i);
+      expect(toggle.props.accessibilityState.checked).toBe(true);
+    });
+  });
+
+  it('calls setReEngagement and the update mutation when toggled off', async () => {
+    const mockUpdateSettings = jest.fn();
+
+    jest.mock('@/hooks/use-notification-settings', () => ({
+      useNotificationSettings: () => ({
+        settings: null,
+        updateSettings: mockUpdateSettings,
+        isLoading: false,
+      }),
+    }));
+
+    const { getByLabelText } = render(<Settings />);
+    const toggle = await waitFor(() =>
+      getByLabelText(/re-engagement reminders/i)
+    );
+    fireEvent.press(toggle);
+    await waitFor(() =>
+      expect(useSettingsStore.getState().reEngagement).toEqual({
+        enabled: false,
+      })
+    );
   });
 });
