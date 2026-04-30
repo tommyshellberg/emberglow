@@ -240,6 +240,11 @@ function RootLayout() {
           setTimeout(() => {
             router.push('/scheduled-quest');
           }, 1000);
+        } else if (additionalData?.type === 're_engagement') {
+          // Land users on the home tab where the active storyline's next-quest CTA lives.
+          setTimeout(() => {
+            router.replace('/(app)');
+          }, 1000);
         }
       });
 
