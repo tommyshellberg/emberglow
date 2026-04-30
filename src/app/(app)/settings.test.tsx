@@ -246,7 +246,6 @@ describe('Settings — re-engagement toggle', () => {
 
   it('calls setReEngagement and the update mutation when toggled off', async () => {
     const mockSetReEngagement = jest.fn();
-    const mockUpdateSettings = jest.fn();
 
     const { useSettingsStore } = require('@/store/settings-store');
     useSettingsStore.mockReturnValue({
@@ -257,14 +256,6 @@ describe('Settings — re-engagement toggle', () => {
       setStreakWarning: jest.fn(),
       setReEngagement: mockSetReEngagement,
     });
-
-    jest.mock('@/hooks/use-notification-settings', () => ({
-      useNotificationSettings: () => ({
-        settings: null,
-        updateSettings: mockUpdateSettings,
-        isLoading: false,
-      }),
-    }));
 
     const { getByLabelText } = render(<Settings />);
     await waitFor(() => {
