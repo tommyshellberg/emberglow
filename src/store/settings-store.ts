@@ -18,11 +18,17 @@ type StreakWarning = {
   time: ReminderTime;
 };
 
+type ReEngagement = {
+  enabled: boolean;
+};
+
 type SettingsState = {
   dailyReminder: DailyReminder;
   streakWarning: StreakWarning;
+  reEngagement: ReEngagement;
   setDailyReminder: (reminder: DailyReminder) => void;
   setStreakWarning: (streakWarning: StreakWarning) => void;
+  setReEngagement: (reEngagement: ReEngagement) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
   hasSeenBranchingAnnouncement: boolean;
@@ -49,8 +55,12 @@ export const useSettingsStore = create<SettingsState>()(
         enabled: true,
         time: { hour: 18, minute: 0 },
       },
+      reEngagement: {
+        enabled: true,
+      },
       setDailyReminder: (reminder) => set({ dailyReminder: reminder }),
       setStreakWarning: (streakWarning) => set({ streakWarning }),
+      setReEngagement: (reEngagement) => set({ reEngagement }),
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),

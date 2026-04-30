@@ -60,14 +60,21 @@ export default function Settings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const user = useUserStore((state) => state.user);
   const [isLoading, setIsLoading] = useState(true);
-  const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
-    useSettingsStore();
+  const {
+    dailyReminder,
+    setDailyReminder,
+    streakWarning,
+    setStreakWarning,
+    reEngagement,
+    setReEngagement,
+  } = useSettingsStore();
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
   const lastSentStreakSettings = useRef<string>('');
+  const lastSentReEngagementSettings = useRef<string | null>(null);
   const {
     settings: notificationSettings,
     updateSettings,
@@ -139,7 +146,7 @@ export default function Settings() {
     }
   }, [notificationSettings]);
 
-  // Update local streak warning state when server data loads
+  // Update local streak warning and re-engagement state when server data loads
   useEffect(() => {
     if (notificationSettings?.streakWarning) {
       setStreakWarning(notificationSettings.streakWarning);
@@ -148,7 +155,14 @@ export default function Settings() {
         notificationSettings.streakWarning
       );
     }
-  }, [notificationSettings, setStreakWarning]);
+    if (notificationSettings?.reEngagement) {
+      setReEngagement(notificationSettings.reEngagement);
+      // Initialize the ref so we don't send an update immediately
+      lastSentReEngagementSettings.current = JSON.stringify(
+        notificationSettings.reEngagement
+      );
+    }
+  }, [notificationSettings, setStreakWarning, setReEngagement]);
 
   // Send update to server when streak settings change
   useEffect(() => {
@@ -169,6 +183,14 @@ export default function Settings() {
       updateSettings({ streakWarning });
     }
   }, [streakWarning, updateSettings]);
+
+  // Send update to server when re-engagement settings change
+  useEffect(() => {
+    const serialized = JSON.stringify(reEngagement);
+    if (lastSentReEngagementSettings.current === serialized) return;
+    lastSentReEngagementSettings.current = serialized;
+    updateSettings({ reEngagement });
+  }, [reEngagement, updateSettings]);
 
   // Handle notification toggle
   const handleNotificationsToggle = async (value: boolean) => {
@@ -296,6 +318,10 @@ export default function Settings() {
 
     // Cancel local notifications since we're using server-side now
     await cancelStreakWarningNotification();
+  };
+
+  const handleToggleReEngagement = (value: boolean) => {
+    setReEngagement({ enabled: value });
   };
 
   const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
@@ -602,6 +628,32 @@ export default function Settings() {
                     </View>
                   </View>
                 )}
+
+                {/* Re-engagement Reminders */}
+                <View className="mb-4 flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View
+                      className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
+                    >
+                      <Feather name="refresh-cw" size={24} color={iconColor} />
+                    </View>
+                    <View className="flex-1 pr-4">
+                      <Text className="text-xl font-medium text-white">
+                        Re-engagement reminders
+                      </Text>
+                      <Text className="text-neutral-200">
+                        Get nudged when you've been away from Vaedros for a few
+                        days.
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    accessibilityLabel="Re-engagement reminders"
+                    value={reEngagement.enabled}
+                    onValueChange={handleToggleReEngagement}
+                    trackColor={{ false: '#2A4754', true: '#36B6D3' }}
+                  />
+                </View>
               </>
             )}
 

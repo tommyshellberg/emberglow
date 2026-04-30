@@ -1,4 +1,4 @@
-import { render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, waitFor } from '@/lib/test-utils';
 
 import Settings from './settings';
 
@@ -90,8 +90,10 @@ jest.mock('@/store/settings-store', () => ({
   useSettingsStore: jest.fn(() => ({
     dailyReminder: { enabled: false, time: null },
     streakWarning: { enabled: false, time: null },
+    reEngagement: { enabled: true },
     setDailyReminder: jest.fn(),
     setStreakWarning: jest.fn(),
+    setReEngagement: jest.fn(),
   })),
 }));
 
@@ -221,6 +223,54 @@ describe('Settings Screen', () => {
     await waitFor(() => {
       // Should not display update section when updateId is null
       expect(queryByText(/Update:/)).toBeNull();
+    });
+  });
+});
+
+describe('Settings — re-engagement toggle', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('renders the re-engagement toggle reflecting the store value', async () => {
+    const { getByLabelText } = render(<Settings />);
+    await waitFor(() => {
+      const toggle = getByLabelText(/re-engagement reminders/i);
+      expect(toggle.props.value).toBe(true);
+    });
+  });
+
+  it('calls setReEngagement and the update mutation when toggled off', async () => {
+    const mockSetReEngagement = jest.fn();
+    const mockUpdateSettings = jest.fn();
+
+    const { useSettingsStore } = require('@/store/settings-store');
+    useSettingsStore.mockReturnValue({
+      dailyReminder: { enabled: false, time: null },
+      streakWarning: { enabled: false, time: null },
+      reEngagement: { enabled: true },
+      setDailyReminder: jest.fn(),
+      setStreakWarning: jest.fn(),
+      setReEngagement: mockSetReEngagement,
+    });
+
+    jest.mock('@/hooks/use-notification-settings', () => ({
+      useNotificationSettings: () => ({
+        settings: null,
+        updateSettings: mockUpdateSettings,
+        isLoading: false,
+      }),
+    }));
+
+    const { getByLabelText } = render(<Settings />);
+    await waitFor(() => {
+      const toggle = getByLabelText(/re-engagement reminders/i);
+      fireEvent(toggle, 'valueChange', false);
+      expect(mockSetReEngagement).toHaveBeenCalledWith({ enabled: false });
     });
   });
 });

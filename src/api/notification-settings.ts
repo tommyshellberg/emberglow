@@ -9,6 +9,9 @@ export interface NotificationSettings {
       minute: number;
     };
   };
+  reEngagement: {
+    enabled: boolean;
+  };
 }
 
 export const getNotificationSettings =
