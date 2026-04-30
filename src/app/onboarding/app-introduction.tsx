@@ -11,6 +11,7 @@ import Animated, {
 
 import {
   Button,
+  Eyebrow,
   FocusAwareStatusBar,
   Text,
   Title,
@@ -100,6 +101,9 @@ export default function AppIntroductionScreen() {
       case IntroStep.WELCOME:
         return (
           <View key="welcome">
+            <Animated.View entering={FadeInLeft.delay(50)}>
+              <Eyebrow text="Introduction" />
+            </Animated.View>
             <Animated.View entering={FadeInLeft.delay(100)}>
               <Title text="emberglow" />
             </Animated.View>
@@ -132,6 +136,9 @@ export default function AppIntroductionScreen() {
 
         return (
           <View key="notifications">
+            <Animated.View entering={FadeInLeft.delay(50)}>
+              <Eyebrow text="Introduction" />
+            </Animated.View>
             <Animated.View entering={FadeInLeft.delay(100)}>
               <Title text="Notifications" />
             </Animated.View>

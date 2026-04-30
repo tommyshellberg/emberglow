@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { StreakCounter } from '@/components/StreakCounter';
-import { ScreenContainer, Text, View } from '@/components/ui';
+import { Eyebrow, ScreenContainer, Text, View } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 import { red, secondary } from '@/components/ui/colors';
 import { useCharacterStore } from '@/store/character-store';
@@ -90,6 +90,7 @@ export default function StreakCelebrationScreen() {
         fullScreen
         className="items-center justify-between px-6 pt-20"
       >
+        <Eyebrow text="Quest Streak" className="mb-2" />
         <View className="w-full flex-1 items-center justify-center">
           {/* Streak Counter with Confetti Animation */}
           <View

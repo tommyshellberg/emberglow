@@ -6,6 +6,7 @@ import { Image, TouchableOpacity } from 'react-native';
 import {
   BackgroundImage,
   Button,
+  Eyebrow,
   FocusAwareStatusBar,
   Text,
   Title,
@@ -42,6 +43,7 @@ export default function WelcomeScreen() {
             style={{ width: 120, height: 120 }}
             resizeMode="contain"
           />
+          <Eyebrow text="Begin Your Journey" className="mt-2" />
           <Title className="text-4xl" variant="centered">
             emberglow
           </Title>

@@ -67,6 +67,7 @@ describe('AppIntroductionScreen', () => {
 
     // Use waitFor to handle the async permission check
     await waitFor(() => {
+      expect(getByText('INTRODUCTION')).toBeTruthy();
       expect(getByText('emberglow')).toBeTruthy();
       expect(
         getByText('Discover quests and embrace your journey.')
@@ -88,6 +89,7 @@ describe('AppIntroductionScreen', () => {
 
     // Check that we've moved to the notifications step
     await waitFor(() => {
+      expect(getByText('INTRODUCTION')).toBeTruthy();
       expect(getByText('Notifications')).toBeTruthy();
       expect(getByText('Enable notifications')).toBeTruthy();
     });

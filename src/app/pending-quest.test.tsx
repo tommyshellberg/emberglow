@@ -58,6 +58,12 @@ jest.mock('@/components/ui', () => {
       ),
     Card: ({ children, testID, ...props }: any) =>
       React.createElement(RN.View, { testID, ...props }, children),
+    Eyebrow: ({ text, children, ...props }: any) =>
+      React.createElement(
+        RN.Text,
+        props,
+        (text ?? children ?? '').toString().toUpperCase()
+      ),
     Text: (props: any) => React.createElement(RN.Text, props),
     Title: (props: any) => React.createElement(RN.Text, props),
     View: (props: any) => React.createElement(RN.View, props),
@@ -326,6 +332,23 @@ describe('PendingQuestScreen', () => {
       const { getByText } = render(<PendingQuestScreen />);
 
       expect(getByText('Start Quest')).toBeTruthy();
+    });
+
+    it('displays the eyebrow with the quest mode for story quests', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('STORY QUEST')).toBeTruthy();
+    });
+
+    it('displays the eyebrow with the quest mode for custom quests', () => {
+      useQuestStore.setState({
+        pendingQuest: mockCustomQuest,
+        cancelQuest: jest.fn(),
+      });
+
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('CUSTOM QUEST')).toBeTruthy();
     });
 
     it('displays lock instructions text', () => {

@@ -108,17 +108,34 @@ describe('QuestCompletedSignupScreen', () => {
     it('should display the completion message', () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      expect(
-        getByText("You've completed your first quest—Vaedros already feels safer!")
-      ).toBeTruthy();
+      expect(getByText("You've completed your first quest!")).toBeTruthy();
     });
 
     it('should display account benefits', () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      expect(getByText('Create an account to:')).toBeTruthy();
-      expect(getByText('• Save your progress and continue your story')).toBeTruthy();
-      expect(getByText('• Unlock the ability to add friends')).toBeTruthy();
+      expect(getByText('Sign up to unlock:')).toBeTruthy();
+      expect(
+        getByText('Continue your story across 29 more quests')
+      ).toBeTruthy();
+      expect(
+        getByText('Forge custom quests from your real-world goals')
+      ).toBeTruthy();
+      expect(
+        getByText("Track your hero's journey in the journal")
+      ).toBeTruthy();
+      expect(
+        getByText('Explore the map of Vaedros and uncover hidden regions')
+      ).toBeTruthy();
+      expect(
+        getByText('Form a guild and run cooperative quests with friends')
+      ).toBeTruthy();
+    });
+
+    it('should display the chapter eyebrow label', () => {
+      const { getByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('QUEST ONE · COMPLETE')).toBeTruthy();
     });
   });
 });

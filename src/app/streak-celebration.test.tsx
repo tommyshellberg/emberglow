@@ -124,6 +124,12 @@ describe('StreakCelebrationScreen', () => {
       const streakText = getByText('day streak!');
       expect(streakText).toBeTruthy();
     });
+
+    it('should display the QUEST STREAK eyebrow', () => {
+      const { getByText } = render(<StreakCelebrationScreen />);
+
+      expect(getByText('QUEST STREAK')).toBeTruthy();
+    });
   });
 
   describe('1-Day Streak (Thursday)', () => {

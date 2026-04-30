@@ -6,8 +6,16 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestRewardPreview } from '@/api/quest-runs';
-import { BackgroundImage, Button, Text, Title, View } from '@/components/ui';
+import {
+  BackgroundImage,
+  Button,
+  Eyebrow,
+  Text,
+  Title,
+  View,
+} from '@/components/ui';
 import colors from '@/components/ui/colors';
+import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
@@ -81,8 +89,9 @@ export default function PendingQuestScreen() {
           paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
         }}
       >
-        {/* Title */}
-        <Animated.View style={headerStyle}>
+        {/* Eyebrow + Title */}
+        <Animated.View style={headerStyle} className="items-center">
+          <Eyebrow text={getQuestModeLabel(pendingQuest.mode)} />
           <Title variant="centered" className="text-4xl">
             {STRINGS.TITLE}
           </Title>

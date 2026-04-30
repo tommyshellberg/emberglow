@@ -134,3 +134,21 @@ export function getCurrentUserRewards(
     perksApplied,
   };
 }
+
+/**
+ * Maps a quest mode to its display label for the eyebrow text pattern.
+ * Used by quest-related screens (pending, failed, complete) to identify
+ * the type of quest above the headline.
+ */
+export function getQuestModeLabel(mode: string | undefined): string {
+  switch (mode) {
+    case 'story':
+      return 'Story Quest';
+    case 'custom':
+      return 'Custom Quest';
+    case 'cooperative':
+      return 'Cooperative Quest';
+    default:
+      return 'Quest';
+  }
+}

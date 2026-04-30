@@ -66,6 +66,20 @@ describe('QuestCompleteHeader', () => {
       );
       expect(getByTestId('quest-image-mock')).toBeTruthy();
     });
+
+    it('should render the eyebrow with the story quest mode label', () => {
+      const { getByText } = render(
+        <QuestCompleteHeader quest={mockQuestWithTitle} />
+      );
+      expect(getByText('STORY QUEST')).toBeTruthy();
+    });
+
+    it('should render the eyebrow with the custom quest mode label', () => {
+      const { getByText } = render(
+        <QuestCompleteHeader quest={mockQuestWithoutTitle} />
+      );
+      expect(getByText('CUSTOM QUEST')).toBeTruthy();
+    });
   });
 
   describe('Accessibility', () => {
