@@ -226,6 +226,8 @@ type PreferencesSectionProps = {
   streakTimeValue: Date;
   onStreakTimeChange: (event: any, date?: Date) => void;
   streakTimeDisplay: string;
+  reEngagementEnabled: boolean;
+  onToggleReEngagement: (value: boolean) => void;
 };
 
 function PreferencesSection({
@@ -249,6 +251,8 @@ function PreferencesSection({
   streakTimeValue,
   onStreakTimeChange,
   streakTimeDisplay,
+  reEngagementEnabled,
+  onToggleReEngagement,
 }: PreferencesSectionProps) {
   return (
     <>
@@ -290,6 +294,7 @@ function PreferencesSection({
           subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
           trailing={
             <Switch
+              accessibilityLabel="Notifications"
               checked={notificationsEnabled}
               onChange={onNotificationsToggle}
             />
@@ -350,6 +355,26 @@ function PreferencesSection({
                 displayText={streakTimeDisplay}
               />
             )}
+
+            <View style={styles.divider} />
+            <ListItem
+              leading={
+                <Feather
+                  name="refresh-cw"
+                  size={ICON_SIZE}
+                  color={colors.text.accent}
+                />
+              }
+              title="Re-engagement reminders"
+              subtitle="Occasional reminders to pick your journey back up when you've been away."
+              trailing={
+                <Switch
+                  accessibilityLabel="Re-engagement reminders"
+                  checked={reEngagementEnabled}
+                  onChange={onToggleReEngagement}
+                />
+              }
+            />
           </>
         )}
       </View>
@@ -602,8 +627,14 @@ export default function Settings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const user = useUserStore((state) => state.user);
   const [isLoading, setIsLoading] = useState(true);
-  const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
-    useSettingsStore();
+  const {
+    dailyReminder,
+    setDailyReminder,
+    streakWarning,
+    setStreakWarning,
+    reEngagement,
+    setReEngagement,
+  } = useSettingsStore();
   // No separate narratorVoice subscription needed: the selector-less
   // useSettingsStore() call above already re-renders this component on any
   // settings-store change (zustand's set() always produces a new state
@@ -618,6 +649,7 @@ export default function Settings() {
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
   const lastSentStreakSettings = useRef<string>('');
+  const lastSentReEngagementSettings = useRef<string | null>(null);
   const {
     settings: notificationSettings,
     updateSettings,
@@ -675,7 +707,7 @@ export default function Settings() {
     }
   }, [notificationSettings]);
 
-  // Update local streak warning state when server data loads
+  // Update local streak warning and re-engagement state when server data loads
   useEffect(() => {
     if (notificationSettings?.streakWarning) {
       setStreakWarning(notificationSettings.streakWarning);
@@ -684,7 +716,14 @@ export default function Settings() {
         notificationSettings.streakWarning
       );
     }
-  }, [notificationSettings, setStreakWarning]);
+    if (notificationSettings?.reEngagement) {
+      setReEngagement(notificationSettings.reEngagement);
+      // Initialize the ref so we don't send an update immediately
+      lastSentReEngagementSettings.current = JSON.stringify(
+        notificationSettings.reEngagement
+      );
+    }
+  }, [notificationSettings, setStreakWarning, setReEngagement]);
 
   // Send update to server when streak settings change
   useEffect(() => {
@@ -703,6 +742,14 @@ export default function Settings() {
       updateSettings({ streakWarning: { ...streakWarning, time } });
     }
   }, [streakWarning, updateSettings]);
+
+  // Send update to server when re-engagement settings change
+  useEffect(() => {
+    const serialized = JSON.stringify(reEngagement);
+    if (lastSentReEngagementSettings.current === serialized) return;
+    lastSentReEngagementSettings.current = serialized;
+    updateSettings({ reEngagement });
+  }, [reEngagement, updateSettings]);
 
   // Handle notification toggle
   const handleNotificationsToggle = async (value: boolean) => {
@@ -821,6 +868,10 @@ export default function Settings() {
 
     // Cancel local notifications since we're using server-side now
     await cancelStreakWarningNotification();
+  };
+
+  const handleToggleReEngagement = (value: boolean) => {
+    setReEngagement({ enabled: value });
   };
 
   const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
@@ -944,6 +995,8 @@ export default function Settings() {
               }
               onStreakTimeChange={handleStreakTimeChange}
               streakTimeDisplay={getStreakTimeDisplay()}
+              reEngagementEnabled={reEngagement.enabled}
+              onToggleReEngagement={handleToggleReEngagement}
             />
 
             <SupportSection />
