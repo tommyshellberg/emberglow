@@ -6,7 +6,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Text } from '@/components/ui';
+import { Eyebrow, Text } from '@/components/ui';
+import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 
 import { ANIMATION_TIMING } from './constants';
 import { QuestImage } from './QuestImage';
@@ -35,11 +36,12 @@ export function QuestCompleteHeader({
 
   return (
     <Animated.View
-      className="mb-3 mt-4 w-full"
+      className="mb-3 mt-4 w-full items-center"
       style={headerStyle}
       accessibilityRole="header"
     >
-      <Text className="mb-2 text-center font-quest text-3xl text-cream-500 drop-shadow-md">
+      <Eyebrow text={getQuestModeLabel(quest.mode)} className="mb-1" />
+      <Text className="font-quest mb-2 text-center text-3xl text-cream-500 drop-shadow-md">
         Quest Complete!
       </Text>
 

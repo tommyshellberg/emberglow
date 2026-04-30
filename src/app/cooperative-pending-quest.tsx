@@ -13,11 +13,13 @@ import {
   BackgroundImage,
   Button,
   Card,
+  Eyebrow,
   Text,
   Title,
   View,
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
+import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { type CustomQuestTemplate } from '@/store/types';
@@ -224,10 +226,11 @@ export default function CooperativePendingQuestScreen() {
           paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
         }}
       >
-        {/* Title */}
-        <Animated.View style={headerStyle}>
+        {/* Eyebrow + Title */}
+        <Animated.View style={headerStyle} className="items-center">
+          <Eyebrow text={getQuestModeLabel('cooperative')} />
           <Title variant="centered" className="text-4xl">
-            Cooperative Quest
+            Start Quest
           </Title>
         </Animated.View>
 

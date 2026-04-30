@@ -1,6 +1,6 @@
 import type { QuestParticipant } from '@/store/types';
 
-import { getCurrentUserAdjustedXP } from './quest-utils';
+import { getCurrentUserAdjustedXP, getQuestModeLabel } from './quest-utils';
 
 describe('getCurrentUserAdjustedXP', () => {
   const baseQuest = {
@@ -247,5 +247,24 @@ describe('getCurrentUserAdjustedXP', () => {
       const result2 = getCurrentUserAdjustedXP(questWithMixedUserIds, 'user-123');
       expect(result2).toBe(21);
     });
+  });
+});
+
+describe('getQuestModeLabel', () => {
+  it('returns "Story Quest" for story mode', () => {
+    expect(getQuestModeLabel('story')).toBe('Story Quest');
+  });
+
+  it('returns "Custom Quest" for custom mode', () => {
+    expect(getQuestModeLabel('custom')).toBe('Custom Quest');
+  });
+
+  it('returns "Cooperative Quest" for cooperative mode', () => {
+    expect(getQuestModeLabel('cooperative')).toBe('Cooperative Quest');
+  });
+
+  it('falls back to "Quest" for unknown or missing mode', () => {
+    expect(getQuestModeLabel(undefined)).toBe('Quest');
+    expect(getQuestModeLabel('something-else')).toBe('Quest');
   });
 });

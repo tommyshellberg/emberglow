@@ -229,7 +229,8 @@ describe('CooperativePendingQuestScreen', () => {
     // Now the main screen should be visible
     await waitFor(() => {
       expect(queryByText('Get Ready!')).toBeFalsy();
-      expect(getByText('Cooperative Quest')).toBeTruthy();
+      expect(getByText('COOPERATIVE QUEST')).toBeTruthy();
+      expect(getByText('Start Quest')).toBeTruthy();
       expect(getByTestId('quest-card')).toBeTruthy();
       expect(getByText('Test Cooperative Quest')).toBeTruthy();
       expect(getByText('10 minutes')).toBeTruthy();

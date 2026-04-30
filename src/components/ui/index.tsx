@@ -7,6 +7,7 @@ export * from './card';
 export * from './checkbox';
 export { default as colors } from './colors';
 export * from './duration-badge';
+export * from './eyebrow';
 export * from './focus-aware-status-bar';
 export * from './gradient-background';
 export * from './image';

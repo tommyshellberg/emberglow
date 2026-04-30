@@ -11,6 +11,7 @@ import Animated, {
 
 import {
   Button,
+  Eyebrow,
   FocusAwareStatusBar,
   Text,
   Title,
@@ -79,15 +80,7 @@ export default function QuestCompletedSignupScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Animated.View entering={FadeInLeft.delay(50)}>
-            <Text
-              className="text-xs font-bold"
-              style={{
-                color: colors.brown,
-                letterSpacing: 4,
-              }}
-            >
-              QUEST ONE · COMPLETE
-            </Text>
+            <Eyebrow text="Quest One · Complete" />
           </Animated.View>
 
           <Animated.View entering={FadeInLeft.delay(150)}>

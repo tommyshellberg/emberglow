@@ -9,11 +9,13 @@ import Animated, {
 import {
   BackgroundImage,
   Button,
+  Eyebrow,
   ScreenContainer,
   Text,
   Title,
   View,
 } from '@/components/ui';
+import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import type {
   CustomQuestTemplate,
   Quest,
@@ -64,6 +66,7 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
           style={headerAnimatedStyle}
           className="mt-12 items-center"
         >
+          <Eyebrow text={getQuestModeLabel(quest.mode)} />
           <Title variant="centered">Quest Failed</Title>
           <Text className="mt-2 text-center text-lg font-medium text-white">
             {quest.title}
