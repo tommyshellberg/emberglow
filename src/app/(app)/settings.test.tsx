@@ -386,16 +386,6 @@ describe('Settings — re-engagement toggle', () => {
   });
 
   it('calls setReEngagement and the update mutation when toggled off', async () => {
-    const mockUpdateSettings = jest.fn();
-
-    jest.mock('@/hooks/use-notification-settings', () => ({
-      useNotificationSettings: () => ({
-        settings: null,
-        updateSettings: mockUpdateSettings,
-        isLoading: false,
-      }),
-    }));
-
     const { getByLabelText } = render(<Settings />);
     const toggle = await waitFor(() =>
       getByLabelText(/re-engagement reminders/i)
