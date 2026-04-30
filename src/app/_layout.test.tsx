@@ -27,6 +27,7 @@ jest.mock('@sentry/react-native', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 
 // Simple mock for expo-router
 jest.mock('expo-router', () => {
@@ -37,6 +38,7 @@ jest.mock('expo-router', () => {
     Stack,
     useRouter: () => ({
       push: mockPush,
+      replace: mockReplace,
     }),
     useNavigationContainerRef: jest.fn(() => ({
       current: null,
@@ -266,6 +268,7 @@ describe('RootLayout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPush.mockClear();
+    mockReplace.mockClear();
     Platform.OS = 'ios';
   });
 
@@ -548,6 +551,53 @@ describe('RootLayout', () => {
     await waitFor(() => {
       expect(mockFailQuest).toHaveBeenCalled();
     });
+  });
+
+  it('should handle re-engagement notification click by navigating to home tab', async () => {
+    // Use fake timers since there's a setTimeout in the handler
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    // Wait for OneSignal to be initialized
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    // Get the click handler
+    const clickHandler = (
+      OneSignal.Notifications.addEventListener as jest.Mock
+    ).mock.calls.find((call) => call[0] === 'click')[1];
+
+    // Simulate re-engagement notification click
+    const mockEvent = {
+      notification: {
+        additionalData: {
+          type: 're_engagement',
+          phase: 'day3',
+          screen: 'home',
+          storylineSlug: 'vaedros',
+        },
+      },
+    };
+
+    clickHandler(mockEvent);
+
+    // Fast-forward time by 1 second (the setTimeout delay in the code)
+    jest.advanceTimersByTime(1000);
+
+    // Should navigate to the home tab using replace (not push)
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/(app)');
+    });
+
+    // Restore real timers
+    jest.useRealTimers();
   });
 
   it('should handle foreground notifications', async () => {
