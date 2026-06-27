@@ -38,6 +38,17 @@ jest.mock('@/components/ui', () => {
     ),
     Pressable: RN.Pressable,
     ScrollView: RN.ScrollView,
+    Button: ({ label, onPress, testID, disabled }: any) => (
+      <RN.Pressable
+        testID={testID}
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <RN.Text>{label}</RN.Text>
+      </RN.Pressable>
+    ),
     FocusAwareStatusBar: () => null,
     ScreenContainer: ({ children }: any) => <RN.View>{children}</RN.View>,
     ScreenHeader: ({ title, subtitle }: any) => (
@@ -118,6 +129,12 @@ jest.mock('@/components/profile/delete-friend-modal', () => ({
 
 jest.mock('@/components/profile/rescind-invitation-modal', () => ({
   RescindInvitationModal: () => null,
+}));
+
+// GuildsSection renders the guild join/create modals; the profile screen tests
+// don't exercise guild internals, so stub it out like the other sections.
+jest.mock('@/features/guilds/components/guilds-section', () => ({
+  GuildsSection: () => null,
 }));
 
 // Mock hooks
