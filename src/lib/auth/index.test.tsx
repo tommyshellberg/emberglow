@@ -346,10 +346,11 @@ describe('Auth Store', () => {
       // The implementation now keeps the user signed in on fetch failure
       expect(signOutSpy).not.toHaveBeenCalled();
 
-      // The implementation doesn't set status to signIn on user details fetch failure
-      // It remains as 'hydrating' but the user stays logged in with the token
+      // When a token exists but the user-details fetch fails, the implementation
+      // intentionally sets status to 'signIn' so the app can proceed offline
+      // (see the "CRITICAL: Must set status to signIn" path in hydrate()).
       const state = useAuth.getState();
-      expect(state.status).toBe('hydrating');
+      expect(state.status).toBe('signIn');
       expect(state.token).toEqual({ access: 'token' });
     });
 
