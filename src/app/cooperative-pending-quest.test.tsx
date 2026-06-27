@@ -202,7 +202,7 @@ describe('CooperativePendingQuestScreen', () => {
 
   it('shows main quest screen after countdown', async () => {
     jest.useFakeTimers();
-    const { getByText, getByTestId, queryByText } = render(
+    const { getByText, queryByText } = render(
       <CooperativePendingQuestScreen />
     );
 
@@ -231,15 +231,14 @@ describe('CooperativePendingQuestScreen', () => {
       expect(queryByText('Get Ready!')).toBeFalsy();
       expect(getByText('COOPERATIVE QUEST')).toBeTruthy();
       expect(getByText('Start Quest')).toBeTruthy();
-      expect(getByTestId('quest-card')).toBeTruthy();
       expect(getByText('Test Cooperative Quest')).toBeTruthy();
-      expect(getByText('10 minutes')).toBeTruthy();
+      expect(getByText('10 min')).toBeTruthy();
     });
 
     jest.useRealTimers();
   });
 
-  it('displays participant list correctly', async () => {
+  it('displays the companion count and subtitle', async () => {
     jest.useFakeTimers();
     const { getByText } = render(<CooperativePendingQuestScreen />);
 
@@ -255,11 +254,15 @@ describe('CooperativePendingQuestScreen', () => {
       jest.advanceTimersByTime(500);
     });
 
+    // The screen shows a companion count badge and a cooperative subtitle
+    // (the per-participant list was replaced in the redesign).
     await waitFor(() => {
-      expect(getByText('Stronger Together')).toBeTruthy();
-      expect(getByText('2 companions embarking on this journey')).toBeTruthy();
-      expect(getByText('✨ You')).toBeTruthy();
-      expect(getByText('⚔️ Friend')).toBeTruthy();
+      expect(getByText('2 Companions')).toBeTruthy();
+      expect(
+        getByText(
+          'Stronger together — complete this quest with your companions'
+        )
+      ).toBeTruthy();
     });
 
     jest.useRealTimers();
@@ -350,7 +353,7 @@ describe('CooperativePendingQuestScreen', () => {
     expect(() => getByTestId('activity-indicator')).toBeTruthy();
   });
 
-  it('handles participants without names', async () => {
+  it('shows the companion count even when participants have no names', async () => {
     jest.useFakeTimers();
 
     const runWithoutNames = {
@@ -381,9 +384,10 @@ describe('CooperativePendingQuestScreen', () => {
       jest.advanceTimersByTime(500);
     });
 
+    // The redesigned screen shows a count rather than per-participant names,
+    // so it renders correctly regardless of whether names are present.
     await waitFor(() => {
-      expect(getByText('✨ You')).toBeTruthy();
-      expect(getByText('⚔️ Quest Companion')).toBeTruthy();
+      expect(getByText('2 Companions')).toBeTruthy();
     });
 
     jest.useRealTimers();
