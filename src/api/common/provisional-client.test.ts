@@ -5,6 +5,13 @@ jest.mock('@env', () => ({
   },
 }));
 
+// provisional-client derives its baseURL from getApiUrl() (platform-aware URL
+// resolution lives there and is tested separately). Mock it so this test
+// controls the baseURL deterministically regardless of platform/env.
+jest.mock('./get-api-url', () => ({
+  getApiUrl: jest.fn(() => 'https://api.example.com'),
+}));
+
 // Mock storage
 const mockGetItem = jest.fn();
 jest.mock('@/lib/storage', () => ({
