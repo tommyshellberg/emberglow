@@ -5,24 +5,30 @@ import {
   getGuildIconSource,
   DEFAULT_GUILD_ICON,
 } from '../guild-icons';
-import type { GuildIcon } from '../../types/guild-types';
 
 describe('Guild Icons', () => {
+  // Derive the canonical id list from the source of truth so this test does
+  // not rot when icons are added or renamed.
+  const iconIds = GUILD_ICONS.map((icon) => icon.id);
+
   describe('GUILD_ICONS', () => {
-    it('should have 8 icons defined', () => {
-      expect(GUILD_ICONS).toHaveLength(8);
+    it('should have 10 icons defined', () => {
+      expect(GUILD_ICONS).toHaveLength(10);
     });
 
-    it('should include all expected icon types', () => {
-      const iconIds = GUILD_ICONS.map((icon) => icon.id);
-      expect(iconIds).toContain('axe');
-      expect(iconIds).toContain('bow');
-      expect(iconIds).toContain('campfire');
-      expect(iconIds).toContain('island');
-      expect(iconIds).toContain('flame');
-      expect(iconIds).toContain('explorer');
-      expect(iconIds).toContain('magic');
-      expect(iconIds).toContain('powerup');
+    it('should include the expected icon types', () => {
+      expect(iconIds).toEqual([
+        'axe',
+        'hammer',
+        'camping',
+        'mug',
+        'flame',
+        'explorer',
+        'magic',
+        'banner',
+        'scroll',
+        'diamond',
+      ]);
     });
 
     it('should have all required properties for each icon', () => {
@@ -38,19 +44,8 @@ describe('Guild Icons', () => {
   });
 
   describe('GUILD_ICON_MAP', () => {
-    it('should have SVG source for each icon type', () => {
-      const iconTypes: GuildIcon[] = [
-        'axe',
-        'bow',
-        'campfire',
-        'island',
-        'flame',
-        'explorer',
-        'magic',
-        'powerup',
-      ];
-
-      iconTypes.forEach((iconType) => {
+    it('should have an SVG source for every icon type', () => {
+      iconIds.forEach((iconType) => {
         expect(GUILD_ICON_MAP[iconType]).toBeDefined();
       });
     });
@@ -63,59 +58,43 @@ describe('Guild Icons', () => {
       expect(config.label).toBe('Axe');
     });
 
-    it('should return correct config for campfire icon', () => {
-      const config = getGuildIconConfig('campfire');
-      expect(config.id).toBe('campfire');
-      expect(config.label).toBe('Campfire');
+    it('should return correct config for camping icon', () => {
+      const config = getGuildIconConfig('camping');
+      expect(config.id).toBe('camping');
+      expect(config.label).toBe('Camping');
     });
 
     it('should return correct config for all icon types', () => {
-      const iconTypes: GuildIcon[] = [
-        'axe',
-        'bow',
-        'campfire',
-        'island',
-        'flame',
-        'explorer',
-        'magic',
-        'powerup',
-      ];
-
-      iconTypes.forEach((iconType) => {
+      iconIds.forEach((iconType) => {
         const config = getGuildIconConfig(iconType);
         expect(config.id).toBe(iconType);
       });
     });
 
-    it('should return default icon config for unknown icon', () => {
-      // This tests the fallback behavior when an invalid icon is passed
-      // TypeScript would prevent this in normal usage, but we test the runtime fallback
-      const config = getGuildIconConfig('unknown' as GuildIcon);
-      expect(config.id).toBe('campfire'); // campfire is the fallback (index 2)
+    it('should return the default icon config for an unknown icon', () => {
+      // Fallback is GUILD_ICONS[2] (see getGuildIconConfig implementation).
+      const config = getGuildIconConfig('unknown' as never);
+      expect(config).toEqual(GUILD_ICONS[2]);
     });
   });
 
   describe('getGuildIconSource', () => {
-    it('should return SVG source for campfire icon', () => {
-      const source = getGuildIconSource('campfire');
+    it('should return an SVG source for a known icon', () => {
+      const source = getGuildIconSource('camping');
       expect(source).toBeDefined();
     });
 
-    it('should return SVG source for island icon', () => {
-      const source = getGuildIconSource('island');
+    it('should return the fallback source for an unknown icon', () => {
+      const source = getGuildIconSource('unknown' as never);
       expect(source).toBeDefined();
-    });
-
-    it('should return fallback source for unknown icon', () => {
-      const source = getGuildIconSource('unknown' as GuildIcon);
-      expect(source).toBeDefined();
-      expect(source).toBe(GUILD_ICON_MAP.campfire);
+      // Fallback is the banner icon (see getGuildIconSource implementation).
+      expect(source).toBe(GUILD_ICON_MAP.banner);
     });
   });
 
   describe('DEFAULT_GUILD_ICON', () => {
-    it('should be campfire', () => {
-      expect(DEFAULT_GUILD_ICON).toBe('campfire');
+    it('should be banner', () => {
+      expect(DEFAULT_GUILD_ICON).toBe('banner');
     });
   });
 });

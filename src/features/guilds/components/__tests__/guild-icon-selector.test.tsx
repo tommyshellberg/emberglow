@@ -32,22 +32,22 @@ describe('GuildIconSelector', () => {
   describe('rendering', () => {
     it('should render all 8 guild icons', () => {
       const { getAllByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       const iconButtons = getAllByTestId(/^icon-button-/);
-      expect(iconButtons).toHaveLength(8);
+      expect(iconButtons).toHaveLength(10);
     });
 
     it('should render each icon', () => {
       const { getByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       // Check a few specific icons
-      expect(getByTestId('guild-icon-campfire')).toBeTruthy();
+      expect(getByTestId('guild-icon-camping')).toBeTruthy();
       expect(getByTestId('guild-icon-flame')).toBeTruthy();
-      expect(getByTestId('guild-icon-island')).toBeTruthy();
+      expect(getByTestId('guild-icon-banner')).toBeTruthy();
     });
   });
 
@@ -66,8 +66,8 @@ describe('GuildIconSelector', () => {
         <GuildIconSelector selected="flame" onSelect={mockOnSelect} />
       );
 
-      // campfire is not selected, so no indicator
-      expect(queryByTestId('selected-indicator-campfire')).toBeNull();
+      // camping is not selected, so no indicator
+      expect(queryByTestId('selected-indicator-camping')).toBeNull();
       expect(queryByTestId('selected-indicator-axe')).toBeNull();
     });
   });
@@ -75,7 +75,7 @@ describe('GuildIconSelector', () => {
   describe('interactions', () => {
     it('should call onSelect with icon id when pressed', () => {
       const { getByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       fireEvent.press(getByTestId('icon-button-flame'));
@@ -85,17 +85,17 @@ describe('GuildIconSelector', () => {
 
     it('should call onSelect even when pressing already selected icon', () => {
       const { getByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
-      fireEvent.press(getByTestId('icon-button-campfire'));
+      fireEvent.press(getByTestId('icon-button-camping'));
 
-      expect(mockOnSelect).toHaveBeenCalledWith('campfire');
+      expect(mockOnSelect).toHaveBeenCalledWith('camping');
     });
 
     it('should call onSelect with different icons', () => {
       const { getByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       fireEvent.press(getByTestId('icon-button-magic'));
@@ -109,21 +109,21 @@ describe('GuildIconSelector', () => {
   describe('accessibility', () => {
     it('should have accessible labels for each icon', () => {
       const { getByLabelText } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       // Each icon should have an accessible label
       expect(getByLabelText('Select Axe icon')).toBeTruthy();
-      expect(getByLabelText('Select Campfire icon')).toBeTruthy();
+      expect(getByLabelText('Select Camping icon')).toBeTruthy();
       expect(getByLabelText('Select Flame icon')).toBeTruthy();
     });
 
     it('should indicate selected state in accessibility', () => {
       const { getByLabelText } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
-      const selectedIcon = getByLabelText('Select Campfire icon');
+      const selectedIcon = getByLabelText('Select Camping icon');
       expect(selectedIcon.props.accessibilityState.selected).toBe(true);
     });
   });
@@ -131,7 +131,7 @@ describe('GuildIconSelector', () => {
   describe('layout', () => {
     it('should use a grid layout', () => {
       const { getByTestId } = render(
-        <GuildIconSelector selected="campfire" onSelect={mockOnSelect} />
+        <GuildIconSelector selected="camping" onSelect={mockOnSelect} />
       );
 
       const container = getByTestId('icon-selector-grid');

@@ -2,7 +2,11 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { CreateGuildModal } from '../modals/create-guild-modal';
-import { GUILD_FORM, GUILD_TITLES, GUILD_BUTTONS } from '../../constants/guild-strings';
+import {
+  GUILD_FORM,
+  GUILD_TITLES,
+  GUILD_BUTTONS,
+} from '../../constants/guild-strings';
 
 // Mock the gorhom bottom-sheet with all needed exports
 jest.mock('@gorhom/bottom-sheet', () => {
@@ -31,7 +35,13 @@ jest.mock('@gorhom/bottom-sheet', () => {
 
 // Mock the Modal component
 jest.mock('@/components/ui/modal', () => ({
-  Modal: ({ children, title }: { children: React.ReactNode; title: string }) => (
+  Modal: ({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title: string;
+  }) => (
     <>
       <span>{title}</span>
       {children}
@@ -139,8 +149,11 @@ describe('CreateGuildModal', () => {
   });
 
   describe('form validation', () => {
-    it('should show error when name is empty on submit', async () => {
-      const { getByTestId, findByText } = render(
+    it('should not submit when name and icon are missing', () => {
+      // The form gates submission via a disabled button + a guard in
+      // handleSubmit (requires a non-empty name and a selected icon), rather
+      // than rendering an inline error message.
+      const { getByTestId } = render(
         <CreateGuildModal
           visible={true}
           onSubmit={mockOnSubmit}
@@ -151,7 +164,6 @@ describe('CreateGuildModal', () => {
 
       fireEvent.press(getByTestId('create-guild-submit'));
 
-      expect(await findByText('Guild name is required')).toBeTruthy();
       expect(mockOnSubmit).not.toHaveBeenCalled();
     });
   });
@@ -179,6 +191,9 @@ describe('CreateGuildModal', () => {
         'A test tagline'
       );
 
+      // Select an icon (required — the form no longer has a default icon)
+      fireEvent.press(getByTestId('icon-button-flame'));
+
       // Submit
       fireEvent.press(getByTestId('create-guild-submit'));
 
@@ -187,7 +202,7 @@ describe('CreateGuildModal', () => {
           expect.objectContaining({
             name: 'Test Guild',
             tagline: 'A test tagline',
-            icon: 'campfire', // Default icon
+            icon: 'flame',
           })
         );
       });
