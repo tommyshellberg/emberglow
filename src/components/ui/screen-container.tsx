@@ -27,7 +27,13 @@ interface ScreenContainerProps extends ViewProps {
  * - Horizontal: 16px (4 in Tailwind = 16px)
  */
 // Gradient colors from light to dark
-const GRADIENT_COLORS = ['#102442', '#0e203b', '#0d1d35', '#0b1a2e', '#0a1628'] as const;
+const GRADIENT_COLORS = [
+  '#102442',
+  '#0e203b',
+  '#0d1d35',
+  '#0b1a2e',
+  '#0a1628',
+] as const;
 
 export function ScreenContainer({
   children,
@@ -45,10 +51,13 @@ export function ScreenContainer({
   const defaultBottomPadding = fullScreen ? 32 : 8;
   const finalBottomPadding = bottomPadding ?? defaultBottomPadding;
 
-  // Use reversed gradient for smoother header transition when needed
-  const gradientColors = reverseGradient
-    ? [...GRADIENT_COLORS].reverse()
-    : [...GRADIENT_COLORS];
+  // Use reversed gradient for smoother header transition when needed.
+  // GRADIENT_COLORS is a fixed 5-element literal tuple, so both branches
+  // always have at least 2 elements; cast to the tuple shape LinearGradient
+  // expects since spreading a `const` tuple widens it to `string[]`.
+  const gradientColors = (
+    reverseGradient ? [...GRADIENT_COLORS].reverse() : [...GRADIENT_COLORS]
+  ) as [string, string, ...string[]];
 
   return (
     <LinearGradient

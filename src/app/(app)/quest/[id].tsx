@@ -169,7 +169,9 @@ export default function AppQuestDetailsScreen() {
       );
       if (matchingStories.length > 0) {
         const questIdHash =
-          quest.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) %
+          quest.id
+            .split('')
+            .reduce((a: number, b: string) => a + b.charCodeAt(0), 0) %
           matchingStories.length;
         return matchingStories[questIdHash].story;
       }

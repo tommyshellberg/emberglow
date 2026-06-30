@@ -83,12 +83,14 @@ export default function LeaderboardScreen() {
 
   // Transform data using hook
   const { leaderboardData, topUser, restOfUsers } = useLeaderboardData({
-    leaderboardStats,
+    leaderboardStats: leaderboardStats
+      ? { ...leaderboardStats, friends: leaderboardStats.friends ?? undefined }
+      : undefined,
     selectedType,
     scope,
     currentUserId,
     friendsData,
-    character,
+    character: character ?? undefined,
     completedQuests,
     totalMinutes,
     dailyQuestStreak,

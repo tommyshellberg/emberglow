@@ -93,7 +93,6 @@ export default function CooperativePendingQuestScreen() {
     adjustedDuration !== pendingQuest.durationMinutes &&
     adjustedDuration < pendingQuest.durationMinutes;
 
-
   // Join the quest room for real-time updates
   useEffect(() => {
     if (cooperativeQuestRun?.id) {
@@ -435,7 +434,7 @@ export default function CooperativePendingQuestScreen() {
           <Lock
             size={UI_CONFIG.LOCK_ICON_SIZE}
             color={colors.white}
-            accessibilityHidden
+            accessibilityElementsHidden
           />
           <Text className="ml-2 text-base font-semibold text-white">
             All companions must lock phones to begin

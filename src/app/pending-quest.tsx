@@ -121,7 +121,7 @@ export default function PendingQuestScreen() {
           <Lock
             size={UI_CONFIG.LOCK_ICON_SIZE}
             color={colors.white}
-            accessibilityHidden
+            accessibilityElementsHidden
           />
           <Text
             className="ml-2 text-base font-semibold text-white"

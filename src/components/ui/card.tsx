@@ -13,7 +13,7 @@ type CardProps = {
   className?: string;
   style?: StyleProp<ViewStyle>;
   headerImage?: any; // Image source (require or uri)
-  headerImageStyle?: StyleProp<ViewStyle>;
+  headerImageStyle?: StyleProp<ImageStyle>;
   testID?: string;
 };
 

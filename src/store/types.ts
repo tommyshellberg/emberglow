@@ -106,6 +106,9 @@ export interface User {
   dailyQuestStreak: number;
   featureFlags: string[];
   isProvisional: boolean;
+  // Server-computed stats (see UserDetails in lib/services/user.ts)
+  totalQuestsCompleted?: number;
+  totalMinutesOffPhone?: number;
 }
 
 export type POI = {

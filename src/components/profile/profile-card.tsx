@@ -11,6 +11,7 @@ import {
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
   withSpring,
   withTiming,
@@ -65,7 +66,7 @@ export function ProfileCard({ character }: ProfileCardProps) {
       // Success animation
       successOpacity.value = withSequence(
         withTiming(1, { duration: 200 }),
-        withTiming(0, { duration: 800, delay: 400 })
+        withDelay(400, withTiming(0, { duration: 800 }))
       );
       successScale.value = withSequence(withSpring(1.2), withSpring(1));
 

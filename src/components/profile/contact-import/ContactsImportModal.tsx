@@ -361,7 +361,13 @@ export const ContactsImportModal = forwardRef<
             onBack={() =>
               setViewState(contacts.length > 0 ? 'contacts' : 'empty')
             }
-            isSubmitting={viewState === 'sending'}
+            // `viewState` is narrowed to 'manual' in this branch, so this can
+            // never be true: submitting switches to the separate 'sending'
+            // case below (a full-screen spinner), unmounting this view. Kept
+            // as an explicit `false` rather than removing the prop, since
+            // whether ManualEmailView should instead stay mounted during
+            // submit is a UX call, not a type fix.
+            isSubmitting={false}
           />
         );
 
