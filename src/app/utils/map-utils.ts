@@ -1,6 +1,6 @@
 import type { MapId, MapName } from '@/app/data/maps';
 import { MAP_NAMES, QUEST_MAP_MAPPING } from '@/app/data/maps';
-import { FOG_MASKS, PRE_RENDERED_MAPS } from '@/app/data/maps';
+import { PRE_RENDERED_MAPS } from '@/app/data/maps';
 
 export function getMapForQuest(questId: string): MapId {
   for (const [mapId, quests] of Object.entries(QUEST_MAP_MAPPING)) {
@@ -15,24 +15,6 @@ export function getMapForQuest(questId: string): MapId {
 export function getMapNameForQuest(questId: string): MapName {
   const mapId = getMapForQuest(questId);
   return MAP_NAMES[mapId];
-}
-
-export function getFogMaskForQuest(questId: string | undefined): number {
-  if (!questId) return FOG_MASKS['01']; // Default to first mask
-
-  // Extract quest number, ignoring side-quest letters (a, b, etc.)
-  const questNumberMatch = questId.match(/quest-(\d+)[a-z]?/);
-
-  if (!questNumberMatch) return FOG_MASKS['01']; // Default if no match
-
-  // Get the quest number and convert to a number
-  const questNumStr = questNumberMatch[1];
-  const questNum = parseInt(questNumStr, 10);
-  const fogNum = Math.max(1, questNum);
-  // Convert back to padded string format
-  const questKey = fogNum.toString().padStart(2, '0');
-  // Return the corresponding mask or default to first one
-  return FOG_MASKS[questKey] || FOG_MASKS['01'];
 }
 
 export function getPreRenderedMapForQuest(questId: string | undefined): number {
