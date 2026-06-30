@@ -25,7 +25,6 @@ import {
   TouchableOpacity,
   View,
 } from '@/components/ui';
-import { useAuth } from '@/lib';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { getUserFriends } from '@/lib/services/user';
 import { useUserStore } from '@/store/user-store';
@@ -70,9 +69,8 @@ export default function CooperativeQuestMenu() {
   const router = useRouter();
   const posthog = usePostHog();
   const contactsModalRef = useRef<ContactsImportModalRef>(null);
-  const currentUser = useAuth((state) => state.user);
-  const userEmail = currentUser?.email || '';
   const user = useUserStore((state) => state.user);
+  const userEmail = user?.email || '';
   const { connect: connectWebSocket } = useLazyWebSocket();
 
   // Connect WebSocket when entering cooperative quest flow

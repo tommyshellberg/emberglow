@@ -102,20 +102,19 @@ export const initializeTimezoneSync = (): (() => void) => {
     appStateRef = nextAppState;
   });
 
-  // Also listen for user login events
-  const unsubscribeUserStore = useUserStore.subscribe(
-    (state) => state.user,
-    (user) => {
-      if (user) {
-        // User just logged in, sync timezone
-        syncTimezoneWithDevice();
-      } else {
-        // User logged out, clear cached values
-        lastKnownTimezone = null;
-        lastServerTimezone = null;
-      }
+  // Also listen for user login events. `useUserStore` isn't wrapped with
+  // zustand's `subscribeWithSelector` middleware, so `subscribe` only
+  // supports the plain (state, prevState) form — detect the login/logout
+  // transition by comparing `user` presence across the two.
+  const unsubscribeUserStore = useUserStore.subscribe((state, prevState) => {
+    if (state.user && !prevState.user) {
+      // User just logged in, sync timezone
+      syncTimezoneWithDevice();
+    } else if (!state.user && prevState.user) {
+      // User logged out, clear cached value
+      lastKnownTimezone = null;
     }
-  );
+  });
 
   // Return cleanup function
   return () => {

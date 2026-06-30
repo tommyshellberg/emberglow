@@ -30,7 +30,9 @@ export const handleManageSubscription = async (
   }
 };
 
-export const handleDeleteAccount = () => {
+export const handleDeleteAccount = (
+  setIsLoading: (isLoading: boolean) => void
+) => {
   Alert.alert(
     'Delete Account',
     'Are you sure you want to delete your account? Your account will be made inactive and your personal data will be anonymized. This action cannot be undone.',
