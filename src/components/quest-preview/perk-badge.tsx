@@ -19,7 +19,11 @@ interface PerkBadgeProps {
  * Animated perk badge component that displays a perk icon and optionally name.
  * Animates with a spring bounce when the animation value changes.
  */
-export function PerkBadge({ perkId, animationValue, iconOnly = false }: PerkBadgeProps) {
+export function PerkBadge({
+  perkId,
+  animationValue,
+  iconOnly = false,
+}: PerkBadgeProps) {
   const perkName = getPerkName(perkId);
 
   // Container scale animation (1.0 → 1.2 → 1.0)
@@ -50,7 +54,6 @@ export function PerkBadge({ perkId, animationValue, iconOnly = false }: PerkBadg
 
   return (
     <Animated.View
-      style={containerAnimatedStyle}
       className="flex-row items-center rounded-full border-2 px-3 py-2"
       style={[
         containerAnimatedStyle,

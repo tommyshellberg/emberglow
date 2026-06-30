@@ -34,6 +34,7 @@ import colors from '@/components/ui/colors';
 import { Modal, useModal } from '@/components/ui/modal';
 import { GuildIcon } from '@/features/guilds/components/guild-icon';
 import { GuildIconSelector } from '@/features/guilds/components/guild-icon-selector';
+import { DEFAULT_GUILD_ICON } from '@/features/guilds/constants/guild-icons';
 import {
   GUILD_BUTTONS,
   GUILD_LIMITS,
@@ -67,7 +68,7 @@ export default function GuildDetailScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editTagline, setEditTagline] = useState('');
-  const [editIcon, setEditIcon] = useState<GuildIconType>('campfire');
+  const [editIcon, setEditIcon] = useState<GuildIconType>(DEFAULT_GUILD_ICON);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Icon selector modal
@@ -138,10 +139,13 @@ export default function GuildDetailScreen() {
   }, [id, guild, editName, editTagline, editIcon, updateGuildMutation]);
 
   // Handle icon selection from modal
-  const handleIconSelect = useCallback((icon: GuildIconType) => {
-    setEditIcon(icon);
-    iconModal.dismiss();
-  }, [iconModal]);
+  const handleIconSelect = useCallback(
+    (icon: GuildIconType) => {
+      setEditIcon(icon);
+      iconModal.dismiss();
+    },
+    [iconModal]
+  );
 
   const handleInvitePress = async () => {
     if (!id) return;
@@ -274,15 +278,25 @@ export default function GuildDetailScreen() {
                   >
                     <GuildIcon icon={editIcon} size={48} showBackground />
                     <View className="absolute -bottom-1 -right-1 rounded-full bg-guild-300 p-1.5">
-                      <Feather name="edit-2" size={10} color={colors.richBlack[500]} />
+                      <Feather
+                        name="edit-2"
+                        size={10}
+                        color={colors.richBlack[500]}
+                      />
                     </View>
                   </Pressable>
-                  <Text className="mt-2 text-xs text-guild-300">Tap to change</Text>
+                  <Text className="mt-2 text-xs text-guild-300">
+                    Tap to change
+                  </Text>
                 </View>
 
                 {/* Name Row */}
                 <View className="flex-row items-center border-b border-neutral-400/20 py-3">
-                  <Feather name="edit-3" size={18} color={colors.neutral[300]} />
+                  <Feather
+                    name="edit-3"
+                    size={18}
+                    color={colors.neutral[300]}
+                  />
                   <View className="ml-3 flex-1">
                     <TextInput
                       testID="edit-name-input"
@@ -304,7 +318,9 @@ export default function GuildDetailScreen() {
 
                 {/* Validation Error */}
                 {validationError && (
-                  <Text className="mt-1 text-sm text-red-400">{validationError}</Text>
+                  <Text className="mt-1 text-sm text-red-400">
+                    {validationError}
+                  </Text>
                 )}
 
                 {/* Tagline Row */}
@@ -346,9 +362,14 @@ export default function GuildDetailScreen() {
                     accessibilityRole="button"
                   >
                     {updateGuildMutation.isPending ? (
-                      <ActivityIndicator size="small" color={colors.richBlack[500]} />
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.richBlack[500]}
+                      />
                     ) : (
-                      <Text className="font-semibold text-richBlack-500">Save</Text>
+                      <Text className="font-semibold text-richBlack-500">
+                        Save
+                      </Text>
                     )}
                   </Pressable>
                 </View>
@@ -434,7 +455,11 @@ export default function GuildDetailScreen() {
                     <ActivityIndicator size="small" color={colors.guild[300]} />
                   ) : (
                     <>
-                      <Feather name="user-plus" size={14} color={colors.guild[300]} />
+                      <Feather
+                        name="user-plus"
+                        size={14}
+                        color={colors.guild[300]}
+                      />
                       <Text className="ml-1.5 text-sm font-medium text-guild-300">
                         {GUILD_BUTTONS.INVITE}
                       </Text>
@@ -460,8 +485,14 @@ export default function GuildDetailScreen() {
                   accessibilityLabel="Share invite code"
                   accessibilityRole="button"
                 >
-                  <Feather name="share" size={16} color={colors.richBlack[500]} />
-                  <Text className="ml-2 text-sm font-medium text-richBlack-500">Share Code</Text>
+                  <Feather
+                    name="share"
+                    size={16}
+                    color={colors.richBlack[500]}
+                  />
+                  <Text className="ml-2 text-sm font-medium text-richBlack-500">
+                    Share Code
+                  </Text>
                 </Pressable>
               </View>
             )}

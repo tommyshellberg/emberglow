@@ -1,5 +1,7 @@
 // Journal screen types
 
+import type { CharacterType } from '@/store/types';
+
 export type FilterType = 'all' | 'story' | 'custom' | 'cooperative';
 export type StatusFilter = 'all' | 'completed' | 'failed';
 
@@ -13,9 +15,15 @@ export interface QuestParticipantRewards {
 export interface QuestParticipant {
   userId: string;
   ready: boolean;
-  status: string;
+  status:
+    | 'active'
+    | 'completed'
+    | 'failed'
+    | 'pending'
+    | 'accepted'
+    | 'declined';
   userName?: string;
-  characterType?: string;
+  characterType?: CharacterType;
   phoneLocked?: boolean;
   characterName?: string;
   rewards?: QuestParticipantRewards;

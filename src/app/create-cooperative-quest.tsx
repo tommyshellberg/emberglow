@@ -101,7 +101,9 @@ export default function CreateCooperativeQuestScreen() {
         if (inviteMode === 'friends') {
           const friendData = selectedFriendData.find(
             (f) =>
-              f._id === inviteeId || f.userId === inviteeId || f.id === inviteeId
+              f._id === inviteeId ||
+              f.userId === inviteeId ||
+              f.id === inviteeId
           );
           return {
             id: inviteeId,
@@ -135,7 +137,11 @@ export default function CreateCooperativeQuestScreen() {
         participants: [
           {
             id: currentUser.id,
-            username: currentUser.character?.name || 'You',
+            // Server may return the legacy nested character.name format
+            // (see hasNestedCharacter handling in lib/auth/index.tsx);
+            // `User` only models the flat `name` field.
+            username:
+              (currentUser as any).character?.name || currentUser.name || 'You',
             invitationStatus: 'accepted' as const,
             isReady: false,
             isCreator: true,

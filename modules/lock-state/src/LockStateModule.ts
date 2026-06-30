@@ -2,12 +2,13 @@
 import { EventEmitter, requireNativeModule } from 'expo-modules-core';
 
 /**
- * Define the shape of our events.
- * We send no payload (undefined) with LOCKED/UNLOCKED, but you can expand as needed.
+ * Define the shape of our events. `expo-modules-core`'s EventEmitter keys
+ * this map by listener signature, not payload type — we send no payload
+ * with LOCKED/UNLOCKED, so each listener takes no arguments.
  */
 type LockStateEventMap = {
-  LOCKED: undefined;
-  UNLOCKED: undefined;
+  LOCKED: () => void;
+  UNLOCKED: () => void;
 };
 
 // Create a type for the event keys

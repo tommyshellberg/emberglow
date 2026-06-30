@@ -155,10 +155,12 @@ export default function Settings() {
     const currentSettings = JSON.stringify(streakWarning);
 
     // Only send if settings actually changed and we have valid settings
+    const hour = streakWarning.time?.hour;
+    const minute = streakWarning.time?.minute;
     if (
       currentSettings !== lastSentStreakSettings.current &&
-      streakWarning.time?.hour !== undefined &&
-      streakWarning.time?.minute !== undefined
+      hour !== undefined &&
+      minute !== undefined
     ) {
       lastSentStreakSettings.current = currentSettings;
 
@@ -166,7 +168,12 @@ export default function Settings() {
       cancelStreakWarningNotification();
 
       // Send to server
-      updateSettings({ streakWarning });
+      updateSettings({
+        streakWarning: {
+          enabled: streakWarning.enabled,
+          time: { hour, minute },
+        },
+      });
     }
   }, [streakWarning, updateSettings]);
 
@@ -397,7 +404,7 @@ export default function Settings() {
             <View className="mb-8">
               <Pressable
                 className="flex-row items-center justify-between"
-                onPress={handleManageSubscription}
+                onPress={() => handleManageSubscription(setIsLoading)}
               >
                 <View className="flex-row items-center">
                   <View
@@ -693,7 +700,7 @@ export default function Settings() {
               <View
                 className="mx-auto rounded-full bg-red-500 p-2"
                 style={{ width: '50%' }}
-                onTouchEnd={handleDeleteAccount}
+                onTouchEnd={() => handleDeleteAccount(setIsLoading)}
               >
                 <Text className="text-center font-medium text-white">
                   Delete Account
@@ -727,9 +734,13 @@ export default function Settings() {
                         [{ text: 'OK' }]
                       );
                     } catch (error) {
+                      const errorMessage =
+                        error instanceof Error
+                          ? error.message
+                          : 'Unknown error';
                       Alert.alert(
                         'Error',
-                        'Failed to get OneSignal info: ' + error.message
+                        'Failed to get OneSignal info: ' + errorMessage
                       );
                     }
                   }}
@@ -780,9 +791,13 @@ export default function Settings() {
                         [{ text: 'OK' }]
                       );
                     } catch (error) {
+                      const errorMessage =
+                        error instanceof Error
+                          ? error.message
+                          : 'Unknown error';
                       Alert.alert(
                         'Error',
-                        'Failed to get notification status: ' + error.message
+                        'Failed to get notification status: ' + errorMessage
                       );
                     }
                   }}

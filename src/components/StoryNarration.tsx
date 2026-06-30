@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, type AVPlaybackStatus } from 'expo-av';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
@@ -110,7 +110,7 @@ export function StoryNarration({ quest }: Props) {
   }, [quest.id]); // Only depend on quest.id, not the entire audioFile object
 
   // Status update callback - handles all playback state
-  const onPlaybackStatusUpdate = (status: Audio.AVPlaybackStatus) => {
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
 
     setIsPlaying(status.isPlaying);
@@ -242,7 +242,7 @@ export function StoryNarration({ quest }: Props) {
           ref={progressBarRef}
           initialProgress={progress * 100}
           className="h-1.5 rounded"
-          style={{ backgroundColor: '#2A4754' }}
+          backgroundColor="#2A4754"
         />
         <View className="mt-1 flex-row justify-between">
           <Text className="text-xs text-neutral-200">

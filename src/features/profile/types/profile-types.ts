@@ -4,6 +4,8 @@
  * Extracted to eliminate `any` types and improve type safety.
  */
 
+import type { LucideIcon } from 'lucide-react-native';
+
 import type { CharacterType } from '@/store/types';
 
 /**
@@ -21,7 +23,9 @@ export interface Character {
  * Used for syncing character data from server that may still use old format
  */
 export interface UserWithLegacyCharacter {
-  _id: string;
+  // Optional: getUserDetails() (the real source for this type) returns
+  // `id`, not `_id` — this field isn't read by any current consumer.
+  _id?: string;
   email: string;
   /** Legacy format: character type at user level */
   type?: CharacterType;
@@ -44,7 +48,7 @@ export interface UserWithLegacyCharacter {
  */
 export interface ActionCardProps {
   /** Icon component to display */
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: LucideIcon;
   /** Card title */
   title: string;
   /** Card description */

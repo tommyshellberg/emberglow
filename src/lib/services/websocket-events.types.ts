@@ -9,13 +9,14 @@ export interface LobbyLeavePayload {
   lobbyId: string;
 }
 
+// Matches the server's actual emit shape (unquest-server
+// src/websocket/handlers/lobby.js) — a flat userId/username/characterName
+// for the joining participant, plus the lobby's full participant list.
 export interface LobbyParticipantJoinedPayload {
   userId: string;
   username: string;
-  characterType?: CharacterType;
-  invitationStatus: 'pending' | 'accepted' | 'declined';
-  isReady: boolean;
-  isCreator: boolean;
+  characterName?: string;
+  participants: any[];
 }
 
 export interface LobbyParticipantUpdatedPayload {

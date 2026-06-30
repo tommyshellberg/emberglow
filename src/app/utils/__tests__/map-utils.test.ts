@@ -1,19 +1,7 @@
-import {
-  getFogMaskForQuest,
-  getMapForQuest,
-  getMapNameForQuest,
-} from '../map-utils';
-import { FOG_MASKS } from '@/app/data/maps';
+import { getMapForQuest, getMapNameForQuest } from '../map-utils';
 
 // Mock only the maps data dependencies
 jest.mock('@/app/data/maps', () => {
-  // Create a stub for the FOG_MASKS with predictable values
-  const mockFogMasks = {};
-  for (let i = 1; i <= 10; i++) {
-    const key = i.toString().padStart(2, '0');
-    mockFogMasks[key] = `fog-${key}`; // Use strings for easier testing
-  }
-
   return {
     MAP_NAMES: {
       'map-1': 'Vaedros Kingdom',
@@ -29,7 +17,6 @@ jest.mock('@/app/data/maps', () => {
       ],
       'map-2': [{ id: 'quest-4' }, { id: 'quest-5' }],
     },
-    FOG_MASKS: mockFogMasks,
   };
 });
 

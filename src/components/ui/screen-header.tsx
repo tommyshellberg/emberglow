@@ -17,6 +17,7 @@ interface ScreenHeaderProps {
   showBackButton?: boolean;
   onBackPress?: () => void;
   animate?: boolean;
+  rightComponent?: React.ReactNode;
 }
 
 /**
@@ -30,6 +31,7 @@ export function ScreenHeader({
   showBackButton = false,
   onBackPress,
   animate = true,
+  rightComponent,
 }: ScreenHeaderProps) {
   const router = useRouter();
   const headerOpacity = useSharedValue(animate ? 0 : 1);
@@ -62,7 +64,10 @@ export function ScreenHeader({
             <ArrowLeft size={24} color="#F2E5DD" />
           </TouchableOpacity>
         )}
-        <Title text={title} />
+        <View className="flex-1">
+          <Title text={title} />
+        </View>
+        {rightComponent}
       </View>
       {subtitle && <Text className="text-md text-neutral-200">{subtitle}</Text>}
     </HeaderWrapper>

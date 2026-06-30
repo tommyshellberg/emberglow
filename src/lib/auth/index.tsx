@@ -124,8 +124,10 @@ const _useAuth = create<AuthState>((set, get) => ({
       console.log('userToken', userToken);
 
       // Check for provisional tokens if no regular token
-      const provisionalToken = getItem('provisionalAccessToken');
-      const provisionalRefreshToken = getItem('provisionalRefreshToken');
+      const provisionalToken = getItem<string>('provisionalAccessToken');
+      const provisionalRefreshToken = getItem<string>(
+        'provisionalRefreshToken'
+      );
 
       if (userToken !== null) {
         set({ token: userToken });

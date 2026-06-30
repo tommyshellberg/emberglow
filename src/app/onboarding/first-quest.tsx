@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { useNextAvailableQuests } from '@/api/quest';
+import { type QuestTemplate, useNextAvailableQuests } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import {
   BackgroundImage,
@@ -25,6 +25,18 @@ import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
 import type { StoryQuestTemplate } from '@/store/types';
 import { getQuestAudioPath } from '@/utils/audio-utils';
+
+// story/recap/options are required on StoryQuestTemplate but optional on the
+// server's QuestTemplate. Every real story quest (including quest-1, the
+// very first one - see app/data/quests.ts) always populates these, so treat
+// a quest missing any of them as malformed server data rather than
+// rendering blank narrative content.
+function isCompleteStoryQuest(
+  quest: QuestTemplate
+): quest is QuestTemplate &
+  Required<Pick<QuestTemplate, 'story' | 'recap' | 'options'>> {
+  return !!quest.story && !!quest.recap && !!quest.options;
+}
 
 export default function FirstQuestScreen() {
   const router = useRouter();
@@ -154,13 +166,18 @@ export default function FirstQuestScreen() {
       // Use the first quest from server if available
       const firstStoryQuest = questData?.quests?.[0];
 
-      if (firstStoryQuest) {
+      if (firstStoryQuest && isCompleteStoryQuest(firstStoryQuest)) {
         // Convert server quest to client format
         const clientQuest: StoryQuestTemplate = {
           ...firstStoryQuest,
           id: firstStoryQuest.customId, // Use customId as the primary ID for client
           _id: firstStoryQuest._id, // Preserve MongoDB ID for questTemplateId
           mode: 'story' as const,
+          // Server's QuestTemplate.poiSlug is optional; default to '' (the
+          // same "no POI mapped yet" placeholder used in app/data/quests.ts)
+          // when absent. quest-store.ts only calls revealLocation() when
+          // poiSlug is truthy, so an empty string is a safe no-op default.
+          poiSlug: firstStoryQuest.poiSlug ?? '',
         };
 
         // Prepare the quest in the store

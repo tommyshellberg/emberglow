@@ -8,7 +8,8 @@
       "@env": ["./src/lib/env.js"]
     },
     "esModuleInterop": true,
-    "checkJs": true
+    "checkJs": true,
+    "module": "esnext"
   },
   "exclude": [
     "node_modules",
@@ -18,7 +19,10 @@
     "cli",
     "android",
     "ios",
-    "lint-staged.config.js"
+    "lint-staged.config.js",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**"
   ],
   "include": [
     "**/*.ts",

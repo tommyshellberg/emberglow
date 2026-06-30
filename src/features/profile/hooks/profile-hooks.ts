@@ -46,7 +46,14 @@ export function useCharacterSync(dependencies?: {
     if (!character && !isRedirecting) {
       const syncCharacterFromUser = async () => {
         try {
-          const user: UserWithLegacyCharacter = await getUserDetailsFunc();
+          const fetchedUser = await getUserDetailsFunc();
+          // getUserDetailsFunc() returns UserDetails, whose `type` is a plain
+          // string from the server. Here it's expected to always be one of
+          // CharacterType's literal values, so we narrow just that field.
+          const user: UserWithLegacyCharacter = {
+            ...fetchedUser,
+            type: fetchedUser.type as CharacterType,
+          };
 
           // Check if user has character data at the top level (legacy format)
           // Level is optional and will default to 1 if missing
@@ -101,7 +108,14 @@ export function useCharacterSync(dependencies?: {
 
       syncCharacterFromUser();
     }
-  }, [character, actualRouter, isRedirecting, characterStore, getStorageItem, getUserDetailsFunc]);
+  }, [
+    character,
+    actualRouter,
+    isRedirecting,
+    characterStore,
+    getStorageItem,
+    getUserDetailsFunc,
+  ]);
 
   return { isRedirecting };
 }

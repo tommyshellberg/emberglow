@@ -130,7 +130,11 @@ export function useInvitationActions() {
       // First set the cooperative quest run data
       if (questRun && questRun.participants) {
         // Determine the host ID - it's the first participant or we need to get it from somewhere else
-        const hostId = questRun.participants?.[0]?.userId || '';
+        const firstParticipant = questRun.participants?.[0];
+        const hostId =
+          (typeof firstParticipant === 'string'
+            ? firstParticipant
+            : firstParticipant?.userId) || '';
 
         useQuestStore.getState().setCooperativeQuestRun({
           id: questRun.id,
@@ -163,7 +167,11 @@ export function useInvitationActions() {
       await QuestTimer.prepareQuest(completeQuest);
 
       // Create an invitation object for the store
-      const hostId = questRun?.participants?.[0]?.userId || '';
+      const firstInviteeParticipant = questRun?.participants?.[0];
+      const hostId =
+        (typeof firstInviteeParticipant === 'string'
+          ? firstInviteeParticipant
+          : firstInviteeParticipant?.userId) || '';
       setCurrentInvitation({
         id: (response as any).invitation?.id || '',
         questRunId: questRunId,

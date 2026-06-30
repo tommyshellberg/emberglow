@@ -3,7 +3,7 @@ import { type ViewStyle } from 'react-native';
 /**
  * Quest mode type - determines quest type and behavior
  */
-export type QuestMode = 'story' | 'custom';
+export type QuestMode = 'story' | 'custom' | 'cooperative';
 
 /**
  * Pending quest data structure
