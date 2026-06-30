@@ -77,3 +77,6 @@ CLAUDE.md
 docs/
 
 .worktrees/
+
+# TDD Guard local run state (machine/session-specific)
+.claude/tdd-guard/
