@@ -37,6 +37,19 @@ export interface CustomQuestTemplate extends BaseQuestTemplate {
   inviteeIds?: string[]; // For cooperative quests
 }
 
+export interface CooperativeQuestTemplate extends BaseQuestTemplate {
+  mode: 'cooperative';
+  category: string;
+  inviteeIds?: string[];
+}
+
+// Renamed (not `QuestTemplate`) to avoid colliding with the unrelated
+// server-fetched `QuestTemplate` exported from '@/api/quest/types'.
+export type LocalQuestTemplate =
+  | StoryQuestTemplate
+  | CustomQuestTemplate
+  | CooperativeQuestTemplate;
+
 export type QuestStatus = 'active' | 'completed' | 'failed' | 'cancelled';
 
 export interface QuestReflection {
@@ -47,7 +60,7 @@ export interface QuestReflection {
   prompt?: string; // Which prompt was shown to the user
 }
 
-export type Quest = (StoryQuestTemplate | CustomQuestTemplate) & {
+export type Quest = LocalQuestTemplate & {
   startTime: number;
   stopTime?: number; // When the quest ended, for any reason
   status: QuestStatus;
