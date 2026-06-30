@@ -142,3 +142,17 @@ The current test covers onboarding up to quest setup. Quest completion → signu
 - iOS/Android simulator running
 - App built with development configuration
 - Test device/simulator configured for the target app bundle ID
+
+## CI vs. Local
+
+These flows no longer run in GitHub Actions — running them in CI required either
+Apple-billed macOS runners or a paid Maestro Cloud device farm per PR, and they
+were gated behind PR labels, so in practice they weren't running on most PRs anyway.
+
+Instead:
+
+- `.husky/pre-push` runs the fast `05-regression/critical-paths.yaml` smoke flow
+  automatically before every `git push`, when a device/emulator is connected with
+  the app already running. It skips (doesn't block) if no device is available.
+- Before opening or merging a PR with app-facing changes, run the fuller suite
+  locally: `pnpm e2e` (all phases) or a scoped phase like `pnpm e2e:onboarding`.
