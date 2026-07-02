@@ -105,6 +105,7 @@ export default function CustomQuestScreen() {
 
           {/* Start Quest Button */}
           <Button
+            testID="start-custom-quest-button"
             label={START_BUTTON_LABEL}
             variant="default"
             size="lg"
