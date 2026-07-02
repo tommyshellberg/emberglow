@@ -113,6 +113,7 @@ export function StatsCard({
         <View className="h-4/5 w-px bg-neutral-300" />
 
         <Pressable
+          testID="streak-display"
           className="items-center"
           onPress={() => router.push('/streak-celebration')}
           accessible={true}
