@@ -18,6 +18,7 @@ interface ScreenHeaderProps {
   onBackPress?: () => void;
   animate?: boolean;
   rightComponent?: React.ReactNode;
+  testID?: string;
 }
 
 /**
@@ -32,6 +33,7 @@ export function ScreenHeader({
   onBackPress,
   animate = true,
   rightComponent,
+  testID,
 }: ScreenHeaderProps) {
   const router = useRouter();
   const headerOpacity = useSharedValue(animate ? 0 : 1);
@@ -57,7 +59,7 @@ export function ScreenHeader({
   const HeaderWrapper = animate ? Animated.View : View;
 
   return (
-    <HeaderWrapper style={animate ? animatedStyle : undefined} className="mb-4">
+    <HeaderWrapper style={animate ? animatedStyle : undefined} className="mb-4" testID={testID}>
       <View className="mb-2 mt-4 flex-row items-center">
         {showBackButton && (
           <TouchableOpacity onPress={handleBackPress} className="mr-3 p-1">

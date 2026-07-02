@@ -427,6 +427,7 @@ export default function Home() {
       <ScreenContainer className="flex-col">
         {/* Header */}
         <ScreenHeader
+          testID="home-header"
           title="Choose Your Adventure"
           subtitle="Continue your epic story, create a quest of your own design, or play a cooperative quest with a friend."
         />
