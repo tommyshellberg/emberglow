@@ -61,7 +61,7 @@ export function ExperienceCard({ character }: ExperienceCardProps) {
     <Card className="mx-4 mt-4 p-5">
       <View className="mb-3 flex-row items-center justify-between">
         <Text className="text-lg font-bold text-white">Experience</Text>
-        <Text className="text-sm font-semibold text-brown">
+        <Text testID="xp-display" className="text-sm font-semibold text-brown">
           Total: {totalXP.toLocaleString()} XP
         </Text>
       </View>
@@ -81,7 +81,7 @@ export function ExperienceCard({ character }: ExperienceCardProps) {
 
       <View className="mt-2 flex-row justify-between">
         <View className="flex-row items-center">
-          <Text className="font-semibold text-white">
+          <Text testID="level-display" className="font-semibold text-white">
             Level {character.level}
           </Text>
           <Text className="ml-2 text-sm text-neutral-200">
