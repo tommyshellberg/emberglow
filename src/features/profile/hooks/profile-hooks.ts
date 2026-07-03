@@ -74,6 +74,15 @@ export function useCharacterSync(dependencies?: {
             if (user.dailyQuestStreak !== undefined) {
               characterStoreInstance.setStreak(user.dailyQuestStreak);
             }
+
+            // Sync server-reported spirit (guard so pre-deploy server responses don't clobber state)
+            if (user.spirit !== undefined) {
+              characterStoreInstance.setSpiritState({
+                spirit: user.spirit,
+                spiritRestoredAt: user.spiritRestoredAt ?? null,
+                restorationCount: user.restorationCount ?? 0,
+              });
+            }
           } else {
             // Only redirect to onboarding if this is truly a new user
             // Check for provisional data to determine if they're in onboarding
@@ -101,7 +110,14 @@ export function useCharacterSync(dependencies?: {
 
       syncCharacterFromUser();
     }
-  }, [character, actualRouter, isRedirecting, characterStore, getStorageItem, getUserDetailsFunc]);
+  }, [
+    character,
+    actualRouter,
+    isRedirecting,
+    characterStore,
+    getStorageItem,
+    getUserDetailsFunc,
+  ]);
 
   return { isRedirecting };
 }

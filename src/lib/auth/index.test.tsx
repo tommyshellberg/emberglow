@@ -51,11 +51,13 @@ jest.mock('@/store/character-store', () => {
   const mockCreateCharacter = jest.fn();
   const mockUpdateCharacter = jest.fn();
   const mockSetStreak = jest.fn();
+  const mockSetSpiritState = jest.fn();
   const mockGetState = jest.fn(() => ({
     character: null,
     createCharacter: mockCreateCharacter,
     updateCharacter: mockUpdateCharacter,
     setStreak: mockSetStreak,
+    setSpiritState: mockSetSpiritState,
   }));
 
   return {
@@ -66,6 +68,7 @@ jest.mock('@/store/character-store', () => {
       mockCreateCharacter,
       mockUpdateCharacter,
       mockSetStreak,
+      mockSetSpiritState,
       mockGetState,
     },
   };
@@ -95,6 +98,7 @@ beforeEach(() => {
   characterStoreMocks.mockCreateCharacter.mockClear();
   characterStoreMocks.mockUpdateCharacter.mockClear();
   characterStoreMocks.mockSetStreak.mockClear();
+  characterStoreMocks.mockSetSpiritState.mockClear();
 
   // Reset character store to default state
   characterStoreMocks.mockGetState.mockReturnValue({
@@ -102,6 +106,7 @@ beforeEach(() => {
     createCharacter: characterStoreMocks.mockCreateCharacter,
     updateCharacter: characterStoreMocks.mockUpdateCharacter,
     setStreak: characterStoreMocks.mockSetStreak,
+    setSpiritState: characterStoreMocks.mockSetSpiritState,
   });
 });
 
@@ -284,6 +289,46 @@ describe('Auth Store', () => {
         currentXP: 250,
       });
       expect(characterStoreMocks.mockSetStreak).toHaveBeenCalledWith(10);
+    });
+
+    it('should sync spirit when server provides it, defaulting missing restoration fields', async () => {
+      const mockUser = {
+        id: 'user-123',
+        name: 'TestChar',
+        dailyQuestStreak: 4,
+        spirit: 60,
+        // spiritRestoredAt and restorationCount intentionally omitted
+      };
+
+      (getToken as jest.Mock).mockReturnValue({ access: 'token' });
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+
+      await useAuth.getState().hydrate();
+
+      expect(characterStoreMocks.mockSetSpiritState).toHaveBeenCalledTimes(1);
+      // Fallbacks: absent spiritRestoredAt -> null, absent restorationCount -> 0
+      expect(characterStoreMocks.mockSetSpiritState).toHaveBeenCalledWith({
+        spirit: 60,
+        spiritRestoredAt: null,
+        restorationCount: 0,
+      });
+    });
+
+    it('should not call setSpiritState when server omits spirit', async () => {
+      const mockUser = {
+        id: 'user-123',
+        name: 'TestChar',
+        dailyQuestStreak: 4,
+        // No spirit field
+      };
+
+      (getToken as jest.Mock).mockReturnValue({ access: 'token' });
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+
+      await useAuth.getState().hydrate();
+
+      // Guard holds: undefined spirit means the store is never touched for spirit
+      expect(characterStoreMocks.mockSetSpiritState).not.toHaveBeenCalled();
     });
 
     it('should handle character data in legacy format', async () => {

@@ -231,6 +231,15 @@ const _useAuth = create<AuthState>((set, get) => ({
               characterStore.setStreak(user.dailyQuestStreak);
             }
 
+            // Sync server-reported spirit (guard so pre-deploy server responses don't clobber state)
+            if (user.spirit !== undefined) {
+              characterStore.setSpiritState({
+                spirit: user.spirit,
+                spiritRestoredAt: user.spiritRestoredAt ?? null,
+                restorationCount: user.restorationCount ?? 0,
+              });
+            }
+
             console.log('[Auth] Character data synchronized during hydration');
           } else {
             console.log('[Auth] No character data found during hydration');

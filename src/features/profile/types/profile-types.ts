@@ -37,6 +37,12 @@ export interface UserWithLegacyCharacter {
   totalQuestsCompleted?: number;
   /** Total minutes off phone (server stat) */
   totalMinutesOffPhone?: number;
+  /** Spirit meter value (Spirit Fading feature); null when inactive/dormant */
+  spirit?: number | null;
+  /** ISO timestamp of the last Restoration, if any */
+  spiritRestoredAt?: string | null;
+  /** Number of times spirit has been restored */
+  restorationCount?: number;
 }
 
 /**

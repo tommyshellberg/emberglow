@@ -61,10 +61,22 @@ describe('useCharacterSync', () => {
       mockCharacterStore.mockImplementation((selector) => {
         if (selector) {
           return selector({
-            character: { name: 'TestHero', type: 'knight', level: 5, currentXP: 150 },
+            character: {
+              name: 'TestHero',
+              type: 'knight',
+              level: 5,
+              currentXP: 150,
+            },
           });
         }
-        return { character: { name: 'TestHero', type: 'knight', level: 5, currentXP: 150 } };
+        return {
+          character: {
+            name: 'TestHero',
+            type: 'knight',
+            level: 5,
+            currentXP: 150,
+          },
+        };
       });
 
       const { result } = renderHook(() =>
@@ -116,7 +128,10 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('wizard', 'MerlinTheWise');
+        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith(
+          'wizard',
+          'MerlinTheWise'
+        );
       });
 
       expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
@@ -165,7 +180,10 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('knight', 'BraveSir');
+        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith(
+          'knight',
+          'BraveSir'
+        );
       });
 
       expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
@@ -177,6 +195,96 @@ describe('useCharacterSync', () => {
 
       // Should not call setStreak if dailyQuestStreak is undefined
       expect(mockStoreInstance.setStreak).not.toHaveBeenCalled();
+    });
+
+    it('should sync spirit from server, defaulting missing restoration fields', async () => {
+      const mockUser = {
+        _id: 'user1',
+        email: 'test@example.com',
+        type: 'wizard',
+        name: 'MerlinTheWise',
+        level: 10,
+        xp: 500,
+        dailyQuestStreak: 7,
+        spirit: 60,
+        // spiritRestoredAt and restorationCount intentionally omitted
+      };
+
+      const mockStoreInstance = {
+        createCharacter: jest.fn(),
+        updateCharacter: jest.fn(),
+        setStreak: jest.fn(),
+        setSpiritState: jest.fn(),
+      };
+
+      mockGetUserDetails.mockResolvedValue(mockUser);
+      mockCharacterStore.getState.mockReturnValue(mockStoreInstance);
+
+      renderHook(() =>
+        useCharacterSync({
+          characterStore: mockCharacterStore,
+          getStorageItem: mockGetStorageItem,
+          getUserDetails: mockGetUserDetails,
+          router: mockRouter,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockGetUserDetails).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(mockStoreInstance.setSpiritState).toHaveBeenCalledTimes(1);
+      });
+
+      // Fallbacks: absent spiritRestoredAt -> null, absent restorationCount -> 0
+      expect(mockStoreInstance.setSpiritState).toHaveBeenCalledWith({
+        spirit: 60,
+        spiritRestoredAt: null,
+        restorationCount: 0,
+      });
+    });
+
+    it('should not call setSpiritState when spirit is undefined', async () => {
+      const mockUser = {
+        _id: 'user1',
+        email: 'test@example.com',
+        type: 'knight',
+        name: 'BraveSir',
+        level: 3,
+        xp: 75,
+        // No spirit field
+      };
+
+      const mockStoreInstance = {
+        createCharacter: jest.fn(),
+        updateCharacter: jest.fn(),
+        setStreak: jest.fn(),
+        setSpiritState: jest.fn(),
+      };
+
+      mockGetUserDetails.mockResolvedValue(mockUser);
+      mockCharacterStore.getState.mockReturnValue(mockStoreInstance);
+
+      renderHook(() =>
+        useCharacterSync({
+          characterStore: mockCharacterStore,
+          getStorageItem: mockGetStorageItem,
+          getUserDetails: mockGetUserDetails,
+          router: mockRouter,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockGetUserDetails).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(mockStoreInstance.createCharacter).toHaveBeenCalled();
+      });
+
+      // Guard holds: no spirit field means the store is never touched for spirit
+      expect(mockStoreInstance.setSpiritState).not.toHaveBeenCalled();
     });
 
     it('should default to level 1 if level is missing', async () => {
@@ -255,7 +363,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );
@@ -295,7 +405,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );
@@ -335,7 +447,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );

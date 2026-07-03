@@ -1,6 +1,7 @@
 import { signIn } from '@/lib/auth';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
+import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
 import {
@@ -289,6 +290,71 @@ describe('auth.ts', () => {
       });
       expect(result).toBe('app');
       // Character store logic is tested via integration tests due to dynamic import complexity
+    });
+
+    it('should sync spirit into the character store when server provides it', async () => {
+      // The character store is NOT mocked in this suite, so we assert on the real store.
+      useCharacterStore.setState({
+        serverSpirit: null,
+        serverSpiritAt: null,
+        spiritRestoredAt: null,
+        restorationCount: 0,
+      });
+
+      // Top-level type + name are required for the sync block to run.
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        type: 'knight',
+        name: 'Sir Test',
+        dailyQuestStreak: 3,
+        spirit: 40,
+        // spiritRestoredAt and restorationCount intentionally omitted
+      };
+
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+
+      const before = Date.now();
+      await verifyMagicLinkAndSignIn('test-token');
+
+      const state = useCharacterStore.getState();
+      expect(state.serverSpirit).toBe(40);
+      expect(state.serverSpiritAt).toBeGreaterThanOrEqual(before);
+      // Fallbacks: absent spiritRestoredAt -> null, absent restorationCount -> 0
+      expect(state.spiritRestoredAt).toBeNull();
+      expect(state.restorationCount).toBe(0);
+    });
+
+    it('should not touch spirit state when server omits spirit', async () => {
+      useCharacterStore.setState({
+        serverSpirit: null,
+        serverSpiritAt: null,
+        spiritRestoredAt: null,
+        restorationCount: 0,
+      });
+
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        type: 'knight',
+        name: 'Sir Test',
+        dailyQuestStreak: 3,
+        // No spirit field
+      };
+
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+
+      await verifyMagicLinkAndSignIn('test-token');
+
+      // Guard holds: undefined spirit leaves the anchor untouched (still null).
+      expect(useCharacterStore.getState().serverSpirit).toBeNull();
+      expect(useCharacterStore.getState().serverSpiritAt).toBeNull();
     });
 
     it('should continue even if user fetch fails', async () => {

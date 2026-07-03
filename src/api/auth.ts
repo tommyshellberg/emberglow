@@ -196,6 +196,15 @@ export const verifyMagicLinkAndSignIn = async (
             characterStore.setStreak(userResponse.dailyQuestStreak);
           }
 
+          // Sync server-reported spirit (guard so pre-deploy server responses don't clobber state)
+          if (userResponse.spirit !== undefined) {
+            characterStore.setSpiritState({
+              spirit: userResponse.spirit,
+              spiritRestoredAt: userResponse.spiritRestoredAt ?? null,
+              restorationCount: userResponse.restorationCount ?? 0,
+            });
+          }
+
           console.log('[Auth] Character data synchronized from server');
         } else {
           console.log('[Auth] No character data found in server response');
