@@ -367,7 +367,7 @@ export default function Settings() {
           subtitle="Manage your account, preferences, and app settings."
         />
 
-        <ScrollView className="flex-1">
+        <ScrollView testID="settings-screen" className="flex-1">
           <View className="px-4">
             {/* Account Section */}
             <View className="mb-8">
