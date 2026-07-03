@@ -31,6 +31,50 @@ jest.mock('react-native-reanimated', () =>
   require('react-native-reanimated/mock')
 );
 
+// Stores + notification service — mocked so we can assert side-effects cleanly
+// without touching real persisted state or expo-notifications.
+// Lazy getters on a globalThis-attached object let the jest.mock factory
+// resolve the right jest.fn() even though the factory runs before the const
+// initializers would otherwise complete.
+const mockSetStreakWarning = jest.fn();
+const mockSetSpiritState = jest.fn();
+const mockScheduleSpiritCommitmentReminders = jest.fn();
+
+const mockSettingsState = {
+  setStreakWarning: mockSetStreakWarning,
+};
+const mockCharacterState = {
+  setSpiritState: mockSetSpiritState,
+  serverSpirit: null,
+  serverSpiritAt: null,
+  restorationCount: 0,
+};
+
+(globalThis as any).__mocks = (globalThis as any).__mocks || {};
+(globalThis as any).__mocks.settings = mockSettingsState;
+(globalThis as any).__mocks.character = mockCharacterState;
+(globalThis as any).__mocks.scheduleSpiritCommitmentReminders =
+  mockScheduleSpiritCommitmentReminders;
+
+jest.mock('@/store/settings-store', () => ({
+  __esModule: true,
+  useSettingsStore: Object.assign(jest.fn(), {
+    getState: () => (globalThis as any).__mocks.settings,
+  }),
+}));
+
+jest.mock('@/store/character-store', () => ({
+  __esModule: true,
+  useCharacterStore: Object.assign(jest.fn(), {
+    getState: () => (globalThis as any).__mocks.character,
+  }),
+}));
+
+jest.mock('@/lib/services/notifications', () => ({
+  scheduleSpiritCommitmentReminders: (...args: any[]) =>
+    (globalThis as any).__mocks.scheduleSpiritCommitmentReminders(...args),
+}));
+
 describe('RestorationScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -167,5 +211,69 @@ describe('RestorationScreen', () => {
 
     // At restorationCount 2+ the journal prompt is the "deeper" variant.
     expect(screen.getByText(/deeper/i)).toBeTruthy();
+  });
+
+  describe('submit side-effects', () => {
+    const successResponse = {
+      id: 'r1',
+      restorationNumber: 1,
+      spiritRestoredAt: '2026-07-03T00:00:00.000Z',
+      restorationCount: 1,
+      spirit: 100,
+    };
+
+    const walkToFinal = () => {
+      fireEvent.press(screen.getByText(/too busy/i));
+      fireEvent.press(screen.getByText(/next/i));
+      fireEvent.changeText(screen.getByTestId('journal-input'), 'read more');
+      fireEvent.press(screen.getByText(/next/i));
+      fireEvent.press(screen.getByText(/next/i));
+      fireEvent.press(screen.getByText(/return to vaedros/i));
+    };
+
+    it('schedules commitment reminders, sets streak warning, and refills spirit on success', async () => {
+      mockMutateAsync.mockResolvedValue(successResponse);
+      mockScheduleSpiritCommitmentReminders.mockResolvedValue(true);
+
+      render(<RestorationScreen />);
+
+      walkToFinal();
+
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalled());
+
+      // 1. Local streak warning picks up the committed time
+      expect(mockSetStreakWarning).toHaveBeenCalledWith({
+        enabled: true,
+        time: { hour: 20, minute: 0 },
+      });
+
+      // 2. 3-day spirit commitment reminder bridge gets scheduled
+      expect(mockScheduleSpiritCommitmentReminders).toHaveBeenCalledWith(20, 0);
+
+      // 3. Spirit meter refills from server response
+      expect(mockSetSpiritState).toHaveBeenCalledWith({
+        spirit: 100,
+        spiritRestoredAt: '2026-07-03T00:00:00.000Z',
+        restorationCount: 1,
+      });
+    });
+
+    it('does not run any side-effects when the mutation rejects', async () => {
+      mockMutateAsync.mockRejectedValue(new Error('network down'));
+
+      render(<RestorationScreen />);
+
+      walkToFinal();
+
+      // Wait for mutateAsync to actually be invoked
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalled());
+
+      // Give microtasks a chance to settle; then assert NO side-effects fired.
+      await new Promise((r) => setImmediate(r));
+
+      expect(mockSetStreakWarning).not.toHaveBeenCalled();
+      expect(mockScheduleSpiritCommitmentReminders).not.toHaveBeenCalled();
+      expect(mockSetSpiritState).not.toHaveBeenCalled();
+    });
   });
 });

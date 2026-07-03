@@ -15,6 +15,9 @@ import {
 import { Button } from '@/components/ui/button';
 import colors from '@/components/ui/colors';
 import { useSpirit } from '@/hooks/use-spirit';
+import { scheduleSpiritCommitmentReminders } from '@/lib/services/notifications';
+import { useCharacterStore } from '@/store/character-store';
+import { useSettingsStore } from '@/store/settings-store';
 
 type ChallengeId =
   | 'too_busy'
@@ -70,13 +73,29 @@ export default function RestorationScreen() {
   const handleSubmit = async () => {
     setSubmitError(null);
     try {
-      await createRestoration.mutateAsync({
+      const res = await createRestoration.mutateAsync({
         challenges: selectedChallenges,
         challengeText: challengeText.trim() || undefined,
         journalText: journalText.trim() || undefined,
         commitmentHour,
         commitmentMinute,
       });
+
+      // Side-effects on success: local streak warning picks up the committed
+      // time (settings screen only syncs from server on mount), 3-day
+      // commitment reminder bridge schedules local notifications, and the
+      // spirit meter refills immediately from the server's response.
+      useSettingsStore.getState().setStreakWarning({
+        enabled: true,
+        time: { hour: commitmentHour, minute: commitmentMinute },
+      });
+      await scheduleSpiritCommitmentReminders(commitmentHour, commitmentMinute);
+      useCharacterStore.getState().setSpiritState({
+        spirit: res.spirit,
+        spiritRestoredAt: res.spiritRestoredAt,
+        restorationCount: res.restorationCount,
+      });
+
       router.replace('/(app)');
     } catch (err) {
       console.error('Failed to submit restoration', err);
