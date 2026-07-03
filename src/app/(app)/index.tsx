@@ -15,6 +15,7 @@ import Animated, {
 
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
+import { FadingCard } from '@/components/home/fading-card';
 import QuestCard from '@/components/home/quest-card';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
@@ -48,6 +49,7 @@ import { useQuestSelection } from '@/features/home/hooks/use-quest-selection';
 import { useStoryOptions } from '@/features/home/hooks/use-story-options';
 import { useAudioPreloader } from '@/hooks/use-audio-preloader';
 import { useServerQuests } from '@/hooks/use-server-quests';
+import { useSpirit } from '@/hooks/use-spirit';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import QuestTimer from '@/lib/services/quest-timer';
 import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/user';
@@ -68,6 +70,10 @@ export default function Home() {
   // Premium access state
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const { handlePaywallSuccess } = usePremiumAccess();
+
+  // Spirit: when faded (server-anchored), the home swaps the quest carousel for
+  // the FadingCard and hides all start-quest entry points until a Restoration.
+  const { faded } = useSpirit();
 
   // Carousel state with paywall reset
   const {
@@ -437,34 +443,38 @@ export default function Home() {
 
         {/* Main content area */}
         <View className="flex-1 justify-center">
-          <Animated.View
-            style={[animatedScrollStyle, { height: CARD_HEIGHT + 20 }]}
-          >
-            <FlashList
-              data={carouselData}
-              horizontal
-              snapToInterval={SNAP_INTERVAL}
-              decelerationRate="fast"
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              initialScrollIndex={0} // Start at the first item
-              contentContainerStyle={{
-                paddingHorizontal: CAROUSEL_CONTENT_PADDING,
-                paddingVertical: CAROUSEL_VERTICAL_PADDING,
-              }}
-              ItemSeparatorComponent={() => (
-                <View style={{ width: CARD_SPACING }} />
-              )}
-              onMomentumScrollEnd={handleMomentumScrollEnd}
-              renderItem={renderCarouselItem}
-              estimatedItemSize={CARD_WIDTH}
-              removeClippedSubviews={true} // improves performance by clipping offscreen items
-            />
-          </Animated.View>
+          {faded ? (
+            <FadingCard />
+          ) : (
+            <Animated.View
+              style={[animatedScrollStyle, { height: CARD_HEIGHT + 20 }]}
+            >
+              <FlashList
+                data={carouselData}
+                horizontal
+                snapToInterval={SNAP_INTERVAL}
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                initialScrollIndex={0} // Start at the first item
+                contentContainerStyle={{
+                  paddingHorizontal: CAROUSEL_CONTENT_PADDING,
+                  paddingVertical: CAROUSEL_VERTICAL_PADDING,
+                }}
+                ItemSeparatorComponent={() => (
+                  <View style={{ width: CARD_SPACING }} />
+                )}
+                onMomentumScrollEnd={handleMomentumScrollEnd}
+                renderItem={renderCarouselItem}
+                estimatedItemSize={CARD_WIDTH}
+                removeClippedSubviews={true} // improves performance by clipping offscreen items
+              />
+            </Animated.View>
+          )}
         </View>
 
         {/* Footer area with buttons */}
-        {!activeQuest && !pendingQuest && (
+        {!faded && !activeQuest && !pendingQuest && (
           <View
             className="items-center justify-center"
             style={{ minHeight: 140 }}

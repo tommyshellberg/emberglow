@@ -248,6 +248,22 @@ describe('Home Component - Integration Tests', () => {
 
       unmount();
     });
+
+    it('shows the FadingCard and hides start buttons when the spirit has faded', () => {
+      mockUseSpirit.mockReturnValue({
+        spirit: 0,
+        faded: true,
+        active: true,
+        restorationCount: 0,
+      });
+
+      const { unmount } = render(<Home />);
+
+      expect(screen.getByText(/Begin the Restoration/i)).toBeTruthy();
+      expect(screen.queryByText(/Create Custom Quest/i)).toBeNull();
+
+      unmount();
+    });
   });
 
   describe('Integration with server quests', () => {
