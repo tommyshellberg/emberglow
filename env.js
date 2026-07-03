@@ -86,6 +86,9 @@ const client = z.object({
   POSTHOG_API_KEY: z.string(),
   REVENUECAT_APPLE_API_KEY: z.string(),
   REVENUECAT_GOOGLE_API_KEY: z.string(),
+  // Fail-safe: absent in an environment's build secrets ⇒ 'false' (fading disabled).
+  // Kept out of committed .env files (they hold secrets); set per-environment at build.
+  SPIRIT_FADING_ENABLED: z.string().optional().default('false'),
 });
 
 const buildTime = z.object({
@@ -111,6 +114,7 @@ const _clientEnv = {
   POSTHOG_API_KEY: process.env.POSTHOG_API_KEY,
   REVENUECAT_APPLE_API_KEY: process.env.REVENUECAT_APPLE_API_KEY,
   REVENUECAT_GOOGLE_API_KEY: process.env.REVENUECAT_GOOGLE_API_KEY,
+  SPIRIT_FADING_ENABLED: process.env.SPIRIT_FADING_ENABLED,
 };
 
 /**
