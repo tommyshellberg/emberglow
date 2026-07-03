@@ -431,6 +431,13 @@ function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="restoration"
+          options={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen
           name="cooperative-quest-menu"
           options={{ headerShown: false }}
         />
