@@ -91,6 +91,7 @@ jest.mock('@/app/data/quests', () => {
 const mockUpdateStreak = jest.fn();
 const mockAddXP = jest.fn();
 const mockResetStreak = jest.fn();
+const mockRefillSpirit = jest.fn();
 
 // Mock the character store
 jest.mock('@/store/character-store', () => ({
@@ -99,6 +100,7 @@ jest.mock('@/store/character-store', () => ({
       updateStreak: mockUpdateStreak,
       addXP: mockAddXP,
       resetStreak: mockResetStreak,
+      refillSpirit: mockRefillSpirit,
     }),
   },
 }));
@@ -128,6 +130,7 @@ jest.mock('@/api/common', () => ({
 jest.mock('@/lib/services/notifications', () => ({
   cancelStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
   scheduleStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
+  cancelSpiritCommitmentReminders: jest.fn().mockResolvedValue(true),
 }));
 
 // Create mock for POI store
@@ -598,6 +601,38 @@ describe('QuestStore - refreshAvailableQuests', () => {
       // Wait for the promise chain to complete
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(scheduleStreakWarningNotification).toHaveBeenCalledWith(true);
+    });
+
+    test('should refill spirit and cancel spirit commitment reminders on completion', async () => {
+      // Arrange
+      const startTime = Date.now() - 600000; // 10 minutes ago
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime,
+        status: 'active' as const,
+      } as Quest;
+
+      useQuestStore.setState({
+        activeQuest,
+        completedQuests: [],
+        lastCompletedQuestTimestamp: null,
+      });
+
+      const {
+        cancelSpiritCommitmentReminders,
+      } = require('@/lib/services/notifications');
+
+      // Act
+      await useQuestStore.getState().completeQuest();
+
+      // Assert - Spirit refills and pending commitment reminders are cancelled
+      // on every completion, regardless of whether it's the first quest today.
+      expect(mockRefillSpirit).toHaveBeenCalled();
+      expect(cancelSpiritCommitmentReminders).toHaveBeenCalled();
     });
 
     test('should complete quest with ignoreDuration flag', async () => {
@@ -1170,7 +1205,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Complete the quest
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(cancelStreakWarningNotification).toHaveBeenCalled();
@@ -1198,7 +1235,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(completedQuest?.status).toBe('completed');
@@ -1241,10 +1280,12 @@ describe('QuestStore - refreshAvailableQuests', () => {
       const { useCharacterStore } = require('@/store/character-store');
       const mockAddXP = jest.fn();
       const mockUpdateStreak = jest.fn();
+      const localMockRefillSpirit = jest.fn();
 
       useCharacterStore.getState = jest.fn(() => ({
         addXP: mockAddXP,
         updateStreak: mockUpdateStreak,
+        refillSpirit: localMockRefillSpirit,
       }));
 
       const testQuest: Quest = {
@@ -1264,7 +1305,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         lastCompletedQuestTimestamp: null,
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockAddXP).toHaveBeenCalledWith(150);
@@ -1288,7 +1331,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockRevealLocation).toHaveBeenCalledWith('test-poi');

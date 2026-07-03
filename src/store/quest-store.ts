@@ -5,6 +5,7 @@ import { queryClient } from '@/api/common';
 import type { QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import {
+  cancelSpiritCommitmentReminders,
   cancelStreakWarningNotification,
   scheduleStreakWarningNotification,
 } from '@/lib/services/notifications';
@@ -156,8 +157,13 @@ export const useQuestStore = create<QuestState>()(
             // Fetch quest run data from server to get participant rewards
             if (questRunId) {
               try {
-                console.log('[QuestStore] Fetching quest run data to get rewards:', questRunId);
-                const { getQuestRunStatus } = await import('@/lib/services/quest-run-service');
+                console.log(
+                  '[QuestStore] Fetching quest run data to get rewards:',
+                  questRunId
+                );
+                const { getQuestRunStatus } = await import(
+                  '@/lib/services/quest-run-service'
+                );
                 const questRunData = await getQuestRunStatus(questRunId);
 
                 console.log('[QuestStore] Quest run data received:', {
@@ -169,22 +175,32 @@ export const useQuestStore = create<QuestState>()(
 
                 // Add participants with rewards to the completed quest
                 if (questRunData.participants) {
-                  completedQuest.participants = questRunData.participants.map((p: any) => ({
-                    userId: typeof p === 'string' ? p : p.userId,
-                    ready: typeof p === 'object' ? p.ready : true,
-                    status: typeof p === 'object' ? p.status : 'completed',
-                    phoneLocked: typeof p === 'object' ? p.phoneLocked : undefined,
-                    rewards: typeof p === 'object' ? p.rewards : undefined,
-                  }));
+                  completedQuest.participants = questRunData.participants.map(
+                    (p: any) => ({
+                      userId: typeof p === 'string' ? p : p.userId,
+                      ready: typeof p === 'object' ? p.ready : true,
+                      status: typeof p === 'object' ? p.status : 'completed',
+                      phoneLocked:
+                        typeof p === 'object' ? p.phoneLocked : undefined,
+                      rewards: typeof p === 'object' ? p.rewards : undefined,
+                    })
+                  );
 
-                  console.log('[QuestStore] Added participant rewards to completed quest:', {
-                    questId: completedQuest.id,
-                    participantCount: completedQuest.participants.length,
-                    firstParticipantRewards: completedQuest.participants[0]?.rewards,
-                  });
+                  console.log(
+                    '[QuestStore] Added participant rewards to completed quest:',
+                    {
+                      questId: completedQuest.id,
+                      participantCount: completedQuest.participants.length,
+                      firstParticipantRewards:
+                        completedQuest.participants[0]?.rewards,
+                    }
+                  );
                 }
               } catch (error) {
-                console.error('[QuestStore] Failed to fetch quest run data for rewards:', error);
+                console.error(
+                  '[QuestStore] Failed to fetch quest run data for rewards:',
+                  error
+                );
                 // Continue with base completed quest if fetch fails
               }
             }
@@ -298,6 +314,14 @@ export const useQuestStore = create<QuestState>()(
             queryClient.invalidateQueries({
               queryKey: ['next-available-quests'] as const,
             });
+
+            // Any completion refills Spirit — optimistic local update; server confirms via ['user','details'] invalidation.
+            useCharacterStore.getState().refillSpirit();
+
+            // Cancel any pending Restoration bridge reminders — the user is questing again.
+            cancelSpiritCommitmentReminders().catch((err) =>
+              console.error('cancel spirit reminders', err)
+            );
 
             // If this is the first quest completed today, cancel today's warning
             // and schedule tomorrow's warning
