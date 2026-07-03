@@ -372,3 +372,74 @@ export const cancelStreakWarningNotification = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// Fixed identifiers for the 3 spirit_commitment "bridge" reminders scheduled
+// when a user commits to a return time during Restoration. Streak-independent.
+const SPIRIT_COMMITMENT_IDS = [
+  'spirit-commitment-1',
+  'spirit-commitment-2',
+  'spirit-commitment-3',
+];
+
+// Schedule 3 local reminders (next 3 days) at the user's committed return time.
+// Fixed identifiers mean a repeat Restoration replaces rather than stacks them.
+export const scheduleSpiritCommitmentReminders = async (
+  hour: number,
+  minute: number
+): Promise<boolean> => {
+  const enabled = await areNotificationsEnabled();
+  if (!enabled) {
+    return false;
+  }
+
+  try {
+    // Cancel any existing spirit commitment reminders first (replace, don't stack)
+    await cancelSpiritCommitmentReminders();
+
+    for (let day = 1; day <= 3; day++) {
+      const target = new Date();
+      target.setDate(target.getDate() + day);
+      target.setHours(hour, minute, 0, 0);
+
+      const seconds = Math.max(
+        1,
+        Math.floor((target.getTime() - Date.now()) / 1000)
+      );
+
+      await ExpoNotifications.scheduleNotificationAsync({
+        identifier: SPIRIT_COMMITMENT_IDS[day - 1],
+        content: {
+          title: 'Your quest awaits',
+          body: 'You set this time to return. A single quest keeps the Fading away.',
+          data: { type: 'spirit_commitment', screen: '/(app)' },
+          sound: true,
+        },
+        trigger: {
+          type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds,
+          channelId: Platform.OS === 'android' ? QUEST_CHANNEL_ID : undefined,
+        },
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to schedule spirit commitment reminders:', error);
+    return false;
+  }
+};
+
+// Cancel all 3 spirit commitment reminders
+export const cancelSpiritCommitmentReminders = async (): Promise<boolean> => {
+  try {
+    await Promise.all(
+      SPIRIT_COMMITMENT_IDS.map((id) =>
+        ExpoNotifications.cancelScheduledNotificationAsync(id)
+      )
+    );
+    return true;
+  } catch (error) {
+    console.error('Failed to cancel spirit commitment reminders:', error);
+    return false;
+  }
+};
