@@ -66,7 +66,7 @@ export function InvitationItem({
       </View>
 
       {isOutgoing ? (
-        <View className="flex-row items-center space-x-2">
+        <View testID="pending-invitation-badge" className="flex-row items-center space-x-2">
           <View className="rounded-full bg-neutral-700 px-2 py-1">
             <Text className="text-xs font-bold text-neutral-200">Invited</Text>
           </View>
