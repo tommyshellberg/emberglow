@@ -24,6 +24,9 @@ export interface UserDetails {
   pendingFriends: any[];
   blockedUsers: any[];
   inventory: any[];
+  spirit: number | null;
+  spiritRestoredAt: string | null;
+  restorationCount: number;
 }
 
 export interface FriendCharacter {

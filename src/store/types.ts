@@ -93,6 +93,9 @@ export interface User {
   dailyQuestStreak: number;
   featureFlags: string[];
   isProvisional: boolean;
+  spirit: number | null;
+  spiritRestoredAt: string | null;
+  restorationCount: number;
 }
 
 export type POI = {
