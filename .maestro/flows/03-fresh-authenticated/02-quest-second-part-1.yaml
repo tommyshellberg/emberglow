@@ -1,0 +1,24 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SECOND QUEST — PART 1: SELECT AND LOCK
+# =============================================================================
+# Expected starting state: Level 1, 50 XP, 1 quest completed, Day 1 streak.
+# =============================================================================
+
+- tapOn:
+    id: 'new-quest-tab'
+
+- assertVisible:
+    id: 'home-header'
+
+- tapOn:
+    id: 'story-start-button'
+
+- extendedWaitUntil:
+    visible: 'Quest Ready'
+    timeout: 10000
+
+- assertVisible: 'Lock your phone to begin'
+
+- pressKey: Lock

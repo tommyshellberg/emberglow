@@ -1,0 +1,23 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SECOND QUEST — PART 2: UNLOCK AND VERIFY COMPLETION
+# =============================================================================
+# Prerequisites: part 1 completed, runner has waited for the 1-minute
+# dev-mode quest duration + buffer.
+# =============================================================================
+
+- pressKey: Lock
+
+- swipe:
+    start: 50%, 80%
+    end: 50%, 20%
+    duration: 500
+
+- extendedWaitUntil:
+    visible: 'Quest Complete'
+    timeout: 10000
+
+- assertVisible: '50 XP'
+
+- tapOn: 'Continue'
