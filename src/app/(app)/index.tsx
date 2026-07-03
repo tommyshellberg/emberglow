@@ -20,6 +20,7 @@ import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-s
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
 import { PremiumPaywall } from '@/components/paywall';
+import { SpiritMeter } from '@/components/spirit-meter';
 import { StreakCounter } from '@/components/StreakCounter';
 import {
   BackgroundImage,
@@ -411,6 +412,9 @@ export default function Home() {
         source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
       >
         <StreakCounter size="small" position="topRight" />
+        <View className="absolute right-4 top-16 z-10">
+          <SpiritMeter />
+        </View>
         <Animated.View
           style={[
             backgroundStyle,

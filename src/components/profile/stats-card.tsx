@@ -9,8 +9,10 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-import { STATS_ANIMATION } from '@/features/profile/constants/profile-constants';
+import { SpiritMeter } from '@/components/spirit-meter';
 import { Card, Text, View } from '@/components/ui';
+import { STATS_ANIMATION } from '@/features/profile/constants/profile-constants';
+import { useSpirit } from '@/hooks/use-spirit';
 
 type StatsCardProps = {
   questCount: number;
@@ -65,6 +67,8 @@ export function StatsCard({
   minutesSaved,
   streakCount,
 }: StatsCardProps) {
+  const { active } = useSpirit();
+
   return (
     <Card className="mx-4 mt-4 p-5">
       <View className="flex-row justify-around">
@@ -136,6 +140,13 @@ export function StatsCard({
           <Text className="text-base text-neutral-200">Day Streak</Text>
         </Pressable>
       </View>
+
+      {active ? (
+        <View className="mt-4 items-center border-t border-neutral-300 pt-4">
+          <SpiritMeter />
+          <Text className="mt-2 text-base text-neutral-200">Spirit</Text>
+        </View>
+      ) : null}
     </Card>
   );
 }

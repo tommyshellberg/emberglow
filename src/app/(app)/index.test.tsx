@@ -145,6 +145,18 @@ jest.mock('@/lib/services/user', () => ({
   refreshPremiumStatus: jest.fn().mockResolvedValue({}),
 }));
 
+// Mock useSpirit - inactive by default so existing tests are unaffected;
+// individual tests opt into an active spirit to exercise SpiritMeter.
+const mockUseSpirit = jest.fn((): any => ({
+  spirit: null,
+  faded: false,
+  active: false,
+  restorationCount: 0,
+}));
+jest.mock('@/hooks/use-spirit', () => ({
+  useSpirit: () => mockUseSpirit(),
+}));
+
 // Import the Home component
 const Home = require('./index').default;
 
@@ -163,6 +175,13 @@ describe('Home Component - Integration Tests', () => {
     mockUseServerQuests.isLoading = false;
     mockUseServerQuests.serverQuests = [];
     mockUseServerQuests.options = [];
+
+    mockUseSpirit.mockReturnValue({
+      spirit: null,
+      faded: false,
+      active: false,
+      restorationCount: 0,
+    });
   });
 
   afterEach(() => {
@@ -211,6 +230,21 @@ describe('Home Component - Integration Tests', () => {
       expect(screen.queryByText('Create Custom Quest')).toBeNull();
       expect(screen.queryByText('Cooperative Quests')).toBeNull();
       expect(screen.queryByText('Unlock Cooperative Mode')).toBeNull();
+
+      unmount();
+    });
+
+    it('shows the spirit meter when spirit fading is active', () => {
+      mockUseSpirit.mockReturnValue({
+        spirit: 100,
+        faded: false,
+        active: true,
+        restorationCount: 0,
+      });
+
+      const { unmount } = render(<Home />);
+
+      expect(screen.getByTestId('spirit-meter')).toBeTruthy();
 
       unmount();
     });
