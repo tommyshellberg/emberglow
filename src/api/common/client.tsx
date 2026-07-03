@@ -1,5 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { router } from 'expo-router';
 
+import { queryClient } from '@/api/common/api-provider';
 import { signOut } from '@/lib/auth';
 import { getToken } from '@/lib/auth/utils';
 import { getItem } from '@/lib/storage';
@@ -173,7 +175,9 @@ apiClient.interceptors.response.use(
           // Reset refresh attempts on success
           refreshAttempts = 0;
           if (__DEV__) {
-            console.log('[API Client] Token refresh successful, attempts reset');
+            console.log(
+              '[API Client] Token refresh successful, attempts reset'
+            );
           }
 
           return apiClient(originalRequest);
@@ -214,6 +218,20 @@ apiClient.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
+    }
+
+    // Spirit Fading backstop: a stale client that slipped past the local gate
+    // gets a 403 SPIRIT_FADED from the server. Refetch user details so the faded
+    // state is authoritative, then route home to show the FadingCard. `replace`
+    // (not `push`) so concurrent in-flight requests that both 403 don't stack
+    // duplicate home entries — home is the final state, not a stack step.
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data as any)?.errorCode === 'SPIRIT_FADED'
+    ) {
+      queryClient.invalidateQueries({ queryKey: ['user', 'details'] });
+      router.replace('/(app)');
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);
