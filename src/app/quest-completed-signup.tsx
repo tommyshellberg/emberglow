@@ -126,6 +126,7 @@ export default function QuestCompletedSignupScreen() {
 
         <Animated.View entering={FadeIn.delay(2600)} className="pt-4">
           <Button
+            testID="create-account-button"
             label="Create Account"
             onPress={handleCreateAccount}
             accessibilityLabel="Create Account"

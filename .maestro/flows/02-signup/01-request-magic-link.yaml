@@ -13,8 +13,17 @@ appId: com.vaedros.unquest
 # =============================================================================
 
 # --- Quest-completed signup screen ---
+# Wait for the Create Account button by testID: it has the longest entrance
+# animation on this screen (FadeIn.delay(2600)), and 'Create Account' as a
+# bare text selector collides with a DESTRUCTIVE same-named link on the next
+# (/login) screen that signs the user out. The testID avoids both problems.
 - assertVisible: 'Claim Your Legend'
-- tapOn: 'Create Account'
+- extendedWaitUntil:
+    visible:
+      id: 'create-account-button'
+    timeout: 10000
+- tapOn:
+    id: 'create-account-button'
 
 # --- Login screen: enter email and request magic link ---
 - extendedWaitUntil:
