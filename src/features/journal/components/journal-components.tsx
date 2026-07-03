@@ -185,6 +185,7 @@ export function QuestListItem({ quest }: QuestListItemProps) {
 
   return (
     <QuestWrapper
+      testID="journal-entry"
       key={`${quest.id}-${quest.stopTime}`}
       onPress={isCompleted ? handlePress : undefined}
       className="mb-4"
