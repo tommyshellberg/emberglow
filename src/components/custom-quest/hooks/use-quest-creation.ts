@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import { useState } from 'react';
 
+import { isFadedNow } from '@/hooks/use-spirit';
 import { log } from '@/lib/services/logger.service';
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
@@ -34,6 +35,12 @@ export function useQuestCreation() {
    */
   const createQuest = async (formData: CustomQuestFormData): Promise<void> => {
     try {
+      // Spirit-fading gate: a faded user cannot start a new quest.
+      if (isFadedNow()) {
+        router.push('/(app)'); // home shows the FadingCard
+        return;
+      }
+
       // Clear any previous errors
       setCreationState({ isCreating: true, error: null });
 

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { InfoCard } from '@/components/ui/info-card';
+import { isFadedNow } from '@/hooks/use-spirit';
 import QuestTimer from '@/lib/services/quest-timer';
 import type { LobbyReadyStatusPayload } from '@/lib/services/websocket-events.types';
 import { useCooperativeLobbyStore } from '@/store/cooperative-lobby-store';
@@ -273,6 +274,14 @@ export default function CooperativeQuestReady() {
         createdAt: questRun.createdAt || Date.now(),
         updatedAt: questRun.updatedAt || Date.now(),
       };
+
+      // Spirit-fading gate: a faded user cannot start a new quest. Checked
+      // before the store write so we don't leave a populated cooperative quest
+      // run with no pending quest for a user being sent home to the FadingCard.
+      if (isFadedNow()) {
+        router.push('/(app)'); // home shows the FadingCard
+        return;
+      }
 
       if (__DEV__) {
         console.log(

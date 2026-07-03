@@ -18,3 +18,14 @@ export const useSpirit = (): SpiritDisplay & { restorationCount: number } => {
     restorationCount,
   };
 };
+
+/**
+ * Non-hook reader for the faded state. Use at quest-start call sites that are
+ * not inside a render body (e.g. inside event handlers / mutations) where a
+ * hook would be inappropriate. Reads the latest store snapshot directly.
+ */
+export const isFadedNow = (): boolean => {
+  if (!isSpiritFadingEnabled()) return false;
+  const { serverSpirit, serverSpiritAt } = useCharacterStore.getState();
+  return deriveDisplaySpirit({ serverSpirit, serverSpiritAt }).faded;
+};

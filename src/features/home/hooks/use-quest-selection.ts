@@ -3,6 +3,7 @@ import { usePostHog } from 'posthog-react-native';
 import { useCallback } from 'react';
 
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
+import { isFadedNow } from '@/hooks/use-spirit';
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
 import { type StoryQuestTemplate } from '@/store/types';
@@ -39,6 +40,12 @@ export function useQuestSelection({
       posthog.capture('try_trigger_start_quest');
 
       if (!nextQuestId) {
+        return;
+      }
+
+      // Spirit-fading gate: a faded user cannot start a new quest.
+      if (isFadedNow()) {
+        router.push('/(app)'); // home shows the FadingCard
         return;
       }
 

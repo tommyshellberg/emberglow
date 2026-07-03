@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 
+import { isFadedNow } from '@/hooks/use-spirit';
 import {
   acceptInvitation,
   declineInvitation,
@@ -81,6 +82,14 @@ export function useInvitationActions() {
         '[useInvitationActions] Accept invitation successful:',
         response
       );
+
+      // Spirit-fading gate: a faded user cannot start a new quest. Checked
+      // first so we neither fetch the quest run nor mutate the store for a
+      // user who will be sent home to the FadingCard anyway.
+      if (isFadedNow()) {
+        router.push('/(app)'); // home shows the FadingCard
+        return;
+      }
 
       // Handle the response format from the server
       const questRunId =

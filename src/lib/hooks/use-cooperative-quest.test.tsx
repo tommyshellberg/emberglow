@@ -1,22 +1,35 @@
 import { useQuery } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { useQuestStore } from '@/store/quest-store';
 
 import {
   useCooperativeQuest,
+  useInvitationActions,
   useQuestRunStatus,
 } from './use-cooperative-quest';
+
+// Controllable faded flag (mock-prefixed so jest.mock factory can reference it)
+let mockFaded = false;
 
 // Mock dependencies
 jest.mock('@tanstack/react-query');
 jest.mock('@/lib/services/quest-run-service');
+jest.mock('@/lib/services/invitation-service');
 jest.mock('@/store/quest-store');
 jest.mock('expo-router', () => ({
   router: {
     replace: jest.fn(),
+    push: jest.fn(),
   },
+}));
+jest.mock('@/lib/services/quest-timer', () => ({
+  __esModule: true,
+  default: { prepareQuest: jest.fn().mockResolvedValue(undefined) },
+}));
+jest.mock('@/hooks/use-spirit', () => ({
+  isFadedNow: () => mockFaded,
 }));
 
 describe('use-cooperative-quest', () => {
@@ -250,6 +263,134 @@ describe('use-cooperative-quest', () => {
       // Assert - should disable polling for active quest (polling only for 'pending' status)
       expect(questRunStatusCall).toBeDefined();
       expect(questRunStatusCall[0].enabled).toBe(false);
+    });
+  });
+
+  describe('useInvitationActions - spirit fading gate', () => {
+    const { useMutation, useQueryClient } = require('@tanstack/react-query');
+    const { acceptInvitation } = require('@/lib/services/invitation-service');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const routerPush = () => require('expo-router').router.push;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const questTimerPrepareQuest = () =>
+      require('@/lib/services/quest-timer').default.prepareQuest;
+
+    const setupMutationCapture = () => {
+      const captured: any[] = [];
+      (useMutation as jest.Mock).mockImplementation((options: any) => {
+        captured.push(options);
+        return { mutate: jest.fn(), isPending: false, isError: false };
+      });
+      (useQueryClient as jest.Mock).mockReturnValue({
+        invalidateQueries: jest.fn(),
+      });
+      return captured;
+    };
+
+    beforeEach(() => {
+      mockFaded = false;
+      routerPush().mockClear();
+      questTimerPrepareQuest().mockClear();
+    });
+
+    it('routes home and does not call prepareQuest when faded', async () => {
+      // Arrange
+      mockFaded = true;
+      const captured = setupMutationCapture();
+
+      const mockQuestStore = {
+        setCurrentInvitation: jest.fn(),
+        setCooperativeQuestRun: jest.fn(),
+        prepareQuest: jest.fn(),
+      };
+      (useQuestStore as unknown as jest.Mock).mockImplementation(
+        (selector: any) => {
+          if (typeof selector === 'function') {
+            return selector(mockQuestStore);
+          }
+          return mockQuestStore;
+        }
+      );
+      (useQuestStore as any).getState = jest
+        .fn()
+        .mockReturnValue(mockQuestStore);
+
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'quest-run-1',
+        status: 'pending',
+        quest: { id: 'q-1', title: 'Coop', durationMinutes: 30 },
+        participants: [{ userId: 'host', ready: false, status: 'pending' }],
+      });
+
+      // Act
+      renderHook(() => useInvitationActions());
+
+      // The first captured mutation is the accept mutation
+      const acceptOptions = captured.find(
+        (o) => o.mutationFn === acceptInvitation
+      );
+      expect(acceptOptions).toBeDefined();
+
+      await act(async () => {
+        await acceptOptions.onSuccess({ questRunId: 'quest-run-1' });
+      });
+
+      // Assert
+      expect(routerPush()).toHaveBeenCalledWith('/(app)');
+      expect(mockQuestStore.prepareQuest).not.toHaveBeenCalled();
+      expect(questTimerPrepareQuest()).not.toHaveBeenCalled();
+    });
+
+    it('does not route home and reaches prepareQuest when not faded', async () => {
+      // Arrange — mockFaded is false (set in beforeEach)
+      const captured = setupMutationCapture();
+
+      const mockQuestStore = {
+        setCurrentInvitation: jest.fn(),
+        setCooperativeQuestRun: jest.fn(),
+        prepareQuest: jest.fn(),
+      };
+      (useQuestStore as unknown as jest.Mock).mockImplementation(
+        (selector: any) => {
+          if (typeof selector === 'function') {
+            return selector(mockQuestStore);
+          }
+          return mockQuestStore;
+        }
+      );
+      (useQuestStore as any).getState = jest
+        .fn()
+        .mockReturnValue(mockQuestStore);
+
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'quest-run-1',
+        status: 'pending',
+        quest: { id: 'q-1', title: 'Coop', durationMinutes: 30 },
+        participants: [{ userId: 'host', ready: false, status: 'pending' }],
+      });
+
+      // Act
+      renderHook(() => useInvitationActions());
+
+      const acceptOptions = captured.find(
+        (o) => o.mutationFn === acceptInvitation
+      );
+      expect(acceptOptions).toBeDefined();
+
+      // The non-faded path proceeds past the gate to prepareQuest. A pre-existing
+      // native dynamic import() in onSuccess (not transpiled by Jest's CJS babel
+      // config) rejects in the test env, so we assert the guard's conditionality
+      // via what ran BEFORE that import: the gate did not route home, and
+      // prepareQuest was reached.
+      await expect(
+        act(async () => {
+          await acceptOptions.onSuccess({ questRunId: 'quest-run-1' });
+        })
+      ).rejects.toThrow(/dynamic import/);
+
+      // Assert — gate did NOT fire; the quest reached prepareQuest
+      expect(routerPush()).not.toHaveBeenCalledWith('/(app)');
+      expect(mockQuestStore.prepareQuest).toHaveBeenCalled();
     });
   });
 });
