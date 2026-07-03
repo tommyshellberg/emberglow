@@ -4,6 +4,10 @@ appId: com.vaedros.unquest
 # SECOND QUEST — PART 1: SELECT AND LOCK
 # =============================================================================
 # Expected starting state: Level 1, 50 XP, 1 quest completed, Day 1 streak.
+# After quest-1, the storyline branches (quest-1a / quest-1b), so the home
+# screen shows two story-option buttons; we deterministically tap the first
+# (story-option-0). The pending-quest screen's on-screen title is 'Start Quest'
+# (not 'Quest Ready', which is only an OS-notification title).
 # =============================================================================
 
 - tapOn:
@@ -13,10 +17,10 @@ appId: com.vaedros.unquest
     id: 'home-header'
 
 - tapOn:
-    id: 'story-start-button'
+    id: 'story-option-0'
 
 - extendedWaitUntil:
-    visible: 'Quest Ready'
+    visible: 'Start Quest'
     timeout: 10000
 
 - assertVisible: 'Lock your phone to begin'

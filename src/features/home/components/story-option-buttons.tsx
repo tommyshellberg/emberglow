@@ -252,6 +252,7 @@ export function StoryOptionButtons({
                 />
               )}
               <Button
+                testID={`story-option-${index}`}
                 label={
                   questIsPremium && !hasPremiumAccess
                     ? 'Unlock full Vaedros storyline'
