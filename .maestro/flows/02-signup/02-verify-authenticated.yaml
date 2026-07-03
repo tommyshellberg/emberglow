@@ -1,0 +1,18 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SIGNUP — VERIFY AUTHENTICATED
+# =============================================================================
+# Prerequisites: the runner has extracted the magic-link token from Mailpit
+# and opened it via `xcrun simctl openurl booted "unquest://..."`, which
+# should land the app on the authenticated home screen with provisional
+# state cleared.
+# =============================================================================
+
+- extendedWaitUntil:
+    visible:
+      id: 'new-quest-tab'
+    timeout: 15000
+
+- assertVisible:
+    id: 'home-header'
