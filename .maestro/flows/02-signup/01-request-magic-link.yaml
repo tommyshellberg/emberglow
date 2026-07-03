@@ -1,0 +1,34 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SIGNUP — REQUEST MAGIC LINK
+# =============================================================================
+# Prerequisites: flows/01-onboarding/ completed. The provisional user has 1
+# completed quest and is sitting on the quest-completed-signup screen
+# ("Claim Your Legend").
+#
+# This flow taps through to the login screen, enters the test email, requests
+# a magic link, and confirms the "email sent" state. Task 17 then verifies the
+# magic link opens an authenticated session.
+# =============================================================================
+
+# --- Quest-completed signup screen ---
+- assertVisible: 'Claim Your Legend'
+- tapOn: 'Create Account'
+
+# --- Login screen: enter email and request magic link ---
+- extendedWaitUntil:
+    visible:
+      id: 'email-input'
+    timeout: 10000
+- tapOn:
+    id: 'email-input'
+- inputText: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
+- tapOn:
+    id: 'login-button'
+
+# --- Email-sent confirmation ---
+- extendedWaitUntil:
+    visible: 'Email sent to'
+    timeout: 10000
+- assertVisible: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
