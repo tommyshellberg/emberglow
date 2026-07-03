@@ -230,6 +230,7 @@ export default function CreateCooperativeQuestScreen() {
               style={{ backgroundColor: colors.neutral[500] }}
             >
               <TouchableOpacity
+                testID="coop-mode-friends-button"
                 onPress={() => handleModeChange('friends')}
                 className="flex-1 rounded-md py-2"
                 style={{
@@ -252,6 +253,7 @@ export default function CreateCooperativeQuestScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="coop-mode-guild-button"
                 onPress={() => handleModeChange('guild')}
                 className="flex-1 rounded-md py-2"
                 style={{
