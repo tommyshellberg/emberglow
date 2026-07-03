@@ -9,6 +9,10 @@ interface CharacterState {
   character: Character | null;
   dailyQuestStreak: number;
   lastStreakCelebrationShown: number | null;
+  spiritRestoredAt: string | null;
+  restorationCount: number;
+  serverSpirit: number | null; // last server-reported spirit
+  serverSpiritAt: number | null; // epoch-ms when a non-null serverSpirit was recorded (null when spirit is null)
   createCharacter: (type: CharacterType, name: string) => void;
   updateCharacter: (updatedCharacter: Partial<Character>) => void;
   addXP: (amount: XP) => void;
@@ -17,6 +21,12 @@ interface CharacterState {
   resetStreak: () => void;
   resetCharacter: () => void;
   markStreakCelebrationShown: () => void;
+  setSpiritState: (args: {
+    spirit: number | null;
+    spiritRestoredAt: string | null;
+    restorationCount: number;
+  }) => void;
+  refillSpirit: () => void;
 }
 
 const INITIAL_CHARACTER: Omit<Character, 'type' | 'name'> = {
@@ -48,6 +58,10 @@ export const useCharacterStore = create<CharacterState>()(
       character: null,
       dailyQuestStreak: 0,
       lastStreakCelebrationShown: null,
+      spiritRestoredAt: null,
+      restorationCount: 0,
+      serverSpirit: null,
+      serverSpiritAt: null,
       createCharacter: (type, name) =>
         set({
           character: {
@@ -104,6 +118,10 @@ export const useCharacterStore = create<CharacterState>()(
           character: null,
           dailyQuestStreak: 0,
           lastStreakCelebrationShown: null,
+          spiritRestoredAt: null,
+          restorationCount: 0,
+          serverSpirit: null,
+          serverSpiritAt: null,
         }));
       },
 
@@ -172,6 +190,22 @@ export const useCharacterStore = create<CharacterState>()(
       markStreakCelebrationShown: () => {
         set({ lastStreakCelebrationShown: Date.now() });
       },
+
+      // Method to sync server-reported spirit (and restoration metadata) from a user fetch.
+      // Only stamp a real anchor timestamp when there's a real spirit value to decay from;
+      // a null spirit (inactive/dormant user) leaves the anchor null so the UI stays inactive.
+      setSpiritState: ({ spirit, spiritRestoredAt, restorationCount }) =>
+        set({
+          serverSpirit: spirit,
+          serverSpiritAt: spirit === null ? null : Date.now(),
+          spiritRestoredAt,
+          restorationCount,
+        }),
+
+      // Optimistic full refill after a quest completion. Touches ONLY the derivation anchor —
+      // NOT spiritRestoredAt/restorationCount (those change only via a Restoration).
+      refillSpirit: () =>
+        set({ serverSpirit: 100, serverSpiritAt: Date.now() }),
     }),
     {
       name: 'character-storage',

@@ -422,4 +422,72 @@ describe('Character Store', () => {
       expect(result.current.dailyQuestStreak).toBe(1);
     });
   });
+
+  describe('spirit state', () => {
+    beforeEach(() => {
+      useCharacterStore.setState({
+        spiritRestoredAt: null,
+        restorationCount: 0,
+        serverSpirit: null,
+        serverSpiritAt: null,
+      });
+    });
+
+    it('setSpiritState records server spirit + a fetch timestamp', () => {
+      const before = Date.now();
+
+      act(() => {
+        useCharacterStore.getState().setSpiritState({
+          spirit: 100,
+          spiritRestoredAt: '2026-06-10T00:00:00Z',
+          restorationCount: 2,
+        });
+      });
+
+      const s = useCharacterStore.getState();
+      expect(s.serverSpirit).toBe(100);
+      expect(s.serverSpiritAt).toBeGreaterThanOrEqual(before);
+      expect(s.spiritRestoredAt).toBe('2026-06-10T00:00:00Z');
+      expect(s.restorationCount).toBe(2);
+    });
+
+    it('tolerates a null spirit (inactive user) and leaves the anchor null', () => {
+      // Seed a stale non-null anchor to prove the null case clears it.
+      act(() => {
+        useCharacterStore.setState({ serverSpirit: 50, serverSpiritAt: 123 });
+      });
+
+      act(() => {
+        useCharacterStore.getState().setSpiritState({
+          spirit: null,
+          spiritRestoredAt: null,
+          restorationCount: 0,
+        });
+      });
+
+      const s = useCharacterStore.getState();
+      expect(s.serverSpirit).toBeNull();
+      // No real spirit → no honest anchor timestamp to decay from.
+      expect(s.serverSpiritAt).toBeNull();
+    });
+
+    it('refillSpirit sets serverSpirit to 100 and re-anchors, leaving restorationCount untouched', () => {
+      act(() => {
+        useCharacterStore.setState({
+          restorationCount: 3,
+          serverSpirit: 20,
+          serverSpiritAt: 1,
+        });
+      });
+
+      act(() => {
+        useCharacterStore.getState().refillSpirit();
+      });
+
+      const s = useCharacterStore.getState();
+      expect(s.serverSpirit).toBe(100);
+      expect(s.serverSpiritAt).toBeGreaterThan(1);
+      expect(s.restorationCount).toBe(3);
+    });
+  });
 });
