@@ -223,6 +223,17 @@ function RootLayout() {
         ) {
           // Handle quest failure notification
           handleQuestFailure(additionalData.questRunId);
+        } else if (
+          additionalData?.type === 'spirit_warning' ||
+          additionalData?.type === 'spirit_faded'
+        ) {
+          // Deep-link to home so the Spirit meter (warning) or
+          // FadingCard (faded) can surface the message. The 1000ms
+          // delay mirrors the cooperative quest handler above, giving
+          // the app time to be ready/authenticated before navigating.
+          setTimeout(() => {
+            router.push('/(app)');
+          }, 1000);
         }
       });
 

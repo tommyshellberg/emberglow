@@ -376,9 +376,10 @@ describe('RootLayout', () => {
 
     // Safety check: if somehow this is >= 24 hours ago, use exactly 20 hours ago
     const hoursSince = (Date.now() - yesterday.getTime()) / (1000 * 60 * 60);
-    const lastCompletedTimestamp = hoursSince >= 24
-      ? Date.now() - (20 * 60 * 60 * 1000) // 20 hours ago
-      : yesterday.getTime();
+    const lastCompletedTimestamp =
+      hoursSince >= 24
+        ? Date.now() - 20 * 60 * 60 * 1000 // 20 hours ago
+        : yesterday.getTime();
 
     useQuestStore.getState.mockReturnValue({
       lastCompletedQuestTimestamp: lastCompletedTimestamp,
@@ -547,6 +548,152 @@ describe('RootLayout', () => {
 
     await waitFor(() => {
       expect(mockFailQuest).toHaveBeenCalled();
+    });
+  });
+
+  it('should navigate to home when spirit_faded notification is clicked', async () => {
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    const clickHandler: (event: any) => void = (
+      (OneSignal.Notifications.addEventListener as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'click'
+      ) as any
+    )[1];
+
+    clickHandler({
+      notification: {
+        additionalData: {
+          type: 'spirit_faded',
+        },
+      },
+    });
+
+    jest.advanceTimersByTime(1000);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/(app)');
+    });
+
+    jest.useRealTimers();
+  });
+
+  it('should navigate to home when spirit_warning notification is clicked', async () => {
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    const clickHandler: (event: any) => void = (
+      (OneSignal.Notifications.addEventListener as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'click'
+      ) as any
+    )[1];
+
+    clickHandler({
+      notification: {
+        additionalData: {
+          type: 'spirit_warning',
+        },
+      },
+    });
+
+    jest.advanceTimersByTime(1000);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/(app)');
+    });
+
+    jest.useRealTimers();
+  });
+
+  it('should still display notification when spirit_faded arrives in foreground', async () => {
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'foregroundWillDisplay',
+        expect.any(Function)
+      );
+    });
+
+    const foregroundHandler: (event: any) => void = (
+      (OneSignal.Notifications.addEventListener as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'foregroundWillDisplay'
+      ) as any
+    )[1];
+
+    const mockEvent = {
+      notification: {
+        additionalData: {
+          type: 'spirit_faded',
+        },
+        display: jest.fn(),
+      },
+      preventDefault: jest.fn(),
+    };
+
+    foregroundHandler(mockEvent);
+
+    await waitFor(() => {
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockEvent.notification.display).toHaveBeenCalled();
+    });
+  });
+
+  it('should still display notification when spirit_warning arrives in foreground', async () => {
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'foregroundWillDisplay',
+        expect.any(Function)
+      );
+    });
+
+    const foregroundHandler: (event: any) => void = (
+      (OneSignal.Notifications.addEventListener as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'foregroundWillDisplay'
+      ) as any
+    )[1];
+
+    const mockEvent = {
+      notification: {
+        additionalData: {
+          type: 'spirit_warning',
+        },
+        display: jest.fn(),
+      },
+      preventDefault: jest.fn(),
+    };
+
+    foregroundHandler(mockEvent);
+
+    await waitFor(() => {
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockEvent.notification.display).toHaveBeenCalled();
     });
   });
 
