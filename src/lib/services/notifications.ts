@@ -377,3 +377,58 @@ export const cancelStreakWarningNotification = async (): Promise<boolean> => {
     return false;
   }
 };
+
+const PRESENCE_WARNING_ID = 'presence-warning';
+
+// Warn an AWAY presence run that it's about to fail. Driven by the presence
+// machine's SCHEDULE_WARNING_NOTIFICATION effect (quest-presence-machine.ts),
+// executed by quest-presence-runtime.ts — mirrors the streak-warning shape above.
+export const schedulePresenceWarningNotification = async (
+  delayMs: number
+): Promise<boolean> => {
+  const enabled = await areNotificationsEnabled();
+  if (!enabled) {
+    console.log('Notifications not enabled, skipping presence warning');
+    return false;
+  }
+
+  try {
+    await ExpoNotifications.cancelScheduledNotificationAsync(
+      PRESENCE_WARNING_ID
+    );
+
+    const seconds = Math.max(1, Math.round(delayMs / 1000));
+
+    await ExpoNotifications.scheduleNotificationAsync({
+      identifier: PRESENCE_WARNING_ID,
+      content: {
+        title: '⚠️ Your hero is in danger!',
+        body: 'Return to Emberglow or lock your phone.',
+        sound: true,
+      },
+      trigger: {
+        type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        channelId: Platform.OS === 'android' ? QUEST_CHANNEL_ID : undefined,
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Failed to schedule presence warning:', error);
+    return false;
+  }
+};
+
+export const cancelPresenceWarningNotification = async (): Promise<boolean> => {
+  try {
+    await ExpoNotifications.cancelScheduledNotificationAsync(
+      PRESENCE_WARNING_ID
+    );
+    console.log('Presence warning canceled');
+    return true;
+  } catch (error) {
+    console.error('Failed to cancel presence warning:', error);
+    return false;
+  }
+};
