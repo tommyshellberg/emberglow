@@ -16,6 +16,26 @@
 
 ---
 
+## Execution progress (last updated 2026-07-04)
+
+**Tasks 1–6 COMPLETE**, committed on `feat/unified-quest-presence-mobile` (branched from `main`). Foundational pure/API layer done — 843 lines of tested code; every new file jest-green + tsc-clean + eslint-clean.
+
+- Task 1 — deps gate PASS (`e2f37e3`): `expo-audio@~0.3.5`, `expo-keep-awake@~14.0.3` verified SDK-52-compatible.
+- Tasks 2/3/4 (`5794c02`, `a6be0e2`, `7e3de1f`) — `quest-presence-machine.ts` pure reducer (22 tests; zero imports).
+- Task 5 (`7823dfc`) — `presence-forecast.ts` (5 tests).
+- Task 6 (`5a2cd66`) — `quest-run-service.ts` begin/confirm/left_app (10 tests).
+
+**Next: Task 7.** Then 8–15 (integration/UI/native), 16 (compat sweep), 17 (device-QA — needs PR #35 merged).
+
+**Execution environment notes — a fresh session MUST know these:**
+1. Run everything from the worktree `.worktrees/feat/unified-quest-presence-mobile`. `pnpm install` is done; `.env.*` were copied from the main checkout (gitignored — not present in a fresh worktree).
+2. **Verification gates** (see "Verification gates" section below): jest-green + new-files-individually-tsc-clean + eslint-clean. `main`'s `tsc` baseline has ~367 pre-existing errors — do NOT chase global `type-check`/`check-all` green; for a *modified* file, only ensure you add no NEW tsc/eslint errors.
+3. **eslint**: the worktree nests inside the main repo, so plain eslint collides on the `prettier` plugin. Lint source files via `pnpm exec eslint --no-eslintrc -c .eslintrc.js --ext .ts <file>` (`.test.ts` reports "ignored by default" under this flag — expected/benign). Always `pnpm exec prettier --write <files>` before committing.
+4. This plan lives under a **gitignored `docs/`** — commit plan edits with `git add -f`.
+5. Commits must NOT include any `Co-Authored-By`/Claude-attribution trailer (repo owner's rule).
+
+---
+
 ## Pre-flight (read before touching anything)
 
 - [ ] **Read the design spec in full.** `docs/superpowers/specs/2026-07-03-unified-quest-presence-design.md` on `chore/lint-ci-green`. The spec's decisions are **final** — do not re-litigate settled trade-offs: heartbeats-rejected (claim-based completion instead), deliberate lock-time over-credit on both client and server (do not "fix" one side only), no iOS background-audio entitlement in v1 (music stops on lock), full-replacement rollout (no in-app A/B flag). This plan implements the spec; it does not redesign it.
