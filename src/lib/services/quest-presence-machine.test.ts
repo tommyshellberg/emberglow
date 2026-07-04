@@ -118,3 +118,52 @@ describe('terminal states are absorbing', () => {
     expect(effects).toEqual([]);
   });
 });
+
+describe('deadline-first chronological evaluation', () => {
+  it('TIMER_COMPLETE while IN_APP → COMPLETED, source watched (client will confirm)', () => {
+    const { context, effects } = presenceReducer(base(), { type: 'TIMER_COMPLETE' }, END);
+    expect(context.state).toBe('COMPLETED');
+    expect(effects).toContainEqual({ type: 'REPORT_COMPLETE', lockedMs: 0, source: 'watched' });
+  });
+
+  it('quest end while LOCKED → COMPLETED, source locked, credits the clipped tail', () => {
+    const segStart = END - 10 * 60_000; // locked for the final 10 min...
+    const ctx = base({ state: 'LOCKED', enteredAt: segStart, lockedSegmentStart: segStart });
+    // ...evaluated late, well past END: the tail is clipped to END (10 min), not to `now`.
+    const { context, effects } = presenceReducer(ctx, { type: 'APP_ACTIVE' }, END + 5 * 60_000);
+    expect(context.state).toBe('COMPLETED');
+    expect(context.lockedMs).toBe(10 * 60_000);
+    expect(effects).toContainEqual({ type: 'REPORT_COMPLETE', lockedMs: 10 * 60_000, source: 'locked' });
+  });
+
+  it('late APP_ACTIVE in AWAY past grace → FAILED (never rescues)', () => {
+    const enteredAt = START + 60_000;
+    const ctx = base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 30_000 });
+    const { context, effects } = presenceReducer(ctx, { type: 'APP_ACTIVE' }, enteredAt + 5 * 60_000);
+    expect(context.state).toBe('FAILED');
+    expect(effects).toContainEqual({ type: 'REPORT_FAIL', reason: 'left_app' });
+  });
+
+  it('chronological: grace before quest end → FAILED', () => {
+    // abandoned at minute 2 of a 30-min quest; evaluated after both are long past
+    const enteredAt = START + 2 * 60_000;
+    const ctx = base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 30_000 });
+    const { context } = presenceReducer(ctx, { type: 'APP_ACTIVE' }, END + 60_000);
+    expect(context.state).toBe('FAILED'); // grace (00:02:30) came before end (00:30:00)
+  });
+
+  it('chronological: quest end before grace → COMPLETED (crash 10s before a long quest finished)', () => {
+    // AWAY entered 10s before END; grace would expire 20s AFTER END
+    const enteredAt = END - 10_000;
+    const ctx = base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 30_000 });
+    const { context } = presenceReducer(ctx, { type: 'APP_ACTIVE' }, END + 5 * 60_000);
+    expect(context.state).toBe('COMPLETED'); // end came before grace
+  });
+
+  it('APP_ACTIVE within grace still rescues (deadline eval finds nothing passed)', () => {
+    const enteredAt = START + 60_000;
+    const ctx = base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 30_000 });
+    const { context } = presenceReducer(ctx, { type: 'APP_ACTIVE' }, enteredAt + 15_000);
+    expect(context.state).toBe('IN_APP');
+  });
+});
