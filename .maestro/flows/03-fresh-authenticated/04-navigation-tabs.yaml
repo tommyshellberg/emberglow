@@ -3,81 +3,49 @@ appId: com.vaedros.unquest
 # =============================================================================
 # TAB NAVIGATION TEST
 # =============================================================================
-# Tests navigation between all main app tabs
-#
-# Tabs to test:
-#   1. Home
-#   2. Journal
-#   3. Map
-#   4. Profile
-#   5. Settings (if separate tab)
+# Tests navigation between all five bottom tabs via their testIDs, verifying a
+# stable anchor on each destination screen.
 # =============================================================================
 
-# Start at Home
 - tapOn:
-    text: 'Home'
-    index: 0
+    id: 'new-quest-tab'
+- assertVisible:
+    id: 'home-header'
 
-# =============================================================================
-# HOME TAB
-# =============================================================================
-- assertVisible: 'Your Journey'
-- assertVisible: 'emberglow'
-
-# =============================================================================
-# JOURNAL TAB
-# =============================================================================
-- tapOn: 'Journal'
-
+# --- Journal tab ---
+- tapOn:
+    id: 'journal-tab'
 - assertVisible: 'Journal'
-- assertVisible: 'Completed Quests'
-
-# Should see the quests we've completed
 - assertVisible: 'Wake up'
 
-# =============================================================================
-# MAP TAB
-# =============================================================================
-- tapOn: 'Map'
+# --- Map tab ---
+# The map screen's title is the map name. There is currently a single map
+# ('map-1' → 'Vaedros Kingdom', src/app/data/maps.ts), so the title is
+# deterministic. extendedWaitUntil absorbs the brief 'Loading map...' state.
+- tapOn:
+    id: 'map-tab'
+- extendedWaitUntil:
+    visible: 'Vaedros Kingdom'
+    timeout: 10000
 
-# Verify map screen loads
-- assertVisible: 'Map'
-
-# Wait for map to render
-
-# =============================================================================
-# PROFILE TAB
-# =============================================================================
-- tapOn: 'Profile'
-
+# --- Profile tab ---
+- tapOn:
+    id: 'profile-tab'
 - assertVisible: 'MaestroHero'
-- assertVisible: 'Level'
+- assertVisible:
+    id: 'level-display'
+- assertVisible: '100 XP'
 
-# Verify XP shows (should be 100 after 2 quests)
-- assertVisible: '100'
+# --- Settings tab ---
+- tapOn:
+    id: 'settings-tab'
+- assertVisible:
+    id: 'settings-screen'
+- assertVisible: 'Account'
+- assertVisible: 'Notifications'
 
-# =============================================================================
-# SETTINGS (if accessible from profile)
-# =============================================================================
-- runFlow:
-    when:
-      visible: 'Settings'
-    commands:
-      - tapOn: 'Settings'
-      - assertVisible: 'Account'
-      - assertVisible: 'Notifications'
-
-      # Navigate back
-      - tapOn: 'Back'
-
-# =============================================================================
-# RETURN TO HOME
-# =============================================================================
-- tapOn: 'Home'
-
-- assertVisible: 'Your Journey'
-
-# =============================================================================
-# TAB NAVIGATION COMPLETE
-# =============================================================================
-# All main tabs navigated successfully!
+# --- Back to home ---
+- tapOn:
+    id: 'new-quest-tab'
+- assertVisible:
+    id: 'home-header'
