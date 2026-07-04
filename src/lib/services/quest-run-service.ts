@@ -9,7 +9,13 @@ import {
 } from '@/store/types';
 // Adjust import path as needed
 
-export type QuestRunStatus = 'pending' | 'active' | 'failed' | 'success';
+export type QuestRunStatus =
+  | 'pending'
+  | 'active'
+  | 'awaiting_confirmation'
+  | 'failed'
+  | 'completed'
+  | 'success'; // 'success' retained for back-compat with existing callers
 
 export interface QuestRunResponse {
   id: string;
@@ -29,6 +35,8 @@ export interface QuestRunResponse {
   invitationId?: string;
   actualStartTime?: number;
   scheduledEndTime?: number;
+  enforcement?: 'presence' | 'lock';
+  failureReason?: string;
 }
 
 interface QuestParticipantRewards {
@@ -165,7 +173,8 @@ export async function updateQuestRunStatus(
   runId: string,
   status: QuestRunStatus,
   liveActivityId?: string | null,
-  ready?: boolean
+  ready?: boolean,
+  failureReason?: string
 ): Promise<QuestRunResponse> {
   try {
     console.log(
@@ -173,12 +182,14 @@ export async function updateQuestRunStatus(
       runId,
       status,
       liveActivityId,
-      ready
+      ready,
+      failureReason
     );
     const payload: {
       status: QuestRunStatus;
       liveActivityId?: string;
       ready?: boolean;
+      failureReason?: string;
     } = {
       status,
     };
@@ -189,6 +200,10 @@ export async function updateQuestRunStatus(
 
     if (ready !== undefined) {
       payload.ready = ready;
+    }
+
+    if (failureReason) {
+      payload.failureReason = failureReason;
     }
 
     // Check if we're using a provisional user
@@ -266,6 +281,57 @@ export async function updatePhoneLockStatus(
       `Failed to update phone lock status for quest run ${runId}:`,
       error
     );
+    throw error;
+  }
+}
+
+/**
+ * Activate a solo run in presence mode. The server sets status/enforcement/
+ * times and schedules completion; returns the activated run.
+ */
+export async function beginQuestRun(runId: string): Promise<QuestRunResponse> {
+  if (!runId || runId === 'null' || runId === 'undefined') {
+    throw new Error('Invalid quest run ID for begin');
+  }
+
+  try {
+    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const client = hasProvisionalToken ? provisionalApiClient : apiClient;
+
+    const response = await client.patch<QuestRunResponse>(
+      `/quest-runs/${runId}/begin`,
+      {}
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to begin quest run ${runId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Confirm completion of a presence run — valid from `awaiting_confirmation`, or
+ * from `active` once the server clock has passed `scheduledEndTime`. The server
+ * awards finalXP including the lock bonus.
+ */
+export async function confirmQuestRun(
+  runId: string
+): Promise<QuestRunResponse> {
+  if (!runId || runId === 'null' || runId === 'undefined') {
+    throw new Error('Invalid quest run ID for confirm');
+  }
+
+  try {
+    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const client = hasProvisionalToken ? provisionalApiClient : apiClient;
+
+    const response = await client.patch<QuestRunResponse>(
+      `/quest-runs/${runId}/confirm`,
+      {}
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to confirm quest run ${runId}:`, error);
     throw error;
   }
 }
