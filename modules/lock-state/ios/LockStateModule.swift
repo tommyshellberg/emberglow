@@ -11,20 +11,26 @@ public class LockStateModule: Module {
     Events("LOCKED", "UNLOCKED")
 
     OnCreate {
+      // True device-lock detection via protected-data availability. When the
+      // device locks, iOS makes file-protected data unavailable; unlocking
+      // makes it available again. This is a real lock signal, unlike the
+      // background/foreground lifecycle proxy it replaces (which fired on any
+      // app switch). Known, accepted limitation: passcode-less devices never
+      // toggle protected-data availability, so their lock reads as "away".
       self.backgroundObserver = NotificationCenter.default.addObserver(
-        forName: UIApplication.didEnterBackgroundNotification,
+        forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
         object: nil,
         queue: .main
       ) { [weak self] _ in
-        self?.sendEvent("LOCKED", ["reason": "App entered background"])
+        self?.sendEvent("LOCKED", ["reason": "Protected data unavailable (device locked)"])
       }
 
       self.foregroundObserver = NotificationCenter.default.addObserver(
-        forName: UIApplication.willEnterForegroundNotification,
+        forName: UIApplication.protectedDataDidBecomeAvailableNotification,
         object: nil,
         queue: .main
       ) { [weak self] _ in
-        self?.sendEvent("UNLOCKED", ["reason": "App entered foreground"])
+        self?.sendEvent("UNLOCKED", ["reason": "Protected data available (device unlocked)"])
       }
     }
 
