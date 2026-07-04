@@ -49,6 +49,7 @@ const mockCharacterState = {
 
 const mockQuestState = {
   pendingQuest: null as any,
+  activeQuest: null as any,
   recentCompletedQuest: null as any,
   failedQuest: null as any,
   completedQuests: [] as any[],
@@ -93,6 +94,7 @@ beforeEach(() => {
   mockOnboardingState.setCurrentStep.mockClear();
   mockCharacterState.character = null;
   mockQuestState.pendingQuest = null;
+  mockQuestState.activeQuest = null;
   mockQuestState.recentCompletedQuest = null;
   mockQuestState.failedQuest = null;
   mockQuestState.completedQuests = [];
@@ -122,6 +124,43 @@ describe('Navigation State Resolver', () => {
       type: 'pending-quest',
       questId: 'quest-1',
     });
+  });
+
+  it('routes an active solo presence run to active-quest', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+    mockQuestState.activeQuest = {
+      id: 'q1',
+      enforcement: 'presence',
+    };
+    mockQuestState.pendingQuest = null;
+    mockQuestState.recentCompletedQuest = null;
+    mockQuestState.failedQuest = null;
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'active-quest',
+      questId: 'q1',
+    });
+  });
+
+  it('does NOT route a cooperative active quest (no enforcement) to active-quest', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+    // Cooperative runs populate activeQuest but never carry `enforcement`.
+    mockQuestState.activeQuest = {
+      id: 'coop-1',
+      mode: 'cooperative',
+    };
+    mockQuestState.pendingQuest = null;
+    mockQuestState.recentCompletedQuest = null;
+    mockQuestState.failedQuest = null;
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current.type).not.toBe('active-quest');
+    expect(result.current).toEqual({ type: 'app' });
   });
 
   it('redirects to first-quest-result for failed quest-1 during onboarding', () => {

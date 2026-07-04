@@ -53,6 +53,9 @@ export default function NavigationGate() {
       case 'cooperative-pending-quest':
         router.push('/cooperative-pending-quest');
         break;
+      case 'active-quest':
+        router.replace('/active-quest');
+        break;
       case 'first-quest-result':
         router.replace(`/first-quest-result?outcome=${target.outcome}`);
         break;
