@@ -3,101 +3,42 @@ appId: com.vaedros.unquest
 # =============================================================================
 # CUSTOM QUEST TEST
 # =============================================================================
-# Tests creating a custom quest
-#
-# Flow:
-#   1. Navigate to custom quest creation
-#   2. Fill in quest details
-#   3. Create quest
-#   4. Verify quest appears in list
-#   5. Optional: Start custom quest
+# Creates a custom quest via the single-step form (name -> Start), verifies the
+# pending-quest screen appears, then cancels (we don't wait for completion, so
+# the quest duration is irrelevant).
 # =============================================================================
 
-# Navigate to Home
-- tapOn: 'Home'
+- tapOn:
+    id: 'new-quest-tab'
+
+- tapOn: 'Create Custom Quest'
+
+# The form's name field (placeholder "go for a run") has autoFocus, so we type
+# into it directly. A non-empty name is the ONLY requirement to enable Start
+# (canContinue = questName.trim().length > 0 — use-custom-quest-form.ts:39).
+- extendedWaitUntil:
+    visible:
+      id: 'start-custom-quest-button'
+    timeout: 10000
+- inputText: 'Maestro Test Quest'
+- hideKeyboard
+
+# Categories are fitness/work/self-care/social/learning/creative/household/
+# outdoors/other (there is NO 'exercise'). Selecting one is optional for Start
+# but we pick fitness for a complete quest.
+- tapOn:
+    id: 'category-option-fitness'
+
+- tapOn:
+    id: 'start-custom-quest-button'
 
 # =============================================================================
-# NAVIGATE TO CUSTOM QUEST
+# VERIFY QUEST STARTED (pending-quest screen), then cancel
 # =============================================================================
-# Look for custom quest button/section
-- runFlow:
-    when:
-      visible: 'Custom Quest'
-    commands:
-      - tapOn: 'Custom Quest'
+- extendedWaitUntil:
+    visible:
+      id: 'quest-card'
+    timeout: 10000
+- assertVisible: 'Lock your phone'
 
-# Alternative: might be in a menu or different location
-- runFlow:
-    when:
-      visible: 'Create Quest'
-    commands:
-      - tapOn: 'Create Quest'
-
-# =============================================================================
-# CUSTOM QUEST CREATION FORM
-# =============================================================================
-- assertVisible: 'Custom Quest'
-
-# Enter quest title
-- runFlow:
-    when:
-      visible: 'Quest Title'
-    commands:
-      - tapOn: 'Quest Title'
-      - inputText: 'Maestro Test Quest'
-
-# Alternative field name
-- runFlow:
-    when:
-      visible: 'Title'
-    commands:
-      - tapOn: 'Title'
-      - inputText: 'Maestro Test Quest'
-
-# Select duration
-- runFlow:
-    when:
-      visible: 'Duration'
-    commands:
-      - tapOn: 'Duration'
-      - tapOn: '2 minutes'
-
-# Select category (if available)
-- runFlow:
-    when:
-      visible: 'Category'
-    commands:
-      - tapOn: 'Category'
-      - tapOn: 'Exercise'
-
-# Create the quest
-- tapOn: 'Create'
-
-# =============================================================================
-# VERIFY QUEST CREATED
-# =============================================================================
-- assertVisible: 'Maestro Test Quest'
-
-# Should show duration
-- assertVisible: '2 min'
-
-# =============================================================================
-# OPTIONAL: START CUSTOM QUEST
-# =============================================================================
-- runFlow:
-    when:
-      visible: 'Maestro Test Quest'
-    commands:
-      # Tap on the quest to start it
-      - tapOn: 'Maestro Test Quest'
-
-      # Should see pending quest screen
-      - assertVisible: 'Quest Ready'
-      - assertVisible: 'Lock your phone'
-
-      # Cancel the quest (don't actually wait 2 minutes)
-      - tapOn: 'Cancel'
-
-# =============================================================================
-# CUSTOM QUEST TEST COMPLETE
-# =============================================================================
+- tapOn: 'Cancel Quest'
