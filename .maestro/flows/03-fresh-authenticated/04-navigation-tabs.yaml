@@ -13,10 +13,14 @@ appId: com.vaedros.unquest
     id: 'home-header'
 
 # --- Journal tab ---
+# The quest-history list loads async ("Loading your quest history..."), so wait
+# for the completed quest to appear rather than asserting immediately.
 - tapOn:
     id: 'journal-tab'
 - assertVisible: 'Journal'
-- assertVisible: 'Wake up'
+- extendedWaitUntil:
+    visible: 'Wake up'
+    timeout: 10000
 
 # --- Map tab ---
 # The map screen's title is the map name. There is currently a single map
