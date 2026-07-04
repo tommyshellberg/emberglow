@@ -39,7 +39,7 @@
 
 - [ ] **Resolve the open analytics question (spec "Open items").** Confirm which pipeline the experiment metrics flow through. `posthog-react-native@^4.1.4` is installed (`package.json:96`) — almost certainly the pipeline. **Decision needed before shipping:** are the four experiment metrics (solo completion rate, quests/user/week, D7 retention, locked-fraction distribution) captured by existing PostHog events, or is new instrumentation required? Instrumentation is **not** a task in this plan — surface the answer here and file a follow-up if new events are needed.
 
-- [ ] **Confirm baseline green.** From the worktree root run `pnpm install` then `pnpm check-all` (`lint && type-check && lint:translations && test`). Save the output. Every task gates on returning to green.
+- [ ] **Baseline established (2026-07-04).** From the worktree root: `pnpm install` (done), plus `.env.*` carried over from the main checkout so the Expo toolchain runs. Baseline measured: **jest is fully green — 112 suites, 1312 passing, 3 skipped, 0 failures** — but `tsc --noemit` has **367 pre-existing errors across ~80 files** on `main` (and 436 on `chore/lint-ci-green`). This is accumulated type debt that predates and is out of scope for this feature; `pnpm check-all` cannot pass on this repo today. See **Verification gates** below for the adopted per-task gate.
 
 ## Compat invariant (governs every task)
 
@@ -48,6 +48,18 @@
 **The machine is pure.** `quest-presence-machine.ts` imports nothing from `react-native`, native modules, timers, MMKV, or the network. If a task adds such an import to the machine file, the design is wrong. All I/O lives in the runtime, which the machine describes via returned `effects`.
 
 **Presence is a run property.** Add `enforcement` to the run-level `Quest` type only (`src/store/types.ts:50-58`). Do **not** add a presence value to the template `mode` enums (`story`/`custom`) in `src/store/types.ts` or `src/api/quest/types.ts`. `getQuestModeLabel` (`src/lib/utils/quest-utils.ts:143`) is orthogonal and unchanged — a presence run still has `mode: 'story' | 'custom'`.
+
+---
+
+## Verification gates (repo baseline reality — adopted 2026-07-04)
+
+`pnpm check-all`/`pnpm type-check` are **not** usable green gates on this repo (367 pre-existing `tsc` errors, out of scope). Each task is instead verified by:
+
+1. **`pnpm test -- <the task's test file(s)>` → GREEN** (the primary TDD signal; jest compiles with babel so it is reliable here). The full `pnpm test` stays green (1312 passing) as the compat gate.
+2. **Every NEW file this task creates must be individually `tsc`-clean** — it must not appear in `pnpm type-check`'s error output. Check with: `pnpm type-check 2>&1 | grep "<new/file/path>"` → no matches. (New presence code is written type-clean; we do not add to the debt.)
+3. **`pnpm lint <changed files>` → clean** for the files the task touches.
+
+Do **not** attempt to make global `type-check`/`check-all` pass. When a task's steps below say "run `pnpm type-check`", interpret it as gate #2 (the new files are clean), not "zero errors globally."
 
 ---
 
@@ -1449,7 +1461,7 @@ git commit -m "feat(active-quest): presence screen with campfire ambience, journ
 
 One looped ambient track, delivered via S3 + the existing `audio-cache.service`. Plays during IN_APP; fades on leaving IN_APP; resumes on return; mute persists. No iOS background-audio entitlement — music stops when the phone locks (v1).
 
-> Before implementing, paste the actual `expo-audio` API recorded in Task 1 Step 5 here (player creation, `.play()`/`.pause()`/`.volume`/looping, teardown).
+> **expo-audio 0.3.5 API (confirmed at the Task 1 gate, SDK 52):** `createAudioPlayer(source, updateInterval?)` → an `AudioPlayer` instance (imperative, for a service singleton); or the `useAudioPlayer(source)` hook. `AudioPlayer` has `.play()`, `.pause()`, `.volume` (settable 0–1), `.loop` (settable boolean), `.replace(source)`, `.seekTo(sec)`, `.remove()` (teardown), and `useAudioPlayerStatus(player)` for state. Global `setAudioModeAsync({ playsInSilentMode, shouldPlayInBackground, ... })` sets the audio session (v1: `shouldPlayInBackground: false` so music stops on lock). Feed it `audioCacheService.getAudioSource(path)`'s `{ uri }`.
 
 **Files:**
 - Create: `src/lib/services/quest-audio.service.ts`
