@@ -10,7 +10,12 @@
 export const GRACE_MS = 30_000;
 export const WARNING_DELAY_MS = 3_000; // warning fires ~3s after leaving so instant switch-backs never see it
 
-export type PresenceState = 'IN_APP' | 'LOCKED' | 'AWAY' | 'FAILED' | 'COMPLETED';
+export type PresenceState =
+  | 'IN_APP'
+  | 'LOCKED'
+  | 'AWAY'
+  | 'FAILED'
+  | 'COMPLETED';
 
 export type PresenceEvent =
   | { type: 'APP_ACTIVE' }
@@ -46,7 +51,10 @@ export interface PresenceContext extends PresenceConfig {
 
 export type Reduction = { context: PresenceContext; effects: PresenceEffect[] };
 
-export const initPresenceContext = (config: PresenceConfig, now: number): PresenceContext => ({
+export const initPresenceContext = (
+  config: PresenceConfig,
+  now: number
+): PresenceContext => ({
   ...config,
   state: 'IN_APP',
   enteredAt: now,
@@ -65,20 +73,27 @@ const closeSegment = (ctx: PresenceContext, now: number): number => {
   return ctx.lockedMs + Math.max(0, upper - ctx.lockedSegmentStart);
 };
 
+// Apply a state transition. `patch` carries the new `state` and `enteredAt`
+// plus any ledger changes; kept to two params to satisfy max-params.
 const enter = (
   ctx: PresenceContext,
-  state: PresenceState,
-  now: number,
-  patch: Partial<PresenceContext> = {}
-): PresenceContext => ({ ...ctx, state, enteredAt: now, ...patch });
+  patch: Partial<PresenceContext>
+): PresenceContext => ({ ...ctx, ...patch });
 
 // --- terminal builders ---
 
 const complete = (ctx: PresenceContext, now: number): Reduction => {
   const lockedMs = closeSegment(ctx, now);
-  const source: 'watched' | 'locked' = ctx.lockedSegmentStart != null ? 'locked' : 'watched';
+  const source: 'watched' | 'locked' =
+    ctx.lockedSegmentStart != null ? 'locked' : 'watched';
   return {
-    context: enter(ctx, 'COMPLETED', now, { lockedMs, lockedSegmentStart: null, graceDeadline: null }),
+    context: enter(ctx, {
+      state: 'COMPLETED',
+      enteredAt: now,
+      lockedMs,
+      lockedSegmentStart: null,
+      graceDeadline: null,
+    }),
     effects: [
       { type: 'CANCEL_GRACE_DEADLINE' },
       { type: 'CANCEL_WARNING_NOTIFICATION' },
@@ -89,7 +104,7 @@ const complete = (ctx: PresenceContext, now: number): Reduction => {
 };
 
 const fail = (ctx: PresenceContext, now: number): Reduction => ({
-  context: enter(ctx, 'FAILED', now, { graceDeadline: null }),
+  context: enter(ctx, { state: 'FAILED', enteredAt: now, graceDeadline: null }),
   effects: [
     { type: 'CANCEL_WARNING_NOTIFICATION' },
     { type: 'REPORT_FAIL', reason: 'left_app' },
@@ -104,11 +119,16 @@ const fail = (ctx: PresenceContext, now: number): Reduction => ({
  * resolution). graceDeadline is only ever set while AWAY.
  * Returns null when no deadline has passed.
  */
-const evaluateDeadlines = (ctx: PresenceContext, now: number): Reduction | null => {
+const evaluateDeadlines = (
+  ctx: PresenceContext,
+  now: number
+): Reduction | null => {
   const endPassed = now >= ctx.scheduledEndTime;
   const gracePassed = ctx.graceDeadline != null && now >= ctx.graceDeadline;
   if (endPassed && gracePassed) {
-    return ctx.scheduledEndTime <= (ctx.graceDeadline as number) ? complete(ctx, now) : fail(ctx, now);
+    return ctx.scheduledEndTime <= (ctx.graceDeadline as number)
+      ? complete(ctx, now)
+      : fail(ctx, now);
   }
   if (endPassed) return complete(ctx, now);
   if (gracePassed) return fail(ctx, now);
@@ -130,7 +150,9 @@ const toInApp = (ctx: PresenceContext, now: number): Reduction => {
   }
   effects.push({ type: 'PERSIST_SNAPSHOT' });
   return {
-    context: enter(ctx, 'IN_APP', now, {
+    context: enter(ctx, {
+      state: 'IN_APP',
+      enteredAt: now,
       lockedMs,
       lockedSegmentStart: null,
       graceDeadline: null,
@@ -141,7 +163,11 @@ const toInApp = (ctx: PresenceContext, now: number): Reduction => {
 };
 
 const toAway = (ctx: PresenceContext, now: number): Reduction => ({
-  context: enter(ctx, 'AWAY', now, { graceDeadline: now + GRACE_MS }),
+  context: enter(ctx, {
+    state: 'AWAY',
+    enteredAt: now,
+    graceDeadline: now + GRACE_MS,
+  }),
   effects: [
     { type: 'ARM_GRACE_DEADLINE', at: now + GRACE_MS },
     { type: 'SCHEDULE_WARNING_NOTIFICATION', delayMs: WARNING_DELAY_MS },
@@ -150,7 +176,9 @@ const toAway = (ctx: PresenceContext, now: number): Reduction => ({
 });
 
 const toAwayFromLock = (ctx: PresenceContext, now: number): Reduction => ({
-  context: enter(ctx, 'AWAY', now, {
+  context: enter(ctx, {
+    state: 'AWAY',
+    enteredAt: now,
     lockedMs: closeSegment(ctx, now),
     lockedSegmentStart: null,
     graceDeadline: now + GRACE_MS,
@@ -164,7 +192,12 @@ const toAwayFromLock = (ctx: PresenceContext, now: number): Reduction => ({
 });
 
 const toLocked = (ctx: PresenceContext, now: number): Reduction => ({
-  context: enter(ctx, 'LOCKED', now, { lockedSegmentStart: now, graceDeadline: null }),
+  context: enter(ctx, {
+    state: 'LOCKED',
+    enteredAt: now,
+    lockedSegmentStart: now,
+    graceDeadline: null,
+  }),
   effects: [
     { type: 'CANCEL_GRACE_DEADLINE' },
     { type: 'CANCEL_WARNING_NOTIFICATION' },
@@ -173,7 +206,10 @@ const toLocked = (ctx: PresenceContext, now: number): Reduction => ({
   ],
 });
 
-const noop = (ctx: PresenceContext): Reduction => ({ context: ctx, effects: [] });
+const noop = (ctx: PresenceContext): Reduction => ({
+  context: ctx,
+  effects: [],
+});
 
 export const presenceReducer = (
   ctx: PresenceContext,
@@ -206,4 +242,49 @@ export const presenceReducer = (
     default:
       return noop(ctx);
   }
+};
+
+/** The MMKV-persisted snapshot the runtime writes on every transition. */
+export interface PresenceSnapshot {
+  state: PresenceState;
+  enteredAt: number;
+  lockedMs: number;
+  lastAliveAt: number;
+}
+
+/**
+ * Cold-start re-judgment. Rebuilds a context with the correct armed deadlines,
+ * then runs the SAME evaluateDeadlines used for warm returns.
+ *  - LOCKED snapshot: the app died locked (force-quitting requires unlocking) —
+ *    innocent. Reopen the segment at enteredAt; if the quest end fell in the
+ *    locked span → COMPLETED (server auto-completed), else resume IN_APP with an
+ *    unlock PATCH (relaunch means the phone is now unlocked/foregrounded).
+ *  - IN_APP/AWAY snapshot: effective grace deadline = max(enteredAt, lastAliveAt)
+ *    + GRACE_MS. For an IN_APP crash, lastAliveAt is within a tick of the crash,
+ *    so the clock starts at the crash, not at state entry.
+ */
+export const rehydratePresence = (
+  snapshot: PresenceSnapshot,
+  config: PresenceConfig,
+  now: number
+): Reduction => {
+  const restored: PresenceContext = {
+    ...config,
+    state: snapshot.state,
+    enteredAt: snapshot.enteredAt,
+    lockedMs: snapshot.lockedMs,
+    lockedSegmentStart: snapshot.state === 'LOCKED' ? snapshot.enteredAt : null,
+    graceDeadline:
+      snapshot.state === 'IN_APP' || snapshot.state === 'AWAY'
+        ? Math.max(snapshot.enteredAt, snapshot.lastAliveAt) + GRACE_MS
+        : null,
+    lastAliveAt: snapshot.lastAliveAt,
+  };
+
+  const byDeadline = evaluateDeadlines(restored, now);
+  if (byDeadline) return byDeadline;
+
+  // No deadline elapsed → resume live. Cold start always relaunches foregrounded
+  // and (for a prior LOCKED) unlocked, so resume IN_APP via the same APP_ACTIVE path.
+  return toInApp(restored, now);
 };
