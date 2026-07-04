@@ -68,6 +68,7 @@ export type Quest = LocalQuestTemplate & {
   questRunId?: string; // Server quest run ID for reflection tracking
   reflection?: QuestReflection; // Optional reflection data
   participants?: QuestParticipant[]; // Quest participants with rewards (for completed quests)
+  enforcement?: 'presence' | 'lock'; // presence is a RUN property; templates keep mode story|custom
 };
 
 export interface Character {

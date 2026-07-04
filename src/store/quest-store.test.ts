@@ -1,6 +1,6 @@
 // Import after mocking
 import QuestTimer from '@/lib/services/quest-timer';
-import { useQuestStore } from '@/store/quest-store';
+import { cleanupRehydratedState, useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types';
 
 // Mock the dependencies
@@ -1485,5 +1485,72 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.availableQuests.length).toBe(1);
       expect(state.availableQuests[0].id).toBe('quest-1');
     });
+  });
+});
+
+describe('cleanupRehydratedState', () => {
+  // These fixtures seed a non-empty completedQuests array so the state passes
+  // the earlier "inconsistent state after reinstall" guard (which unconditionally
+  // clears activeQuest when there are no completedQuests at all) and actually
+  // exercises the duration-elapsed stale-clear guard under test.
+  const priorCompletedQuest = { id: 'prior-quest', status: 'completed' } as any;
+
+  it('does not stale-clear a presence activeQuest after its duration elapses', () => {
+    const longAgoStart = Date.now() - 60 * 60 * 1000; // 60 min ago
+    const state = {
+      activeQuest: {
+        id: 'q1',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: longAgoStart,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    // Presence runs survive rehydrate stale-clear; the presence runtime
+    // re-judges them on cold start instead of the store wall-clock guard.
+    expect(cleaned.activeQuest).not.toBeNull();
+  });
+
+  it('still stale-clears a lock-mode activeQuest after its duration elapses', () => {
+    const longAgoStart = Date.now() - 60 * 60 * 1000;
+    const state = {
+      activeQuest: {
+        id: 'q2',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: longAgoStart,
+        status: 'active',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    expect(cleaned.activeQuest).toBeNull();
+  });
+
+  it('does not throw reaching the presence guard on a sparse state (no pendingQuest/cooperativeQuestRun)', () => {
+    // Seed completedQuests to clear the earlier reinstall guard so execution
+    // actually reaches the presence-guarded stale-clear, then omit
+    // pendingQuest and cooperativeQuestRun to prove the guard tolerates a
+    // sparse object shape.
+    const state = {
+      activeQuest: {
+        id: 'q3',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: Date.now() - 60 * 60 * 1000,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    expect(() => cleanupRehydratedState(state)).not.toThrow();
   });
 });
