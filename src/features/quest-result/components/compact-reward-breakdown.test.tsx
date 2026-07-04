@@ -18,7 +18,12 @@ jest.mock('@/components/skill-tree/perk-icon', () => ({
 describe('CompactRewardBreakdown', () => {
   const mockPerksApplied = [
     { id: 'quick_break', name: 'Quick Break', bonusXP: 9, icon: 'zap' },
-    { id: 'endurance_focus', name: 'Endurance Focus', bonusXP: 14, icon: 'dumbbell' },
+    {
+      id: 'endurance_focus',
+      name: 'Endurance Focus',
+      bonusXP: 14,
+      icon: 'dumbbell',
+    },
   ];
 
   it('renders header text', () => {
@@ -94,5 +99,61 @@ describe('CompactRewardBreakdown', () => {
     expect(screen.getByLabelText('Reward breakdown')).toBeTruthy();
     expect(screen.getByLabelText('Quick Break: +9 XP')).toBeTruthy();
     expect(screen.getByLabelText('Endurance Focus: +14 XP')).toBeTruthy();
+  });
+
+  describe('lock bonus', () => {
+    it('renders a lock bonus line with the server-provided value when positive', () => {
+      render(
+        <CompactRewardBreakdown
+          baseXP={45}
+          adjustedXP={45}
+          perksApplied={[]}
+          lockBonus={12}
+        />
+      );
+
+      expect(screen.getByText('Lock bonus')).toBeTruthy();
+      expect(screen.getByText('+12')).toBeTruthy();
+    });
+
+    it('renders the lock bonus line alongside perk badges when both are present', () => {
+      render(
+        <CompactRewardBreakdown
+          baseXP={45}
+          adjustedXP={68}
+          perksApplied={mockPerksApplied}
+          lockBonus={5}
+        />
+      );
+
+      expect(screen.getByText('Lock bonus')).toBeTruthy();
+      expect(screen.getByText('+5')).toBeTruthy();
+      expect(screen.getByTestId('perk-badge-quick_break')).toBeTruthy();
+    });
+
+    it('renders no lock bonus line when lockBonus is 0', () => {
+      render(
+        <CompactRewardBreakdown
+          baseXP={45}
+          adjustedXP={68}
+          perksApplied={mockPerksApplied}
+          lockBonus={0}
+        />
+      );
+
+      expect(screen.queryByText(/lock bonus/i)).toBeNull();
+    });
+
+    it('renders no lock bonus line when lockBonus is undefined', () => {
+      render(
+        <CompactRewardBreakdown
+          baseXP={45}
+          adjustedXP={68}
+          perksApplied={mockPerksApplied}
+        />
+      );
+
+      expect(screen.queryByText(/lock bonus/i)).toBeNull();
+    });
   });
 });

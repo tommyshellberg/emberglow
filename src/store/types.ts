@@ -127,6 +127,7 @@ export interface QuestParticipantRewards {
   adjustedXP: number;
   multiplier: number;
   perksApplied: string[];
+  lockBonus?: number;
 }
 
 export interface QuestParticipant {

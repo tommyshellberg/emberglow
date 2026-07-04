@@ -1,5 +1,6 @@
 import React from 'react';
 
+import { XPBreakdownRow } from '@/components/quest-preview/xp-breakdown-row';
 import { PerkIcon } from '@/components/skill-tree/perk-icon';
 import { Text, View } from '@/components/ui';
 import { primary } from '@/components/ui/colors';
@@ -18,12 +19,14 @@ interface CompactRewardBreakdownProps {
   baseXP: number;
   adjustedXP: number;
   perksApplied: PerkApplied[];
+  lockBonus?: number;
 }
 
 export function CompactRewardBreakdown({
   baseXP,
   adjustedXP,
   perksApplied,
+  lockBonus,
 }: CompactRewardBreakdownProps) {
   const bonusXP = adjustedXP - baseXP;
 
@@ -37,10 +40,7 @@ export function CompactRewardBreakdown({
         <Text className="text-sm font-semibold text-cream-500">
           Active Perks
         </Text>
-        <Text
-          className="text-sm font-bold"
-          style={{ color: primary[400] }}
-        >
+        <Text className="text-sm font-bold" style={{ color: primary[400] }}>
           +{bonusXP} XP
         </Text>
       </View>
@@ -59,6 +59,11 @@ export function CompactRewardBreakdown({
           </View>
         ))}
       </View>
+
+      {/* Row 3: Locked-focus bonus (presence runs only; server-provided value) */}
+      {!!lockBonus && lockBonus > 0 && (
+        <XPBreakdownRow label="Lock bonus" value={lockBonus} isBonus />
+      )}
     </View>
   );
 }
