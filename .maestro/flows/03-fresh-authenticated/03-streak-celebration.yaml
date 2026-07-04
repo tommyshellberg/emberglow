@@ -3,53 +3,37 @@ appId: com.vaedros.unquest
 # =============================================================================
 # STREAK CELEBRATION TEST
 # =============================================================================
-# Verifies streak celebration screen appears after quest completion
+# Verifies the Day-2 streak, handling both cases: the streak-celebration
+# screen may still be showing, or it may already have been dismissed (in which
+# case we verify the streak count in the profile).
 #
 # Prerequisites:
-#   - Second quest must have been completed
-#   - User should be on Day 2 streak
-#
-# Note: This test assumes the streak celebration appears automatically
-# after the quest completion flow.
+#   - Second quest completed; user on a Day 2 streak.
 # =============================================================================
 
-# The streak celebration might already be showing after the previous quest
-# or we might need to trigger it by completing another action
-
-# =============================================================================
-# VERIFY STREAK CELEBRATION SCREEN
-# =============================================================================
+# Case 1: the streak-celebration screen is showing — dismiss it.
+# Detected by its 'Quest Streak' eyebrow. The screen shows 'day streak!' text
+# and a Continue button whose accessibility label is 'Continue to home screen'.
 - runFlow:
     when:
-      visible: 'Day 2'
+      visible: 'Quest Streak'
     commands:
-      # Streak celebration is showing
-      - assertVisible: 'Streak'
-      - assertVisible: '2'
-
-      # Verify celebration elements
-      - assertVisible: 'Keep it up!'
-
-      # Continue past celebration
+      - assertVisible: 'day streak'
       - tapOn: 'Continue'
 
-# If streak celebration already passed, verify in profile
+# Case 2: streak celebration already passed (or was just dismissed) — verify
+# the streak count in the profile.
 - runFlow:
     when:
-      visible: 'Your Journey'
+      visible:
+        id: 'home-header'
     commands:
-      # Navigate to profile to verify streak count
-      - tapOn: 'Profile'
-
-      # Verify streak shows 2 days
+      - tapOn:
+          id: 'profile-tab'
+      - assertVisible:
+          id: 'streak-display'
       - assertVisible:
           text: '2'
       - assertVisible: 'Day Streak'
-
-      # Navigate back
-      - tapOn: 'Home'
-
-# =============================================================================
-# STREAK VERIFICATION COMPLETE
-# =============================================================================
-# User's streak has been verified!
+      - tapOn:
+          id: 'new-quest-tab'
