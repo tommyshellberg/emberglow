@@ -18,14 +18,24 @@
 
 ## Execution progress (last updated 2026-07-04)
 
-**Tasks 1–6 COMPLETE**, committed on `feat/unified-quest-presence-mobile` (branched from `main`). Foundational pure/API layer done — 843 lines of tested code; every new file jest-green + tsc-clean + eslint-clean.
+**Tasks 1–16 COMPLETE**, committed on `feat/unified-quest-presence-mobile` (branched from `main`). Full suite: **124 suites, 1408 passing, 3 skipped, 0 failures**. Cooperative-quest surfaces byte-identical to `main`; presence machine fully pure (zero imports). Every task went through spec-compliance + code-quality review before commit (fresh subagent per task, two-stage review; findings fixed and amended atomically).
 
 - Task 1 — deps gate PASS (`e2f37e3`): `expo-audio@~0.3.5`, `expo-keep-awake@~14.0.3` verified SDK-52-compatible.
 - Tasks 2/3/4 (`5794c02`, `a6be0e2`, `7e3de1f`) — `quest-presence-machine.ts` pure reducer (22 tests; zero imports).
 - Task 5 (`7823dfc`) — `presence-forecast.ts` (5 tests).
 - Task 6 (`5a2cd66`) — `quest-run-service.ts` begin/confirm/left_app (10 tests).
+- Task 7 (`835646d`) — run-level `enforcement` field + testable `cleanupRehydratedState`; presence runs exempt from rehydrate stale-clear.
+- Task 8 (`2de4ddb`) — `QuestTimer.startPresenceQuest` (immediate solo start) + enforcement guards on `onPhoneLocked`/`onPhoneUnlocked`/`backgroundTask`; 4 solo call sites swapped; coop byte-identical.
+- Task 9 (`70f9726`) — `quest-presence-runtime.ts` single mount, executes machine effects, persists MMKV snapshot, routes coop→legacy; fixed double-mount. (Review caught+fixed a Critical: offline REPORT_FAIL/COMPLETE must still transition local state — `reportThenCommit`.)
+- Task 10 (`37508d5`) — `use-quest-presence.ts` read-only view hook (kebab-cased for lint).
+- Task 11 (`68aea23`) — iOS Swift protected-data lock observers (compile deferred to Task 17 device pass).
+- Task 12 (`ee2009e`) — navigation: presence-gated `activeQuest → /active-quest` (coop excluded; ablation-proven).
+- Task 13 (`009cbb4`) — active-quest screen + 6 components (campfire ambience, journey bar, countdown, info strip, footer, music pill).
+- Task 14 (`aa0221c`) — `quest-audio.service.ts` expo-audio ambient loop; persisted mute; play/fade wired to IN_APP.
+- Task 15 (`1cfa601`) — results screen surfaces `rewards.lockBonus` (additive line; verified against server `finalXP − adjustedXP`).
+- Task 16 — compat sweep PASS (full suite green, coop diff empty, machine pure). Verification-only; no commit.
 
-**Next: Task 7.** Then 8–15 (integration/UI/native), 16 (compat sweep), 17 (device-QA — needs PR #35 merged).
+**Remaining: Task 17 (manual device-QA matrix)** — BLOCKED on resources unavailable in this environment: a device/simulator with an Expo prebuild (to compile the Task 11 Swift change) + PR #35 (server) merged or running against a dev DB. All code (Tasks 7–16) is committed and unit/component-green; Task 17 is on-device behavioral verification only.
 
 **Execution environment notes — a fresh session MUST know these:**
 1. Run everything from the worktree `.worktrees/feat/unified-quest-presence-mobile`. `pnpm install` is done; `.env.*` were copied from the main checkout (gitignored — not present in a fresh worktree).
