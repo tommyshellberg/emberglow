@@ -1,8 +1,9 @@
 import { useKeepAwake } from 'expo-keep-awake';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { View } from '@/components/ui';
 import { useQuestPresence } from '@/lib/hooks/use-quest-presence';
+import { questAudio } from '@/lib/services/quest-audio.service';
 import { useQuestStore } from '@/store/quest-store';
 
 import { AmbientMusicPill } from './active-quest/components/ambient-music-pill';
@@ -35,6 +36,32 @@ export default function ActiveQuestScreen() {
     mode,
   } = useQuestPresence();
   const durationMinutes = useQuestStore((s) => s.activeQuest?.durationMinutes);
+
+  // `useQuestPresence().isMuted` reads storage per-render rather than
+  // subscribing to it, so it won't re-render this screen when the pill is
+  // tapped. Track an immediate local copy for the pill's visual state and
+  // let `questAudio.setMuted` own persistence (Task 14).
+  const [localMuted, setLocalMuted] = useState(isMuted);
+
+  useEffect(() => {
+    if (state === 'IN_APP') {
+      questAudio.playAmbient();
+    } else {
+      questAudio.fadeOut();
+    }
+  }, [state]);
+
+  useEffect(() => {
+    return () => {
+      questAudio.teardown();
+    };
+  }, []);
+
+  const handleToggleMute = () => {
+    const next = !localMuted;
+    setLocalMuted(next);
+    questAudio.setMuted(next);
+  };
 
   if (state === null) {
     // No active presence run — nothing for this screen to show. The
@@ -81,7 +108,10 @@ export default function ActiveQuestScreen() {
       />
 
       <View style={{ marginTop: 24 }}>
-        <AmbientMusicPill isMuted={isMuted} />
+        <AmbientMusicPill
+          isMuted={localMuted}
+          onToggleMute={handleToggleMute}
+        />
       </View>
 
       <View style={{ position: 'absolute', bottom: 16, left: 0, right: 0 }}>

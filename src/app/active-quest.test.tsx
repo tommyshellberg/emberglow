@@ -1,9 +1,10 @@
 import React from 'react';
 import { useKeepAwake } from 'expo-keep-awake';
 
-import { render, screen } from '@/lib/test-utils';
+import { fireEvent, render, screen } from '@/lib/test-utils';
 import type { QuestPresenceView } from '@/lib/hooks/use-quest-presence';
 import { useQuestPresence } from '@/lib/hooks/use-quest-presence';
+import { questAudio } from '@/lib/services/quest-audio.service';
 
 import ActiveQuestScreen from './active-quest';
 
@@ -13,6 +14,19 @@ jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 // in the native LockState module (Task 11) that isn't mockable under jest.
 jest.mock('@/lib/hooks/use-quest-presence', () => ({
   useQuestPresence: jest.fn(),
+}));
+
+// The audio engine (Task 14) is exercised by its own service tests; here we
+// just verify the screen wires state transitions and the pill's toggle to
+// it, without touching real expo-audio.
+jest.mock('@/lib/services/quest-audio.service', () => ({
+  questAudio: {
+    playAmbient: jest.fn(),
+    fadeOut: jest.fn(),
+    resume: jest.fn(),
+    setMuted: jest.fn(),
+    teardown: jest.fn(),
+  },
 }));
 
 // lucide-react-native renders SVG icons (User/Flag/Lock) via react-native-svg,
@@ -101,5 +115,68 @@ describe('ActiveQuestScreen', () => {
     render(<ActiveQuestScreen />);
 
     expect(useKeepAwake).toHaveBeenCalled();
+  });
+
+  it('plays ambient music while IN_APP and fades out for other presence states', () => {
+    mockUseQuestPresence({
+      state: 'IN_APP',
+      remainingMs: 60_000,
+      lockedMs: 0,
+      liveMultiplier: 1,
+      forecast: { current: 10, maxIfLocked: 15 },
+      isMuted: false,
+    });
+
+    const { rerender } = render(<ActiveQuestScreen />);
+    expect(questAudio.playAmbient).toHaveBeenCalled();
+    expect(questAudio.fadeOut).not.toHaveBeenCalled();
+
+    mockUseQuestPresence({
+      state: 'LOCKED',
+      remainingMs: 60_000,
+      lockedMs: 0,
+      liveMultiplier: 1,
+      forecast: { current: 10, maxIfLocked: 15 },
+      isMuted: false,
+    });
+    rerender(<ActiveQuestScreen />);
+
+    expect(questAudio.fadeOut).toHaveBeenCalled();
+  });
+
+  it('tears down the audio player on unmount', () => {
+    mockUseQuestPresence({
+      state: 'IN_APP',
+      remainingMs: 60_000,
+      lockedMs: 0,
+      liveMultiplier: 1,
+      forecast: { current: 10, maxIfLocked: 15 },
+      isMuted: false,
+    });
+
+    const { unmount } = render(<ActiveQuestScreen />);
+    unmount();
+
+    expect(questAudio.teardown).toHaveBeenCalled();
+  });
+
+  it('tapping the ambient music pill toggles and persists mute via questAudio', () => {
+    mockUseQuestPresence({
+      state: 'IN_APP',
+      remainingMs: 60_000,
+      lockedMs: 0,
+      liveMultiplier: 1,
+      forecast: { current: 10, maxIfLocked: 15 },
+      isMuted: false,
+    });
+
+    render(<ActiveQuestScreen />);
+
+    fireEvent.press(screen.getByLabelText('Mute ambient music'));
+    expect(questAudio.setMuted).toHaveBeenCalledWith(true);
+
+    // The pill flips its own label immediately from local state, without
+    // waiting on a re-render of the (non-reactive) presence hook.
+    expect(screen.getByLabelText('Unmute ambient music')).toBeTruthy();
   });
 });
