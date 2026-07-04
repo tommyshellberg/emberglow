@@ -11,6 +11,7 @@ import {
   scheduleQuestCompletionNotification,
 } from '@/lib/services/notifications';
 import {
+  beginQuestRun,
   createQuestRun,
   getQuestRunStatus,
   updatePhoneLockStatus,
@@ -342,9 +343,138 @@ export default class QuestTimer {
     }
   }
 
+  // Immediate-start entry point for SOLO quests running in presence mode.
+  // Unlike prepareQuest (which waits for phone lock before starting the
+  // quest), this activates the run and starts the local quest right away on
+  // tap. Pass/fail decisions for presence runs are owned by the presence
+  // runtime/machine (Tasks 9+), not this timer — see the enforcement guards
+  // in onPhoneLocked/onPhoneUnlocked/backgroundTask below. Cooperative
+  // quests never call this method; they continue to use prepareQuest.
+  static async startPresenceQuest(
+    questTemplate: CustomQuestTemplate | StoryQuestTemplate
+  ) {
+    console.log('[QuestTimer] startPresenceQuest called with:', {
+      title: questTemplate.title,
+      id: questTemplate.id,
+      mode: questTemplate.mode,
+    });
+
+    const notificationsEnabled = await areNotificationsEnabled();
+    if (notificationsEnabled) {
+      await clearAllNotifications();
+    }
+
+    let questRunId: string | null = null;
+
+    try {
+      const questRun = await createQuestRun(questTemplate);
+      questRunId = questRun.id;
+      this.questRunId = questRun.id;
+
+      await beginQuestRun(questRun.id);
+    } catch (error) {
+      console.error('[QuestTimer] Failed to start presence quest run:', error);
+      // Continue anyway - the quest can still run locally, mirroring
+      // prepareQuest's tolerance of server failures.
+    }
+
+    this.questTemplate = questTemplate;
+    this.questStartTime = Date.now();
+
+    const activeQuestTitle = questTemplate.title;
+    const activeTaskDesc = 'Quest in progress…';
+
+    if (Platform.OS === 'ios') {
+      try {
+        if (!this.oneSignalActivityId) {
+          this.oneSignalActivityId = uuidv4();
+        }
+        const attributes = {
+          title: activeQuestTitle,
+          description:
+            'description' in questTemplate
+              ? questTemplate.description
+              : 'Focus on your quest',
+        };
+        const activeContent = {
+          durationMinutes: questTemplate.durationMinutes,
+          status: 'active',
+        };
+        OneSignal.LiveActivities.startDefault(
+          this.oneSignalActivityId,
+          attributes,
+          activeContent
+        );
+        const store = useQuestStore.getState();
+        if (typeof store.setLiveActivityId === 'function') {
+          store.setLiveActivityId(this.oneSignalActivityId);
+        }
+      } catch (error) {
+        console.error(
+          'Error starting active OneSignal Live Activity (presence):',
+          error
+        );
+        this.oneSignalActivityId = null;
+      }
+    }
+
+    await this.saveQuestData();
+
+    // Android Background Service Setup (same option shape as prepareQuest,
+    // but reflects the already-active state instead of "pending").
+    const options = {
+      taskName: 'QuestTimer',
+      taskTitle: activeQuestTitle,
+      taskDesc: activeTaskDesc,
+      taskIcon: {
+        name: 'ic_launcher',
+        type: 'mipmap',
+      },
+      color: '#77c5bf',
+      progressBar: {
+        max: 100,
+        value: 0,
+        indeterminate: false,
+      },
+      parameters: {
+        questDuration: questTemplate.durationMinutes * 60 * 1000,
+        questTitle: questTemplate.title,
+        questDescription:
+          ('recap' in questTemplate
+            ? questTemplate.recap
+            : questTemplate.title) || 'Focus on your quest',
+        questId: questTemplate.id,
+      },
+    };
+
+    try {
+      await BackgroundService.start(this.backgroundTask, options);
+    } catch (error) {
+      console.error('Failed to start background service (presence):', error);
+    }
+
+    useQuestStore.getState().startQuest({
+      ...questTemplate,
+      questRunId: questRunId ?? undefined,
+      enforcement: 'presence',
+      startTime: Date.now(),
+      status: 'active',
+    } as Quest);
+  }
+
   // Called from the lock state listener when phone is locked
   static async onPhoneLocked() {
     console.log('Phone locked');
+
+    // Presence runs are driven by the presence runtime/machine (Tasks 9+), not this
+    // legacy lock hook. Take no action for them. Cooperative runs never set
+    // enforcement, so this guard never fires for coop — their branches are unchanged.
+    if (
+      (useQuestStore.getState().activeQuest?.enforcement ?? 'lock') ===
+      'presence'
+    ) {
+      return;
+    }
 
     // Early return if we're already in the locked state
     if (this.isPhoneLocked) {
@@ -602,6 +732,15 @@ export default class QuestTimer {
     this.isPhoneLocked = false;
 
     await this.loadQuestData();
+
+    // Presence runs: the presence runtime/machine owns pass/fail on unlock. This
+    // legacy hook must take no action (coop and legacy lock runs proceed as before).
+    if (
+      (useQuestStore.getState().activeQuest?.enforcement ?? 'lock') ===
+      'presence'
+    ) {
+      return;
+    }
 
     // Early return if no quest is running
     if (!this.questRunId || !this.questStartTime || !this.questTemplate) {
@@ -1073,8 +1212,15 @@ export default class QuestTimer {
           },
         });
 
-        // Check if quest is complete
-        if (elapsedTime >= questDuration) {
+        // Check if quest is complete. Presence runs are completed via the
+        // presence runtime/machine (server confirm), not this legacy timer —
+        // this condition only ever excludes presence runs; coop and legacy
+        // lock runs are unaffected since they never set enforcement.
+        if (
+          elapsedTime >= questDuration &&
+          (useQuestStore.getState().activeQuest?.enforcement ?? 'lock') !==
+            'presence'
+        ) {
           console.log(
             'Quest completed in background task:',
             this.questTemplate?.id || 'unknown'
@@ -1178,9 +1324,16 @@ export default class QuestTimer {
           await this.stopQuest(); // Stop background service and clear data
           break; // Exit loop
         }
-      } else if (!this.isPhoneLocked && this.questStartTime) {
+      } else if (
+        !this.isPhoneLocked &&
+        this.questStartTime &&
+        (useQuestStore.getState().activeQuest?.enforcement ?? 'lock') !==
+          'presence'
+      ) {
         // Phone was unlocked while quest was running - failQuest handled by onPhoneUnlocked
         // We might need to stop the background task here if onPhoneUnlocked doesn't trigger stopQuest reliably
+        // Presence runs are not stopped here: the runtime owns their lifecycle
+        // even while the phone is unlocked (the user may be watching in-app).
         console.log('Background task detected unlock, stopping.');
         await this.stopQuest(); // Consider adding this if needed
         break; // Exit loop

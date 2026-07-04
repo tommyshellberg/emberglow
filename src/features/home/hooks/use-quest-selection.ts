@@ -5,7 +5,6 @@ import { useCallback } from 'react';
 import { type QuestOption, type QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import QuestTimer from '@/lib/services/quest-timer';
-import { useQuestStore } from '@/store/quest-store';
 import { type LocalQuestTemplate } from '@/store/types';
 
 // The server-provided quest shape (matches the API's QuestTemplate, which
@@ -24,7 +23,6 @@ export function useQuestSelection({
 }: UseQuestSelectionProps) {
   const router = useRouter();
   const posthog = usePostHog();
-  const prepareQuest = useQuestStore((state) => state.prepareQuest);
 
   const handleQuestOptionSelect = useCallback(
     async (nextQuestId: string | null) => {
@@ -59,16 +57,16 @@ export function useQuestSelection({
         };
 
         posthog.capture('trigger_start_quest');
-        prepareQuest(clientQuest as LocalQuestTemplate);
 
         try {
-          // No navigation here: prepareQuest above arms NavigationGate, which
-          // has already pushed /pending-quest by the time this await resolves.
-          await QuestTimer.prepareQuest(clientQuest as LocalQuestTemplate);
+          // Presence runs start immediately on tap - no more waiting for phone
+          // lock. Navigation to the active-quest screen is wired by the
+          // resolver in a later task.
+          await QuestTimer.startPresenceQuest(clientQuest as LocalQuestTemplate);
           posthog.capture('success_start_quest');
         } catch (error) {
           console.error(
-            '[useQuestSelection] QuestTimer.prepareQuest failed:',
+            '[useQuestSelection] QuestTimer.startPresenceQuest failed:',
             error
           );
           throw error;
@@ -81,14 +79,12 @@ export function useQuestSelection({
 
         if (localQuest) {
           posthog.capture('trigger_start_quest');
-          // As above: prepareQuest arms NavigationGate, which owns the push.
-          prepareQuest(localQuest);
-          await QuestTimer.prepareQuest(localQuest);
+          await QuestTimer.startPresenceQuest(localQuest);
           posthog.capture('success_start_quest');
         }
       }
     },
-    [serverQuests, serverOptions, prepareQuest, posthog]
+    [serverQuests, serverOptions, posthog]
   );
 
   const handleStartCustomQuest = useCallback(() => {

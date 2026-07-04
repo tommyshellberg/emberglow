@@ -5,7 +5,6 @@ import React from 'react';
 
 import QuestTimer from '@/lib/services/quest-timer';
 import { cleanup, render, screen, waitFor, within } from '@/lib/test-utils';
-import { useQuestStore } from '@/store/quest-store';
 
 import CustomQuestScreen from './custom-quest';
 
@@ -15,7 +14,7 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('@/lib/services/quest-timer', () => ({
-  prepareQuest: jest.fn().mockResolvedValue(undefined),
+  startPresenceQuest: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Mock vector icons
@@ -43,7 +42,6 @@ jest.mock('posthog-react-native', () => ({
 describe('CustomQuestScreen', () => {
   // Properly type the mocked objects
   let mockedRouter: { back: jest.Mock; push: jest.Mock };
-  let mockedPrepareQuest: jest.Mock;
 
   beforeEach(() => {
     mockedRouter = {
@@ -51,12 +49,6 @@ describe('CustomQuestScreen', () => {
       push: jest.fn(),
     };
     (useRouter as jest.Mock).mockReturnValue(mockedRouter);
-
-    // Reset the mocked function before each test
-    mockedPrepareQuest = jest.fn();
-    useQuestStore.getState = jest.fn().mockReturnValue({
-      prepareQuest: mockedPrepareQuest,
-    });
   });
 
   afterEach(() => {
@@ -157,7 +149,7 @@ describe('CustomQuestScreen', () => {
     });
   });
 
-  it('calls prepareQuest when form is submitted with valid data', async () => {
+  it('calls QuestTimer.startPresenceQuest when form is submitted with valid data', async () => {
     render(<CustomQuestScreen />);
 
     // Fill out the form
@@ -173,22 +165,19 @@ describe('CustomQuestScreen', () => {
     const startButton = screen.getByText('Start Quest');
     fireEvent.press(startButton);
 
-    // Verify prepareQuest was called
+    // Verify the presence quest starts immediately on tap
     await waitFor(() => {
-      expect(mockedPrepareQuest).toHaveBeenCalledTimes(1);
+      expect(QuestTimer.startPresenceQuest).toHaveBeenCalledTimes(1);
     });
 
     // Separately check the arguments
-    expect(mockedPrepareQuest).toHaveBeenCalledWith(
+    expect(QuestTimer.startPresenceQuest).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Test Quest',
         durationMinutes: 45,
         category: expect.any(String),
       })
     );
-
-    // Verify QuestTimer.prepareQuest was called
-    expect(QuestTimer.prepareQuest).toHaveBeenCalledTimes(1);
   });
 
   describe('Analytics Events', () => {
@@ -247,7 +236,7 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedPrepareQuest).toHaveBeenCalledWith(
+        expect(QuestTimer.startPresenceQuest).toHaveBeenCalledWith(
           expect.objectContaining({
             reward: { xp: 90 }, // 30 * 3 = 90
           })
@@ -270,7 +259,7 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedPrepareQuest).toHaveBeenCalledWith(
+        expect(QuestTimer.startPresenceQuest).toHaveBeenCalledWith(
           expect.objectContaining({
             reward: { xp: 180 }, // 60 * 3 = 180
           })
@@ -293,7 +282,7 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedPrepareQuest).toHaveBeenCalledWith(
+        expect(QuestTimer.startPresenceQuest).toHaveBeenCalledWith(
           expect.objectContaining({
             reward: { xp: 720 }, // 240 * 3 = 720
           })
@@ -303,31 +292,9 @@ describe('CustomQuestScreen', () => {
   });
 
   describe('Error Handling', () => {
-    it('shows error message when store prepareQuest fails', async () => {
-      // Mock the store to throw an error
-      useQuestStore.getState = jest.fn().mockReturnValue({
-        prepareQuest: jest.fn(() => {
-          throw new Error('Store error');
-        }),
-      });
-
-      render(<CustomQuestScreen />);
-
-      const nameInput = screen.getByPlaceholderText('go for a run');
-      fireEvent.changeText(nameInput, 'Test Quest');
-
-      const startButton = screen.getByText('Start Quest');
-      fireEvent.press(startButton);
-
-      // Should show error message (once we implement it)
-      await waitFor(() => {
-        expect(screen.queryByText(/Failed to start quest/i)).toBeOnTheScreen();
-      });
-    });
-
-    it('shows error message when QuestTimer.prepareQuest fails', async () => {
+    it('shows error message when QuestTimer.startPresenceQuest fails', async () => {
       // Mock QuestTimer to reject
-      (QuestTimer.prepareQuest as jest.Mock).mockRejectedValueOnce(
+      (QuestTimer.startPresenceQuest as jest.Mock).mockRejectedValueOnce(
         new Error('Timer error')
       );
 
@@ -347,7 +314,7 @@ describe('CustomQuestScreen', () => {
 
     it('allows retrying after error', async () => {
       // Mock to fail first, then succeed
-      (QuestTimer.prepareQuest as jest.Mock)
+      (QuestTimer.startPresenceQuest as jest.Mock)
         .mockRejectedValueOnce(new Error('Timer error'))
         .mockResolvedValueOnce(undefined);
 
@@ -368,8 +335,11 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(QuestTimer.prepareQuest).toHaveBeenCalledTimes(2);
+        expect(mockPostHogCapture).toHaveBeenCalledWith(
+          'success_start_custom_quest'
+        );
       });
+      expect(QuestTimer.startPresenceQuest).toHaveBeenCalledTimes(2);
       expect(
         screen.queryByText(/Failed to start quest/i)
       ).not.toBeOnTheScreen();
@@ -377,10 +347,10 @@ describe('CustomQuestScreen', () => {
   });
 
   describe('Navigation', () => {
-    it('arms the quest store, leaving the pending-quest push to NavigationGate', async () => {
-      // Arming the store IS the navigation: the resolver turns a pendingQuest
-      // into target 'pending-quest' and the root NavigationGate pushes it.
-      // This screen pushing as well stacked a second identical screen.
+    // Presence runs start immediately on tap (no more "pending" screen wait).
+    // Navigation to the active-quest screen is wired by the resolver in a
+    // later task, so no navigation happens yet at this point in the rollout.
+    it('starts the presence quest immediately without navigating away', async () => {
       render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
@@ -390,11 +360,9 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedPrepareQuest).toHaveBeenCalledWith(
-          expect.objectContaining({ title: 'Test Quest', mode: 'custom' })
-        );
+        expect(QuestTimer.startPresenceQuest).toHaveBeenCalledTimes(1);
       });
-      expect(mockedRouter.push).not.toHaveBeenCalledWith('/pending-quest');
+      expect(mockedRouter.push).not.toHaveBeenCalled();
     });
   });
 

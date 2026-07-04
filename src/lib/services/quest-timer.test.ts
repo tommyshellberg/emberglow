@@ -7,11 +7,13 @@ import { OneSignal } from 'react-native-onesignal';
 
 // Import mocked modules
 import {
+  beginQuestRun,
   createQuestRun,
   updatePhoneLockStatus,
 } from '@/lib/services/quest-run-service';
 import { removeItem, setItem } from '@/lib/storage';
 // Import the store for assertions
+import { useQuestStore } from '@/store/quest-store';
 // Import types
 import type {
   CooperativeQuestTemplate,
@@ -34,6 +36,11 @@ jest.mock('@/lib/services/quest-run-service', () => ({
     status: 'active',
     actualStartTime: Date.now(),
     scheduledEndTime: Date.now() + 900000,
+  }),
+  beginQuestRun: jest.fn().mockResolvedValue({
+    id: 'mock-quest-run-id',
+    status: 'active',
+    enforcement: 'presence',
   }),
 }));
 
@@ -512,6 +519,127 @@ describe('QuestTimer', () => {
         })
       );
       expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('startPresenceQuest (Task 8: solo presence start)', () => {
+    const mockQuestTemplate: StoryQuestTemplate = {
+      id: 'test-quest-id',
+      title: 'Test Quest',
+      durationMinutes: 30,
+      mode: 'story',
+      recap: 'Test quest recap',
+      poiSlug: 'test-poi',
+      story: 'Test story content',
+      options: [],
+      reward: { xp: 50 },
+    };
+
+    afterEach(() => {
+      // The manual store mock's `activeQuest` is a shared, mutable object
+      // (getState always returns the same reference, and startQuest is a
+      // bare jest.fn() that doesn't actually update it). The tests below
+      // mutate it directly to simulate a presence run being active; restore
+      // the suite-wide default here so later tests aren't affected.
+      const store = useQuestStore.getState() as any;
+      store.activeQuest = { id: 'test-quest-id', startTime: 0 };
+    });
+
+    it('creates the run, begins it, and starts the local active quest', async () => {
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'pending',
+        quest: { durationMinutes: 30, reward: { xp: 50 } },
+      });
+      (beginQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'active',
+        enforcement: 'presence',
+        actualStartTime: Date.now(),
+        scheduledEndTime: Date.now() + 30 * 60_000,
+      });
+
+      await QuestTimer.startPresenceQuest(mockQuestTemplate);
+
+      expect(createQuestRun).toHaveBeenCalledWith(mockQuestTemplate);
+      expect(beginQuestRun).toHaveBeenCalledWith('run1');
+
+      const started = useQuestStore.getState().startQuest as jest.Mock;
+      expect(started).toHaveBeenCalledWith(
+        expect.objectContaining({
+          questRunId: 'run1',
+          enforcement: 'presence',
+        })
+      );
+
+      // Happy path calls them in order: create -> begin -> local start.
+      const createOrder = (createQuestRun as jest.Mock).mock
+        .invocationCallOrder[0];
+      const beginOrder = (beginQuestRun as jest.Mock).mock
+        .invocationCallOrder[0];
+      const startOrder = started.mock.invocationCallOrder[0];
+      expect(createOrder).toBeLessThan(beginOrder);
+      expect(beginOrder).toBeLessThan(startOrder);
+    });
+
+    it('onPhoneLocked takes no action for a SOLO presence quest (the machine owns it)', async () => {
+      // Set up the timer via prepareQuest, NOT startPresenceQuest. prepareQuest
+      // sets this.questStartTime = null (and this.questTemplate/questRunId);
+      // startPresenceQuest would set questStartTime = Date.now(), which would
+      // make onPhoneLocked short-circuit on the pre-existing
+      // `if (this.questTemplate && !this.questStartTime)` check for a reason
+      // unrelated to the enforcement guard — making this test vacuous. With
+      // questStartTime null and no cooperativeQuestRun, the enforcement guard
+      // is the SOLE thing preventing the solo lock PATCH from firing.
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+
+      // Mark the active run as presence. This file's store mock doesn't wire
+      // startQuest to activeQuest, so set it directly (same idiom as the
+      // onPhoneUnlocked test; restored in afterEach).
+      const store = useQuestStore.getState() as any;
+      store.activeQuest = { ...mockQuestTemplate, enforcement: 'presence' };
+
+      (updatePhoneLockStatus as jest.Mock).mockClear();
+      // @ts-ignore reset the duplicate-lock guard so it doesn't short-circuit
+      // before the presence guard we're testing
+      QuestTimer.isPhoneLocked = false;
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
+    });
+
+    it('onPhoneUnlocked no longer fails a SOLO presence quest (the machine owns that)', async () => {
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'pending',
+        quest: { durationMinutes: 30, reward: { xp: 50 } },
+      });
+      (beginQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'active',
+        enforcement: 'presence',
+      });
+
+      await QuestTimer.startPresenceQuest(mockQuestTemplate);
+
+      // See afterEach comment: simulate what startQuest would have set,
+      // since this file's store mock doesn't wire startQuest to activeQuest.
+      const store = useQuestStore.getState() as any;
+      store.activeQuest = {
+        ...mockQuestTemplate,
+        questRunId: 'run1',
+        enforcement: 'presence',
+        startTime: Date.now(),
+        status: 'active',
+      };
+
+      (updatePhoneLockStatus as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(useQuestStore.getState().failQuest).not.toHaveBeenCalled();
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
     });
   });
 });
