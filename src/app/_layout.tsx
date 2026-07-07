@@ -451,6 +451,18 @@ function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="scheduled-quest/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="scheduled-quest/create"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="scheduled-quest/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="auth/magiclink/verify"
           options={{ headerShown: false }}
         />
