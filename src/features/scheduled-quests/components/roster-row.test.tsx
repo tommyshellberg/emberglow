@@ -60,16 +60,4 @@ describe('RosterRow', () => {
     expect(screen.getByText(/Host/)).toBeTruthy();
     expect(screen.getByTestId('kick-button')).toBeTruthy();
   });
-
-  it('does not render the kick action for non-creators, even when onKick is provided', () => {
-    render(
-      <RosterRow
-        participant={participant}
-        isCreator={false}
-        runStatus="pending"
-        onKick={jest.fn()}
-      />
-    );
-    expect(screen.queryByTestId('kick-button')).toBeNull();
-  });
 });

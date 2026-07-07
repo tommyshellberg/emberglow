@@ -113,7 +113,7 @@ export default function EventScreen() {
           <RosterRow
             key={participantUserId(p) ?? index}
             participant={p}
-            isCreator={amCreator}
+            isCreator={index === 0}
             runStatus={r.status}
             onKick={
               amCreator &&

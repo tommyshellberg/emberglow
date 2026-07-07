@@ -25,10 +25,12 @@ jest.mock('@/api/scheduled-quests', () => ({
   }),
   useLeaveScheduledQuest: () => ({ mutate: jest.fn(), isPending: false }),
   useCancelScheduledQuest: () => ({ mutate: jest.fn(), isPending: false }),
-  useKickParticipant: () => ({ mutate: jest.fn(), isPending: false }),
+  useKickParticipant: jest.fn(() => ({ mutate: jest.fn(), isPending: false })),
 }));
 
-const { useScheduledQuest } = jest.requireMock('@/api/scheduled-quests');
+const { useScheduledQuest, useKickParticipant } = jest.requireMock(
+  '@/api/scheduled-quests'
+);
 
 const baseRun = (overrides = {}) => ({
   id: 'r1',
@@ -70,7 +72,9 @@ describe('EventScreen', () => {
     render(<EventScreen />);
     expect(screen.getByText('5am run club')).toBeTruthy();
     expect(screen.getByText(/Starts in/)).toBeTruthy();
-    expect(screen.getByText('Thorin')).toBeTruthy();
+    // Thorin is the event creator (index 0), so his row shows "· Host"
+    // regardless of who's viewing — row identity, not viewer identity.
+    expect(screen.getByText(/Thorin/)).toBeTruthy();
     expect(screen.getByText('Register')).toBeTruthy();
   });
 
@@ -105,5 +109,57 @@ describe('EventScreen', () => {
     });
     render(<EventScreen />);
     expect(screen.getByText(/too late to join/i)).toBeTruthy();
+  });
+
+  it('labels only the actual host as Host and offers kick only for the other participant, for a creator viewer with two participants', () => {
+    const kickMutate = jest.fn();
+    useKickParticipant.mockReturnValue({
+      mutate: kickMutate,
+      isPending: false,
+    });
+    useUserStore.setState({ user: { id: 'creator' } } as any);
+    useScheduledQuest.mockReturnValue({
+      data: baseRun({
+        participants: [
+          {
+            userId: {
+              id: 'creator',
+              character: { name: 'Thorin', type: 'knight', level: 4 },
+            },
+            ready: false,
+            phoneLocked: false,
+            status: 'active',
+          },
+          {
+            userId: {
+              id: 'p2',
+              character: { name: 'Kara', type: 'ranger', level: 2 },
+            },
+            ready: false,
+            phoneLocked: false,
+            status: 'active',
+          },
+        ],
+      }),
+      isLoading: false,
+    });
+    render(<EventScreen />);
+
+    // Exactly one "Host" label, and it belongs to the creator's row, not Kara's.
+    const hostLabels = screen.getAllByText(/Host/);
+    expect(hostLabels).toHaveLength(1);
+    expect(hostLabels[0].props.children).toEqual(['Thorin', '  ·  Host']);
+    // Kara's name renders with no "Host" suffix attached (exact match would
+    // fail if the label had leaked onto her row).
+    expect(screen.getByText('Kara')).toBeTruthy();
+
+    // Exactly one kick action, and it targets the non-host participant.
+    const kickButtons = screen.getAllByTestId('kick-button');
+    expect(kickButtons).toHaveLength(1);
+    fireEvent.press(kickButtons[0]);
+    expect(kickMutate).toHaveBeenCalledWith({
+      questRunId: 'r1',
+      userId: 'p2',
+    });
   });
 });

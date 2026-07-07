@@ -53,7 +53,7 @@ export function RosterRow({
       <Text className="mr-2 text-sm text-neutral-200">
         {statusLabel(participant, runStatus)}
       </Text>
-      {onKick && isCreator ? (
+      {onKick ? (
         <TouchableOpacity
           testID="kick-button"
           onPress={onKick}
