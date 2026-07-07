@@ -1,4 +1,7 @@
-import { type ScheduledParticipant } from '../types';
+import {
+  type ScheduledParticipant,
+  type ScheduledParticipantUser,
+} from '../types';
 
 export const participantUserId = (
   p: ScheduledParticipant | undefined
@@ -12,3 +15,8 @@ export const participantDisplayName = (p: ScheduledParticipant): string => {
     return p.userId.character.name;
   return 'Adventurer';
 };
+
+export const participantCharacter = (
+  p: ScheduledParticipant
+): ScheduledParticipantUser['character'] | undefined =>
+  typeof p.userId === 'string' ? undefined : p.userId?.character;

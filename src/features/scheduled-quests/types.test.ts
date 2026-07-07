@@ -1,9 +1,14 @@
-import { isJoinable, joinCutoffMs, overlapsWindow } from './types';
+import {
+  isJoinable,
+  joinCutoffMs,
+  overlapsWindow,
+  type ScheduledQuestStatus,
+} from './types';
 
 const run = (
   startISO: string,
   durationMinutes: number,
-  status: 'pending' | 'active' = 'pending'
+  status: ScheduledQuestStatus = 'pending'
 ) =>
   ({
     id: 'r1',
@@ -41,6 +46,9 @@ describe('join window helpers', () => {
     expect(
       isJoinable(run(start, 60, 'active'), startMs + 15 * 60_000 + 1)
     ).toBe(false);
+  });
+  it('completed runs are never joinable, regardless of timing', () => {
+    expect(isJoinable(run(start, 60, 'completed'), startMs)).toBe(false);
   });
 });
 
