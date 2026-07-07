@@ -223,6 +223,23 @@ function RootLayout() {
         ) {
           // Handle quest failure notification
           handleQuestFailure(additionalData.questRunId);
+        } else if (
+          additionalData?.questRunId &&
+          [
+            'scheduled_quest_starting_soon',
+            'scheduled_quest_started',
+            'scheduled_quest_cancelled',
+          ].includes(additionalData?.type)
+        ) {
+          // Deep-link into the event screen; it renders lobby / take-part /
+          // cancelled from the fetched run state, so one route serves all three.
+          setTimeout(() => {
+            router.push(`/scheduled-quest/${additionalData.questRunId}`);
+          }, 1000);
+        } else if (additionalData?.type === 'scheduled_quest_kicked') {
+          setTimeout(() => {
+            router.push('/scheduled-quest');
+          }, 1000);
         }
       });
 
