@@ -23,7 +23,11 @@ const run = {
 
 describe('CancelledView', () => {
   it('renders a cancellation title and the given reason', () => {
-    render(<CancelledView run={{ ...run, cancellationReason: 'Not enough players joined.' }} />);
+    render(
+      <CancelledView
+        run={{ ...run, cancellationReason: 'Not enough players joined.' }}
+      />
+    );
     expect(screen.getByText(/cancelled/i)).toBeTruthy();
     expect(screen.getByText('Not enough players joined.')).toBeTruthy();
   });

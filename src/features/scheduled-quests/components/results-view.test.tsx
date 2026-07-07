@@ -39,7 +39,12 @@ const run = {
       ready: false,
       phoneLocked: false,
       status: 'no_show',
-      rewards: { baseXP: 180, adjustedXP: 180, multiplier: 1, perksApplied: [] },
+      rewards: {
+        baseXP: 180,
+        adjustedXP: 180,
+        multiplier: 1,
+        perksApplied: [],
+      },
     },
     {
       userId: {
