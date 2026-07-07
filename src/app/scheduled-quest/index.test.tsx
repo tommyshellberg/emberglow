@@ -68,4 +68,21 @@ describe('ScheduledQuestDiscovery', () => {
     render(<ScheduledQuestDiscovery />);
     expect(screen.getByText(/No upcoming events/)).toBeTruthy();
   });
+
+  it("flags a Discover result that overlaps one of the user's own registrations", () => {
+    const discoverRun = run('r1', 'Morning run');
+    const myRun = run('r2', 'My event');
+    useDiscoverScheduledQuests.mockReturnValue({
+      data: [discoverRun],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    useMyScheduledQuests.mockReturnValue({
+      data: [myRun],
+      isLoading: false,
+      refetch: jest.fn(),
+    });
+    render(<ScheduledQuestDiscovery />);
+    expect(screen.getByText('Overlaps one of your events')).toBeTruthy();
+  });
 });

@@ -8,6 +8,7 @@ import {
   useMyScheduledQuests,
 } from '@/api/scheduled-quests';
 import {
+  ActivityIndicator,
   FocusAwareStatusBar,
   ScreenContainer,
   Text,
@@ -53,6 +54,8 @@ export default function ScheduledQuestDiscovery() {
           <TouchableOpacity
             key={t}
             onPress={() => setTab(t)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t }}
             className={`mr-2 rounded-full px-4 py-2 ${tab === t ? 'bg-primary-400' : 'bg-neutral-800'}`}
           >
             <Text
@@ -73,7 +76,9 @@ export default function ScheduledQuestDiscovery() {
           />
         }
       >
-        {feed.length === 0 ? (
+        {active.isLoading ? (
+          <ActivityIndicator className="py-8" />
+        ) : feed.length === 0 ? (
           <Text className="mt-10 text-center text-neutral-400">
             {tab === 'discover'
               ? 'No upcoming events right now - create one!'
