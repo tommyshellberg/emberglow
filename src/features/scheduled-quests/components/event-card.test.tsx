@@ -17,7 +17,10 @@ const run = {
   },
   participants: [
     {
-      userId: { id: 'u1', character: { name: 'Thorin', type: 'knight', level: 4 } },
+      userId: {
+        id: 'u1',
+        character: { name: 'Thorin', type: 'knight', level: 4 },
+      },
       ready: false,
       phoneLocked: false,
       status: 'active',

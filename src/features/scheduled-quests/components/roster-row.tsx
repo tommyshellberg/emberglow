@@ -53,8 +53,15 @@ export function RosterRow({
       <Text className="mr-2 text-sm text-neutral-200">
         {statusLabel(participant, runStatus)}
       </Text>
-      {onKick ? (
-        <TouchableOpacity testID="kick-button" onPress={onKick} className="p-1">
+      {onKick && isCreator ? (
+        <TouchableOpacity
+          testID="kick-button"
+          onPress={onKick}
+          className="p-1"
+          accessibilityRole="button"
+          accessibilityLabel="Remove participant"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <UserX size={18} color={colors.red[300]} />
         </TouchableOpacity>
       ) : null}

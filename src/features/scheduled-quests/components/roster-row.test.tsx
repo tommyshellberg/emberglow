@@ -6,7 +6,10 @@ import { RosterRow } from './roster-row';
 
 describe('RosterRow', () => {
   const participant = {
-    userId: { id: 'u1', character: { name: 'Thorin', type: 'knight', level: 4 } },
+    userId: {
+      id: 'u1',
+      character: { name: 'Thorin', type: 'knight', level: 4 },
+    },
     ready: false,
     phoneLocked: false,
     status: 'active',
@@ -14,7 +17,11 @@ describe('RosterRow', () => {
 
   it('renders name, level and a status badge', () => {
     render(
-      <RosterRow participant={participant} isCreator={false} runStatus="pending" />
+      <RosterRow
+        participant={participant}
+        isCreator={false}
+        runStatus="pending"
+      />
     );
     expect(screen.getByText('Thorin')).toBeTruthy();
     expect(screen.getByText(/Lv\. 4/)).toBeTruthy();
@@ -52,5 +59,17 @@ describe('RosterRow', () => {
     );
     expect(screen.getByText(/Host/)).toBeTruthy();
     expect(screen.getByTestId('kick-button')).toBeTruthy();
+  });
+
+  it('does not render the kick action for non-creators, even when onKick is provided', () => {
+    render(
+      <RosterRow
+        participant={participant}
+        isCreator={false}
+        runStatus="pending"
+        onKick={jest.fn()}
+      />
+    );
+    expect(screen.queryByTestId('kick-button')).toBeNull();
   });
 });
