@@ -202,7 +202,9 @@ export default function CooperativePendingQuestScreen() {
           entering={FadeIn.delay(600).duration(500)}
           className="px-8 text-center text-lg text-white"
         >
-          All companions must lock together
+          {cooperativeQuestRun?.completionPolicy === 'individual'
+            ? 'Lock your phone to take part - an early unlock only fails you'
+            : 'All companions must lock together'}
         </Animated.Text>
       </View>
     );
@@ -438,7 +440,9 @@ export default function CooperativePendingQuestScreen() {
             accessibilityHidden
           />
           <Text className="ml-2 text-base font-semibold text-white">
-            All companions must lock phones to begin
+            {cooperativeQuestRun?.completionPolicy === 'individual'
+              ? 'Lock your phone to take part - an early unlock only fails you'
+              : 'All companions must lock phones to begin'}
           </Text>
         </Animated.View>
 
