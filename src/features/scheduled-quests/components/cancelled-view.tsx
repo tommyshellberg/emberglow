@@ -1,14 +1,16 @@
 import React from 'react';
 
-import { Text } from '@/components/ui';
+import { Text, View } from '@/components/ui';
 
 import { type ScheduledQuestRun } from '../types';
 
-interface Props {
-  run: ScheduledQuestRun;
-}
-
-/** Stub pending Task 18, which adds the real cancelled/failed messaging + tests. */
-export function CancelledView(_props: Props) {
-  return <Text>Cancelled</Text>;
+export function CancelledView({ run }: { run: ScheduledQuestRun }) {
+  return (
+    <View className="items-center py-10">
+      <Text className="text-lg font-bold">This event was cancelled</Text>
+      <Text className="mt-2 text-center text-neutral-400">
+        {run.cancellationReason ?? 'The event is no longer happening.'}
+      </Text>
+    </View>
+  );
 }
