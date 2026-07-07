@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  CalendarClock,
   ChevronRight,
   Info,
   PlusCircle,
@@ -55,6 +56,14 @@ const menuOptions: MenuOption[] = [
     icon: <Users size={32} color="#FFFFFF" />,
     route: '/join-cooperative-quest',
     color: 'bg-secondary-400',
+  },
+  {
+    id: 'events',
+    title: 'Public Events',
+    description: 'Discover and register for scheduled community quests',
+    icon: <CalendarClock size={32} color="#FFFFFF" />,
+    route: '/scheduled-quest',
+    color: 'bg-primary-400',
   },
   {
     id: 'friends',

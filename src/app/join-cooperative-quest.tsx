@@ -18,7 +18,6 @@ import {
   View,
 } from '@/components/ui';
 import colors from '@/components/ui/colors.js';
-import { InfoCard } from '@/components/ui/info-card';
 
 interface InvitationCardProps {
   invitation: any;
@@ -274,9 +273,7 @@ export default function JoinCooperativeQuest() {
           <Text className="ml-2 text-lg text-white">Back</Text>
         </TouchableOpacity>
 
-        <Text className="mb-2 text-3xl font-bold text-white">
-          Join a Quest
-        </Text>
+        <Text className="mb-2 text-3xl font-bold text-white">Join a Quest</Text>
         <Text style={{ color: colors.neutral[200] }}>
           View and respond to quest invitations from friends
         </Text>
@@ -319,115 +316,34 @@ export default function JoinCooperativeQuest() {
               </Text>
             </View>
 
-            {/* Public Quests Section - Coming Soon */}
+            {/* Public Events */}
             <View className="mt-8">
-              <View className="mb-4 flex-row items-center justify-between">
+              <Text
+                className="mb-2 text-lg font-semibold"
+                style={{ fontWeight: '700' }}
+              >
+                Public Events
+              </Text>
+              <Text
+                className="mb-3 text-sm"
+                style={{ color: colors.neutral[200] }}
+              >
+                Join scheduled quests from the community - register now, show up
+                at start time.
+              </Text>
+              <TouchableOpacity
+                testID="browse-public-events"
+                onPress={() => router.push('/scheduled-quest')}
+                className="rounded-lg px-4 py-3"
+                style={{ backgroundColor: colors.primary[400] }}
+              >
                 <Text
-                  className="text-lg font-semibold"
-                  style={{ fontWeight: '700' }}
+                  className="text-center text-sm font-semibold text-white"
+                  style={{ fontWeight: '600' }}
                 >
-                  Public Quests
+                  Browse public events
                 </Text>
-                <View
-                  className="rounded-full px-3 py-1"
-                  style={{ backgroundColor: colors.secondary[100] }}
-                >
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: colors.secondary[500], fontWeight: '600' }}
-                  >
-                    Coming Soon
-                  </Text>
-                </View>
-              </View>
-
-              {/* Mock Public Quest Cards */}
-              <View className="opacity-60">
-                {[
-                  {
-                    title: 'Morning Productivity Challenge',
-                    host: 'ProductivityPro',
-                    duration: 25,
-                    participants: '12/20',
-                    startTime: 'Starts in 5 min',
-                  },
-                ].map((quest, index) => (
-                  <Card
-                    key={index}
-                    className="mb-3 p-4"
-                    style={{ backgroundColor: colors.cardBackground }}
-                  >
-                    <View className="mb-3">
-                      <Text
-                        className="text-base font-semibold"
-                        style={{ fontWeight: '700' }}
-                      >
-                        {quest.title}
-                      </Text>
-                      <View className="mt-2 flex-row items-center">
-                        <User size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          Hosted by {quest.host}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View className="mb-3 flex-row justify-between">
-                      <View className="flex-row items-center">
-                        <Clock size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          {quest.duration} min
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Users size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          {quest.participants}
-                        </Text>
-                      </View>
-                      <Text
-                        className="text-sm font-semibold"
-                        style={{
-                          color: colors.primary[400],
-                          fontWeight: '600',
-                        }}
-                      >
-                        {quest.startTime}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      disabled
-                      className="rounded-lg px-4 py-2"
-                      style={{ backgroundColor: colors.neutral[300] }}
-                    >
-                      <Text
-                        className="text-center text-sm font-semibold"
-                        style={{
-                          color: colors.neutral[50],
-                          fontWeight: '600',
-                        }}
-                      >
-                        Join (Coming Soon)
-                      </Text>
-                    </TouchableOpacity>
-                  </Card>
-                ))}
-              </View>
-
-              <InfoCard
-                title="Public Quests are coming soon!"
-                description="Soon you'll be able to join quests created by the community, compete on leaderboards, and find accountability partners worldwide."
-              />
+              </TouchableOpacity>
             </View>
           </>
         ) : (

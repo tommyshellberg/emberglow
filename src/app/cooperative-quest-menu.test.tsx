@@ -100,6 +100,15 @@ describe('CooperativeQuestMenu', () => {
     expect(mockPush).toHaveBeenCalledWith('/join-cooperative-quest');
   });
 
+  it('should navigate to scheduled quest screen when Public Events is pressed', () => {
+    render(<CooperativeQuestMenu />);
+
+    const eventsButton = screen.getByText('Public Events');
+    fireEvent.press(eventsButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
+  });
+
   it('should open contacts modal when Add Friends is pressed', () => {
     render(<CooperativeQuestMenu />);
 
