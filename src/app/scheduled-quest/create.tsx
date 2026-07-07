@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Platform } from 'react-native';
 
@@ -36,6 +36,13 @@ export default function CreateScheduledQuest() {
   const [visibility, setVisibility] = useState<'public' | 'friends'>('public');
   const [maxParticipants, setMaxParticipants] = useState(10);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Clear a stale validation error as soon as the user edits a field that
+  // `validateEventForm` checks, so the message doesn't linger after it's
+  // been fixed.
+  useEffect(() => {
+    setValidationError(null);
+  }, [title, startsAt]);
 
   const submit = () => {
     const error = validateEventForm({ title, startsAtMs: startsAt.getTime() });

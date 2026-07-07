@@ -35,4 +35,16 @@ describe('CreateScheduledQuest', () => {
     );
     expect(mockMutate).not.toHaveBeenCalled();
   });
+
+  it('clears the stale validation error once the user fixes the title', async () => {
+    render(<CreateScheduledQuest />);
+    fireEvent.press(screen.getByText(/Create event/i)); // default title is empty
+    await waitFor(() =>
+      expect(screen.getByText(/Give your event a title/i)).toBeTruthy()
+    );
+
+    fireEvent.changeText(screen.getByPlaceholderText('go for a run'), 'Hike');
+
+    expect(screen.queryByText(/Give your event a title/i)).toBeNull();
+  });
 });
