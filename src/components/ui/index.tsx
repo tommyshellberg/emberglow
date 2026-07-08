@@ -18,6 +18,7 @@ export { default as BottomSheetKeyboardAwareScrollView } from './modal-keyboard-
 export * from './progress-bar';
 export * from './screen-container';
 export * from './screen-header';
+export * from './segmented-control';
 export * from './select';
 export * from './text';
 export * from './title';

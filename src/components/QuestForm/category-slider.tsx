@@ -68,7 +68,7 @@ export const CategorySlider = ({
                   key={category.id}
                   testID={`category-option-${category.id}`}
                   className={`mx-1 items-center justify-center rounded-xl px-3 py-4 ${
-                    isSelected ? 'bg-primary-400' : 'bg-cardBackground'
+                    isSelected ? 'bg-secondary-400' : 'bg-cardBackground'
                   }`}
                   style={{ width: ITEM_WIDTH - 8 }}
                   onPress={() => {
@@ -83,12 +83,12 @@ export const CategorySlider = ({
                   <Feather
                     name={category.icon as any}
                     size={24}
-                    color={isSelected ? '#e8dcc7' : '#36B6D3'}
+                    color={isSelected ? '#00121b' : '#36B6D3'}
                     style={{ marginBottom: 4 }}
                   />
                   <Text
                     className={`text-center text-xs ${
-                      isSelected ? 'font-semibold text-white' : 'text-white'
+                      isSelected ? 'font-semibold text-black' : 'text-white'
                     }`}
                     numberOfLines={1}
                   >
