@@ -70,6 +70,28 @@ describe('emberglow theme', () => {
       expect(colors.border.hairline).toBe('rgba(232, 220, 199, 0.12)');
       expect(colors.surface.card).toBe('rgba(22, 32, 52, 0.72)');
     });
+
+    it('exposes translucent bone fills for hover/pressed surfaces and tiles', () => {
+      expect(colors.fill.faint).toBe('rgba(232, 220, 199, 0.06)');
+      expect(colors.fill.subtle).toBe('rgba(232, 220, 199, 0.12)');
+    });
+
+    it('reuses the border alpha values for fill tokens under a different semantic', () => {
+      expect(colors.fill.faint).toBe(colors.border.faint);
+      expect(colors.fill.subtle).toBe(colors.border.hairline);
+    });
+
+    it('exposes a recessed track color for switches and XP bars', () => {
+      expect(colors.track).toBe('rgba(44, 69, 107, 0.35)');
+    });
+
+    it('exposes a modal backdrop scrim', () => {
+      expect(colors.scrim).toBe('rgba(0, 18, 27, 0.6)');
+    });
+
+    it('exposes a literal success text color for badge text', () => {
+      expect(colors.status.successText).toBe('#9dc39b');
+    });
   });
 
   describe('spacing and radii', () => {

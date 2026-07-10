@@ -72,8 +72,21 @@ export const colors = {
     faint: withAlpha(palette.bone, 0.06),
   },
 
+  /** Translucent bone fills for hover/pressed surfaces and tiles. */
+  fill: {
+    faint: withAlpha(palette.bone, 0.06), // --ember-bone-a06
+    subtle: withAlpha(palette.bone, 0.12), // --ember-bone-a12 (same value as border.hairline — different semantic)
+  },
+
+  /** Recessed track behind switches, XP bars. */
+  track: withAlpha(palette.aegean, 0.35), // --ember-aegean-a35
+
+  /** Modal backdrop dim. */
+  scrim: withAlpha(palette.richBlack, 0.6), // --ember-black-a60
+
   status: {
     success: '#7da87b', // mossy green — quest complete
+    successText: '#9dc39b', // badge success text (Badge.jsx)
     danger: palette.cinnabar,
   },
 
