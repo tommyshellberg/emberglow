@@ -34,7 +34,10 @@ import colors from '@/components/ui/colors';
 import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
-import { scheduleStreakWarningNotification } from '@/lib/services/notifications';
+import {
+  clearAllNotifications,
+  scheduleStreakWarningNotification,
+} from '@/lib/services/notifications';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { initializeTimezoneSync } from '@/lib/services/timezone-service';
@@ -291,6 +294,13 @@ function RootLayout() {
         ) {
           // App has come to foreground
           console.log('[App State] App foregrounded, checking quest status');
+
+          // Clear any stale notifications (e.g. quest-complete) from the OS
+          // tray so a lingering tap cannot re-open a screen that is already
+          // open, which would break audio narration and cause errors.
+          clearAllNotifications().catch((err) =>
+            console.error('[App State] Failed to clear notifications:', err)
+          );
 
           // Check if we have an active cooperative quest that might have failed
           const questStore = useQuestStore.getState();

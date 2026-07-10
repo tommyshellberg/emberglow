@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { render, waitFor } from '@testing-library/react-native';
 import React from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 // Import the component after mocks are set up
 import RootLayout from './_layout';
@@ -136,6 +136,7 @@ jest.mock('@/lib/hooks/useLockStateDetection', () => ({
 
 jest.mock('@/lib/services/notifications', () => ({
   scheduleStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
+  clearAllNotifications: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('@/lib/services/quest-run-service', () => ({
@@ -598,5 +599,50 @@ describe('RootLayout', () => {
       expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(mockEvent.notification.display).toHaveBeenCalled();
     });
+  });
+
+  it('should clear all notifications when app comes to foreground', async () => {
+    const {
+      clearAllNotifications,
+    } = require('@/lib/services/notifications');
+
+    // Capture the change listener registered by RootLayout
+    const capturedListeners: Array<(state: string) => void> = [];
+    const addEventListenerSpy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((event: string, listener: any) => {
+        if (event === 'change') {
+          capturedListeners.push(listener);
+        }
+        return { remove: jest.fn() };
+      });
+
+    // Set currentState to background so the transition condition fires
+    Object.defineProperty(AppState, 'currentState', {
+      value: 'background',
+      writable: true,
+      configurable: true,
+    });
+
+    render(<RootLayout />);
+
+    // Wait for the AppState listener to be registered
+    await waitFor(() => {
+      expect(addEventListenerSpy).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
+    });
+
+    // Simulate app transitioning from background to active
+    for (const listener of capturedListeners) {
+      await listener('active');
+    }
+
+    await waitFor(() => {
+      expect(clearAllNotifications).toHaveBeenCalled();
+    });
+
+    addEventListenerSpy.mockRestore();
   });
 });
