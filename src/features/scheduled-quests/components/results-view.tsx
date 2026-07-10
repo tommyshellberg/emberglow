@@ -62,7 +62,9 @@ export function ResultsView({ run, settlement }: Props) {
         if (rows.length === 0) return null;
         return (
           <View key={key} className="mb-4">
-            <Text className="mb-2 font-semibold text-neutral-300">{title}</Text>
+            <Text variant="secondary" className="mb-2 font-semibold">
+              {title}
+            </Text>
             {rows.map((e, index) => (
               <View
                 key={`${key}-${e.name}-${index}`}
@@ -79,7 +81,7 @@ export function ResultsView({ run, settlement }: Props) {
           </View>
         );
       })}
-      <Text className="mt-2 text-center text-sm text-neutral-400">
+      <Text variant="secondary" className="mt-2 text-center text-sm">
         Completions count toward your streak.
       </Text>
     </View>

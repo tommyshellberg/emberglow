@@ -48,7 +48,7 @@ export function QuestComplete({
       {/* Content */}
       <ScreenContainer fullScreen className="px-4">
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', alignItems: 'center' }}
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >

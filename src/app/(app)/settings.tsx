@@ -1,7 +1,5 @@
 import { Env } from '@env';
 import { Feather } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
@@ -19,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   BottomSheetKeyboardAwareScrollView,
+  DateTimeField,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
@@ -62,8 +61,6 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
     useSettingsStore();
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
@@ -250,32 +247,18 @@ export default function Settings() {
     }
   };
 
-  const handleTimeChange = async (event: any, selectedDate?: Date) => {
-    setShowTimePicker(false);
-    if (selectedDate) {
-      const hour = selectedDate.getHours();
-      const minute = selectedDate.getMinutes();
+  const handleTimeChange = async (selectedDate: Date) => {
+    const hour = selectedDate.getHours();
+    const minute = selectedDate.getMinutes();
 
-      // Schedule with new time
-      const success = await scheduleDailyReminderNotification(hour, minute);
+    // Schedule with new time
+    const success = await scheduleDailyReminderNotification(hour, minute);
 
-      // Update state
-      setDailyReminder({
-        enabled: success,
-        time: { hour, minute },
-      });
-    }
-  };
-
-  // Get formatted reminder time
-  const getReminderTimeDisplay = () => {
-    if (!dailyReminder.time) return '--:--';
-
-    const date = new Date();
-    date.setHours(dailyReminder.time.hour);
-    date.setMinutes(dailyReminder.time.minute);
-
-    return format(date, 'h:mm a');
+    // Update state
+    setDailyReminder({
+      enabled: success,
+      time: { hour, minute },
+    });
   };
 
   const handleToggleStreakWarning = async (value: boolean) => {
@@ -298,36 +281,21 @@ export default function Settings() {
     await cancelStreakWarningNotification();
   };
 
-  const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
-    setShowStreakTimePicker(false);
+  const handleStreakTimeChange = (selectedDate: Date) => {
+    const hour = selectedDate.getHours();
+    const minute = selectedDate.getMinutes();
 
-    if (selectedDate) {
-      const hour = selectedDate.getHours();
-      const minute = selectedDate.getMinutes();
+    // Round minutes to nearest 15-minute interval
+    const roundedMinute = Math.round(minute / 15) * 15;
+    const adjustedMinute = roundedMinute === 60 ? 0 : roundedMinute;
+    const adjustedHour = roundedMinute === 60 ? (hour + 1) % 24 : hour;
 
-      // Round minutes to nearest 15-minute interval
-      const roundedMinute = Math.round(minute / 15) * 15;
-      const adjustedMinute = roundedMinute === 60 ? 0 : roundedMinute;
-      const adjustedHour = roundedMinute === 60 ? (hour + 1) % 24 : hour;
-
-      // Only update local state here
-      const newSettings = {
-        enabled: true,
-        time: { hour: adjustedHour, minute: adjustedMinute },
-      };
-      setStreakWarning(newSettings);
-    }
-  };
-
-  // Get formatted streak reminder time
-  const getStreakTimeDisplay = () => {
-    if (!streakWarning.time) return '--:--';
-
-    const date = new Date();
-    date.setHours(streakWarning.time.hour);
-    date.setMinutes(streakWarning.time.minute);
-
-    return format(date, 'h:mm a');
+    // Only update local state here
+    const newSettings = {
+      enabled: true,
+      time: { hour: adjustedHour, minute: adjustedMinute },
+    };
+    setStreakWarning(newSettings);
   };
 
   // Handle timezone change
@@ -511,33 +479,19 @@ export default function Settings() {
                     <View className="flex-row items-center justify-between">
                       <Text className="text-neutral-200">Reminder Time</Text>
 
-                      {!showTimePicker && (
-                        <Pressable
-                          onPress={() => setShowTimePicker(true)}
-                          className="rounded-lg bg-neutral-400 px-4 py-2"
-                        >
-                          <Text className="text-center font-medium text-white">
-                            {getReminderTimeDisplay()}
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      {showTimePicker && (
-                        <DateTimePicker
-                          value={
-                            new Date(
-                              new Date().setHours(
-                                dailyReminder.time?.hour || 0,
-                                dailyReminder.time?.minute || 0
-                              )
+                      <DateTimeField
+                        value={
+                          new Date(
+                            new Date().setHours(
+                              dailyReminder.time?.hour || 0,
+                              dailyReminder.time?.minute || 0
                             )
-                          }
-                          mode="time"
-                          display="compact"
-                          onChange={handleTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
+                          )
+                        }
+                        mode="time"
+                        minuteInterval={15}
+                        onChange={handleTimeChange}
+                      />
                     </View>
                   </View>
                 )}
@@ -572,33 +526,19 @@ export default function Settings() {
                     <View className="flex-row items-center justify-between">
                       <Text className="text-neutral-200">Reminder Time</Text>
 
-                      {!showStreakTimePicker && (
-                        <Pressable
-                          onPress={() => setShowStreakTimePicker(true)}
-                          className="rounded-lg bg-neutral-400 px-4 py-2"
-                        >
-                          <Text className="text-center font-medium text-white">
-                            {getStreakTimeDisplay()}
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      {showStreakTimePicker && (
-                        <DateTimePicker
-                          value={
-                            new Date(
-                              new Date().setHours(
-                                streakWarning.time?.hour || 0,
-                                streakWarning.time?.minute || 0
-                              )
+                      <DateTimeField
+                        value={
+                          new Date(
+                            new Date().setHours(
+                              streakWarning.time?.hour || 0,
+                              streakWarning.time?.minute || 0
                             )
-                          }
-                          mode="time"
-                          display="compact"
-                          onChange={handleStreakTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
+                          )
+                        }
+                        mode="time"
+                        minuteInterval={15}
+                        onChange={handleStreakTimeChange}
+                      />
                     </View>
                   </View>
                 )}

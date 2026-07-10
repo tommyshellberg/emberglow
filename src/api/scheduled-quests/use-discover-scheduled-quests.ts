@@ -10,4 +10,5 @@ export const useDiscoverScheduledQuests = (params?: DiscoverParams) =>
     queryKey: ['scheduled-quests', 'discover', params ?? {}],
     queryFn: async () => (await discoverScheduledQuests(params)).results,
     refetchInterval: 30_000,
+    refetchOnMount: 'always', // never mask an event another device just created
   });

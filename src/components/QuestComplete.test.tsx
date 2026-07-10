@@ -284,4 +284,18 @@ describe('QuestComplete', () => {
       expect(images).toBeTruthy();
     });
   });
+
+  describe('Layout', () => {
+    it('does not force-spread content across the full screen height, so short content (e.g. no story card) does not leave a big gap below the image', () => {
+      const { UNSAFE_getByType } = render(
+        <QuestComplete quest={mockCooperativeQuest} story="Coop quest text" />
+      );
+
+      const { ScrollView } = require('react-native');
+      const scrollView = UNSAFE_getByType(ScrollView);
+      expect(
+        scrollView.props.contentContainerStyle?.justifyContent
+      ).not.toBe('space-between');
+    });
+  });
 });

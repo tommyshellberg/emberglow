@@ -1,0 +1,39 @@
+<!-- @dsCard group="Components" viewport="700x430" subtitle="BottomSheet — announcements, invites, pickers" name="Overlay" -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--surface-app); font-family: var(--font-body); }
+  a { color: var(--text-accent); } a:hover { color: var(--ember-sandy-80); }
+</style></head><body>
+<div id="root"></div>
+<script type="text/babel">
+const { BottomSheet, Button, EyebrowLabel } = window.EmberglowDesignSystem_28f42d;
+
+function Demo() {
+  const [open, setOpen] = React.useState(true);
+  return (
+    <div style={{ position: 'relative', height: 430, overflow: 'hidden', background: 'url(../../assets/backgrounds/onboarding-bg.jpg) center 30% / cover' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,18,27,0.4)' }}></div>
+      {!open && (
+        <div style={{ position: 'relative', padding: 20 }}>
+          <Button variant="primary" onClick={() => setOpen(true)}>Show announcement</Button>
+        </div>
+      )}
+      <BottomSheet open={open} onClose={() => setOpen(false)} title="Skill trees have arrived">
+        <EyebrowLabel tone="warm" style={{ textAlign: 'center', marginBottom: 10 }}>New</EyebrowLabel>
+        <p style={{ fontSize: 15, lineHeight: 1.55, color: 'var(--text-secondary)', margin: '0 0 18px', textAlign: 'center', maxWidth: '36ch', marginLeft: 'auto', marginRight: 'auto' }}>
+          You've grown strong enough to choose a path. Unlock perks that boost your XP and shape your story.
+        </p>
+        <Button variant="primary" size="lg" fullWidth onClick={() => setOpen(false)}>Explore the skill tree</Button>
+        <Button variant="ghost" fullWidth onClick={() => setOpen(false)} style={{ marginTop: 6 }}>Maybe later</Button>
+      </BottomSheet>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body></html>

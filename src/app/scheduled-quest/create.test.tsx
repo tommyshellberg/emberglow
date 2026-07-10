@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react-native';
 import React from 'react';
 
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
@@ -25,6 +26,11 @@ describe('CreateScheduledQuest', () => {
     expect(screen.getByText(/Starts at/i)).toBeTruthy();
     expect(screen.getByText(/Visibility/i)).toBeTruthy();
     expect(screen.getByText(/Create event/i)).toBeTruthy();
+  });
+
+  it('shows a back button, consistent with other pushed screens', () => {
+    render(<CreateScheduledQuest />);
+    expect(screen.UNSAFE_queryByType(ArrowLeft)).toBeTruthy();
   });
 
   it('blocks submit and surfaces the validation error while the form is invalid', async () => {

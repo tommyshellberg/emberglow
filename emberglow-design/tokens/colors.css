@@ -1,0 +1,61 @@
+/* Emberglow — Brand Colors (from Emberglow Premium Brand Guide 2025) */
+:root {
+  /* ——— Base palette ——— */
+  --ember-rich-black: #00121b;   /* Rich Black — app canvas, night sky */
+  --ember-midnight: #162034;     /* Midnight Blue — raised surfaces */
+  --ember-aegean: #2c456b;       /* Aegean Blue — borders, muted UI, moonlit blue */
+  --ember-cinnabar: #d94928;     /* Cinnabar — primary accent, the ember */
+  --ember-sandy: #f7a44b;        /* Sandy Brown — glow, highlights, XP */
+  --ember-bone: #e8dcc7;         /* Bone — primary text, parchment */
+
+  /* ——— Tints (brand guide: +white at 80/60/40/20) ——— */
+  --ember-cinnabar-80: #e16d53;
+  --ember-cinnabar-60: #e8927e;
+  --ember-cinnabar-40: #f0b6a9;
+  --ember-cinnabar-20: #f7dbd4;
+  --ember-sandy-80: #f9b66f;
+  --ember-sandy-60: #fac893;
+  --ember-sandy-40: #fcdbb7;
+  --ember-sandy-20: #fdeddb;
+  --ember-aegean-80: #566a89;
+  --ember-aegean-60: #808fa6;
+  --ember-aegean-40: #abb5c4;
+  --ember-aegean-20: #d5dae1;
+  --ember-bone-40: #f6f1e9;
+
+  /* ——— Alpha helpers ——— */
+  --ember-bone-a70: rgba(232, 220, 199, 0.70);
+  --ember-bone-a45: rgba(232, 220, 199, 0.45);
+  --ember-bone-a12: rgba(232, 220, 199, 0.12);
+  --ember-bone-a06: rgba(232, 220, 199, 0.06);
+  --ember-aegean-a35: rgba(44, 69, 107, 0.35);
+  --ember-black-a60: rgba(0, 18, 27, 0.60);
+  --ember-black-a85: rgba(0, 18, 27, 0.85);
+
+  /* ——— Semantic aliases ——— */
+  --surface-app: var(--ember-rich-black);
+  --surface-raised: var(--ember-midnight);
+  --surface-card: rgba(22, 32, 52, 0.72);          /* midnight, slightly translucent over art */
+  --surface-overlay: var(--ember-black-a85);
+  --surface-inset: rgba(0, 18, 27, 0.45);
+
+  --text-primary: var(--ember-bone);
+  --text-secondary: var(--ember-bone-a70);
+  --text-muted: var(--ember-bone-a45);
+  --text-on-accent: #fdf6ea;
+  --text-accent: var(--ember-sandy);
+
+  --accent-primary: var(--ember-cinnabar);
+  --accent-primary-hover: #e2542f;
+  --accent-primary-press: #c23f20;
+  --accent-glow: var(--ember-sandy);
+
+  --border-subtle: rgba(44, 69, 107, 0.45);
+  --border-strong: var(--ember-aegean);
+  --border-hairline: var(--ember-bone-a12);
+
+  --status-success: #7da87b;    /* mossy green — quest complete */
+  --status-danger: var(--ember-cinnabar);
+
+  --focus-ring: rgba(247, 164, 75, 0.55);
+}

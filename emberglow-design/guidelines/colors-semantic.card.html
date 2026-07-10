@@ -1,0 +1,17 @@
+<!-- @dsCard group="Colors" viewport="700x180" subtitle="Semantic surface & text roles on the night canvas" name="Semantic Roles" -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; font-family: var(--font-body); background: var(--surface-app); color: var(--text-primary); padding: 14px; box-sizing: border-box; }
+  .wrap { display: flex; gap: 10px; }
+  .card { flex: 1; background: var(--surface-raised); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow-card); }
+  .k { font-size: 11px; color: var(--text-muted); letter-spacing: var(--tracking-wide); text-transform: uppercase; margin-bottom: 6px; }
+  .demo { font-size: 15px; }
+  a { color: var(--text-accent); } a:hover { color: var(--ember-sandy-80); }
+</style></head><body>
+<div class="wrap">
+  <div class="card"><div class="k">Text primary</div><div class="demo" style="color:var(--text-primary)">Quest complete. You grew stronger today.</div></div>
+  <div class="card"><div class="k">Text secondary</div><div class="demo" style="color:var(--text-secondary)">The forest darkens. You gather what you can.</div></div>
+  <div class="card"><div class="k">Accent / glow</div><div class="demo"><span style="color:var(--accent-primary); font-weight:600">Cinnabar action</span> · <span style="color:var(--text-accent)">Sandy glow</span></div></div>
+</div>
+</body></html>

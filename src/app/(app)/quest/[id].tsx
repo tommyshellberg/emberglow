@@ -275,7 +275,23 @@ export default function AppQuestDetailsScreen() {
           </View>
         )}
 
-        {/* Add Reflection button at top - only when no reflection exists */}
+        {from === 'journal' ? (
+          <QuestComplete
+            quest={quest}
+            story={getQuestCompletionText()}
+            showActionButton={false}
+            disableEnteringAnimations={true}
+          />
+        ) : (
+          <QuestComplete
+            quest={quest}
+            story={getQuestCompletionText()}
+            showActionButton={true}
+            disableEnteringAnimations={false}
+          />
+        )}
+
+        {/* Add Reflection button at the bottom - only when no reflection exists */}
         {from === 'journal' && !hasReflection && quest.questRunId && (
           <View className="mx-4 mb-4">
             <TouchableOpacity
@@ -309,22 +325,6 @@ export default function AppQuestDetailsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {from === 'journal' ? (
-          <QuestComplete
-            quest={quest}
-            story={getQuestCompletionText()}
-            showActionButton={false}
-            disableEnteringAnimations={true}
-          />
-        ) : (
-          <QuestComplete
-            quest={quest}
-            story={getQuestCompletionText()}
-            showActionButton={true}
-            disableEnteringAnimations={false}
-          />
         )}
       </View>
     );

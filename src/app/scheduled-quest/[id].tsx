@@ -13,6 +13,7 @@ import {
   Button,
   FocusAwareStatusBar,
   ScreenContainer,
+  ScreenHeader,
   ScrollView,
   Text,
   View,
@@ -66,6 +67,8 @@ export default function EventScreen() {
   if (isLoading || !run) {
     return (
       <ScreenContainer>
+        <FocusAwareStatusBar />
+        <ScreenHeader title="Event" showBackButton />
         <ActivityIndicator className="mt-20" />
       </ScreenContainer>
     );
@@ -91,7 +94,9 @@ export default function EventScreen() {
       <>
         {r.status === 'pending' ? (
           <View className="items-center py-6">
-            <Text className="text-sm text-neutral-400">Starts in</Text>
+            <Text variant="secondary" className="text-sm">
+              Starts in
+            </Text>
             <Text className="text-4xl font-bold">
               {startMs - nowMs > 0
                 ? formatCountdown(startMs - nowMs)
@@ -176,7 +181,7 @@ export default function EventScreen() {
             />
           )}
           {r.status === 'active' && !joinable && !amParticipant && (
-            <Text className="text-center text-neutral-400">
+            <Text variant="secondary" className="text-center">
               It&apos;s too late to join this one - find the next event!
             </Text>
           )}
@@ -193,9 +198,9 @@ export default function EventScreen() {
   return (
     <ScreenContainer>
       <FocusAwareStatusBar />
+      <ScreenHeader title={run.quest.title} showBackButton />
       <ScrollView className="flex-1 px-4">
-        <Text className="py-3 text-xl font-bold">{run.quest.title}</Text>
-        <Text className="text-sm text-neutral-400">
+        <Text variant="secondary" className="text-sm">
           {run.quest.durationMinutes} min · {run.quest.category} ·{' '}
           {run.quest.reward.xp} XP
         </Text>

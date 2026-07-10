@@ -1,0 +1,109 @@
+<!-- @dsCard group="App" viewport="390x844" subtitle="Interactive: tabs + quest flow (start → timer → complete/failed)" name="Emberglow App" -->
+<!-- @startingPoint section="App" subtitle="Emberglow mobile app — journal, profile, play, quest flow" viewport="390x844" -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emberglow App</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; font-family: var(--font-body); }
+  #root { height: 100%; display: flex; align-items: center; justify-content: center; }
+  .phone { position: relative; width: 390px; height: 844px; max-height: 100vh; background: var(--surface-app); overflow: hidden; }
+  @media (min-height: 900px) { .phone { border-radius: 44px; border: 1px solid rgba(232,220,199,0.12); box-shadow: 0 24px 80px rgba(0,0,0,0.7); } }
+  .lucide-slot svg { width: 100%; height: 100%; stroke-width: 1.75; }
+  .tab-scroll { height: 100%; overflow-y: auto; padding: 26px 20px 130px; box-sizing: border-box; }
+  .ember-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px; outline: none; }
+  .ember-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%; background: var(--ember-bone); border: 3px solid var(--ember-cinnabar); box-shadow: 0 0 14px rgba(217,73,40,0.55); cursor: pointer; }
+  .ember-slider::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--ember-bone); border: 3px solid var(--ember-cinnabar); box-shadow: 0 0 14px rgba(217,73,40,0.55); cursor: pointer; }
+  .cat-scroll { scrollbar-width: none; }
+  .cat-scroll::-webkit-scrollbar { display: none; }
+  a { color: var(--text-accent); } a:hover { color: var(--ember-sandy-80); }
+</style></head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="tabs.jsx"></script>
+<script type="text/babel" src="social.jsx"></script>
+<script type="text/babel" src="achievements.jsx"></script>
+<script type="text/babel" src="custom-quest.jsx"></script>
+<script type="text/babel" src="coop.jsx"></script>
+<script type="text/babel" src="events.jsx"></script>
+<script type="text/babel" src="guild.jsx"></script>
+<script type="text/babel" src="quest-flow.jsx"></script>
+<script type="text/babel">
+function CoopFlow({ onExit, onStartQuest, onInvite }) {
+  const [page, setPage] = React.useState('hub');
+  const [hasFriends, setHasFriends] = React.useState(() => localStorage.getItem('emberglow-kit-hasfriends') !== '0');
+  const [myEvents, setMyEvents] = React.useState([]);
+  const toggleEmpty = () => { const v = !hasFriends; localStorage.setItem('emberglow-kit-hasfriends', v ? '1' : '0'); setHasFriends(v); };
+  const go = (id) => {
+    if (id === 'addfriends') { onInvite(); return; }
+    setPage(id === 'create' ? 'create' : id === 'join' ? 'join' : 'events');
+  };
+  return (
+    <React.Fragment>
+      {page === 'hub' && <CoopHubScreen hasFriends={hasFriends} onGo={go} onBack={onExit} onToggleEmpty={toggleEmpty} />}
+      {page === 'create' && <CoopCreateScreen onBack={() => setPage('hub')} onStart={onStartQuest} />}
+      {page === 'join' && <CoopJoinScreen onBack={() => setPage('hub')} onGoEvents={() => setPage('events')} onStart={onStartQuest} />}
+      {page === 'events' && <PublicEventsScreen onBack={() => setPage('hub')} onCreate={() => setPage('schedule')} myEvents={myEvents} />}
+      {page === 'schedule' && <ScheduleEventScreen onBack={() => setPage('events')} onCreated={(ev) => { setMyEvents((m) => [ev, ...m]); setPage('events'); }} />}
+    </React.Fragment>
+  );
+}
+
+function App() {
+  const [tab, setTab] = React.useState(() => localStorage.getItem('emberglow-kit-tab') || 'play');
+  const [flow, setFlow] = React.useState(null); // null | 'start' | 'timer' | 'failed' | 'complete'
+  const [sub, setSub] = React.useState(null);   // null | 'skills' | 'leaderboard' | 'achievements'
+  const [invite, setInvite] = React.useState(false);
+  const [quest, setQuest] = React.useState(null);
+  const [guilds, setGuilds] = React.useState([]);
+  const goTab = (t) => { localStorage.setItem('emberglow-kit-tab', t); setFlow(null); setSub(null); setInvite(false); setTab(t); };
+  const startQuest = (av) => {
+    if (av.kind === 'Free play') { setFlow('custom'); return; }
+    if (av.kind === 'Co-op') { setFlow('coop'); return; }
+    setQuest({ kind: av.kind, title: av.title, minutes: 2, xp: 90, line: av.body });
+    setFlow('start');
+  };
+  const beginQuest = (q) => { setQuest(q); setFlow('start'); };
+  return (
+    <div className="phone">
+      {flow === null && (
+        <React.Fragment>
+          {sub === null && tab === 'journal' && <JournalScreen onNavigate={goTab} onOpenEntry={(e) => {
+            setQuest({ kind: e.type === 'Story' ? 'Story quest' : e.type + ' quest', title: e.title, minutes: e.minutes, xp: e.xp || 0, date: e.date + ', 2026', fromJournal: true });
+            setFlow(e.status === 'Failed' ? 'failed' : 'complete');
+          }} />}
+          {sub === null && tab === 'map' && <MapScreen />}
+          {sub === null && tab === 'play' && <PlayScreen onStartQuest={startQuest} />}
+          {sub === null && tab === 'profile' && <ProfileScreen onOpen={setSub} onInvite={() => setInvite(true)} extraGuilds={guilds} />}
+          {sub === null && tab === 'settings' && <SettingsScreen />}
+          {sub === 'skills' && <SkillTreeScreen onBack={() => setSub(null)} />}
+          {sub === 'leaderboard' && <LeaderboardScreen onBack={() => setSub(null)} />}
+          {sub === 'achievements' && <AchievementsScreen onBack={() => setSub(null)} />}
+          {sub === 'createguild' && <CreateGuildScreen onBack={() => setSub(null)} onCreated={(g) => { setGuilds((gs) => [...gs, g]); setSub(null); }} />}
+          <BottomNav active={tab} onNavigate={goTab} />
+          <InviteFriendsSheet open={invite} onClose={() => setInvite(false)} />
+        </React.Fragment>
+      )}
+      {flow === 'coop' && (
+        <React.Fragment>
+          <CoopFlow onExit={() => setFlow(null)} onStartQuest={beginQuest} onInvite={() => setInvite(true)} />
+          <InviteFriendsSheet open={invite} onClose={() => setInvite(false)} />
+        </React.Fragment>
+      )}
+      {flow === 'custom' && <CustomQuestScreen onBack={() => setFlow(null)} onStart={(q) => { setQuest(q); setFlow('start'); }} />}
+      {flow === 'start' && <StartQuestScreen quest={quest} onBegin={() => setFlow('timer')} onCancel={() => setFlow(null)} />}
+      {flow === 'timer' && <TimerScreen quest={quest} onAbandon={() => setFlow('failed')} onComplete={() => setFlow('complete')} />}
+      {flow === 'failed' && <QuestFailedScreen quest={quest} onRetry={() => setFlow('start')} onBack={() => setFlow(null)} />}
+      {flow === 'complete' && <QuestCompleteScreen quest={quest} fromJournal={!!(quest && quest.fromJournal)} onContinue={() => setFlow(null)} onReflect={() => setFlow(null)} />}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body></html>

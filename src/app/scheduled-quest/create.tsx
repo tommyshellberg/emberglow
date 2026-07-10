@@ -1,25 +1,36 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Platform } from 'react-native';
 
 import { useCreateScheduledQuest } from '@/api/scheduled-quests';
 import { CategorySlider } from '@/components/QuestForm/category-slider';
 import { CombinedQuestInput } from '@/components/QuestForm/combined-quest-input';
 import {
   Button,
+  DateTimeField,
   FocusAwareStatusBar,
   ScreenContainer,
+  ScreenHeader,
   ScrollView,
+  SegmentedControl,
+  type SegmentedControlOption,
   Text,
-  TouchableOpacity,
   View,
 } from '@/components/ui';
 import { validateEventForm } from '@/features/scheduled-quests/lib/validate-event-form';
 import { scheduledQuestErrorMessage } from '@/lib/services/scheduled-quest-service';
 
 const XP_PER_MINUTE = 3; // display only - the server sets the authoritative reward
+
+const VISIBILITY_OPTIONS: SegmentedControlOption<'public' | 'friends'>[] = [
+  { label: 'Public', value: 'public' },
+  { label: 'Friends only', value: 'friends' },
+];
+
+const MAX_PARTICIPANT_OPTIONS: SegmentedControlOption<number>[] = [
+  { label: '5', value: 5 },
+  { label: '10', value: 10 },
+];
 
 export default function CreateScheduledQuest() {
   const router = useRouter();
@@ -32,7 +43,6 @@ export default function CreateScheduledQuest() {
   const [startsAt, setStartsAt] = useState(
     () => new Date(Date.now() + 60 * 60 * 1000)
   );
-  const [showPicker, setShowPicker] = useState<'date' | 'time' | null>(null);
   const [visibility, setVisibility] = useState<'public' | 'friends'>('public');
   const [maxParticipants, setMaxParticipants] = useState(10);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -69,11 +79,11 @@ export default function CreateScheduledQuest() {
   return (
     <ScreenContainer>
       <FocusAwareStatusBar />
+      <ScreenHeader title="Schedule an event" showBackButton />
       <ScrollView className="flex-1 px-4">
-        <Text className="py-3 text-xl font-bold">Schedule an event</Text>
-
         <CombinedQuestInput
           initialDuration={durationMinutes}
+          startsAt={startsAt}
           onQuestNameChange={setTitle}
           onDurationChange={setDurationMinutes}
         />
@@ -84,82 +94,43 @@ export default function CreateScheduledQuest() {
 
         <Text className="mt-4 font-semibold">Starts at</Text>
         <View className="mt-1 flex-row">
-          <TouchableOpacity
-            onPress={() => setShowPicker('date')}
-            className="mr-2 rounded-lg bg-neutral-800 px-3 py-2"
-          >
-            <Text>{startsAt.toLocaleDateString()}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setShowPicker('time')}
-            className="rounded-lg bg-neutral-800 px-3 py-2"
-          >
-            <Text>
-              {startsAt.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {showPicker ? (
-          <DateTimePicker
+          <View className="mr-2">
+            <DateTimeField
+              value={startsAt}
+              mode="date"
+              minimumDate={new Date()}
+              onChange={setStartsAt}
+            />
+          </View>
+          <DateTimeField
             value={startsAt}
-            mode={showPicker}
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            mode="time"
             minimumDate={new Date()}
-            onChange={(_event, date) => {
-              setShowPicker(null);
-              if (date) setStartsAt(date);
-            }}
+            onChange={setStartsAt}
           />
-        ) : null}
+        </View>
 
         <Text className="mt-4 font-semibold">Visibility</Text>
-        <View className="mt-1 flex-row">
-          {(['public', 'friends'] as const).map((v) => (
-            <TouchableOpacity
-              key={v}
-              onPress={() => setVisibility(v)}
-              className={`mr-2 rounded-full px-4 py-2 ${visibility === v ? 'bg-primary-400' : 'bg-neutral-800'}`}
-            >
-              <Text
-                className={
-                  visibility === v
-                    ? 'font-semibold text-white'
-                    : 'text-neutral-300'
-                }
-              >
-                {v === 'public' ? 'Public' : 'Friends only'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <SegmentedControl
+          className="mt-1"
+          accessibilityLabel="Visibility"
+          options={VISIBILITY_OPTIONS}
+          value={visibility}
+          onChange={setVisibility}
+        />
 
         <Text className="mt-4 font-semibold">
           Max participants: {maxParticipants}
         </Text>
-        <View className="mt-1 flex-row">
-          {[5, 10].map((n) => (
-            <TouchableOpacity
-              key={n}
-              onPress={() => setMaxParticipants(n)}
-              className={`mr-2 rounded-full px-4 py-2 ${maxParticipants === n ? 'bg-primary-400' : 'bg-neutral-800'}`}
-            >
-              <Text
-                className={
-                  maxParticipants === n
-                    ? 'font-semibold text-white'
-                    : 'text-neutral-300'
-                }
-              >
-                {n}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <SegmentedControl
+          className="mt-1"
+          accessibilityLabel="Max participants"
+          options={MAX_PARTICIPANT_OPTIONS}
+          value={maxParticipants}
+          onChange={setMaxParticipants}
+        />
 
-        <Text className="mt-4 text-sm text-neutral-400">
+        <Text variant="secondary" className="mt-4 text-sm">
           Reward: ~{durationMinutes * XP_PER_MINUTE} XP for finishing
         </Text>
 

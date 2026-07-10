@@ -11,11 +11,13 @@ import {
   ActivityIndicator,
   FocusAwareStatusBar,
   ScreenContainer,
+  ScreenHeader,
   Text,
   TouchableOpacity,
   View,
 } from '@/components/ui';
 import { EventCard } from '@/features/scheduled-quests/components/event-card';
+import { EventsEmptyState } from '@/features/scheduled-quests/components/events-empty-state';
 import {
   overlapsWindow,
   type ScheduledQuestRun,
@@ -37,16 +39,8 @@ export default function ScheduledQuestDiscovery() {
   return (
     <ScreenContainer>
       <FocusAwareStatusBar />
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Text className="text-xl font-bold">Public Events</Text>
-        <TouchableOpacity
-          testID="create-event-button"
-          onPress={() => router.push('/scheduled-quest/create')}
-          className="flex-row items-center rounded-lg bg-primary-400 px-3 py-2"
-        >
-          <CalendarPlus size={18} color="#FFFFFF" />
-          <Text className="ml-1 font-semibold text-white">New event</Text>
-        </TouchableOpacity>
+      <View className="px-4">
+        <ScreenHeader title="Public Events" showBackButton />
       </View>
 
       <View className="mb-2 flex-row px-4">
@@ -56,7 +50,7 @@ export default function ScheduledQuestDiscovery() {
             onPress={() => setTab(t)}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === t }}
-            className={`mr-2 rounded-full px-4 py-2 ${tab === t ? 'bg-primary-400' : 'bg-neutral-800'}`}
+            className={`mr-2 rounded-full px-4 py-2 ${tab === t ? 'bg-primary-400' : 'bg-cardBackground'}`}
           >
             <Text
               className={`font-semibold ${tab === t ? 'text-white' : 'text-neutral-300'}`}
@@ -71,7 +65,7 @@ export default function ScheduledQuestDiscovery() {
         className="flex-1 px-4"
         refreshControl={
           <RefreshControl
-            refreshing={active.isLoading}
+            refreshing={active.isFetching}
             onRefresh={() => active.refetch()}
           />
         }
@@ -79,11 +73,14 @@ export default function ScheduledQuestDiscovery() {
         {active.isLoading ? (
           <ActivityIndicator className="py-8" />
         ) : feed.length === 0 ? (
-          <Text className="mt-10 text-center text-neutral-400">
-            {tab === 'discover'
-              ? 'No upcoming events right now - create one!'
-              : "You haven't registered for any events yet."}
-          </Text>
+          <EventsEmptyState
+            variant={tab}
+            onActionPress={() =>
+              tab === 'discover'
+                ? router.push('/scheduled-quest/create')
+                : setTab('discover')
+            }
+          />
         ) : (
           feed.map((run) => (
             <EventCard
@@ -100,6 +97,19 @@ export default function ScheduledQuestDiscovery() {
           ))
         )}
       </ScrollView>
+
+      {feed.length > 0 && (
+        <TouchableOpacity
+          testID="create-event-button"
+          onPress={() => router.push('/scheduled-quest/create')}
+          accessibilityRole="button"
+          accessibilityLabel="Create a new event"
+          className="absolute bottom-24 right-8 size-16 items-center justify-center rounded-full bg-primary-400 shadow-lg"
+          style={{ elevation: 6 }}
+        >
+          <CalendarPlus size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
     </ScreenContainer>
   );
 }

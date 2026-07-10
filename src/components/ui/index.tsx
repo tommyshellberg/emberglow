@@ -6,6 +6,7 @@ export * from './button';
 export * from './card';
 export * from './checkbox';
 export { default as colors } from './colors';
+export * from './date-time-field';
 export * from './duration-badge';
 export * from './eyebrow';
 export * from './focus-aware-status-bar';

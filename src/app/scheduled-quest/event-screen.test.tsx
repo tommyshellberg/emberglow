@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react-native';
 import React from 'react';
 
 import { fireEvent, render, screen } from '@/lib/test-utils';
@@ -76,6 +77,12 @@ describe('EventScreen', () => {
     // regardless of who's viewing — row identity, not viewer identity.
     expect(screen.getByText(/Thorin/)).toBeTruthy();
     expect(screen.getByText('Register')).toBeTruthy();
+  });
+
+  it('shows a back button, consistent with other pushed screens', () => {
+    useScheduledQuest.mockReturnValue({ data: baseRun(), isLoading: false });
+    render(<EventScreen />);
+    expect(screen.UNSAFE_queryByType(ArrowLeft)).toBeTruthy();
   });
 
   it('shows Leave (not Register) when I am already registered, and Cancel when I am the creator', () => {
