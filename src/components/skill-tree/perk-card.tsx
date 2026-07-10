@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -10,9 +10,47 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { Perk } from '@/api/skill-tree/types';
-import { Button, Text } from '@/components/ui';
+import { Badge, type BadgeTone, Button } from '@/components/emberglow';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 import { PerkIcon } from './perk-icon';
+
+export type PerkStatus = 'locked' | 'available' | 'unlocked';
+
+/**
+ * Single source of truth for the perk tri-state gate — shared by PerkCard's
+ * own styling and SkillTreeScreen's filter/sort, so the two never disagree
+ * about whether a perk is locked, available, or unlocked.
+ */
+export function getPerkStatus(perk: Perk, currentLevel: number): PerkStatus {
+  if (perk.isUnlocked) return 'unlocked';
+  return perk.levelRequired <= currentLevel ? 'available' : 'locked';
+}
+
+const statusTone: Record<PerkStatus, BadgeTone> = {
+  available: 'ember',
+  unlocked: 'success',
+  locked: 'neutral',
+};
+
+/**
+ * Only the available state gets an explicit status badge — unlocked perks
+ * already signal state via full-opacity icon + unlock date, and locked ones
+ * via the "Level N Required" caption. Labeled "Ready" rather than
+ * "Available" so it doesn't collide with the screen's "Available" filter
+ * chip in text queries (both real and in tests).
+ */
+const statusLabel: Partial<Record<PerkStatus, string>> = {
+  available: 'Ready',
+};
 
 interface PerkCardProps {
   perk: Perk;
@@ -27,9 +65,10 @@ export function PerkCard({
   onUnlock,
   testID,
 }: PerkCardProps) {
-  const isAvailable = !perk.isUnlocked && perk.levelRequired <= currentLevel;
-  const isLocked = !perk.isUnlocked && perk.levelRequired > currentLevel;
-  const isUnlocked = perk.isUnlocked;
+  const status = getPerkStatus(perk, currentLevel);
+  const isAvailable = status === 'available';
+  const isLocked = status === 'locked';
+  const isUnlocked = status === 'unlocked';
 
   // Animation values for button press feedback
   const buttonScale = useSharedValue(1);
@@ -59,102 +98,140 @@ export function PerkCard({
   return (
     <Animated.View
       entering={FadeInDown.delay(100).duration(400)}
-      testID={
-        testID ||
-        (isLocked
-          ? 'perk-card-locked'
-          : isAvailable
-            ? 'perk-card-available'
-            : 'perk-card-unlocked')
-      }
-      style={{
-        backgroundColor: isAvailable
-          ? 'rgba(229, 88, 56, 0.08)' // Subtle primary tint for available
-          : 'rgba(44, 69, 107, 0.90)', // cardBackground from colors.js
-        ...(isAvailable && {
-          shadowColor: '#E55838',
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 4,
-        }),
-      }}
-      className={`
-        rounded-lg p-4 mb-3
-        ${isLocked ? 'opacity-50' : ''}
-        ${
-          isAvailable
-            ? 'border-2 border-primary-400'
-            : isUnlocked
-              ? 'border border-secondary-300'
-              : 'border border-neutral-400/30'
-        }
-      `}
+      style={isAvailable ? [styles.glowWrapper, shadows.glowWarm] : undefined}
     >
-      {/* Header: Perk Name + Icon */}
-      <View className="mb-3 flex-row items-center justify-between">
-        <Text className="flex-1 pr-3 text-xl font-bold text-cream-500">
-          {perk.name}
-        </Text>
-
-        <PerkIcon
-          perkId={perk.selectedChoice || perk.id}
-          isUnlocked={isUnlocked}
-          size={32}
-        />
-      </View>
-
-      {/* Perk Description */}
-      <Text className="mb-3 text-sm leading-5 text-cream-500/80">
-        {perk.description}
-      </Text>
-
-      {/* Level Requirement (Locked) */}
-      {isLocked && (
-        <View className="mt-2">
-          <Text className="text-xs text-neutral-200">
-            Level {perk.levelRequired} Required
-          </Text>
+      <View
+        testID={testID || `perk-card-${status}`}
+        style={[
+          styles.card,
+          isAvailable && styles.cardAvailable,
+          isUnlocked && styles.cardUnlocked,
+          isLocked && styles.cardLocked,
+        ]}
+      >
+        {/* Header: Icon + Perk Name + Status Badge */}
+        <View style={styles.headerRow}>
+          <PerkIcon
+            perkId={perk.selectedChoice || perk.id}
+            isUnlocked={isUnlocked}
+            size={32}
+          />
+          <Text style={styles.name}>{perk.name}</Text>
+          {statusLabel[status] ? (
+            <Badge tone={statusTone[status]}>{statusLabel[status]}</Badge>
+          ) : null}
         </View>
-      )}
 
-      {/* Selected Choice (Unlocked Choice Node) */}
-      {isUnlocked && perk.isChoice && perk.selectedChoice && (
-        <View className="mt-2 rounded-md bg-primary-400/20 p-3">
-          <Text className="mb-1 text-xs font-semibold text-primary-400">
-            Selected Path
-          </Text>
-          <Text className="text-sm font-medium text-cream-500">
-            {perk.choices?.find((c) => c.id === perk.selectedChoice)?.name ||
-              perk.selectedChoice}
-          </Text>
-        </View>
-      )}
+        {/* Perk Description */}
+        <Text style={styles.description}>{perk.description}</Text>
 
-      {/* Unlock Date (Unlocked) */}
-      {isUnlocked && perk.unlockedAt && (
-        <View className="mt-2">
-          <Text className="text-xs text-neutral-200">
+        {/* Level Requirement (Locked) */}
+        {isLocked && (
+          <Text style={styles.meta}>Level {perk.levelRequired} Required</Text>
+        )}
+
+        {/* Selected Choice (Unlocked Choice Node) */}
+        {isUnlocked && perk.isChoice && perk.selectedChoice && (
+          <View style={styles.choiceBox}>
+            <Text style={styles.choiceLabel}>Selected Path</Text>
+            <Text style={styles.choiceValue}>
+              {perk.choices?.find((c) => c.id === perk.selectedChoice)?.name ||
+                perk.selectedChoice}
+            </Text>
+          </View>
+        )}
+
+        {/* Unlock Date (Unlocked) */}
+        {isUnlocked && perk.unlockedAt && (
+          <Text style={styles.meta}>
             Unlocked {formatDate(perk.unlockedAt)}
           </Text>
-        </View>
-      )}
+        )}
 
-      {/* Unlock Button (Available) */}
-      {isAvailable && onUnlock && (
-        <View className="mt-3">
-          <Animated.View entering={FadeIn.delay(200)} style={buttonStyle}>
+        {/* Unlock Button (Available) */}
+        {isAvailable && onUnlock && (
+          <Animated.View
+            entering={FadeIn.delay(200)}
+            style={[styles.buttonRow, buttonStyle]}
+          >
             <Button
               label={perk.isChoice ? 'Choose Path' : 'Unlock'}
-              variant="default"
-              size="default"
+              variant="primary"
+              size="md"
               onPress={handleUnlockPress}
-              className="bg-primary-400"
               testID={`unlock-button-${perk.id}`}
             />
           </Animated.View>
-        </View>
-      )}
+        )}
+      </View>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  glowWrapper: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+  },
+  card: {
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[4],
+    marginBottom: spacing[3],
+    gap: spacing[2],
+  },
+  cardAvailable: {
+    borderWidth: 2,
+    borderColor: withAlpha(palette.cinnabar, 0.5),
+  },
+  cardUnlocked: {
+    borderColor: withAlpha(colors.status.success, 0.35),
+  },
+  cardLocked: {
+    opacity: 0.5,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  name: {
+    flex: 1,
+    fontFamily: fontFamily.semibold,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+  description: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text.secondary,
+  },
+  meta: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    color: colors.text.muted,
+  },
+  choiceBox: {
+    borderRadius: radii.md,
+    backgroundColor: withAlpha(palette.cinnabar, 0.12),
+    padding: spacing[3],
+    gap: 2,
+  },
+  choiceLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: colors.text.accent,
+  },
+  choiceValue: {
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  buttonRow: {
+    marginTop: spacing[1],
+    alignSelf: 'flex-start',
+  },
+});

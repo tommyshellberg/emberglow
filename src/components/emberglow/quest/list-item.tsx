@@ -26,6 +26,10 @@ export type ListItemProps = {
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** Overrides the row's default (title-derived) accessibility label. */
+  accessibilityLabel?: string;
+  /** Only meaningful on interactive rows (i.e. when `onPress` is set). */
+  accessibilityHint?: string;
 };
 
 /** Row for quest logs, journal entries, and settings lists — leading icon/image, title/subtitle, trailing value. */
@@ -37,6 +41,8 @@ export function ListItem({
   onPress,
   style,
   testID,
+  accessibilityLabel,
+  accessibilityHint,
 }: ListItemProps) {
   const content = (
     <>
@@ -57,7 +63,11 @@ export function ListItem({
   // screen readers.
   if (!onPress) {
     return (
-      <View testID={testID} style={[styles.container, style]}>
+      <View
+        testID={testID}
+        style={[styles.container, style]}
+        accessibilityLabel={accessibilityLabel}
+      >
         {content}
       </View>
     );
@@ -67,6 +77,8 @@ export function ListItem({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       testID={testID}
       style={({ pressed }) => [
         styles.container,

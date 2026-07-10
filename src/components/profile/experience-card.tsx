@@ -1,12 +1,7 @@
-import React, { useEffect } from 'react';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import React from 'react';
 
 import { levels } from '@/app/data/level-progression';
+import { XPBar } from '@/components/emberglow';
 import { Card, Text, View } from '@/components/ui';
 import { type Character } from '@/store/types';
 
@@ -36,26 +31,7 @@ export function ExperienceCard({ character }: ExperienceCardProps) {
     ? nextLevelData.totalXPRequired - (currentLevelData?.totalXPRequired || 0)
     : 100; // fallback
 
-  const progress = xpProgressTowardNext / xpRequiredForCurrentToNext;
   const nextLevel = character.level + 1;
-
-  // Animation for progress bar
-  const animatedProgress = useSharedValue(0);
-
-  useEffect(() => {
-    // Animate from 0 to current progress when component mounts or progress changes
-    animatedProgress.value = 0;
-    animatedProgress.value = withTiming(progress, {
-      duration: 1000,
-      easing: Easing.out(Easing.exp),
-    });
-  }, [progress, animatedProgress]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      width: `${animatedProgress.value * 100}%`,
-    };
-  });
 
   return (
     <Card className="mx-4 mt-4 p-5">
@@ -66,30 +42,18 @@ export function ExperienceCard({ character }: ExperienceCardProps) {
         </Text>
       </View>
 
-      <View className="mb-2">
+      <View className="mb-3">
         <Text className="text-center text-sm text-neutral-200">
           {xpForNextLevel} XP to Level {nextLevel}
         </Text>
       </View>
 
-      <View className="mt-2 h-3 w-full overflow-hidden rounded-full bg-neutral-400">
-        <Animated.View
-          className="h-full bg-secondary-300"
-          style={animatedStyle}
-        />
-      </View>
-
-      <View className="mt-2 flex-row justify-between">
-        <View className="flex-row items-center">
-          <Text className="font-semibold text-white">
-            Level {character.level}
-          </Text>
-          <Text className="ml-2 text-sm text-neutral-200">
-            ({xpProgressTowardNext}/{xpRequiredForCurrentToNext})
-          </Text>
-        </View>
-        <Text className="text-sm text-neutral-200">Level {nextLevel}</Text>
-      </View>
+      {/* Emberglow XPBar — level/xp/xpNext already match the values computed above */}
+      <XPBar
+        level={character.level}
+        xp={xpProgressTowardNext}
+        xpNext={xpRequiredForCurrentToNext}
+      />
     </Card>
   );
 }

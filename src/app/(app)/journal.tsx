@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { useQuestRuns } from '@/api/quest';
@@ -13,21 +14,31 @@ import {
   View,
 } from '@/components/ui';
 import colors from '@/components/ui/colors';
-
-import { EmptyState, FilterChips, QuestListItem } from '@/features/journal/components/journal-components';
-import { QUESTS_PER_PAGE, SCROLL_END_THRESHOLD } from '@/features/journal/constants/journal-constants';
 import {
-  useJournalAnimations,
+  EmptyState,
+  FilterChips,
+  QuestListItem,
+  riseIn,
+} from '@/features/journal/components/journal-components';
+import {
+  QUESTS_PER_PAGE,
+  SCROLL_END_THRESHOLD,
+} from '@/features/journal/constants/journal-constants';
+import {
   useJournalFilters,
   useJournalPagination,
   useTransformedQuestRuns,
 } from '@/features/journal/hooks/journal-hooks';
+import { colors as emberColors, radii, shadows } from '@/theme';
+
+// Quest list items stagger in after the header (index 0) and the two
+// filter-chip rows (indices 1-2) — see `riseIn` in journal-components.tsx.
+const LIST_ITEM_START_INDEX = 3;
 
 export default function JournalScreen() {
   const { page, resetPage, incrementPage } = useJournalPagination();
   const { filter, statusFilter, setFilter, setStatusFilter } =
     useJournalFilters();
-  const { contentStyle } = useJournalAnimations();
 
   // Get quest runs from server
   const { data, isLoading } = useQuestRuns({
@@ -66,13 +77,16 @@ export default function JournalScreen() {
 
       <ScreenContainer>
         {/* Header */}
-        <ScreenHeader
-          title="Journal"
-          subtitle="Your quest history and achievements"
-        />
+        <Animated.View entering={riseIn(0)}>
+          <ScreenHeader
+            title="Journal"
+            subtitle="Your quest history and achievements"
+            animate={false}
+          />
+        </Animated.View>
 
-        {/* Filter Pills */}
-        <Animated.View style={contentStyle} className="flex-1">
+        <View className="flex-1">
+          {/* Filter Pills */}
           <FilterChips
             filter={filter}
             statusFilter={statusFilter}
@@ -105,12 +119,16 @@ export default function JournalScreen() {
             ) : sortedQuests.length === 0 ? (
               <EmptyState />
             ) : (
-              sortedQuests.map((quest) => (
-                <QuestListItem
-                  key={`${quest.id}-${quest.stopTime}`}
-                  quest={quest}
-                />
-              ))
+              <View style={styles.card}>
+                {sortedQuests.map((quest, index) => (
+                  <Animated.View
+                    key={`${quest.id}-${quest.stopTime}`}
+                    style={index > 0 ? styles.rowDivider : undefined}
+                  >
+                    <QuestListItem quest={quest} />
+                  </Animated.View>
+                ))}
+              </View>
             )}
 
             {/* Loading indicator for pagination */}
@@ -123,8 +141,23 @@ export default function JournalScreen() {
             {/* Extra space at bottom for better scrolling */}
             <View className="h-20" />
           </ScrollView>
-        </Animated.View>
+        </View>
       </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: radii.lg,
+    backgroundColor: emberColors.surface.raised,
+    borderWidth: 1,
+    borderColor: emberColors.border.hairline,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: emberColors.border.hairline,
+  },
+});

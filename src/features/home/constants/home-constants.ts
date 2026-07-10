@@ -7,7 +7,13 @@ const screenWidth = Dimensions.get('window').width;
 
 export const CARD_WIDTH_RATIO = 0.75;
 export const CARD_SPACING = 16;
-export const CARD_ASPECT_RATIO = 4 / 3;
+// Emberglow's QuestCard (unlike the old image-hero card it replaced) has no
+// aspect-ratio — it sizes to its own content (badges/title/description/
+// duration + padding), not to a forced height. This ratio is tuned to
+// approximate that natural content height at CARD_WIDTH rather than to frame
+// a full-bleed hero image; the carousel wrapper's height follows it so cards
+// aren't clipped or left with dead space below them (Task 5 known gotcha).
+export const CARD_ASPECT_RATIO = 0.85;
 
 export const CARD_WIDTH = screenWidth * CARD_WIDTH_RATIO;
 export const SNAP_INTERVAL = CARD_WIDTH + CARD_SPACING;

@@ -7,11 +7,17 @@
 
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput } from 'react-native';
-
 import {
-  Button,
-  Card,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+} from 'react-native';
+
+import { Button, EyebrowLabel, Input } from '@/components/emberglow';
+import {
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
@@ -22,10 +28,10 @@ import { GuildIconSelector } from '@/features/guilds/components/guild-icon-selec
 import {
   GUILD_FORM,
   GUILD_TITLES,
-  GUILD_VALIDATION,
 } from '@/features/guilds/constants/guild-strings';
 import { useCreateGuild } from '@/features/guilds/hooks';
 import type { GuildIcon } from '@/features/guilds/types/guild-types';
+import { colors, radii, shadows, spacing, withAlpha } from '@/theme';
 
 export default function CreateGuildScreen() {
   const router = useRouter();
@@ -75,7 +81,9 @@ export default function CreateGuildScreen() {
       console.error('Failed to create guild:', error);
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to create guild. Please try again.'
+        error instanceof Error
+          ? error.message
+          : 'Failed to create guild. Please try again.'
       );
     }
   }, [name, tagline, icon, createGuildMutation, router]);
@@ -100,79 +108,51 @@ export default function CreateGuildScreen() {
             contentContainerStyle={{ flexGrow: 1 }}
           >
             <View className="flex-1 px-4 py-6">
-              {/* Form Card */}
-              <Card className="mb-6 rounded-xl p-5">
+              {/* Form Section */}
+              <View style={styles.section}>
                 {/* Name Input */}
-                <View className="mb-5">
-                  <Text className="mb-2 text-sm font-medium text-neutral-200">
-                    {GUILD_FORM.NAME_LABEL}
-                  </Text>
-                  <TextInput
+                <View style={styles.field}>
+                  <Input
                     testID="guild-name-input"
+                    label={GUILD_FORM.NAME_LABEL}
                     value={name}
                     onChangeText={handleNameChange}
                     placeholder={GUILD_FORM.NAME_PLACEHOLDER}
-                    placeholderTextColor="#5C7380"
                     autoCapitalize="words"
                     autoFocus
                     maxLength={50}
-                    style={{
-                      height: 48,
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#D4A574', // guild-300
-                      backgroundColor: 'transparent',
-                      paddingHorizontal: 4,
-                      paddingVertical: 8,
-                      fontSize: 18,
-                      color: '#e8dcc7', // cream
-                    }}
                   />
                   {validationError && (
-                    <Text className="mt-2 text-sm text-red-400">
+                    <Text style={styles.validationErrorText}>
                       {validationError}
                     </Text>
                   )}
                 </View>
 
                 {/* Tagline Input */}
-                <View>
-                  <Text className="mb-2 text-sm font-medium text-neutral-200">
-                    {GUILD_FORM.TAGLINE_LABEL}
-                  </Text>
-                  <TextInput
-                    testID="guild-tagline-input"
-                    value={tagline}
-                    onChangeText={setTagline}
-                    placeholder={GUILD_FORM.TAGLINE_PLACEHOLDER}
-                    placeholderTextColor="#5C7380"
-                    autoCapitalize="sentences"
-                    maxLength={100}
-                    style={{
-                      height: 48,
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#D4A574', // guild-300
-                      backgroundColor: 'transparent',
-                      paddingHorizontal: 4,
-                      paddingVertical: 8,
-                      fontSize: 18,
-                      color: '#e8dcc7', // cream
-                    }}
-                  />
-                </View>
-              </Card>
+                <Input
+                  testID="guild-tagline-input"
+                  label={GUILD_FORM.TAGLINE_LABEL}
+                  value={tagline}
+                  onChangeText={setTagline}
+                  placeholder={GUILD_FORM.TAGLINE_PLACEHOLDER}
+                  autoCapitalize="sentences"
+                  maxLength={100}
+                />
+              </View>
 
-              {/* Icon Selector Card */}
-              <Card className="mb-6 rounded-xl p-5">
-                <Text className="mb-4 text-sm font-medium text-neutral-200">
+              {/* Icon Selector Section */}
+              <View style={styles.section}>
+                <EyebrowLabel tone="warm" style={styles.iconLabel}>
                   {GUILD_FORM.ICON_LABEL}
-                </Text>
+                </EyebrowLabel>
                 <GuildIconSelector selected={icon} onSelect={setIcon} />
-              </Card>
+              </View>
 
               {/* Error Message */}
               {createGuildMutation.error && (
-                <View className="mb-4 rounded-lg bg-red-400/10 p-3">
-                  <Text className="text-center text-sm text-red-400">
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>
                     {createGuildMutation.error instanceof Error
                       ? createGuildMutation.error.message
                       : 'An error occurred'}
@@ -186,16 +166,54 @@ export default function CreateGuildScreen() {
           <View className="px-4 pb-8">
             <Button
               testID="create-guild-submit"
+              variant="primary"
+              size="lg"
+              fullWidth
               label="Create Guild"
               onPress={handleSubmit}
-              loading={createGuildMutation.isPending}
               disabled={createGuildMutation.isPending || !isFormValid}
-              className="bg-guild-300"
-              textClassName="text-richBlack-500 font-semibold"
-            />
+            >
+              {createGuildMutation.isPending ? (
+                <ActivityIndicator color={colors.text.onAccent} />
+              ) : undefined}
+            </Button>
           </View>
         </ScreenContainer>
       </KeyboardAvoidingView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  section: {
+    ...shadows.raised,
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[5],
+    marginBottom: spacing[6],
+  },
+  field: {
+    marginBottom: spacing[5],
+  },
+  iconLabel: {
+    marginBottom: spacing[4],
+  },
+  validationErrorText: {
+    marginTop: spacing[2],
+    fontSize: 14,
+    color: colors.status.danger,
+  },
+  errorBanner: {
+    marginBottom: spacing[4],
+    borderRadius: radii.md,
+    padding: spacing[3],
+    backgroundColor: withAlpha(colors.status.danger, 0.1),
+  },
+  errorText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: colors.status.danger,
+  },
+});

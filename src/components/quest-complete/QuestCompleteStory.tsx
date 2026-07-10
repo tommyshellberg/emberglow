@@ -1,7 +1,13 @@
 import React, { useEffect } from 'react';
-import { ScrollView, useWindowDimensions } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
-  FadeInDown,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -9,12 +15,15 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { StoryNarration } from '@/components/StoryNarration';
-import { Text } from '@/components/ui';
-import { Card } from '@/components/ui/card';
+import { colors, easing, radii, shadows, spacing } from '@/theme';
 
 import { ANIMATION_TIMING } from './constants';
 import type { QuestCompleteStoryProps } from './types';
 import { isStoryQuest } from './types';
+
+const EMBER_OUT = Easing.bezier(...easing.emberOut);
+/** Rise distance for the fade+translateY entrance, matching FailedQuest's convergence. */
+const RISE_DISTANCE = 16;
 
 export function QuestCompleteStory({
   story,
@@ -26,13 +35,17 @@ export function QuestCompleteStory({
 
   const storyStyle = useAnimatedStyle(() => ({
     opacity: storyOpacity.value,
+    transform: [{ translateY: RISE_DISTANCE * (1 - storyOpacity.value) }],
   }));
 
   useEffect(() => {
     if (!disableAnimations) {
       storyOpacity.value = withDelay(
         ANIMATION_TIMING.STORY_DELAY,
-        withTiming(1, { duration: ANIMATION_TIMING.STORY_DURATION })
+        withTiming(1, {
+          duration: ANIMATION_TIMING.STORY_DURATION,
+          easing: EMBER_OUT,
+        })
       );
     } else {
       storyOpacity.value = 1;
@@ -47,32 +60,56 @@ export function QuestCompleteStory({
 
   return (
     <Animated.View
-      entering={
-        disableAnimations
-          ? undefined
-          : FadeInDown.delay(ANIMATION_TIMING.ENTERING_DELAY_1).duration(600)
-      }
-      className="my-2 w-full"
-      style={[storyStyle, { height: storyHeight }]}
+      style={[styles.container, storyStyle, { height: storyHeight }]}
       accessibilityLabel="Quest completion story"
     >
-      <Card className="flex-1 rounded-xl">
-        <ScrollView
-          className="px-4"
-          contentContainerStyle={{ paddingVertical: 16 }}
-          showsVerticalScrollIndicator={true}
-        >
-          <Text
-            className="text-sm leading-6 text-white"
-            accessibilityRole="text"
+      {/* Two layers so the drop shadow (outer) isn't clipped by the
+          rounded card's `overflow: hidden` (inner) — see quest-card.tsx. */}
+      <View style={styles.shadowWrapper}>
+        <View style={styles.card}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
           >
-            {displayStory}
-          </Text>
-        </ScrollView>
-      </Card>
+            <Text style={styles.storyText} accessibilityRole="text">
+              {displayStory}
+            </Text>
+          </ScrollView>
+        </View>
+      </View>
 
       {/* Audio Controls - Only show for story quests */}
       {isStory && <StoryNarration quest={quest} />}
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    marginVertical: spacing[2],
+  },
+  shadowWrapper: {
+    flex: 1,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    ...shadows.card,
+  },
+  card: {
+    flex: 1,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+  },
+  scroll: {
+    paddingHorizontal: spacing[4],
+  },
+  scrollContent: {
+    paddingVertical: spacing[4],
+  },
+  storyText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.text.primary,
+  },
+});

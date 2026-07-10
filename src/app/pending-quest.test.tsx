@@ -42,31 +42,26 @@ jest.mock('@/components/quest-preview', () => ({
 
 // Don't mock the pending-quest module - we want to test the real implementation
 
-// Mock UI components including BackgroundImage
+// Mock `@/components/ui`, but only for `BackgroundImage` — the real one
+// doesn't forward `testID`/`source` onto a host view (see
+// `src/components/ui/background-image.tsx`), which this suite asserts on
+// directly, so it still needs a stub. Everything else in this module's
+// barrel pulls in unrelated native-heavy components (e.g. `screen-header`),
+// so rather than `requireActual`-ing the whole barrel (as the pre-Emberglow
+// version of this test did, stubbing `Card`/`Eyebrow`/`Title`/`Button`/
+// `Text`/`View`), pull the real `Image` submodule directly — Emberglow's
+// `QuestCard` (used by `QuestInfoCard`) imports `Image` from this module,
+// and a full-module stub without it would shadow that export with
+// `undefined` and crash `QuestCard`'s render.
 jest.mock('@/components/ui', () => {
   const React = jest.requireActual('react');
   const RN = jest.requireActual('react-native');
+  const { Image } = jest.requireActual('@/components/ui/image');
 
   return {
-    BackgroundImage: ({ testID, source, ...props }: any) =>
-      React.createElement(RN.View, { testID, ...props, source }),
-    Button: ({ onPress, children, ...props }: any) =>
-      React.createElement(
-        RN.TouchableOpacity,
-        { onPress, ...props },
-        React.createElement(RN.Text, {}, children)
-      ),
-    Card: ({ children, testID, ...props }: any) =>
-      React.createElement(RN.View, { testID, ...props }, children),
-    Eyebrow: ({ text, children, ...props }: any) =>
-      React.createElement(
-        RN.Text,
-        props,
-        (text ?? children ?? '').toString().toUpperCase()
-      ),
-    Text: (props: any) => React.createElement(RN.Text, props),
-    Title: (props: any) => React.createElement(RN.Text, props),
-    View: (props: any) => React.createElement(RN.View, props),
+    BackgroundImage: ({ testID, source }: any) =>
+      React.createElement(RN.View, { testID, source }),
+    Image,
   };
 });
 
@@ -337,7 +332,7 @@ describe('PendingQuestScreen', () => {
     it('displays the eyebrow with the quest mode for story quests', () => {
       const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getByText('STORY QUEST')).toBeTruthy();
+      expect(getByText('Story Quest')).toBeTruthy();
     });
 
     it('displays the eyebrow with the quest mode for custom quests', () => {
@@ -348,7 +343,7 @@ describe('PendingQuestScreen', () => {
 
       const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getByText('CUSTOM QUEST')).toBeTruthy();
+      expect(getByText('Custom Quest')).toBeTruthy();
     });
 
     it('displays lock instructions text', () => {

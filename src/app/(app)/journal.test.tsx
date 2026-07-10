@@ -21,13 +21,12 @@ jest.mock('@/api/quest', () => ({
   useQuestRuns: jest.fn(),
 }));
 
-// Mock vector icons
-jest.mock('@expo/vector-icons', () => ({
-  Feather: () => null,
-}));
-
+// Mock vector icons used by the recomposed quest row (mode icon + empty state)
 jest.mock('lucide-react-native', () => ({
   Notebook: () => null,
+  Scroll: () => null,
+  Feather: () => null,
+  Users: () => null,
 }));
 
 // Mock StreakCounter

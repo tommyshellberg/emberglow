@@ -39,9 +39,9 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 0 XP')).toBeTruthy();
       expect(getByText('100 XP to Level 2')).toBeTruthy();
-      expect(getByText('(0/100)')).toBeTruthy();
+      // Progress-within-level is rendered by the Emberglow XPBar now.
       expect(getByText('Level 1')).toBeTruthy();
-      expect(getByText('Level 2')).toBeTruthy();
+      expect(getByText('0 / 100 XP')).toBeTruthy();
     });
 
     test('should show correct values for level 1 with 50 XP', () => {
@@ -50,7 +50,7 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 50 XP')).toBeTruthy();
       expect(getByText('50 XP to Level 2')).toBeTruthy();
-      expect(getByText('(50/100)')).toBeTruthy();
+      expect(getByText('50 / 100 XP')).toBeTruthy();
     });
 
     test('should show correct values for level 2 with 100 XP', () => {
@@ -59,9 +59,8 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 100 XP')).toBeTruthy();
       expect(getByText('150 XP to Level 3')).toBeTruthy();
-      expect(getByText('(0/150)')).toBeTruthy();
       expect(getByText('Level 2')).toBeTruthy();
-      expect(getByText('Level 3')).toBeTruthy();
+      expect(getByText('0 / 150 XP')).toBeTruthy();
     });
 
     test('should show correct values for level 2 with 200 XP', () => {
@@ -70,7 +69,7 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 200 XP')).toBeTruthy();
       expect(getByText('50 XP to Level 3')).toBeTruthy();
-      expect(getByText('(100/150)')).toBeTruthy();
+      expect(getByText('100 / 150 XP')).toBeTruthy();
     });
 
     test('should show correct values for level 3 with 250 XP', () => {
@@ -79,9 +78,8 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 250 XP')).toBeTruthy();
       expect(getByText('225 XP to Level 4')).toBeTruthy();
-      expect(getByText('(0/225)')).toBeTruthy();
       expect(getByText('Level 3')).toBeTruthy();
-      expect(getByText('Level 4')).toBeTruthy();
+      expect(getByText('0 / 225 XP')).toBeTruthy();
     });
 
     test('should show correct values for level 3 with 300 XP', () => {
@@ -90,7 +88,7 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 300 XP')).toBeTruthy();
       expect(getByText('175 XP to Level 4')).toBeTruthy();
-      expect(getByText('(50/225)')).toBeTruthy();
+      expect(getByText('50 / 225 XP')).toBeTruthy();
     });
   });
 
@@ -126,7 +124,7 @@ describe('ExperienceCard', () => {
 
       expect(getByText('Total: 250 XP')).toBeTruthy();
       expect(getByText('225 XP to Level 4')).toBeTruthy();
-      expect(getByText('(0/225)')).toBeTruthy();
+      expect(getByText('0 / 225 XP')).toBeTruthy();
     });
   });
 
@@ -136,7 +134,7 @@ describe('ExperienceCard', () => {
       const { getByText } = render(<ExperienceCard character={character} />);
 
       // Progress is 0/150 = 0%
-      expect(getByText('(0/150)')).toBeTruthy();
+      expect(getByText('0 / 150 XP')).toBeTruthy();
     });
 
     test('should calculate 50% progress halfway through level', () => {
@@ -144,7 +142,7 @@ describe('ExperienceCard', () => {
       const { getByText } = render(<ExperienceCard character={character} />);
 
       // Progress is 75/150 = 50%
-      expect(getByText('(75/150)')).toBeTruthy();
+      expect(getByText('75 / 150 XP')).toBeTruthy();
     });
 
     test('should calculate nearly 100% progress just before level up', () => {
@@ -152,7 +150,7 @@ describe('ExperienceCard', () => {
       const { getByText } = render(<ExperienceCard character={character} />);
 
       // Progress is 149/150 = 99.3%
-      expect(getByText('(149/150)')).toBeTruthy();
+      expect(getByText('149 / 150 XP')).toBeTruthy();
       expect(getByText('1 XP to Level 3')).toBeTruthy();
     });
   });

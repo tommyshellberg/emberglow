@@ -1,19 +1,24 @@
 import { router } from 'expo-router';
 import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
-  FadeInDown,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
 
-import { View } from '@/components/ui';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/emberglow';
 import { useQuestStore } from '@/store/quest-store';
+import { easing, spacing } from '@/theme';
 
 import { ANIMATION_TIMING, ONBOARDING_QUEST_ID } from './constants';
 import type { QuestCompleteActionsProps } from './types';
+
+const EMBER_OUT = Easing.bezier(...easing.emberOut);
+/** Rise distance for the fade+translateY entrance, matching FailedQuest's convergence. */
+const RISE_DISTANCE = 16;
 
 export function QuestCompleteActions({
   quest,
@@ -29,13 +34,17 @@ export function QuestCompleteActions({
 
   const actionsStyle = useAnimatedStyle(() => ({
     opacity: actionsOpacity.value,
+    transform: [{ translateY: RISE_DISTANCE * (1 - actionsOpacity.value) }],
   }));
 
   useEffect(() => {
     if (!disableAnimations) {
       actionsOpacity.value = withDelay(
         ANIMATION_TIMING.ACTIONS_DELAY,
-        withTiming(1, { duration: ANIMATION_TIMING.ACTIONS_DURATION })
+        withTiming(1, {
+          duration: ANIMATION_TIMING.ACTIONS_DURATION,
+          easing: EMBER_OUT,
+        })
       );
     } else {
       actionsOpacity.value = 1;
@@ -75,31 +84,48 @@ export function QuestCompleteActions({
 
   return (
     <Animated.View
-      entering={
-        disableAnimations
-          ? undefined
-          : FadeInDown.delay(ANIMATION_TIMING.ENTERING_DELAY_2).duration(600)
-      }
-      className="mb-4 w-full"
-      style={actionsStyle}
+      style={[styles.container, actionsStyle]}
       testID="quest-actions-container"
     >
-      <View className="w-full flex-row justify-center gap-4 px-4">
-        <Button
-          label={continueText}
-          onPress={handleContinue}
-          accessibilityLabel={continueText}
-          className="flex-1 bg-secondary-400"
-        />
-        {showReflectionButton && (
+      <View style={styles.row}>
+        {/* Continue is secondary here — Add Reflection carries the primary
+            (Cinnabar) treatment per the quest-flow.jsx mockup. */}
+        <View style={styles.slot} accessibilityLabel={continueText}>
           <Button
-            className="flex-1 bg-primary-400"
-            label="Add Reflection"
-            onPress={handleAddReflection}
-            accessibilityLabel="Reflect on quest"
+            label={continueText}
+            onPress={handleContinue}
+            variant="secondary"
+            fullWidth
           />
+        </View>
+        {showReflectionButton && (
+          <View style={styles.slot} accessibilityLabel="Reflect on quest">
+            <Button
+              label="Add Reflection"
+              onPress={handleAddReflection}
+              variant="primary"
+              fullWidth
+            />
+          </View>
         )}
       </View>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    marginBottom: spacing[4],
+  },
+  row: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing[4],
+    paddingHorizontal: spacing[4],
+  },
+  slot: {
+    flex: 1,
+  },
+});

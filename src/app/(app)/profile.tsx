@@ -20,16 +20,15 @@ import {
   ScrollView,
   View,
 } from '@/components/ui';
+import { GuildsSection } from '@/features/guilds/components/guilds-section';
+import { ActionCards } from '@/features/profile/components/profile-components';
+import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { useProfileData } from '@/lib/hooks/use-profile-data';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
-
-import { GuildsSection } from '@/features/guilds/components/guilds-section';
-import { ActionCards } from '@/features/profile/components/profile-components';
-import { PROFILE_COLORS } from '@/features/profile/constants/profile-constants';
-import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
+import { colors } from '@/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -119,8 +118,8 @@ export default function ProfileScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[PROFILE_COLORS.refreshControl]}
-              tintColor={PROFILE_COLORS.refreshControl}
+              colors={[colors.accent.primary]}
+              tintColor={colors.accent.primary}
             />
           }
         >

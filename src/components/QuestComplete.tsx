@@ -1,12 +1,13 @@
 import React from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { BackgroundImage, ScreenContainer, View } from '@/components/ui';
+import { BackgroundImage, ScreenContainer } from '@/components/ui';
 import { CompactRewardBreakdown } from '@/features/quest-result/components';
 import { useCustomQuestStory } from '@/hooks/useCustomQuestStory';
 import { calculatePerkBonuses } from '@/lib/perks';
 import { getCurrentUserRewards } from '@/lib/utils/quest-utils';
 import { useUserStore } from '@/store/user-store';
+import { colors, spacing } from '@/theme';
 
 import { QuestCompleteActions } from './quest-complete/QuestCompleteActions';
 import { QuestCompleteHeader } from './quest-complete/QuestCompleteHeader';
@@ -36,19 +37,21 @@ export function QuestComplete({
     : [];
 
   return (
-    <View className="relative flex-1">
+    <View style={styles.flex}>
       {/* Background Image */}
       <BackgroundImage
         source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
+        tintClassName=""
       >
-        {/* Semi-transparent overlay */}
-        <View className="bg-background-light/80 absolute inset-0" />
+        {/* Darkening overlay for text legibility over the art, normalized
+            to a theme token instead of a NativeWind class. */}
+        <View style={styles.overlay} />
       </BackgroundImage>
 
       {/* Content */}
-      <ScreenContainer fullScreen className="px-4">
+      <ScreenContainer fullScreen>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', alignItems: 'center' }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
@@ -57,7 +60,7 @@ export function QuestComplete({
             disableAnimations={disableEnteringAnimations}
           />
 
-          <View className="w-full px-2">
+          <View style={styles.storySection}>
             <QuestCompleteStory
               story={displayStory}
               quest={quest}
@@ -67,7 +70,7 @@ export function QuestComplete({
 
           {/* Compact reward breakdown - after story, before actions */}
           {rewardsData && perksWithBonuses.length > 0 && (
-            <View className="mt-3 w-full px-2">
+            <View style={styles.rewardSection}>
               <CompactRewardBreakdown
                 baseXP={rewardsData.baseXP}
                 adjustedXP={rewardsData.adjustedXP}
@@ -89,6 +92,30 @@ export function QuestComplete({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.surface.overlay,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  storySection: {
+    width: '100%',
+    paddingHorizontal: spacing[2],
+  },
+  rewardSection: {
+    marginTop: spacing[3],
+    width: '100%',
+    paddingHorizontal: spacing[2],
+  },
+});
 
 // Re-export types for convenience
 export type { QuestCompleteProps } from './quest-complete/types';

@@ -1,14 +1,20 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { RotateCcw } from 'lucide-react-native';
-import React, { useEffect, useRef } from 'react';
-import { ImageBackground, Pressable, View } from 'react-native';
+import * as React from 'react';
+import type { ImageSourcePropType } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ProgressBar, Text } from '@/components/ui';
-import { Card } from '@/components/ui/card';
-import { Chip } from '@/components/ui/chip';
-import type { ProgressBarRef } from '@/components/ui/progress-bar';
+import {
+  Badge,
+  EyebrowLabel,
+  QuestCard as EmberglowQuestCard,
+} from '@/components/emberglow';
+import { colors, fontFamily, palette, radii, spacing } from '@/theme';
+
+type HomeQuestMode = 'story' | 'custom' | 'cooperative';
 
 interface QuestCardProps {
-  mode: 'story' | 'custom' | 'cooperative';
+  mode: HomeQuestMode;
   title: string;
   subtitle: string;
   duration: number;
@@ -21,12 +27,32 @@ interface QuestCardProps {
   onRestart?: () => void;
 }
 
-const imageMap = {
+const imageMap: Record<HomeQuestMode, ImageSourcePropType> = {
   story: require('@/../assets/images/background/card-background-alt.jpg'),
   custom: require('@/../assets/images/background/custom-quest-background-alt.jpg'),
   cooperative: require('@/../assets/images/background/coop-quest-background-alt.jpg'),
 };
 
+const COMPLETION_MESSAGE =
+  "Congratulations! You've completed the entire Vaedros storyline. Your quest history is preserved - start a new adventure to experience different story branches!";
+
+/**
+ * Home carousel card.
+ *
+ * Wraps Emberglow's `QuestCard` (title/description/xp/duration/image) with
+ * the pieces it has no slot for — a mode label, a premium-lock badge, a
+ * story-restart control, and a linear story-progress bar. None of these
+ * exist as shared Emberglow primitives yet (ground rule 4), so they're
+ * built here from `Badge`/`EyebrowLabel` plus bare `View`s on theme tokens,
+ * matching `XPBar`'s Cinnabar→Sandy track/fill recipe for the progress bar.
+ *
+ * The story-progress block renders as its own row *below* `QuestCard`
+ * (normal flow, not an absolute overlay) rather than stacked on top of the
+ * art — `QuestCard`'s own content box anchors title/description/duration to
+ * its bottom edge (`justifyContent: 'flex-end'`), so an overlay pinned to
+ * that same bottom edge would render on top of that text instead of beside
+ * it, particularly for the full completed-storyline paragraph.
+ */
 export default function QuestCard({
   mode,
   title,
@@ -40,116 +66,142 @@ export default function QuestCard({
   isCompleted = false,
   onRestart,
 }: QuestCardProps) {
-  // Create a reference to control the progress bar
-  const progressBarRef = useRef<ProgressBarRef>(null);
-
-  // Update the progress bar when the progress prop changes
-  useEffect(() => {
-    if (progressBarRef.current) {
-      progressBarRef.current.setProgress(progress * 100);
-    }
-  }, [progress]);
+  const cardTitle = isCompleted ? 'Quest Complete!' : title;
+  const cardDescription = isCompleted
+    ? COMPLETION_MESSAGE
+    : description || undefined;
+  // When the progress row is shown, duration is displayed once there
+  // instead of a second time on QuestCard's own built-in duration line, to
+  // avoid showing "45 MIN" twice in a row.
+  const cardDuration = showProgress ? undefined : `${duration} min`;
+  const progressPercent = Math.min(100, Math.round(progress * 100));
 
   return (
-    <Card className="elevation-0 aspect-[3/4] w-full">
-      <ImageBackground
-        source={imageMap[mode]}
-        className="size-full"
-        resizeMode="cover"
-      >
-        <View
-          className={`absolute inset-0 opacity-90 ${
-            mode === 'custom'
-              ? 'bg-[rgba(47,129,142,0.2)]'
-              : mode === 'cooperative'
-                ? 'bg-[rgba(46,148,141,0.2)]'
-                : 'bg-[rgba(151,158,121,0.2)]'
-          }`}
-        />
+    <View style={styles.wrapper}>
+      <EmberglowQuestCard
+        title={cardTitle}
+        description={cardDescription}
+        xp={xp}
+        duration={cardDuration}
+        image={imageMap[mode]}
+      />
 
-        {/* Restart Button - Only show for story mode with progress */}
-        {mode === 'story' && onRestart && progress > 0 && (
-          <Pressable
-            onPress={onRestart}
-            className="absolute right-3 top-3 size-10 items-center justify-center rounded-full bg-white/20"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <RotateCcw size={20} color="#ffffff" />
-          </Pressable>
-        )}
+      {/* Mode label — Emberglow QuestCard has no subtitle/eyebrow slot */}
+      <View style={styles.eyebrowOverlay} pointerEvents="none">
+        <EyebrowLabel tone="warm">{subtitle}</EyebrowLabel>
+      </View>
 
-        <View className="flex-1 p-4">
-          <View>
-            {/* Mode Pill */}
-            <Chip className="mb-4 bg-white/20" textClassName="text-white">
-              {subtitle}
-            </Chip>
+      {/* Premium lock — no requiresPremium prop on Emberglow QuestCard */}
+      {requiresPremium && (
+        <View style={styles.premiumOverlay} pointerEvents="none">
+          <Badge tone="warm">⭐ Premium</Badge>
+        </View>
+      )}
 
-            {/* Quest Title */}
-            <Text className="max-w-[90%] text-xl font-bold text-white">
-              {isCompleted ? 'Quest Complete!' : title}
-            </Text>
+      {/* Restart control — story mode only, once progress has started */}
+      {mode === 'story' && onRestart && progress > 0 && (
+        <Pressable
+          onPress={onRestart}
+          style={styles.restartButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <RotateCcw size={20} color={colors.text.primary} />
+        </Pressable>
+      )}
 
-            {/* Premium Badge */}
-            {requiresPremium && (
-              <View className="mt-2">
-                <Chip
-                  className="bg-white/20"
-                  textClassName="text-white font-semibold"
-                >
-                  ⭐ Premium
-                </Chip>
+      {/*
+        Story progress — rendered as a normal-flow row below QuestCard
+        (not an absolute overlay), so it never collides with QuestCard's
+        own bottom-anchored title/description/duration text. No plain
+        linear 0-100 progress primitive exists (ground rule 4).
+      */}
+      {showProgress && (
+        <View style={styles.progressSection}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressLabel}>Story Progress</Text>
+            <Text style={styles.progressLabel}>{progressPercent}%</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            {progressPercent > 0 && (
+              <View
+                style={[styles.progressFill, { width: `${progressPercent}%` }]}
+              >
+                <LinearGradient
+                  colors={[palette.cinnabar, palette.sandy]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.progressGradient}
+                />
               </View>
             )}
-
-            {/* Quest Info */}
-            <View className="mb-4 mt-2">
-              <Text className="text-base font-bold text-white opacity-90">
-                {duration} mins • {xp} XP
-              </Text>
-            </View>
-
-            {isCompleted ? (
-              <Text className="text-base text-white opacity-90">
-                Congratulations! You've completed the entire Vaedros storyline.
-                Your quest history is preserved - start a new adventure to
-                experience different story branches!
-              </Text>
-            ) : (
-              description !== '' && (
-                <Text className="text-base text-white opacity-90">
-                  {description}
-                </Text>
-              )
-            )}
           </View>
+          <Text style={styles.progressDuration}>{`${duration} min`}</Text>
         </View>
-
-        {/* Add progress bar at the bottom */}
-        {showProgress && (
-          <View className="absolute inset-x-4 bottom-4">
-            <View className="mb-2 flex-row items-center">
-              <Text
-                className="mr-auto text-sm font-semibold text-white"
-                style={{ fontWeight: '600' }}
-              >
-                Story Progress
-              </Text>
-              <Text
-                className="text-sm font-semibold text-white"
-                style={{ fontWeight: '600' }}
-              >
-                {Math.min(100, Math.round(progress * 100))}%
-              </Text>
-            </View>
-            <ProgressBar
-              ref={progressBarRef}
-              initialProgress={progress * 100}
-              className="h-3 rounded-full bg-white/20"
-            />
-          </View>
-        )}
-      </ImageBackground>
-    </Card>
+      )}
+    </View>
   );
 }
+
+const PROGRESS_TRACK_HEIGHT = 6;
+
+const styles = StyleSheet.create({
+  wrapper: {
+    position: 'relative',
+  },
+  eyebrowOverlay: {
+    position: 'absolute',
+    top: spacing[3],
+    left: spacing[4],
+  },
+  premiumOverlay: {
+    position: 'absolute',
+    top: spacing[3] + spacing[5],
+    left: spacing[4],
+  },
+  restartButton: {
+    position: 'absolute',
+    top: spacing[3],
+    right: spacing[3],
+    height: 40,
+    width: 40,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.fill.subtle,
+  },
+  progressSection: {
+    marginTop: spacing[3],
+    paddingHorizontal: spacing[1],
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing[1],
+  },
+  progressLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: colors.text.primary,
+  },
+  progressTrack: {
+    height: PROGRESS_TRACK_HEIGHT,
+    borderRadius: radii.pill,
+    backgroundColor: colors.fill.subtle,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: radii.pill,
+  },
+  progressGradient: {
+    flex: 1,
+    borderRadius: radii.pill,
+  },
+  progressDuration: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: spacing[1],
+    textTransform: 'uppercase',
+  },
+});

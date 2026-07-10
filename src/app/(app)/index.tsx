@@ -15,6 +15,7 @@ import Animated, {
 
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
+import { Badge, Button } from '@/components/emberglow';
 import QuestCard from '@/components/home/quest-card';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
@@ -23,14 +24,12 @@ import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
 import {
   BackgroundImage,
-  Button,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
   useModal,
   View,
 } from '@/components/ui';
-import Colors from '@/components/ui/colors';
 import { StoryOptionButtons } from '@/features/home/components/story-option-buttons';
 import {
   CARD_HEIGHT,
@@ -38,6 +37,7 @@ import {
   CARD_WIDTH,
   CAROUSEL_CONTENT_PADDING,
   CAROUSEL_VERTICAL_PADDING,
+  FOOTER_MIN_HEIGHT,
   QUEST_MODES,
   SNAP_INTERVAL,
 } from '@/features/home/constants/home-constants';
@@ -55,6 +55,7 @@ import { useQuestStore } from '@/store/quest-store';
 import { useSettingsStore } from '@/store/settings-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
+import { shadows } from '@/theme';
 
 export default function Home() {
   const activeQuest = useQuestStore((state) => state.activeQuest);
@@ -463,7 +464,7 @@ export default function Home() {
         {!activeQuest && !pendingQuest && (
           <View
             className="items-center justify-center"
-            style={{ minHeight: 140 }}
+            style={{ minHeight: FOOTER_MIN_HEIGHT }}
           >
             {activeIndex === 0 ? (
               <StoryOptionButtons
@@ -483,24 +484,14 @@ export default function Home() {
               >
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
-                  style={{
-                    width: CARD_WIDTH,
-                    shadowColor: Colors.black,
-                    shadowOffset: {
-                      width: 0,
-                      height: 3,
-                    },
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    elevation: 6,
-                  }}
+                  style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
                   <Button
                     label="Create Custom Quest"
                     onPress={handleStartCustomQuest}
-                    className="h-16 justify-center rounded-xl bg-primary-300 p-3"
-                    textClassName="text-sm text-white text-center leading-snug"
-                    textStyle={{ fontWeight: '700' }}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   />
                 </Animated.View>
               </Animated.View>
@@ -513,18 +504,13 @@ export default function Home() {
                 {!hasCoopAccess && <PremiumCTATracker type="cooperative" />}
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
-                  style={{
-                    width: CARD_WIDTH,
-                    shadowColor: Colors.black,
-                    shadowOffset: {
-                      width: 0,
-                      height: 3,
-                    },
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    elevation: 6,
-                  }}
+                  style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
+                  {!hasCoopAccess && (
+                    <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
+                      <Badge tone="warm">⭐ Premium</Badge>
+                    </View>
+                  )}
                   <Button
                     label={
                       hasCoopAccess
@@ -543,11 +529,9 @@ export default function Home() {
                         setShowPaywallModal(true);
                       }
                     }}
-                    className={`h-16 justify-center rounded-xl p-3 ${
-                      hasCoopAccess ? 'bg-primary-300' : 'bg-amber-400'
-                    }`}
-                    textClassName="text-sm text-white text-center leading-snug"
-                    textStyle={{ fontWeight: '700' }}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   />
                 </Animated.View>
               </Animated.View>

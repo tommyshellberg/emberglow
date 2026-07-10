@@ -2,10 +2,16 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, ChevronUp, Notebook } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text as RNText,
+  TouchableOpacity,
+} from 'react-native';
 
 import { useQuestReflection } from '@/api/quest-reflection';
 import { AVAILABLE_CUSTOM_QUEST_STORIES } from '@/app/data/quests';
+import { Badge, Button } from '@/components/emberglow';
 import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { FocusAwareStatusBar, ScreenHeader, Text, View } from '@/components/ui';
@@ -25,6 +31,15 @@ import {
   SCREEN_TITLE,
 } from '@/features/quest/constants/quest-details.constants';
 import { useQuestStore } from '@/store/quest-store';
+import {
+  colors as emberColors,
+  fontFamily,
+  fontSize,
+  radii,
+  shadows,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 export default function AppQuestDetailsScreen() {
   const { id, timestamp, from, questData } = useLocalSearchParams<{
@@ -196,38 +211,36 @@ export default function AppQuestDetailsScreen() {
             {/* Collapsible reflection header */}
             <TouchableOpacity
               onPress={() => setIsReflectionExpanded(!isReflectionExpanded)}
-              className="flex-row items-center justify-between rounded-lg bg-cardBackground p-4 shadow-md"
+              style={styles.reflectionHeader}
               accessibilityLabel={`${REFLECTION_HEADER_TEXT} section`}
               accessibilityRole="button"
               accessibilityHint={`${isReflectionExpanded ? 'Collapse' : 'Expand'} reflection details`}
               accessibilityState={{ expanded: isReflectionExpanded }}
             >
-              <View className="flex-row items-center">
-                <Notebook size={22} color={colors.secondary[300]} />
-                <Text className="ml-3 text-base font-semibold text-white">
+              <View style={styles.reflectionHeaderLeft}>
+                <Notebook size={22} color={emberColors.text.accent} />
+                <RNText style={styles.reflectionHeaderTitle}>
                   {REFLECTION_HEADER_TEXT}
-                </Text>
-                <View className="ml-3 rounded-full bg-secondary-400 px-3 py-1">
-                  <Text className="text-xs font-medium text-white">
-                    {REFLECTION_ADDED_BADGE_TEXT}
-                  </Text>
-                </View>
+                </RNText>
+                <Badge tone="success" style={styles.reflectionAddedBadge}>
+                  {REFLECTION_ADDED_BADGE_TEXT}
+                </Badge>
               </View>
               {isReflectionExpanded ? (
-                <ChevronUp size={20} color={colors.secondary[300]} />
+                <ChevronUp size={20} color={emberColors.text.secondary} />
               ) : (
-                <ChevronDown size={20} color={colors.secondary[300]} />
+                <ChevronDown size={20} color={emberColors.text.secondary} />
               )}
             </TouchableOpacity>
 
             {/* Expandable reflection content */}
             {isReflectionExpanded && (
-              <View className="mt-2 rounded-lg bg-cardBackground p-4 shadow-md">
-                <View className="flex-row">
+              <View style={styles.reflectionContent}>
+                <View style={styles.reflectionContentRow}>
                   {/* Left side: Mood emoji */}
                   {(serverReflection?.mood || quest.reflection?.mood) && (
-                    <View className="mr-4 items-center justify-center">
-                      <Text className="text-4xl">
+                    <View style={styles.reflectionMoodContainer}>
+                      <RNText style={styles.reflectionMoodEmoji}>
                         {
                           MOOD_EMOJIS[
                             (serverReflection?.mood ||
@@ -235,28 +248,28 @@ export default function AppQuestDetailsScreen() {
                                 ?.mood) as keyof typeof MOOD_EMOJIS
                           ]
                         }
-                      </Text>
+                      </RNText>
                     </View>
                   )}
 
                   {/* Right side: Activities and Note */}
-                  <View className="flex-1">
+                  <View style={styles.reflectionContentMain}>
                     {/* Activities as title */}
                     {(serverReflection?.activities?.length ||
                       quest.reflection?.activities?.length) && (
-                      <View className="mb-2 flex-row flex-wrap">
+                      <View style={styles.reflectionActivitiesRow}>
                         {(
                           serverReflection?.activities ||
                           quest.reflection?.activities ||
                           []
                         ).map((activity: string) => (
                           <View
-                            className="mr-2 rounded-xl border-primary-500 bg-primary-200 px-2 py-1 shadow-sm"
+                            style={styles.reflectionActivityChip}
                             key={activity}
                           >
-                            <Text className="font-bold capitalize text-black">
-                              {activity}{' '}
-                            </Text>
+                            <RNText style={styles.reflectionActivityText}>
+                              {activity}
+                            </RNText>
                           </View>
                         ))}
                       </View>
@@ -264,9 +277,9 @@ export default function AppQuestDetailsScreen() {
 
                     {/* Note underneath */}
                     {(serverReflection?.text || quest.reflection?.text) && (
-                      <Text className="text-sm leading-relaxed text-neutral-200">
+                      <RNText style={styles.reflectionNoteText}>
                         {serverReflection?.text || quest.reflection?.text}
-                      </Text>
+                      </RNText>
                     )}
                   </View>
                 </View>
@@ -278,7 +291,7 @@ export default function AppQuestDetailsScreen() {
         {/* Add Reflection button at top - only when no reflection exists */}
         {from === 'journal' && !hasReflection && quest.questRunId && (
           <View className="mx-4 mb-4">
-            <TouchableOpacity
+            <Button
               onPress={() => {
                 router.push({
                   pathname: REFLECTION_ROUTE,
@@ -290,42 +303,24 @@ export default function AppQuestDetailsScreen() {
                   },
                 });
               }}
-              className="flex-row items-center justify-center rounded-lg px-4 py-2.5 shadow-md"
-              style={{
-                backgroundColor: colors.cinnamon,
-                shadowColor: colors.cinnamon,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 2,
-                elevation: 2,
-              }}
-              accessibilityLabel={ADD_REFLECTION_BUTTON_TEXT}
-              accessibilityRole="button"
-              accessibilityHint="Navigate to the reflection screen to add your thoughts about this quest"
+              variant="primary"
+              size="sm"
+              glow
             >
-              <Notebook size={18} color={colors.white} />
-              <Text className="ml-2 text-sm font-semibold text-white">
+              <Notebook size={18} color={emberColors.text.onAccent} />
+              <RNText style={styles.addReflectionButtonText}>
                 {ADD_REFLECTION_BUTTON_TEXT}
-              </Text>
-            </TouchableOpacity>
+              </RNText>
+            </Button>
           </View>
         )}
 
-        {from === 'journal' ? (
-          <QuestComplete
-            quest={quest}
-            story={getQuestCompletionText()}
-            showActionButton={false}
-            disableEnteringAnimations={true}
-          />
-        ) : (
-          <QuestComplete
-            quest={quest}
-            story={getQuestCompletionText()}
-            showActionButton={true}
-            disableEnteringAnimations={false}
-          />
-        )}
+        <QuestComplete
+          quest={quest}
+          story={getQuestCompletionText()}
+          showActionButton={from !== 'journal'}
+          disableEnteringAnimations={from === 'journal'}
+        />
       </View>
     );
   }
@@ -357,3 +352,82 @@ export default function AppQuestDetailsScreen() {
     </View>
   );
 }
+
+// Shared surface for both the collapsible header and its expanded panel.
+const reflectionPanelBase = {
+  borderRadius: radii.lg,
+  backgroundColor: emberColors.surface.raised,
+  padding: spacing[4],
+  ...shadows.card,
+} as const;
+
+const styles = StyleSheet.create({
+  reflectionHeader: {
+    ...reflectionPanelBase,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  reflectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reflectionHeaderTitle: {
+    marginLeft: spacing[3],
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.body,
+    color: emberColors.text.primary,
+  },
+  reflectionAddedBadge: {
+    marginLeft: spacing[3],
+  },
+  reflectionContent: {
+    ...reflectionPanelBase,
+    marginTop: spacing[2],
+  },
+  reflectionContentRow: {
+    flexDirection: 'row',
+  },
+  reflectionMoodContainer: {
+    marginRight: spacing[4],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reflectionMoodEmoji: {
+    fontSize: 36,
+  },
+  reflectionContentMain: {
+    flex: 1,
+  },
+  reflectionActivitiesRow: {
+    marginBottom: spacing[2],
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  reflectionActivityChip: {
+    marginRight: spacing[2],
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: withAlpha(emberColors.palette.cinnabar, 0.35),
+    backgroundColor: withAlpha(emberColors.palette.cinnabar, 0.18),
+    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[2],
+  },
+  reflectionActivityText: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.small,
+    textTransform: 'capitalize',
+    color: emberColors.tints.cinnabar80,
+  },
+  reflectionNoteText: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    lineHeight: fontSize.small * 1.5,
+    color: emberColors.text.secondary,
+  },
+  addReflectionButtonText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.small,
+    color: emberColors.text.onAccent,
+  },
+});

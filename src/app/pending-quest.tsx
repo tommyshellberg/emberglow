@@ -1,24 +1,18 @@
 import { router } from 'expo-router';
 import { Lock } from 'lucide-react-native';
 import React from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestRewardPreview } from '@/api/quest-runs';
-import {
-  BackgroundImage,
-  Button,
-  Eyebrow,
-  Text,
-  Title,
-  View,
-} from '@/components/ui';
-import colors from '@/components/ui/colors';
+import { Button, EyebrowLabel } from '@/components/emberglow';
+import { BackgroundImage } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
+import { colors, fontFamily, spacing, text } from '@/theme';
 
 import { QuestInfoCard } from './pending-quest/components/quest-info-card';
 import {
@@ -68,14 +62,14 @@ export default function PendingQuestScreen() {
 
   if (!pendingQuest) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View style={styles.loadingContainer}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <View className="flex-1">
+    <View style={styles.flex}>
       {/* Full-screen Background Image */}
       <BackgroundImage
         testID="background-image"
@@ -83,22 +77,22 @@ export default function PendingQuestScreen() {
       ></BackgroundImage>
 
       <View
-        className="flex-1 justify-between"
-        style={{
-          paddingTop: insets.top,
-          paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
-        }}
+        style={[
+          styles.content,
+          {
+            paddingTop: insets.top,
+            paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
+          },
+        ]}
       >
         {/* Eyebrow + Title */}
-        <Animated.View style={headerStyle} className="items-center">
-          <Eyebrow text={getQuestModeLabel(pendingQuest.mode)} />
-          <Title variant="centered" className="text-4xl">
-            {STRINGS.TITLE}
-          </Title>
+        <Animated.View style={[headerStyle, styles.header]}>
+          <EyebrowLabel>{getQuestModeLabel(pendingQuest.mode)}</EyebrowLabel>
+          <Text style={styles.title}>{STRINGS.TITLE}</Text>
         </Animated.View>
 
         {/* Card with Quest Info */}
-        <View className="flex-1 justify-center">
+        <View style={styles.cardSection}>
           <Animated.View style={cardStyle}>
             <QuestInfoCard
               quest={pendingQuest}
@@ -115,16 +109,15 @@ export default function PendingQuestScreen() {
           entering={FadeInDown.delay(
             ANIMATION_CONFIG.LOCK_INSTRUCTIONS_DELAY
           ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
-          style={shimmerStyle}
-          className="mb-6 flex-row items-center justify-center"
+          style={[shimmerStyle, styles.lockRow]}
         >
           <Lock
             size={UI_CONFIG.LOCK_ICON_SIZE}
-            color={colors.white}
+            color={colors.text.primary}
             accessibilityHidden
           />
           <Text
-            className="ml-2 text-base font-semibold text-white"
+            style={styles.lockText}
             accessibilityLabel={STRINGS.LOCK_INSTRUCTIONS}
           >
             {STRINGS.LOCK_INSTRUCTIONS}
@@ -137,21 +130,52 @@ export default function PendingQuestScreen() {
         >
           <Button
             onPress={handleCancelQuest}
-            variant="destructive"
-            className="items-center rounded-full"
-            accessibilityRole="button"
-            accessibilityLabel={STRINGS.CANCEL_BUTTON}
-            accessibilityHint="Cancels the quest and returns to the previous screen"
-          >
-            <Text
-              className="text-base font-semibold"
-              style={{ fontWeight: '700' }}
-            >
-              {STRINGS.CANCEL_BUTTON}
-            </Text>
-          </Button>
+            variant="outline"
+            fullWidth
+            label={STRINGS.CANCEL_BUTTON}
+          />
         </Animated.View>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  header: {
+    alignItems: 'center',
+  },
+  title: {
+    ...text.h1,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginTop: spacing[2],
+  },
+  cardSection: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  lockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing[6],
+  },
+  lockText: {
+    marginLeft: spacing[2],
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+});

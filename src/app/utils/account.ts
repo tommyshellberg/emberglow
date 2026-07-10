@@ -10,6 +10,7 @@ export const handleManageSubscription = async (
   setIsLoading: (isLoading: boolean) => void
 ) => {
   try {
+    setIsLoading(true);
     const managementUrl = await revenueCatService.getManagementURL();
     if (managementUrl) {
       Linking.openURL(managementUrl);
@@ -27,10 +28,14 @@ export const handleManageSubscription = async (
       'Error',
       'Unable to open subscription management. Please try again later.'
     );
+  } finally {
+    setIsLoading(false);
   }
 };
 
-export const handleDeleteAccount = () => {
+export const handleDeleteAccount = (
+  setIsLoading: (isLoading: boolean) => void
+) => {
   Alert.alert(
     'Delete Account',
     'Are you sure you want to delete your account? Your account will be made inactive and your personal data will be anonymized. This action cannot be undone.',
@@ -77,7 +82,7 @@ export const handleDeleteAccount = () => {
 
             Alert.alert(
               'Account Deletion Failed',
-              `We couldn't process your deletion request automatically. Please contact hello@unquestapp.com or visit unquestapp.com/contact for assistance with manual account deletion.`,
+              `${errorMessage} We couldn't process your deletion request automatically. Please contact hello@unquestapp.com or visit unquestapp.com/contact for assistance with manual account deletion.`,
               [
                 { text: 'Cancel', style: 'cancel' },
                 {

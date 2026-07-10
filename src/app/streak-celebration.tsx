@@ -1,28 +1,109 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import LottieView from 'lottie-react-native';
-import { Share } from 'lucide-react-native';
-import React, { useCallback } from 'react';
-import { Alert, Image, Share as RNShare } from 'react-native';
+import { Share as ShareIcon } from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Share as RNShare,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, {
-  FadeInDown,
+  Easing,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
 } from 'react-native-reanimated';
 
-import { StreakCounter } from '@/components/StreakCounter';
-import { Eyebrow, ScreenContainer, Text, View } from '@/components/ui';
-import { Button } from '@/components/ui/button';
-import { red, secondary } from '@/components/ui/colors';
+import { Button, EyebrowLabel } from '@/components/emberglow';
+import { ScreenContainer } from '@/components/ui';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 import { AnimatedStreakDay } from './AnimatedStreakDay';
 import {
-  ANIMATION_TIMING,
-  COLORS,
+  EMBER_ANIMATION,
+  EMBER_PARTICLES,
   LAYOUT,
 } from './streak-celebration.constants';
 import { generateStreakVisualization } from './streak-visualization.util';
 import { useStreakAnimation } from './use-streak-animation';
+
+type EmberParticleConfig = (typeof EMBER_PARTICLES)[number];
+
+/** A single deterministic ember particle — replaces the old Lottie confetti. */
+function EmberParticle({
+  config,
+  index,
+}: {
+  config: EmberParticleConfig;
+  index: number;
+}) {
+  const [angleDeg, distance, size, delay, drift] = config;
+  const rad = (angleDeg * Math.PI) / 180;
+  const x = Math.cos(rad) * distance;
+  const y = Math.sin(rad) * distance;
+  const color = index % 3 === 0 ? palette.cinnabar : palette.sandy;
+
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(1, {
+          duration: EMBER_ANIMATION.DURATION,
+          easing: Easing.out(Easing.ease),
+        }),
+        -1,
+        false
+      )
+    );
+  }, [delay, progress]);
+
+  const style = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      progress.value,
+      [0, 0.15, 0.8, 1],
+      [0, 0.9, 0.4, 0]
+    );
+    const translateY = interpolate(progress.value, [0, 1], [0, drift]);
+
+    return { opacity, transform: [{ translateY }] };
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.emberParticle,
+        style,
+        {
+          width: size,
+          height: size,
+          marginLeft: x - size / 2,
+          marginTop: y - size / 2,
+          backgroundColor: color,
+        },
+      ]}
+    />
+  );
+}
 
 export default function StreakCelebrationScreen() {
   const router = useRouter();
@@ -34,21 +115,65 @@ export default function StreakCelebrationScreen() {
     (state) => state.setShouldShowStreakCelebration
   );
 
-  // Generate 5-day streak visualization
+  // Generate the 7-day (full week) streak visualization.
   const streakDays = generateStreakVisualization(dailyQuestStreak);
 
-  // Animation hook
-  const { weekViewOpacity, dayAnimations, lottieRef, playAnimations } =
-    useStreakAnimation(streakDays);
+  const {
+    discOpacity,
+    discScale,
+    count,
+    titleOpacity,
+    titleTranslateY,
+    weekRowOpacity,
+    weekRowTranslateY,
+    dayLitProgress,
+    dayScale,
+    buttonsOpacity,
+    buttonsTranslateY,
+    playAnimations,
+  } = useStreakAnimation(streakDays, dailyQuestStreak);
 
-  const weekViewStyle = useAnimatedStyle(() => ({
-    opacity: weekViewOpacity.value,
+  // The count-up number is driven off the UI thread; bridge it back to a
+  // React string via useAnimatedReaction so <Text> can render it.
+  const [displayCount, setDisplayCount] = useState(1);
+  useAnimatedReaction(
+    () => Math.round(count.value),
+    (result, previous) => {
+      if (result !== previous) {
+        runOnJS(setDisplayCount)(result);
+      }
+    },
+    [count]
+  );
+
+  const discContainerStyle = useAnimatedStyle(() => ({
+    opacity: discOpacity.value,
+    transform: [{ scale: discScale.value }],
   }));
 
-  // Play animations when screen comes into focus
+  const discGlowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: shadows.glowEmber.shadowOpacity * discOpacity.value,
+  }));
+
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: titleOpacity.value,
+    transform: [{ translateY: titleTranslateY.value }],
+  }));
+
+  const weekRowStyle = useAnimatedStyle(() => ({
+    opacity: weekRowOpacity.value,
+    transform: [{ translateY: weekRowTranslateY.value }],
+  }));
+
+  const buttonsStyle = useAnimatedStyle(() => ({
+    opacity: buttonsOpacity.value,
+    transform: [{ translateY: buttonsTranslateY.value }],
+  }));
+
+  // Play the choreography every time the screen comes into focus.
   useFocusEffect(
     useCallback(() => {
-      // Mark that the streak celebration was shown when accessing this screen
+      // Mark that the streak celebration was shown when accessing this screen.
       markStreakCelebrationShown();
       playAnimations();
     }, [playAnimations, markStreakCelebrationShown])
@@ -68,129 +193,227 @@ export default function StreakCelebrationScreen() {
   };
 
   const handleContinue = () => {
-    // Clear the flag when user clicks continue
+    // Clear the flag when user clicks continue.
     setShouldShowStreakCelebration(false);
-    // Navigate back to the main app screen
+    // Navigate back to the main app screen.
     router.back();
   };
 
   return (
-    <View className="flex-1">
+    <View style={styles.root}>
       {/* Background */}
-      <View className="absolute inset-0">
+      <View style={StyleSheet.absoluteFill}>
         <Image
           source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
-          className="size-full"
+          style={styles.backgroundImage}
           resizeMode="cover"
         />
-        <View className="absolute inset-0" />
+        <View style={styles.backgroundScrim} />
       </View>
 
-      <ScreenContainer
-        fullScreen
-        className="items-center justify-between px-6 pt-20"
-      >
-        <Eyebrow text="Quest Streak" className="mb-2" />
-        <View className="w-full flex-1 items-center justify-center">
-          {/* Streak Counter with Confetti Animation */}
-          <View
-            className="relative mb-6 w-full items-center justify-center"
-            style={{ height: 320 }}
-          >
-            <LottieView
-              ref={lottieRef}
-              source={require('@/../assets/animations/congrats.json')}
-              style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                opacity: 0.8,
-              }}
-              loop={true}
-              autoPlay={false}
-              resizeMode="cover"
-            />
-            <View style={{ zIndex: 1 }}>
-              <StreakCounter animate={true} size="large" disablePress={true} />
-            </View>
+      <ScreenContainer fullScreen style={styles.container}>
+        <EyebrowLabel>Quest streak</EyebrowLabel>
+
+        {/* Counter */}
+        <View style={styles.counterSection}>
+          <View style={styles.counterOuter}>
+            {EMBER_PARTICLES.map((config, index) => (
+              <EmberParticle key={index} config={config} index={index} />
+            ))}
+            <Animated.View
+              style={[styles.counterDisc, discContainerStyle, discGlowStyle]}
+            >
+              <LinearGradient
+                colors={[
+                  withAlpha(palette.cinnabar, 0.28),
+                  colors.surface.raised,
+                ]}
+                start={{ x: 0.5, y: 0.2 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Text style={styles.counterNumber}>{displayCount}</Text>
+            </Animated.View>
           </View>
 
-          {/* Streak Text */}
-          <Text
-            className="mb-12 text-4xl font-bold"
-            style={{ color: red[500] }}
-          >
-            day streak!
-          </Text>
+          <Animated.View style={[styles.titleBlock, titleStyle]}>
+            <Text style={styles.titleText}>day streak</Text>
+            <Text style={styles.subtitleText}>You kept the fire burning.</Text>
+          </Animated.View>
         </View>
 
-        <View className="w-full">
-          {/* 5-Day Streak Visualization */}
-          <Animated.View
-            className="mb-6 w-full rounded-2xl"
-            style={[
-              weekViewStyle,
-              {
-                backgroundColor: COLORS.WEEK_VIEW_BACKGROUND,
-                padding: LAYOUT.WEEK_VIEW_PADDING,
-              },
-            ]}
-            entering={FadeInDown.delay(
-              ANIMATION_TIMING.WEEK_VIEW_DELAY
-            ).duration(ANIMATION_TIMING.WEEK_VIEW_DURATION)}
-          >
-            <View className="flex-row justify-between">
+        <View style={styles.footer}>
+          {/* 7-Day Streak Visualization */}
+          <Animated.View style={[styles.weekRow, weekRowStyle]}>
+            <View style={styles.weekRowDays}>
               {streakDays.map((day, index) => (
                 <AnimatedStreakDay
                   key={index}
                   day={day}
-                  animationValue={dayAnimations[index]}
+                  litProgress={dayLitProgress[index]}
+                  scale={dayScale[index]}
                 />
               ))}
             </View>
 
-            <Text
-              className="mt-4 text-center text-sm"
-              style={{ color: COLORS.REMINDER_TEXT }}
-            >
-              Complete a quest each day so your streak won't reset!
+            <Text style={styles.reminderText}>
+              Complete a quest each day to keep the fire burning.
             </Text>
           </Animated.View>
 
           {/* Buttons */}
-          <Animated.View
-            className="w-full space-y-3"
-            entering={FadeInDown.delay(1000).duration(600)}
-          >
-            {/* Share Button */}
-            <Button
-              variant="outline"
-              onPress={handleShare}
-              className="flex-row items-center justify-center"
-              style={{ borderColor: red[300] }}
-              accessibilityLabel={`Share your ${dailyQuestStreak} day streak`}
+          <Animated.View style={[styles.buttonsRow, buttonsStyle]}>
+            {/*
+              The Emberglow Button doesn't expose accessibilityLabel/Hint
+              props, so a wrapping `accessible` View supplies the
+              descriptive label/hint. RN/VoiceOver & TalkBack collapse an
+              `accessible` subtree into a single element using the
+              wrapper's label/hint/role instead of drilling into the
+              child Pressable's own defaults — this doesn't affect touch
+              handling or the inner testID used elsewhere.
+            */}
+            <View
+              accessible
               accessibilityRole="button"
+              accessibilityLabel={`Share your ${dailyQuestStreak} day streak`}
               accessibilityHint="Opens sharing options to share your streak progress"
             >
-              <Share size={20} color={red[300]} className="mr-2" />
-              <Text className="font-semibold" style={{ color: red[300] }}>
-                Share
-              </Text>
-            </Button>
+              <Button
+                variant="outline"
+                fullWidth
+                onPress={handleShare}
+                testID="streak-share-button"
+              >
+                <ShareIcon size={16} color={colors.text.primary} />
+                <Text style={styles.shareLabel}>Share</Text>
+              </Button>
+            </View>
 
-            {/* Continue Button */}
-            <Button
-              onPress={handleContinue}
-              style={{ backgroundColor: secondary[300] }}
-              accessibilityLabel="Continue to home screen"
+            <View
+              accessible
               accessibilityRole="button"
+              accessibilityLabel="Continue to home screen"
               accessibilityHint="Returns to the main app"
             >
-              <Text className="font-semibold text-white">CONTINUE</Text>
-            </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                label="Continue"
+                onPress={handleContinue}
+                testID="streak-continue-button"
+              />
+            </View>
           </Animated.View>
         </View>
       </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.scrim,
+  },
+  container: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 58,
+  },
+  counterSection: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  counterOuter: {
+    width: LAYOUT.COUNTER_CONTAINER_SIZE,
+    height: LAYOUT.COUNTER_CONTAINER_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emberParticle: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    borderRadius: radii.pill,
+  },
+  counterDisc: {
+    width: LAYOUT.COUNTER_DISC_SIZE,
+    height: LAYOUT.COUNTER_DISC_SIZE,
+    borderRadius: LAYOUT.COUNTER_DISC_SIZE / 2,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowColor: shadows.glowEmber.shadowColor,
+    shadowOffset: shadows.glowEmber.shadowOffset,
+    shadowRadius: shadows.glowEmber.shadowRadius,
+    elevation: 0,
+  },
+  counterNumber: {
+    fontFamily: fontFamily.display,
+    fontSize: 84,
+    lineHeight: 84,
+    color: colors.text.primary,
+  },
+  titleBlock: {
+    alignItems: 'center',
+    marginTop: spacing[5],
+  },
+  titleText: {
+    fontFamily: fontFamily.display,
+    fontSize: 36,
+    color: colors.text.primary,
+  },
+  subtitleText: {
+    fontSize: 15,
+    lineHeight: 15 * 1.5,
+    color: colors.text.muted,
+    marginTop: spacing[2],
+  },
+  footer: {
+    width: '100%',
+  },
+  weekRow: {
+    width: '100%',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    borderRadius: radii.lg,
+    paddingTop: LAYOUT.WEEK_ROW_PADDING_TOP,
+    paddingHorizontal: LAYOUT.WEEK_ROW_PADDING_HORIZONTAL,
+    paddingBottom: LAYOUT.WEEK_ROW_PADDING_BOTTOM,
+    ...shadows.card,
+  },
+  weekRowDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reminderText: {
+    marginTop: spacing[3],
+    fontSize: 13.5,
+    lineHeight: 13.5 * 1.5,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  buttonsRow: {
+    width: '100%',
+    gap: spacing[2],
+    marginTop: spacing[5],
+  },
+  shareLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+});

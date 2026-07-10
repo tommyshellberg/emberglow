@@ -1,24 +1,45 @@
+/**
+ * Join Cooperative Quest Screen
+ *
+ * Lists pending cooperative-quest invitations (accept/decline) and previews
+ * the out-of-scope "Public Quests" feature when there are none. Recomposed
+ * onto Emberglow base components (Badge, Button) + theme tokens — see
+ * docs/plans/emberglow-phase-3-screen-recomposition.md, Task 17.
+ */
+
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Clock, Inbox, User, Users } from 'lucide-react-native';
+import { Clock, Inbox, User, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
-  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import { invitationApi } from '@/api/invitation';
+import { Badge, Button } from '@/components/emberglow';
 import {
-  Card,
   FocusAwareStatusBar,
-  ScrollView,
+  ScreenContainer,
+  ScreenHeader,
   showErrorMessage,
-  Text,
-  View,
 } from '@/components/ui';
-import colors from '@/components/ui/colors.js';
 import { InfoCard } from '@/components/ui/info-card';
+import { colors, fontFamily, fontSize, radii, shadows, spacing } from '@/theme';
+
+const MOCK_PUBLIC_QUESTS = [
+  {
+    title: 'Morning Productivity Challenge',
+    host: 'ProductivityPro',
+    duration: 25,
+    participants: '12/20',
+    startTime: 'Starts in 5 min',
+  },
+];
 
 interface InvitationCardProps {
   invitation: any;
@@ -33,12 +54,6 @@ function InvitationCard({
   onDecline,
   isProcessing,
 }: InvitationCardProps) {
-  // Debug log the invitation structure
-  console.log(
-    'InvitationCard - Full invitation object:',
-    JSON.stringify(invitation, null, 2)
-  );
-
   // Look for quest title in multiple possible locations
   const questTitle =
     invitation.questTitle ||
@@ -61,69 +76,53 @@ function InvitationCard({
     invitation.questRun?.durationMinutes ||
     30;
 
+  const inviterName =
+    invitation.inviter.characterName ||
+    invitation.inviter.username ||
+    'a friend';
+
   return (
-    <Card
-      className="mb-4 p-4"
-      style={{ backgroundColor: colors.cardBackground }}
-    >
-      <View className="mb-3">
-        <Text
-          className="text-lg font-semibold text-white"
-          style={{ fontWeight: '700' }}
-        >
-          {questTitle}
-        </Text>
-        <View className="mt-2 flex-row items-center">
-          <User size={16} color={colors.neutral[200]} />
-          <Text className="ml-1 text-sm text-neutral-200">
-            Invited by{' '}
-            {invitation.inviter.characterName ||
-              invitation.inviter.username ||
-              'a friend'}
-          </Text>
+    <View style={styles.invitationCard}>
+      <Text style={styles.invitationTitle}>{questTitle}</Text>
+
+      <View style={styles.metaColumn}>
+        <View style={styles.metaRow}>
+          <User size={16} color={colors.text.muted} />
+          <Text style={styles.metaText}>Invited by {inviterName}</Text>
         </View>
-        <View className="mt-1 flex-row items-center">
-          <Clock size={16} color={colors.neutral[200]} />
-          <Text className="ml-1 text-sm text-neutral-200">
-            {questDuration} minutes
-          </Text>
+        <View style={styles.metaRow}>
+          <Clock size={16} color={colors.text.muted} />
+          <Text style={styles.metaText}>{questDuration} minutes</Text>
         </View>
-        <View className="mt-1 flex-row items-center">
-          <Users size={16} color={colors.neutral[200]} />
-          <Text className="ml-1 text-sm text-neutral-200">
+        <View style={styles.metaRow}>
+          <Users size={16} color={colors.text.muted} />
+          <Text style={styles.metaText}>
             {invitation.acceptedCount}/{invitation.inviteeCount} accepted
           </Text>
         </View>
       </View>
 
-      <View className="flex-row gap-3">
-        <TouchableOpacity
-          onPress={onDecline}
-          disabled={isProcessing}
-          className="flex-1 rounded-lg px-4 py-3"
-          style={{ backgroundColor: colors.neutral[300] }}
-        >
-          <Text
-            className="text-center font-semibold text-neutral-700"
-            style={{ fontWeight: '700' }}
-          >
-            Decline
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={onAccept}
-          disabled={isProcessing}
-          className="flex-1 rounded-lg bg-primary-400 px-4 py-3"
-        >
-          <Text
-            className="text-center font-semibold text-white"
-            style={{ fontWeight: '700' }}
-          >
-            Accept
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.actionsRow}>
+        <View style={styles.actionButtonWrapper}>
+          <Button
+            variant="secondary"
+            label="Decline"
+            onPress={onDecline}
+            disabled={isProcessing}
+            fullWidth
+          />
+        </View>
+        <View style={styles.actionButtonWrapper}>
+          <Button
+            variant="primary"
+            label="Accept"
+            onPress={onAccept}
+            disabled={isProcessing}
+            fullWidth
+          />
+        </View>
       </View>
-    </Card>
+    </View>
   );
 }
 
@@ -144,20 +143,6 @@ export default function JoinCooperativeQuest() {
       }
 
       const pendingInvitations = await invitationApi.getPendingInvitations();
-      console.log('=======================================');
-      console.log('FETCHED INVITATIONS DEBUG:');
-      console.log('Number of invitations:', pendingInvitations.length);
-      pendingInvitations.forEach((inv, index) => {
-        console.log(`Invitation ${index}:`, {
-          id: inv.id,
-          inviter: inv.inviter,
-          quest: inv.quest,
-          metadata: inv.metadata,
-          questData: inv.questData,
-          fullObject: JSON.stringify(inv, null, 2),
-        });
-      });
-      console.log('=======================================');
       setInvitations(pendingInvitations);
     } catch (error) {
       console.error('Error fetching invitations:', error);
@@ -174,27 +159,6 @@ export default function JoinCooperativeQuest() {
   const handleAccept = async (invitation: any) => {
     try {
       setProcessingId(invitation.id);
-
-      // Get quest details for tracking
-      const questTitle =
-        invitation.questTitle ||
-        invitation.title ||
-        invitation.metadata?.questTitle ||
-        invitation.questData?.title ||
-        invitation.quest?.title ||
-        invitation.questRun?.title ||
-        'Cooperative Quest';
-
-      const questDuration =
-        invitation.questDuration ||
-        invitation.duration ||
-        invitation.metadata?.questDuration ||
-        invitation.questData?.duration ||
-        invitation.quest?.durationMinutes ||
-        invitation.quest?.duration ||
-        invitation.questRun?.duration ||
-        invitation.questRun?.durationMinutes ||
-        30;
 
       posthog.capture('cooperative_quest_invitation_accepted');
 
@@ -224,27 +188,6 @@ export default function JoinCooperativeQuest() {
     try {
       setProcessingId(invitation.id);
 
-      // Get quest details for tracking
-      const questTitle =
-        invitation.questTitle ||
-        invitation.title ||
-        invitation.metadata?.questTitle ||
-        invitation.questData?.title ||
-        invitation.quest?.title ||
-        invitation.questRun?.title ||
-        'Cooperative Quest';
-
-      const questDuration =
-        invitation.questDuration ||
-        invitation.duration ||
-        invitation.metadata?.questDuration ||
-        invitation.questData?.duration ||
-        invitation.quest?.durationMinutes ||
-        invitation.quest?.duration ||
-        invitation.questRun?.duration ||
-        invitation.questRun?.durationMinutes ||
-        30;
-
       posthog.capture('cooperative_quest_invitation_declined');
 
       // Decline the invitation
@@ -261,196 +204,252 @@ export default function JoinCooperativeQuest() {
   };
 
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.background }}>
+    <View style={styles.root}>
       <FocusAwareStatusBar />
 
-      {/* Header */}
-      <View className="mb-6 mt-2 px-4">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="mb-4 flex-row items-center"
+      <ScreenContainer fullScreen>
+        <ScreenHeader
+          title="Join a Quest"
+          subtitle="View and respond to quest invitations from friends"
+          showBackButton
+          onBackPress={() => router.back()}
+        />
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={() => fetchInvitations(true)}
+            />
+          }
         >
-          <ArrowLeft size={24} color={colors.white} />
-          <Text className="ml-2 text-lg text-white">Back</Text>
-        </TouchableOpacity>
-
-        <Text className="mb-2 text-3xl font-bold text-white">
-          Join a Quest
-        </Text>
-        <Text style={{ color: colors.neutral[200] }}>
-          View and respond to quest invitations from friends
-        </Text>
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ padding: 20 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => fetchInvitations(true)}
-          />
-        }
-      >
-        {isLoading ? (
-          <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" />
-            <Text className="mt-4" style={{ color: colors.neutral[200] }}>
-              Loading invitations...
-            </Text>
-          </View>
-        ) : invitations.length === 0 ? (
-          <>
-            {/* No Invitations */}
-            <View className="items-center py-10">
-              <Inbox size={48} color={colors.neutral[200]} />
-              <Text
-                className="mt-3 text-lg font-semibold"
-                style={{ fontWeight: '700' }}
-              >
-                No Invitations
-              </Text>
-              <Text
-                className="mt-2 text-center text-base"
-                style={{ color: colors.neutral[200] }}
-              >
-                You don't have any pending quest invitations.
-              </Text>
+          {isLoading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={colors.text.accent} />
+              <Text style={styles.mutedText}>Loading invitations...</Text>
             </View>
-
-            {/* Public Quests Section - Coming Soon */}
-            <View className="mt-8">
-              <View className="mb-4 flex-row items-center justify-between">
-                <Text
-                  className="text-lg font-semibold"
-                  style={{ fontWeight: '700' }}
-                >
-                  Public Quests
-                </Text>
-                <View
-                  className="rounded-full px-3 py-1"
-                  style={{ backgroundColor: colors.secondary[100] }}
-                >
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: colors.secondary[500], fontWeight: '600' }}
-                  >
-                    Coming Soon
-                  </Text>
+          ) : invitations.length === 0 ? (
+            <>
+              {/* No Invitations */}
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconCircle}>
+                  <Inbox size={32} color={colors.text.accent} />
                 </View>
+                <Text style={styles.emptyTitle}>No Invitations</Text>
+                <Text style={styles.emptyDescription}>
+                  You don't have any pending quest invitations.
+                </Text>
               </View>
 
-              {/* Mock Public Quest Cards */}
-              <View className="opacity-60">
-                {[
-                  {
-                    title: 'Morning Productivity Challenge',
-                    host: 'ProductivityPro',
-                    duration: 25,
-                    participants: '12/20',
-                    startTime: 'Starts in 5 min',
-                  },
-                ].map((quest, index) => (
-                  <Card
-                    key={index}
-                    className="mb-3 p-4"
-                    style={{ backgroundColor: colors.cardBackground }}
-                  >
-                    <View className="mb-3">
-                      <Text
-                        className="text-base font-semibold"
-                        style={{ fontWeight: '700' }}
-                      >
-                        {quest.title}
-                      </Text>
-                      <View className="mt-2 flex-row items-center">
-                        <User size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          Hosted by {quest.host}
-                        </Text>
-                      </View>
-                    </View>
+              {/* Public Quests Section - Coming Soon */}
+              <View style={styles.publicQuestsSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Public Quests</Text>
+                  <Badge tone="neutral">Coming Soon</Badge>
+                </View>
 
-                    <View className="mb-3 flex-row justify-between">
-                      <View className="flex-row items-center">
-                        <Clock size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          {quest.duration} min
-                        </Text>
+                {/* Mock Public Quest Cards */}
+                <View style={styles.mockQuestsWrapper}>
+                  {MOCK_PUBLIC_QUESTS.map((quest) => (
+                    <View key={quest.title} style={styles.mockQuestCard}>
+                      <View style={styles.mockQuestHeader}>
+                        <Text style={styles.mockQuestTitle}>{quest.title}</Text>
+                        <View style={styles.metaRow}>
+                          <User size={16} color={colors.text.muted} />
+                          <Text style={styles.metaText}>
+                            Hosted by {quest.host}
+                          </Text>
+                        </View>
                       </View>
-                      <View className="flex-row items-center">
-                        <Users size={16} color={colors.neutral[200]} />
-                        <Text
-                          className="ml-1 text-sm"
-                          style={{ color: colors.neutral[200] }}
-                        >
-                          {quest.participants}
-                        </Text>
-                      </View>
-                      <Text
-                        className="text-sm font-semibold"
-                        style={{
-                          color: colors.primary[400],
-                          fontWeight: '600',
-                        }}
-                      >
-                        {quest.startTime}
-                      </Text>
-                    </View>
 
-                    <TouchableOpacity
-                      disabled
-                      className="rounded-lg px-4 py-2"
-                      style={{ backgroundColor: colors.neutral[300] }}
-                    >
-                      <Text
-                        className="text-center text-sm font-semibold"
-                        style={{
-                          color: colors.neutral[50],
-                          fontWeight: '600',
-                        }}
-                      >
-                        Join (Coming Soon)
-                      </Text>
-                    </TouchableOpacity>
-                  </Card>
-                ))}
+                      <View style={styles.mockQuestStatsRow}>
+                        <View style={styles.metaRow}>
+                          <Clock size={16} color={colors.text.muted} />
+                          <Text style={styles.metaText}>
+                            {quest.duration} min
+                          </Text>
+                        </View>
+                        <View style={styles.metaRow}>
+                          <Users size={16} color={colors.text.muted} />
+                          <Text style={styles.metaText}>
+                            {quest.participants}
+                          </Text>
+                        </View>
+                        <Text style={styles.mockQuestStartTime}>
+                          {quest.startTime}
+                        </Text>
+                      </View>
+
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        label="Join (Coming Soon)"
+                        disabled
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                <InfoCard
+                  title="Public Quests are coming soon!"
+                  description="Soon you'll be able to join quests created by the community, compete on leaderboards, and find accountability partners worldwide."
+                />
               </View>
-
-              <InfoCard
-                title="Public Quests are coming soon!"
-                description="Soon you'll be able to join quests created by the community, compete on leaderboards, and find accountability partners worldwide."
-              />
-            </View>
-          </>
-        ) : (
-          <>
-            {/* Pending Invitations Section */}
-            <Text
-              className="mb-4 text-lg font-semibold"
-              style={{ fontWeight: '700' }}
-            >
-              Pending Invitations ({invitations.length})
-            </Text>
-            {invitations.map((invitation) => (
-              <InvitationCard
-                key={invitation.id}
-                invitation={invitation}
-                onAccept={() => handleAccept(invitation)}
-                onDecline={() => handleDecline(invitation)}
-                isProcessing={processingId === invitation.id}
-              />
-            ))}
-          </>
-        )}
-      </ScrollView>
+            </>
+          ) : (
+            <>
+              {/* Pending Invitations Section */}
+              <Text style={styles.sectionTitle}>
+                Pending Invitations ({invitations.length})
+              </Text>
+              {invitations.map((invitation) => (
+                <InvitationCard
+                  key={invitation.id}
+                  invitation={invitation}
+                  onAccept={() => handleAccept(invitation)}
+                  onDecline={() => handleDecline(invitation)}
+                  isProcessing={processingId === invitation.id}
+                />
+              ))}
+            </>
+          )}
+        </ScrollView>
+      </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
+  scrollContent: {
+    paddingTop: spacing[2],
+    paddingBottom: spacing[10],
+  },
+  centerState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing[16],
+  },
+  mutedText: {
+    marginTop: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    color: colors.text.muted,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing[8],
+  },
+  emptyIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    marginBottom: spacing[4],
+  },
+  emptyTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.h3,
+    color: colors.text.primary,
+    marginBottom: spacing[2],
+  },
+  emptyDescription: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    color: colors.text.muted,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
+  sectionTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.h3,
+    color: colors.text.primary,
+    marginBottom: spacing[4],
+  },
+  publicQuestsSection: {
+    marginTop: spacing[8],
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[4],
+  },
+  mockQuestsWrapper: {
+    opacity: 0.6,
+  },
+  mockQuestCard: {
+    marginBottom: spacing[3],
+    padding: spacing[4],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    ...shadows.raised,
+    gap: spacing[3],
+  },
+  mockQuestHeader: {
+    gap: spacing[1],
+  },
+  mockQuestTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.body,
+    color: colors.text.primary,
+  },
+  mockQuestStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+  },
+  mockQuestStartTime: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.small,
+    color: colors.text.accent,
+    marginLeft: 'auto',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  metaText: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    color: colors.text.muted,
+  },
+  invitationCard: {
+    marginBottom: spacing[4],
+    padding: spacing[4],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    ...shadows.card,
+  },
+  invitationTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.h3,
+    color: colors.text.primary,
+    marginBottom: spacing[3],
+  },
+  metaColumn: {
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: spacing[3],
+  },
+  actionButtonWrapper: {
+    flex: 1,
+  },
+});

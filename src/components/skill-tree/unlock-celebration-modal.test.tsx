@@ -1,3 +1,4 @@
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
@@ -206,8 +207,8 @@ describe('UnlockCelebrationModal', () => {
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onClose when backdrop is tapped', () => {
-      const { getByTestId } = render(
+    it('should call onClose when the bottom sheet is dismissed (backdrop tap, swipe, etc.)', () => {
+      render(
         <UnlockCelebrationModal
           perk={mockUniversalPerk}
           visible={true}
@@ -215,8 +216,17 @@ describe('UnlockCelebrationModal', () => {
         />
       );
 
-      const backdrop = getByTestId('celebration-modal-backdrop');
-      fireEvent.press(backdrop);
+      // The Emberglow BottomSheet delegates outside-tap/swipe dismissal to
+      // @gorhom/bottom-sheet's own backdrop (mocked to `null` in this test
+      // environment, so it can't be pressed directly) — assert the wiring
+      // instead: whatever triggers the sheet's onDismiss must call onClose.
+      const mockedBottomSheetModal = BottomSheetModal as unknown as jest.Mock;
+      const lastCallProps =
+        mockedBottomSheetModal.mock.calls[
+          mockedBottomSheetModal.mock.calls.length - 1
+        ][0];
+
+      lastCallProps.onDismiss();
 
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });

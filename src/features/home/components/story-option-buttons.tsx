@@ -1,12 +1,12 @@
 import { usePostHog } from 'posthog-react-native';
 import React from 'react';
+import { View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { type QuestOption } from '@/api/quest/types';
-import { Button, View } from '@/components/ui';
-import Colors from '@/components/ui/colors';
-
+import { Badge, Button, type ButtonVariant } from '@/components/emberglow';
 import { CARD_WIDTH } from '@/features/home/constants/home-constants';
+import { shadows } from '@/theme';
 
 interface ServerQuest {
   customId: string;
@@ -48,6 +48,52 @@ const PremiumCTATracker = ({
   return null;
 };
 
+/**
+ * A single story CTA — the shadowed, fixed-width (or flexed, for side-by-side
+ * options) wrapper around an Emberglow `Button`, plus a premium-lock `Badge`
+ * when the destination quest requires premium. Emberglow's `Button` has no
+ * premium-locked variant (ground rule 4), so the lock is communicated via
+ * the label text (unchanged) and this badge rather than a color swap.
+ */
+function StoryCTA({
+  label,
+  onPress,
+  disabled,
+  variant,
+  isPremiumLocked,
+  flex,
+  delay,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  variant: ButtonVariant;
+  isPremiumLocked: boolean;
+  flex?: boolean;
+  delay: number;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(600).delay(delay)}
+      style={[flex ? { flex: 1 } : { width: CARD_WIDTH }, shadows.card]}
+    >
+      {isPremiumLocked && (
+        <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
+          <Badge tone="warm">⭐ Premium</Badge>
+        </View>
+      )}
+      <Button
+        label={label}
+        onPress={onPress}
+        disabled={disabled}
+        variant={variant}
+        size="lg"
+        fullWidth
+      />
+    </Animated.View>
+  );
+}
+
 export function StoryOptionButtons({
   activeIndex,
   serverQuests,
@@ -65,55 +111,40 @@ export function StoryOptionButtons({
   // Single server quest with no branching - show start button
   if (serverQuests.length === 1 && storyOptions.length === 0) {
     const quest = serverQuests[0];
+    const isPremiumLocked = Boolean(quest.isPremium) && !hasPremiumAccess;
     return (
       <Animated.View
         entering={FadeIn.duration(600).delay(200)}
         className="w-full items-center px-4"
       >
-        {quest.isPremium && !hasPremiumAccess && (
+        {isPremiumLocked && (
           <PremiumCTATracker questId={quest.customId} type="storyline" />
         )}
-        <Animated.View
-          entering={FadeInDown.duration(600).delay(400)}
-          style={{
-            width: CARD_WIDTH,
-            shadowColor: Colors.black,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.12,
-            shadowRadius: 4,
-            elevation: 6,
-          }}
-        >
-          <Button
-            label={
-              quest.isPremium && !hasPremiumAccess
-                ? 'Unlock full Vaedros storyline'
-                : !hasStartedStoryline
-                  ? 'Begin your journey'
-                  : 'Start Quest'
+        <StoryCTA
+          label={
+            isPremiumLocked
+              ? 'Unlock full Vaedros storyline'
+              : !hasStartedStoryline
+                ? 'Begin your journey'
+                : 'Start Quest'
+          }
+          onPress={() => {
+            if (!isPremiumLocked) {
+              onQuestSelect(quest.customId);
+            } else {
+              posthog.capture('premium_upsell_cta_clicked', {
+                upsell_type: 'storyline_quest',
+                trigger_location: 'home_storyline',
+                quest_type: 'story',
+                quest_id: quest.customId,
+              });
+              onShowPaywall();
             }
-            onPress={() => {
-              if (!quest.isPremium || hasPremiumAccess) {
-                onQuestSelect(quest.customId);
-              } else {
-                posthog.capture('premium_upsell_cta_clicked', {
-                  upsell_type: 'storyline_quest',
-                  trigger_location: 'home_storyline',
-                  quest_type: 'story',
-                  quest_id: quest.customId,
-                });
-                onShowPaywall();
-              }
-            }}
-            className={`h-16 justify-center rounded-xl p-3 ${
-              quest.isPremium && !hasPremiumAccess
-                ? 'bg-amber-400'
-                : 'bg-primary-300'
-            }`}
-            textClassName="text-sm text-white text-center leading-snug"
-            textStyle={{ fontWeight: '700' }}
-          />
-        </Animated.View>
+          }}
+          variant="primary"
+          isPremiumLocked={isPremiumLocked}
+          delay={400}
+        />
       </Animated.View>
     );
   }
@@ -130,52 +161,35 @@ export function StoryOptionButtons({
       option.nextQuest ||
       serverQuests.find((q) => q.customId === option.nextQuestId);
     const questIsPremium = nextQuest?.isPremium || false;
+    const isPremiumLocked = questIsPremium && !hasPremiumAccess;
 
     return (
       <Animated.View
         entering={FadeIn.duration(600).delay(200)}
         className="w-full items-center px-4"
       >
-        <Animated.View
-          entering={FadeInDown.duration(600).delay(400)}
-          style={{
-            width: CARD_WIDTH,
-            shadowColor: Colors.black,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.12,
-            shadowRadius: 4,
-            elevation: 6,
-          }}
-        >
-          <Button
-            label={
-              questIsPremium && !hasPremiumAccess
-                ? 'Unlock full Vaedros storyline'
-                : option.text
+        <StoryCTA
+          label={
+            isPremiumLocked ? 'Unlock full Vaedros storyline' : option.text
+          }
+          onPress={() => {
+            if (isPremiumLocked) {
+              posthog.capture('premium_upsell_cta_clicked', {
+                upsell_type: 'storyline_quest',
+                trigger_location: 'home_storyline_options',
+                quest_type: 'story',
+                quest_id: option.nextQuestId,
+              });
+              onShowPaywall();
+            } else {
+              onQuestSelect(option.nextQuestId);
             }
-            onPress={() => {
-              if (questIsPremium && !hasPremiumAccess) {
-                posthog.capture('premium_upsell_cta_clicked', {
-                  upsell_type: 'storyline_quest',
-                  trigger_location: 'home_storyline_options',
-                  quest_type: 'story',
-                  quest_id: option.nextQuestId,
-                });
-                onShowPaywall();
-              } else {
-                onQuestSelect(option.nextQuestId);
-              }
-            }}
-            className={`h-16 justify-center rounded-xl p-3 ${
-              questIsPremium && !hasPremiumAccess
-                ? 'bg-amber-400'
-                : 'bg-primary-300'
-            }`}
-            textClassName="text-sm text-white text-center leading-snug"
-            textStyle={{ fontWeight: '700' }}
-            disabled={!option.nextQuestId}
-          />
-        </Animated.View>
+          }}
+          variant="primary"
+          isPremiumLocked={isPremiumLocked}
+          disabled={!option.nextQuestId}
+          delay={400}
+        />
       </Animated.View>
     );
   }
@@ -195,25 +209,13 @@ export function StoryOptionButtons({
         entering={FadeIn.duration(600).delay(200)}
         className="w-full items-center px-4"
       >
-        <Animated.View
-          entering={FadeInDown.duration(600).delay(400)}
-          style={{
-            width: CARD_WIDTH,
-            shadowColor: Colors.black,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.12,
-            shadowRadius: 4,
-            elevation: 6,
-          }}
-        >
-          <Button
-            label="Unlock full Vaedros storyline"
-            onPress={onShowPaywall}
-            className="h-16 justify-center rounded-xl bg-amber-400 p-3"
-            textClassName="text-sm text-white text-center leading-snug"
-            textStyle={{ fontWeight: '700' }}
-          />
-        </Animated.View>
+        <StoryCTA
+          label="Unlock full Vaedros storyline"
+          onPress={onShowPaywall}
+          variant="primary"
+          isPremiumLocked
+          delay={400}
+        />
       </Animated.View>
     );
   }
@@ -230,34 +232,24 @@ export function StoryOptionButtons({
             option.nextQuest ||
             serverQuests.find((q) => q.customId === option.nextQuestId);
           const questIsPremium = nextQuest?.isPremium || false;
+          const isPremiumLocked = questIsPremium && !hasPremiumAccess;
 
           return (
-            <Animated.View
-              key={option.id}
-              entering={FadeInDown.duration(600).delay(400 + index * 100)}
-              className="flex-1"
-              style={{
-                shadowColor: Colors.black,
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.12,
-                shadowRadius: 4,
-                elevation: 6,
-              }}
-            >
-              {questIsPremium && !hasPremiumAccess && (
+            <React.Fragment key={option.id}>
+              {isPremiumLocked && (
                 <PremiumCTATracker
                   questId={option.nextQuestId || undefined}
                   type="storyline"
                 />
               )}
-              <Button
+              <StoryCTA
                 label={
-                  questIsPremium && !hasPremiumAccess
+                  isPremiumLocked
                     ? 'Unlock full Vaedros storyline'
                     : option.text
                 }
                 onPress={() => {
-                  if (questIsPremium && !hasPremiumAccess) {
+                  if (isPremiumLocked) {
                     posthog.capture('premium_upsell_cta_clicked', {
                       upsell_type: 'storyline_quest',
                       trigger_location: 'home_storyline_options',
@@ -269,18 +261,19 @@ export function StoryOptionButtons({
                     onQuestSelect(option.nextQuestId);
                   }
                 }}
-                className={`h-16 justify-center rounded-xl p-3 ${
-                  questIsPremium && !hasPremiumAccess
-                    ? 'bg-amber-400'
+                variant={
+                  isPremiumLocked
+                    ? 'primary'
                     : index === 0
-                      ? 'bg-neutral-300'
-                      : 'bg-primary-300'
-                }`}
-                textClassName="text-sm text-white text-center leading-snug"
-                textStyle={{ fontWeight: '700' }}
+                      ? 'secondary'
+                      : 'primary'
+                }
+                isPremiumLocked={isPremiumLocked}
                 disabled={!option.nextQuestId}
+                flex
+                delay={400 + index * 100}
               />
-            </Animated.View>
+            </React.Fragment>
           );
         })}
       </View>

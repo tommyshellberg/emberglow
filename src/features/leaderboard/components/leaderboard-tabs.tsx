@@ -3,15 +3,25 @@
  *
  * Tab navigation for switching between Quests, Minutes, and Streaks leaderboards.
  * Fully accessible with proper roles, labels, and states.
+ *
+ * No Emberglow segmented-control/icon-tabs primitive exists yet, so this
+ * stays a bespoke `Pressable` row, retinted from `@/theme`.
  */
 
 import { CheckCircle, Clock, TrendingUp } from 'lucide-react-native';
 import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Pressable, Text, View } from '@/components/ui';
-
-import { A11Y, COLORS, STRINGS, UI_CONFIG } from '@/features/leaderboard/constants/leaderboard-constants';
-import type { LeaderboardTab, LeaderboardTabsProps } from '@/features/leaderboard/types/leaderboard-types';
+import {
+  A11Y,
+  STRINGS,
+  UI_CONFIG,
+} from '@/features/leaderboard/constants/leaderboard-constants';
+import type {
+  LeaderboardTab,
+  LeaderboardTabsProps,
+} from '@/features/leaderboard/types/leaderboard-types';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 export function LeaderboardTabs({
   selectedType,
@@ -21,34 +31,22 @@ export function LeaderboardTabs({
     {
       type: 'quests',
       label: STRINGS.tabQuests,
-      icon: (
-        <CheckCircle
-          size={UI_CONFIG.iconSizeMedium}
-          color={COLORS.iconDefault}
-        />
-      ),
+      icon: <CheckCircle size={UI_CONFIG.iconSizeMedium} />,
     },
     {
       type: 'minutes',
       label: STRINGS.tabMinutes,
-      icon: (
-        <Clock size={UI_CONFIG.iconSizeMedium} color={COLORS.iconDefault} />
-      ),
+      icon: <Clock size={UI_CONFIG.iconSizeMedium} />,
     },
     {
       type: 'streak',
       label: STRINGS.tabStreaks,
-      icon: (
-        <TrendingUp
-          size={UI_CONFIG.iconSizeMedium}
-          color={COLORS.iconDefault}
-        />
-      ),
+      icon: <TrendingUp size={UI_CONFIG.iconSizeMedium} />,
     },
   ];
 
   return (
-    <View className="mb-4 flex-row justify-around">
+    <View style={styles.container}>
       {tabs.map((tab) => {
         const isSelected = selectedType === tab.type;
 
@@ -64,8 +62,7 @@ export function LeaderboardTabs({
           <Pressable
             key={tab.type}
             onPress={() => onTypeChange(tab.type)}
-            className="flex-1 items-center rounded-lg p-3"
-            style={isSelected ? { backgroundColor: COLORS.selectedTab } : {}}
+            style={[styles.tab, isSelected && styles.tabSelected]}
             accessible
             accessibilityRole={A11Y.roleTab}
             accessibilityLabel={accessibilityLabel}
@@ -74,18 +71,11 @@ export function LeaderboardTabs({
           >
             {/* Clone icon with correct color */}
             {React.cloneElement(tab.icon as React.ReactElement, {
-              color: isSelected ? COLORS.iconSelected : COLORS.iconDefault,
+              color: isSelected ? colors.text.accent : colors.text.muted,
             })}
 
             {/* Tab Label */}
-            <Text
-              className={`mt-1 text-sm ${isSelected ? 'font-bold' : ''}`}
-              style={{
-                color: isSelected
-                  ? COLORS.secondaryAccent
-                  : COLORS.textSecondary,
-              }}
-            >
+            <Text style={[styles.label, isSelected && styles.labelSelected]}>
               {tab.label}
             </Text>
           </Pressable>
@@ -94,3 +84,30 @@ export function LeaderboardTabs({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: spacing[4],
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: radii.md,
+    padding: spacing[3],
+  },
+  tabSelected: {
+    backgroundColor: colors.fill.subtle,
+  },
+  label: {
+    marginTop: spacing[1],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  labelSelected: {
+    fontFamily: fontFamily.semibold,
+    color: colors.text.accent,
+  },
+});

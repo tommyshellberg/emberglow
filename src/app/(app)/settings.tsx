@@ -7,16 +7,18 @@ import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { Crown, Flame, Globe } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Switch } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text as RNText,
+} from 'react-native';
 import * as Localize from 'react-native-localize';
 import { OneSignal } from 'react-native-onesignal';
-import {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button, EyebrowLabel, ListItem, Switch } from '@/components/emberglow';
 import {
   BottomSheetKeyboardAwareScrollView,
   FocusAwareStatusBar,
@@ -42,7 +44,9 @@ import {
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, setItem } from '@/lib/storage';
 import { useSettingsStore } from '@/store/settings-store';
+import type { User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 import {
   handleDeleteAccount,
@@ -52,6 +56,485 @@ import {
 // Constants
 const APP_VERSION = Env.VERSION || '1.0.0';
 const NOTIFICATIONS_ENABLED_KEY = 'notificationsEnabled';
+const CONTACT_EMAIL = 'hello@unquestapp.com';
+// Sub-row indent — aligns nested rows (Reminder/Streak time) under their
+// parent's title text: ListItem's 42px leading tile + its 14px leading gap.
+const SUB_ROW_INDENT = 56;
+const ICON_SIZE = 20;
+const CHEVRON_SIZE = 18;
+
+// Pure helper — doesn't depend on component state, so it lives at module
+// scope rather than being recreated on every render.
+function handleEmailContact() {
+  Linking.openURL(`mailto:${CONTACT_EMAIL}`);
+}
+
+type AccountSectionProps = {
+  user: User | null;
+  hasPremiumAccess: boolean;
+  onManageSubscription: () => void;
+  onLogout: () => void;
+};
+
+function AccountSection({
+  user,
+  hasPremiumAccess,
+  onManageSubscription,
+  onLogout,
+}: AccountSectionProps) {
+  return (
+    <>
+      <View style={styles.card}>
+        <ListItem
+          leading={
+            <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Account"
+          subtitle={user?.email || 'Not signed in'}
+        />
+        <View style={styles.divider} />
+        <ListItem
+          leading={<Crown size={ICON_SIZE} color={colors.text.accent} />}
+          title="emberglow Premium"
+          subtitle={
+            hasPremiumAccess
+              ? 'Manage subscription'
+              : 'View subscription options'
+          }
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={onManageSubscription}
+        />
+      </View>
+
+      {user && (
+        <View style={styles.logoutWrapper}>
+          <Button variant="secondary" label="Logout" onPress={onLogout} />
+        </View>
+      )}
+    </>
+  );
+}
+
+type TimeSubRowProps = {
+  showPicker: boolean;
+  onRequestShowPicker: () => void;
+  value: Date;
+  onChangeTime: (event: any, date?: Date) => void;
+  displayText: string;
+};
+
+/** Shared "Reminder Time" / "Streak Warning time" nested row — value pill that
+ * swaps for the native DateTimePicker in place when tapped. */
+function TimeSubRow({
+  showPicker,
+  onRequestShowPicker,
+  value,
+  onChangeTime,
+  displayText,
+}: TimeSubRowProps) {
+  return (
+    <>
+      <View style={styles.divider} />
+      <ListItem
+        style={styles.subRow}
+        title="Reminder Time"
+        trailing={
+          showPicker ? (
+            <DateTimePicker
+              value={value}
+              mode="time"
+              display="compact"
+              onChange={onChangeTime}
+              minuteInterval={15}
+            />
+          ) : (
+            <Pressable onPress={onRequestShowPicker} style={styles.timePill}>
+              <RNText style={styles.timePillText}>{displayText}</RNText>
+            </Pressable>
+          )
+        }
+      />
+    </>
+  );
+}
+
+type PreferencesSectionProps = {
+  selectedTimezoneLabel: string;
+  onTimezonePress: () => void;
+  notificationsEnabled: boolean;
+  onNotificationsToggle: (value: boolean) => void;
+  dailyReminderEnabled: boolean;
+  onToggleReminder: (value: boolean) => void;
+  showTimePicker: boolean;
+  onRequestShowTimePicker: () => void;
+  reminderTimeValue: Date;
+  onReminderTimeChange: (event: any, date?: Date) => void;
+  reminderTimeDisplay: string;
+  streakWarningEnabled: boolean;
+  onToggleStreakWarning: (value: boolean) => void;
+  showStreakTimePicker: boolean;
+  onRequestShowStreakTimePicker: () => void;
+  streakTimeValue: Date;
+  onStreakTimeChange: (event: any, date?: Date) => void;
+  streakTimeDisplay: string;
+};
+
+function PreferencesSection({
+  selectedTimezoneLabel,
+  onTimezonePress,
+  notificationsEnabled,
+  onNotificationsToggle,
+  dailyReminderEnabled,
+  onToggleReminder,
+  showTimePicker,
+  onRequestShowTimePicker,
+  reminderTimeValue,
+  onReminderTimeChange,
+  reminderTimeDisplay,
+  streakWarningEnabled,
+  onToggleStreakWarning,
+  showStreakTimePicker,
+  onRequestShowStreakTimePicker,
+  streakTimeValue,
+  onStreakTimeChange,
+  streakTimeDisplay,
+}: PreferencesSectionProps) {
+  return (
+    <>
+      <EyebrowLabel tone="muted" style={styles.sectionLabel}>
+        PREFERENCES
+      </EyebrowLabel>
+
+      <View style={styles.card}>
+        <ListItem
+          leading={<Globe size={ICON_SIZE} color={colors.text.accent} />}
+          title="Timezone"
+          subtitle={selectedTimezoneLabel}
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={onTimezonePress}
+        />
+
+        <View style={styles.divider} />
+        <ListItem
+          leading={
+            <Feather name="bell" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Notifications"
+          subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
+          trailing={
+            <Switch
+              checked={notificationsEnabled}
+              onChange={onNotificationsToggle}
+            />
+          }
+        />
+
+        {/* Only show notification sub-settings when notifications are enabled */}
+        {notificationsEnabled && (
+          <>
+            <View style={styles.divider} />
+            <ListItem
+              leading={
+                <Feather
+                  name="clock"
+                  size={ICON_SIZE}
+                  color={colors.text.accent}
+                />
+              }
+              title="Daily Reminder"
+              subtitle={dailyReminderEnabled ? 'Enabled' : 'Disabled'}
+              trailing={
+                <Switch
+                  checked={dailyReminderEnabled}
+                  onChange={onToggleReminder}
+                />
+              }
+            />
+
+            {dailyReminderEnabled && (
+              <TimeSubRow
+                showPicker={showTimePicker}
+                onRequestShowPicker={onRequestShowTimePicker}
+                value={reminderTimeValue}
+                onChangeTime={onReminderTimeChange}
+                displayText={reminderTimeDisplay}
+              />
+            )}
+
+            <View style={styles.divider} />
+            <ListItem
+              leading={<Flame size={ICON_SIZE} color={colors.text.accent} />}
+              title="Streak Warning"
+              subtitle={streakWarningEnabled ? 'Enabled' : 'Disabled'}
+              trailing={
+                <Switch
+                  checked={streakWarningEnabled}
+                  onChange={onToggleStreakWarning}
+                />
+              }
+            />
+
+            {streakWarningEnabled && (
+              <TimeSubRow
+                showPicker={showStreakTimePicker}
+                onRequestShowPicker={onRequestShowStreakTimePicker}
+                value={streakTimeValue}
+                onChangeTime={onStreakTimeChange}
+                displayText={streakTimeDisplay}
+              />
+            )}
+          </>
+        )}
+      </View>
+    </>
+  );
+}
+
+function SupportSection() {
+  return (
+    <>
+      <EyebrowLabel tone="muted" style={styles.sectionLabel}>
+        SUPPORT
+      </EyebrowLabel>
+
+      <View style={styles.card}>
+        <ListItem
+          leading={
+            <Feather name="mail" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Contact Us"
+          subtitle={CONTACT_EMAIL}
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={handleEmailContact}
+        />
+        <View style={styles.divider} />
+        <ListItem
+          leading={
+            <Feather
+              name="help-circle"
+              size={ICON_SIZE}
+              color={colors.text.accent}
+            />
+          }
+          title="Request a Feature"
+          subtitle={CONTACT_EMAIL}
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={handleEmailContact}
+        />
+      </View>
+    </>
+  );
+}
+
+function LegalSection() {
+  return (
+    <>
+      <EyebrowLabel tone="muted" style={styles.sectionLabel}>
+        LEGAL
+      </EyebrowLabel>
+
+      <View style={styles.card}>
+        <ListItem
+          leading={
+            <Feather
+              name="shield"
+              size={ICON_SIZE}
+              color={colors.text.accent}
+            />
+          }
+          title="Terms of Use & Privacy Policy"
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={() => Linking.openURL('https://unquestapp.com/terms')}
+        />
+      </View>
+    </>
+  );
+}
+
+function DangerZoneSection({
+  onDeleteAccount,
+}: {
+  onDeleteAccount: () => void;
+}) {
+  return (
+    <>
+      <EyebrowLabel tone="muted" style={styles.sectionLabel}>
+        DANGER ZONE
+      </EyebrowLabel>
+
+      <View style={styles.dangerZone}>
+        <Text className="mb-4 text-center text-neutral-200">
+          Deleting your account will remove all your personal data.
+        </Text>
+        <Button
+          variant="outline"
+          fullWidth
+          onPress={onDeleteAccount}
+          style={styles.deleteButton}
+        >
+          <RNText style={styles.deleteButtonLabel}>Delete Account</RNText>
+        </Button>
+      </View>
+    </>
+  );
+}
+
+function DebugSection({ user }: { user: User | null }) {
+  return (
+    <>
+      <EyebrowLabel tone="muted" style={styles.sectionLabel}>
+        DEBUG
+      </EyebrowLabel>
+
+      <View style={styles.card}>
+        <ListItem
+          leading={
+            <Feather name="code" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Check OneSignal ID"
+          subtitle="Verify user ID mapping"
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={async () => {
+            try {
+              const onesignalId = await OneSignal.User.getOnesignalId();
+              const externalId = await OneSignal.User.getExternalId();
+              const mongodbUserId = user?.id || 'Not logged in';
+
+              Alert.alert(
+                'OneSignal Debug Info',
+                `OneSignal ID: ${onesignalId || 'Not set'}\n\n` +
+                  `External ID: ${externalId || 'Not set'}\n\n` +
+                  `MongoDB User ID: ${mongodbUserId}\n\n` +
+                  `Match: ${externalId === mongodbUserId ? '✅ Yes' : '❌ No'}`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                'Failed to get OneSignal info: ' + error.message
+              );
+            }
+          }}
+        />
+        <View style={styles.divider} />
+        <ListItem
+          leading={
+            <Feather name="bell" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Check Notification Status"
+          subtitle="Debug push subscription"
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={async () => {
+            try {
+              // Get all notification status info
+              const permissionStatus =
+                await OneSignal.Notifications.getPermissionAsync();
+              const pushSubscription = OneSignal.User.pushSubscription;
+              const isOptedIn = await pushSubscription.getOptedInAsync();
+              const subscriptionId = await pushSubscription.getIdAsync();
+              const token = await pushSubscription.getTokenAsync();
+
+              // Get notification settings
+              const userPreference = getItem(NOTIFICATIONS_ENABLED_KEY);
+
+              Alert.alert(
+                'OneSignal Notification Status',
+                `System Permission: ${permissionStatus ? '✅ Granted' : '❌ Denied'}\n\n` +
+                  `Push Subscription:\n` +
+                  `  - Opted In: ${isOptedIn ? '✅ Yes' : '❌ No'}\n` +
+                  `  - Subscription ID: ${subscriptionId ? '✅ ' + subscriptionId.substring(0, 20) + '...' : '❌ Not set'}\n` +
+                  `  - Push Token: ${token ? '✅ ' + token.substring(0, 20) + '...' : '❌ Not set'}\n\n` +
+                  `User Preference: ${userPreference === 'true' ? '✅ Enabled' : userPreference === 'false' ? '❌ Disabled' : '⚠️ Not set'}`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                'Failed to get notification status: ' + error.message
+              );
+            }
+          }}
+        />
+      </View>
+    </>
+  );
+}
+
+type TimezoneModalListProps = {
+  selectedTimezone: string;
+  onSelect: (timezone: string) => void;
+  bottomInset: number;
+};
+
+function TimezoneModalList({
+  selectedTimezone,
+  onSelect,
+  bottomInset,
+}: TimezoneModalListProps) {
+  return (
+    <BottomSheetKeyboardAwareScrollView>
+      {TIMEZONES.map((timezone) => (
+        <ListItem
+          key={timezone.value}
+          title={timezone.label}
+          trailing={
+            selectedTimezone === timezone.value ? (
+              <Feather
+                name="check"
+                size={CHEVRON_SIZE}
+                color={colors.accent.primary}
+              />
+            ) : undefined
+          }
+          onPress={() => onSelect(timezone.value)}
+        />
+      ))}
+      <View style={{ height: bottomInset + 8 }} />
+    </BottomSheetKeyboardAwareScrollView>
+  );
+}
 
 export default function Settings() {
   const router = useRouter();
@@ -74,19 +557,6 @@ export default function Settings() {
     isLoading: isLoadingSettings,
   } = useNotificationSettings();
   const { hasPremiumAccess } = usePremiumAccess();
-
-  // Animation value for header
-  const headerOpacity = useSharedValue(0);
-
-  // Initialize animation
-  useEffect(() => {
-    headerOpacity.value = withTiming(1, { duration: 1000 });
-  }, [headerOpacity]);
-
-  // Animated style
-  const headerStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-  }));
 
   // Load notification settings on mount
   useEffect(() => {
@@ -130,7 +600,6 @@ export default function Settings() {
       setSelectedTimezone(notificationSettings.timezone);
     } else {
       const deviceTimezone = Localize.getTimeZone();
-      console.log('deviceTimezone', deviceTimezone);
       // Check if the device timezone is in our supported list
       const isSupported = TIMEZONES.some((tz) => tz.value === deviceTimezone);
       if (isSupported) {
@@ -214,15 +683,6 @@ export default function Settings() {
       },
     ]);
   };
-
-  const handleEmail = (email: string) => {
-    Linking.openURL(`mailto:${email}`);
-  };
-
-  // Define icon colors and backgrounds for consistency with the design
-  const iconBgColor = 'bg-neutral-400';
-  const iconColor = '#36B6D3';
-  const contactEmail = 'hello@unquestapp.com';
 
   const handleToggleReminder = async (value: boolean) => {
     if (value) {
@@ -343,7 +803,7 @@ export default function Settings() {
     return (
       <View className="flex-1 items-center justify-center">
         <FocusAwareStatusBar />
-        <ActivityIndicator size="large" color="#36B6D3" />
+        <ActivityIndicator size="large" color={colors.accent.primary} />
         <Text className="mt-4 text-white">Loading settings...</Text>
       </View>
     );
@@ -354,458 +814,69 @@ export default function Settings() {
       <FocusAwareStatusBar />
 
       <ScreenContainer>
-        {/* Header */}
         <ScreenHeader
           title="Settings"
           subtitle="Manage your account, preferences, and app settings."
         />
 
-        <ScrollView className="flex-1">
+        <ScrollView testID="settings-screen" className="flex-1">
           <View className="px-4">
-            {/* Account Section */}
-            <View className="mb-8">
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Feather name="user" size={24} color={iconColor} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xl font-medium text-white">
-                    Account
-                  </Text>
-                  <Text className="text-neutral-200">
-                    {user?.email || 'Not signed in'}
-                  </Text>
-                </View>
-              </View>
+            <AccountSection
+              user={user}
+              hasPremiumAccess={hasPremiumAccess}
+              onManageSubscription={() =>
+                handleManageSubscription(setIsLoading)
+              }
+              onLogout={handleLogout}
+            />
 
-              {user && (
-                <View
-                  className="mx-auto mt-4 rounded-xl bg-primary-300 p-2"
-                  style={{ width: '50%' }}
-                  onTouchEnd={handleLogout}
-                >
-                  <Text className="text-center font-medium text-white">
-                    Logout
-                  </Text>
-                </View>
-              )}
-            </View>
+            <PreferencesSection
+              selectedTimezoneLabel={
+                TIMEZONES.find((tz) => tz.value === selectedTimezone)?.label ||
+                selectedTimezone
+              }
+              onTimezonePress={() => timezoneModal.present()}
+              notificationsEnabled={notificationsEnabled}
+              onNotificationsToggle={handleNotificationsToggle}
+              dailyReminderEnabled={dailyReminder.enabled}
+              onToggleReminder={handleToggleReminder}
+              showTimePicker={showTimePicker}
+              onRequestShowTimePicker={() => setShowTimePicker(true)}
+              reminderTimeValue={
+                new Date(
+                  new Date().setHours(
+                    dailyReminder.time?.hour || 0,
+                    dailyReminder.time?.minute || 0
+                  )
+                )
+              }
+              onReminderTimeChange={handleTimeChange}
+              reminderTimeDisplay={getReminderTimeDisplay()}
+              streakWarningEnabled={streakWarning.enabled}
+              onToggleStreakWarning={handleToggleStreakWarning}
+              showStreakTimePicker={showStreakTimePicker}
+              onRequestShowStreakTimePicker={() =>
+                setShowStreakTimePicker(true)
+              }
+              streakTimeValue={
+                new Date(
+                  new Date().setHours(
+                    streakWarning.time?.hour || 0,
+                    streakWarning.time?.minute || 0
+                  )
+                )
+              }
+              onStreakTimeChange={handleStreakTimeChange}
+              streakTimeDisplay={getStreakTimeDisplay()}
+            />
 
-            {/* Premium Subscription Section - Always show */}
-            <View className="mb-8">
-              <Pressable
-                className="flex-row items-center justify-between"
-                onPress={handleManageSubscription}
-              >
-                <View className="flex-row items-center">
-                  <View
-                    className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                  >
-                    <Crown size={24} color={iconColor} />
-                  </View>
-                  <View>
-                    <Text className="text-xl font-medium text-white">
-                      emberglow Premium
-                    </Text>
-                    <Text className="text-neutral-200">
-                      {hasPremiumAccess
-                        ? 'Manage subscription'
-                        : 'View subscription options'}
-                    </Text>
-                  </View>
-                </View>
-                <Feather name="chevron-right" size={20} color="#5C7380" />
-              </Pressable>
-            </View>
+            <SupportSection />
+            <LegalSection />
+            <DangerZoneSection
+              onDeleteAccount={() => handleDeleteAccount(setIsLoading)}
+            />
 
-            {/* Preferences Section */}
-            <View className="mb-4">
-              <Text className="mb-2 text-base uppercase text-neutral-300">
-                PREFERENCES
-              </Text>
-            </View>
-
-            {/* Timezone Selector */}
-            <Pressable
-              className="mb-4 flex-row items-center justify-between"
-              onPress={() => {
-                console.log('Timezone button pressed');
-                timezoneModal.present();
-              }}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Globe size={24} color={iconColor} />
-                </View>
-                <View>
-                  <Text className="text-xl font-medium text-white">
-                    Timezone
-                  </Text>
-                  <Text className="text-neutral-200">
-                    {TIMEZONES.find((tz) => tz.value === selectedTimezone)
-                      ?.label || selectedTimezone}
-                  </Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={20} color="#5C7380" />
-            </Pressable>
-
-            {/* Notifications */}
-            <View className="mb-4 flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Feather name="bell" size={24} color={iconColor} />
-                </View>
-                <View>
-                  <Text className="text-xl font-medium text-white">
-                    Notifications
-                  </Text>
-                  <Text className="text-neutral-200">
-                    {notificationsEnabled ? 'Enabled' : 'Disabled'}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={handleNotificationsToggle}
-                trackColor={{ false: '#2A4754', true: '#36B6D3' }}
-              />
-            </View>
-
-            {/* Only show notification sub-settings when notifications are enabled */}
-            {notificationsEnabled && (
-              <>
-                {/* Reminders - Updated to match other sections */}
-                <View className="mb-4 flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <View
-                      className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                    >
-                      <Feather name="clock" size={24} color={iconColor} />
-                    </View>
-                    <View>
-                      <Text className="text-xl font-medium text-white">
-                        Daily Reminder
-                      </Text>
-                      <Text className="text-neutral-200">
-                        {dailyReminder.enabled ? 'Enabled' : 'Disabled'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={dailyReminder.enabled}
-                    onValueChange={handleToggleReminder}
-                    trackColor={{ false: '#2A4754', true: '#36B6D3' }}
-                  />
-                </View>
-
-                {/* Show time selector when reminder is enabled */}
-                {dailyReminder.enabled && (
-                  <View className="mb-6 ml-16">
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-neutral-200">Reminder Time</Text>
-
-                      {!showTimePicker && (
-                        <Pressable
-                          onPress={() => setShowTimePicker(true)}
-                          className="rounded-lg bg-neutral-400 px-4 py-2"
-                        >
-                          <Text className="text-center font-medium text-white">
-                            {getReminderTimeDisplay()}
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      {showTimePicker && (
-                        <DateTimePicker
-                          value={
-                            new Date(
-                              new Date().setHours(
-                                dailyReminder.time?.hour || 0,
-                                dailyReminder.time?.minute || 0
-                              )
-                            )
-                          }
-                          mode="time"
-                          display="compact"
-                          onChange={handleTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </View>
-                  </View>
-                )}
-
-                {/* Streak Warning */}
-                <View className="mb-4 flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <View
-                      className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                    >
-                      <Flame size={24} color={iconColor} />
-                    </View>
-                    <View>
-                      <Text className="text-xl font-medium text-white">
-                        Streak Warning
-                      </Text>
-                      <Text className="text-neutral-200">
-                        {streakWarning.enabled ? 'Enabled' : 'Disabled'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={streakWarning.enabled}
-                    onValueChange={handleToggleStreakWarning}
-                    trackColor={{ false: '#2A4754', true: '#36B6D3' }}
-                  />
-                </View>
-
-                {/* Show time selector when streak warning is enabled */}
-                {streakWarning.enabled && (
-                  <View className="mb-6 ml-16">
-                    <View className="flex-row items-center justify-between">
-                      <Text className="text-neutral-200">Reminder Time</Text>
-
-                      {!showStreakTimePicker && (
-                        <Pressable
-                          onPress={() => setShowStreakTimePicker(true)}
-                          className="rounded-lg bg-neutral-400 px-4 py-2"
-                        >
-                          <Text className="text-center font-medium text-white">
-                            {getStreakTimeDisplay()}
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      {showStreakTimePicker && (
-                        <DateTimePicker
-                          value={
-                            new Date(
-                              new Date().setHours(
-                                streakWarning.time?.hour || 0,
-                                streakWarning.time?.minute || 0
-                              )
-                            )
-                          }
-                          mode="time"
-                          display="compact"
-                          onChange={handleStreakTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </View>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Support Section */}
-            <View className="mb-4">
-              <Text className="mb-2 text-base uppercase text-neutral-300">
-                SUPPORT
-              </Text>
-            </View>
-
-            {/* Contact Us */}
-            <View
-              className="mb-4 flex-row items-center justify-between"
-              onTouchEnd={() => handleEmail(contactEmail)}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Feather name="mail" size={24} color={iconColor} />
-                </View>
-                <View>
-                  <Text className="text-xl font-medium text-white">
-                    Contact Us
-                  </Text>
-                  <Text className="text-neutral-200">{contactEmail}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Request a Feature */}
-            <View
-              className="mb-8 flex-row items-center justify-between"
-              onTouchEnd={() => handleEmail(contactEmail)}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Feather name="help-circle" size={24} color={iconColor} />
-                </View>
-                <View>
-                  <Text className="text-xl font-medium text-white">
-                    Request a Feature
-                  </Text>
-                  <Text className="text-neutral-200">{contactEmail}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Legal Section */}
-            <View className="mb-4">
-              <Text className="mb-2 text-base uppercase text-neutral-300">
-                LEGAL
-              </Text>
-            </View>
-
-            {/* Terms/Privacy Policy */}
-            <Pressable
-              className="mb-8 flex-row items-center justify-between"
-              onPress={() => Linking.openURL('https://unquestapp.com/terms')}
-            >
-              <View className="flex-row items-center">
-                <View
-                  className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                >
-                  <Feather name="shield" size={24} color={iconColor} />
-                </View>
-                <View>
-                  <Text className="text-xl font-medium text-white">
-                    Terms of Use & Privacy Policy
-                  </Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={20} color="#5C7380" />
-            </Pressable>
-
-            {/* Danger Zone */}
-            <View className="mb-4">
-              <Text className="mb-2 text-base uppercase text-neutral-300">
-                DANGER ZONE
-              </Text>
-            </View>
-
-            <View className="mb-8 px-4">
-              <Text className="mb-4 text-center text-neutral-200">
-                Deleting your account will remove all your personal data.
-              </Text>
-              <View
-                className="mx-auto rounded-full bg-red-500 p-2"
-                style={{ width: '50%' }}
-                onTouchEnd={handleDeleteAccount}
-              >
-                <Text className="text-center font-medium text-white">
-                  Delete Account
-                </Text>
-              </View>
-            </View>
-
-            {/* Debug Section - Only in dev mode */}
-            {__DEV__ && (
-              <>
-                <View className="mb-4">
-                  <Text className="mb-2 text-base uppercase text-neutral-300">
-                    DEBUG
-                  </Text>
-                </View>
-
-                <Pressable
-                  className="mb-4 flex-row items-center justify-between"
-                  onPress={async () => {
-                    try {
-                      const onesignalId = await OneSignal.User.getOnesignalId();
-                      const externalId = await OneSignal.User.getExternalId();
-                      const mongodbUserId = user?.id || 'Not logged in';
-
-                      Alert.alert(
-                        'OneSignal Debug Info',
-                        `OneSignal ID: ${onesignalId || 'Not set'}\n\n` +
-                          `External ID: ${externalId || 'Not set'}\n\n` +
-                          `MongoDB User ID: ${mongodbUserId}\n\n` +
-                          `Match: ${externalId === mongodbUserId ? '✅ Yes' : '❌ No'}`,
-                        [{ text: 'OK' }]
-                      );
-                    } catch (error) {
-                      Alert.alert(
-                        'Error',
-                        'Failed to get OneSignal info: ' + error.message
-                      );
-                    }
-                  }}
-                >
-                  <View className="flex-row items-center">
-                    <View
-                      className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                    >
-                      <Feather name="code" size={24} color={iconColor} />
-                    </View>
-                    <View>
-                      <Text className="text-xl font-medium text-white">
-                        Check OneSignal ID
-                      </Text>
-                      <Text className="text-neutral-200">
-                        Verify user ID mapping
-                      </Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={20} color="#5C7380" />
-                </Pressable>
-
-                <Pressable
-                  className="mb-4 flex-row items-center justify-between"
-                  onPress={async () => {
-                    try {
-                      // Get all notification status info
-                      const permissionStatus =
-                        await OneSignal.Notifications.getPermissionAsync();
-                      const pushSubscription = OneSignal.User.pushSubscription;
-                      const isOptedIn =
-                        await pushSubscription.getOptedInAsync();
-                      const subscriptionId =
-                        await pushSubscription.getIdAsync();
-                      const token = await pushSubscription.getTokenAsync();
-
-                      // Get notification settings
-                      const userPreference = getItem(NOTIFICATIONS_ENABLED_KEY);
-
-                      Alert.alert(
-                        'OneSignal Notification Status',
-                        `System Permission: ${permissionStatus ? '✅ Granted' : '❌ Denied'}\n\n` +
-                          `Push Subscription:\n` +
-                          `  - Opted In: ${isOptedIn ? '✅ Yes' : '❌ No'}\n` +
-                          `  - Subscription ID: ${subscriptionId ? '✅ ' + subscriptionId.substring(0, 20) + '...' : '❌ Not set'}\n` +
-                          `  - Push Token: ${token ? '✅ ' + token.substring(0, 20) + '...' : '❌ Not set'}\n\n` +
-                          `User Preference: ${userPreference === 'true' ? '✅ Enabled' : userPreference === 'false' ? '❌ Disabled' : '⚠️ Not set'}`,
-                        [{ text: 'OK' }]
-                      );
-                    } catch (error) {
-                      Alert.alert(
-                        'Error',
-                        'Failed to get notification status: ' + error.message
-                      );
-                    }
-                  }}
-                >
-                  <View className="flex-row items-center">
-                    <View
-                      className={`mr-4 size-14 ${iconBgColor} items-center justify-center rounded-full`}
-                    >
-                      <Feather name="bell" size={24} color={iconColor} />
-                    </View>
-                    <View>
-                      <Text className="text-xl font-medium text-white">
-                        Check Notification Status
-                      </Text>
-                      <Text className="text-neutral-200">
-                        Debug push subscription
-                      </Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={20} color="#5C7380" />
-                </Pressable>
-              </>
-            )}
+            {__DEV__ && <DebugSection user={user} />}
 
             {/* Version Info */}
             <View className="mb-6 mt-8">
@@ -829,22 +900,61 @@ export default function Settings() {
         title="Select Timezone"
         backgroundStyle={{ backgroundColor: background }}
       >
-        <BottomSheetKeyboardAwareScrollView>
-          {TIMEZONES.map((timezone) => (
-            <Pressable
-              key={timezone.value}
-              className="flex-row items-center justify-between border-b border-neutral-100 p-4"
-              onPress={() => handleTimezoneChange(timezone.value)}
-            >
-              <Text className="text-base text-white">{timezone.label}</Text>
-              {selectedTimezone === timezone.value && (
-                <Feather name="check" size={20} color="#36B6D3" />
-              )}
-            </Pressable>
-          ))}
-          <View style={{ height: insets.bottom + 8 }} />
-        </BottomSheetKeyboardAwareScrollView>
+        <TimezoneModalList
+          selectedTimezone={selectedTimezone}
+          onSelect={handleTimezoneChange}
+          bottomInset={insets.bottom}
+        />
       </Modal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    overflow: 'hidden',
+    marginBottom: spacing[5],
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border.hairline,
+  },
+  sectionLabel: {
+    marginBottom: spacing[2],
+  },
+  logoutWrapper: {
+    alignItems: 'center',
+    marginTop: spacing[4],
+    marginBottom: spacing[5],
+  },
+  subRow: {
+    marginLeft: SUB_ROW_INDENT,
+  },
+  timePill: {
+    borderRadius: radii.md,
+    backgroundColor: colors.fill.faint,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+  },
+  timePillText: {
+    fontFamily: fontFamily.medium,
+    fontSize: 14,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  dangerZone: {
+    marginBottom: spacing[5],
+  },
+  deleteButton: {
+    borderColor: colors.status.danger,
+  },
+  deleteButtonLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.status.danger,
+  },
+});

@@ -10,25 +10,25 @@ import {
 } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useRef } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 
+import { ListItem } from '@/components/emberglow';
 import {
   ContactsImportModal,
   type ContactsImportModalRef,
 } from '@/components/profile/contact-import';
 import { useLazyWebSocket } from '@/components/providers/lazy-websocket-provider';
 import {
-  Card,
   FocusAwareStatusBar,
   ScreenContainer,
   Text,
   TouchableOpacity,
   View,
 } from '@/components/ui';
-import { useAuth } from '@/lib';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { getUserFriends } from '@/lib/services/user';
 import { useUserStore } from '@/store/user-store';
+import { colors, fontFamily, radii, shadows, spacing } from '@/theme';
 
 interface MenuOption {
   id: string;
@@ -36,7 +36,6 @@ interface MenuOption {
   description: string;
   icon: React.ReactNode;
   route: string;
-  color: string;
 }
 
 const menuOptions: MenuOption[] = [
@@ -44,35 +43,53 @@ const menuOptions: MenuOption[] = [
     id: 'create',
     title: 'Create Quest',
     description: 'Start a new cooperative quest and invite friends',
-    icon: <PlusCircle size={32} color="#FFFFFF" />,
+    icon: <PlusCircle size={20} color={colors.text.accent} />,
     route: '/create-cooperative-quest',
-    color: 'bg-primary-400',
   },
   {
     id: 'join',
     title: 'Join Quest',
     description: 'View and respond to quest invitations from friends',
-    icon: <Users size={32} color="#FFFFFF" />,
+    icon: <Users size={20} color={colors.text.accent} />,
     route: '/join-cooperative-quest',
-    color: 'bg-secondary-400',
   },
   {
     id: 'friends',
     title: 'Add Friends',
     description: 'Connect with friends to quest together',
-    icon: <UserPlus size={32} color="#FFFFFF" />,
+    icon: <UserPlus size={20} color={colors.text.accent} />,
     route: '', // We'll handle this with modal instead
-    color: 'bg-muted-300',
   },
 ];
+
+// Shared "How it works" info card — previously duplicated almost verbatim
+// between the has-friends and no-friends branches below. No Emberglow
+// generic card/panel component exists (ground rule 4), so this is a bare
+// View styled from theme tokens.
+function HowItWorksCard({ style }: { style?: object }) {
+  return (
+    <View style={[styles.infoCard, style]}>
+      <Info size={20} color={colors.text.accent} style={styles.infoCardIcon} />
+      <View style={styles.infoCardBody}>
+        <Text style={styles.infoCardTitle}>How it works</Text>
+        <Text style={styles.infoCardText}>
+          In cooperative quests, all participants must keep their phones locked
+          for the entire duration.{'\n'}
+          If anyone unlocks early, everyone fails together!
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export default function CooperativeQuestMenu() {
   const router = useRouter();
   const posthog = usePostHog();
   const contactsModalRef = useRef<ContactsImportModalRef>(null);
-  const currentUser = useAuth((state) => state.user);
+  // `AuthState` (src/lib/auth) has no `user` field — the real signed-in
+  // user's email lives in the user store, not the auth store.
+  const currentUser = useUserStore((state) => state.user);
   const userEmail = currentUser?.email || '';
-  const user = useUserStore((state) => state.user);
   const { connect: connectWebSocket } = useLazyWebSocket();
 
   // Connect WebSocket when entering cooperative quest flow
@@ -119,7 +136,7 @@ export default function CooperativeQuestMenu() {
       <View className="flex-1">
         <FocusAwareStatusBar />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#36B6D3" />
+          <ActivityIndicator size="large" color={colors.accent.primary} />
           <Text className="mt-4 text-neutral-200">Loading...</Text>
         </View>
       </View>
@@ -139,7 +156,7 @@ export default function CooperativeQuestMenu() {
               onPress={() => router.back()}
               className="mb-4 flex-row items-center"
             >
-              <ArrowLeft size={24} color="#e8dcc7" />
+              <ArrowLeft size={24} color={colors.text.primary} />
               <Text className="ml-2 text-lg text-white">Back</Text>
             </TouchableOpacity>
 
@@ -153,7 +170,7 @@ export default function CooperativeQuestMenu() {
 
           {/* No Friends Message */}
           <View className="mb-6 items-center py-8">
-            <Users size={64} color="#8FA5B2" />
+            <Users size={64} color={colors.text.muted} />
             <Text className="mt-4 text-center text-lg font-semibold text-white">
               Add Friends to Get Started
             </Text>
@@ -163,46 +180,20 @@ export default function CooperativeQuestMenu() {
             </Text>
           </View>
 
-          {/* Add Friends Card */}
-          <TouchableOpacity
-            onPress={() => contactsModalRef.current?.present()}
-            activeOpacity={0.8}
-          >
-            <Card className="bg-muted-300 p-6 shadow-md">
-              <View className="flex-row items-center">
-                <View className="mr-4 rounded-full bg-white/20 p-3">
-                  <UserPlus size={32} color="white" />
-                </View>
-                <View className="flex-1">
-                  <Text className="mb-1 text-xl font-bold text-white">
-                    Add Friends
-                  </Text>
-                  <Text className="text-sm text-white/80">
-                    Connect with friends to quest together
-                  </Text>
-                </View>
-                <ChevronRight size={24} color="white" />
-              </View>
-            </Card>
-          </TouchableOpacity>
+          {/* Add Friends row */}
+          <View style={styles.rowCard}>
+            <ListItem
+              title="Add Friends"
+              subtitle="Connect with friends to quest together"
+              leading={<UserPlus size={20} color={colors.text.accent} />}
+              trailing={<ChevronRight size={18} color={colors.text.muted} />}
+              onPress={() => contactsModalRef.current?.present()}
+            />
+          </View>
 
           {/* Info Section */}
-          <View className="mt-auto">
-            <Card className="mb-4 bg-secondary-400 p-4">
-              <View className="flex-row items-start">
-                <Info size={20} color="#FFFFFF" style={{ marginTop: 2 }} />
-                <View className="ml-3 flex-1">
-                  <Text className="mb-1 font-semibold text-white">
-                    How it works
-                  </Text>
-                  <Text className="text-sm text-white/90">
-                    In cooperative quests, all participants must keep their
-                    phones locked for the entire duration.{'\n'}
-                    If anyone unlocks early, everyone fails together!
-                  </Text>
-                </View>
-              </View>
-            </Card>
+          <View style={styles.infoSpacer}>
+            <HowItWorksCard />
           </View>
         </ScreenContainer>
 
@@ -229,7 +220,7 @@ export default function CooperativeQuestMenu() {
             onPress={() => router.back()}
             className="mb-4 flex-row items-center"
           >
-            <ArrowLeft size={24} color="#e8dcc7" />
+            <ArrowLeft size={24} color={colors.text.primary} />
             <Text className="ml-2 text-lg text-white">Back</Text>
           </TouchableOpacity>
 
@@ -243,49 +234,22 @@ export default function CooperativeQuestMenu() {
         </View>
 
         {/* Menu Options */}
-        <View className="flex-1 gap-4">
+        <View style={styles.menuList}>
           {menuOptions.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              onPress={() => handleOptionPress(option)}
-              activeOpacity={0.8}
-            >
-              <Card className={`p-6 ${option.color} shadow-md`}>
-                <View className="flex-row items-center">
-                  <View className="mr-4 rounded-full bg-white/20 p-3">
-                    {option.icon}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="mb-1 text-xl font-bold text-white">
-                      {option.title}
-                    </Text>
-                    <Text className="text-sm text-white/80">
-                      {option.description}
-                    </Text>
-                  </View>
-                  <ChevronRight size={24} color="white" />
-                </View>
-              </Card>
-            </TouchableOpacity>
+            <View key={option.id} style={styles.rowCard}>
+              <ListItem
+                title={option.title}
+                subtitle={option.description}
+                leading={option.icon}
+                trailing={<ChevronRight size={18} color={colors.text.muted} />}
+                onPress={() => handleOptionPress(option)}
+              />
+            </View>
           ))}
         </View>
 
         {/* Info Section */}
-        <Card className="mb-4 bg-secondary-400 p-4">
-          <View className="flex-row items-start">
-            <Info size={20} color="#FFFFFF" style={{ marginTop: 2 }} />
-            <View className="ml-3 flex-1">
-              <Text className="mb-1 font-semibold text-white">
-                How it works
-              </Text>
-              <Text className="text-sm text-white/90">
-                In cooperative quests, all participants must keep their phones
-                locked for the entire duration.{'\n'}
-                If anyone unlocks early, everyone fails together!
-              </Text>
-            </View>
-          </View>
-        </Card>
+        <HowItWorksCard style={styles.infoCardHasFriends} />
       </View>
 
       {/* Contacts Import Modal */}
@@ -298,3 +262,53 @@ export default function CooperativeQuestMenu() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  menuList: {
+    flex: 1,
+    gap: spacing[4],
+  },
+  rowCard: {
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  infoSpacer: {
+    marginTop: 'auto',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[3],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[4],
+    ...shadows.card,
+  },
+  infoCardHasFriends: {
+    marginBottom: spacing[4],
+  },
+  infoCardIcon: {
+    marginTop: 2,
+  },
+  infoCardBody: {
+    flex: 1,
+  },
+  infoCardTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  infoCardText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    lineHeight: 13 * 1.5,
+    color: colors.text.secondary,
+  },
+});
