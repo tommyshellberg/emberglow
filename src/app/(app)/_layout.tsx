@@ -246,6 +246,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      {/* Dev-only Emberglow component gallery — not linked from any menu, reached by URL. */}
+      <Tabs.Screen
+        name="emberglow-gallery"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
