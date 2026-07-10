@@ -4,45 +4,18 @@
  * Extracted from profile.tsx to improve component composition and reusability.
  */
 
-import { Award, TrendingUp } from 'lucide-react-native';
+import { Award, ChevronRight, TrendingUp } from 'lucide-react-native';
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { Card, Pressable, Text, View } from '@/components/ui';
-
-import { PROFILE_COLORS } from '@/features/profile/constants/profile-constants';
-import type { ActionCardProps } from '@/features/profile/types/profile-types';
-
-/**
- * ActionCard - Reusable card component for navigation actions
- */
-export function ActionCard({
-  icon: Icon,
-  title,
-  description,
-  onPress,
-}: ActionCardProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      className="flex-1"
-      accessible={true}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityHint={description}
-    >
-      <Card className="items-center justify-center py-6">
-        <Icon size={32} color={PROFILE_COLORS.actionCardIcon} />
-        <Text className="mt-2 text-base font-semibold text-white">{title}</Text>
-        <Text className="mt-1 text-center text-sm text-neutral-200">
-          {description}
-        </Text>
-      </Card>
-    </Pressable>
-  );
-}
+import { ListItem } from '@/components/emberglow';
+import { colors, radii, shadows, spacing } from '@/theme';
 
 /**
- * ActionCards - Container for leaderboard and achievements navigation cards
+ * ActionCards - Compact link rows for leaderboard and achievements
+ * navigation, wrapped in the raised "rowCard" pattern (see
+ * src/app/cooperative-quest-menu.tsx) and matching the ProfileScreen
+ * mockup's Links section (tabs.jsx ~82-90).
  */
 export function ActionCards({
   onLeaderboardPress,
@@ -52,19 +25,40 @@ export function ActionCards({
   onAchievementsPress: () => void;
 }) {
   return (
-    <View className="mx-4 mt-4 flex-row gap-3">
-      <ActionCard
-        icon={TrendingUp}
+    <View style={styles.rowCard}>
+      <ListItem
         title="View Leaderboard"
-        description="See how others are doing"
+        subtitle="See how others are doing"
+        leading={<TrendingUp size={19} color={colors.text.accent} />}
+        trailing={<ChevronRight size={18} color={colors.text.muted} />}
         onPress={onLeaderboardPress}
       />
-      <ActionCard
-        icon={Award}
-        title="My Achievements"
-        description="Track your progress"
-        onPress={onAchievementsPress}
-      />
+      <View style={styles.divider}>
+        <ListItem
+          title="My Achievements"
+          subtitle="Track your progress"
+          leading={<Award size={19} color={colors.text.accent} />}
+          trailing={<ChevronRight size={18} color={colors.text.muted} />}
+          onPress={onAchievementsPress}
+        />
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  rowCard: {
+    marginHorizontal: spacing[4],
+    marginTop: spacing[4],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  divider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+  },
+});

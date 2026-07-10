@@ -197,7 +197,7 @@ export default function AppQuestDetailsScreen() {
     const hasReflection = serverReflection || quest.reflection;
 
     return (
-      <View className="flex-1 bg-background">
+      <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
         <ScreenHeader
           title={SCREEN_TITLE}
@@ -327,7 +327,7 @@ export default function AppQuestDetailsScreen() {
 
   if (quest.status === 'failed') {
     return (
-      <View className="flex-1 bg-background">
+      <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
         <ScreenHeader
           title={SCREEN_TITLE}
@@ -362,6 +362,13 @@ const reflectionPanelBase = {
 } as const;
 
 const styles = StyleSheet.create({
+  // Flat canvas behind the ScreenHeader band, matching the ScreenContainer
+  // below it (now transparent for QuestComplete/FailedQuest's own art) so
+  // there's no hard color-edge seam between the header strip and content.
+  screenRoot: {
+    flex: 1,
+    backgroundColor: emberColors.surface.app,
+  },
   reflectionHeader: {
     ...reflectionPanelBase,
     flexDirection: 'row',

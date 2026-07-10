@@ -49,7 +49,7 @@ export function QuestComplete({
       </BackgroundImage>
 
       {/* Content */}
-      <ScreenContainer fullScreen>
+      <ScreenContainer fullScreen transparent>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}

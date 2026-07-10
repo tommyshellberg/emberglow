@@ -4,6 +4,7 @@
  * Extracted from profile.tsx and sub-components to eliminate magic numbers
  * and improve maintainability.
  */
+import { colors } from '@/theme';
 
 /**
  * XP System Configuration
@@ -64,9 +65,7 @@ export const PROFILE_COLORS = {
   /** RefreshControl tint color */
   refreshControl: '#334738',
   /** Edit icon color in profile card */
-  editIcon: '#2E948D',
-  /** Action card icon color (teal) */
-  actionCardIcon: '#36B6D3',
+  editIcon: colors.text.accent,
 } as const;
 
 /**

@@ -98,13 +98,12 @@ export function PerkCard({
   return (
     <Animated.View
       entering={FadeInDown.delay(100).duration(400)}
-      style={isAvailable ? [styles.glowWrapper, shadows.glowWarm] : undefined}
+      style={isUnlocked ? [styles.glowWrapper, shadows.glowWarm] : undefined}
     >
       <View
         testID={testID || `perk-card-${status}`}
         style={[
           styles.card,
-          isAvailable && styles.cardAvailable,
           isUnlocked && styles.cardUnlocked,
           isLocked && styles.cardLocked,
         ]}
@@ -182,12 +181,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing[3],
     gap: spacing[2],
   },
-  cardAvailable: {
+  // Only unlocked perks carry the warm emphasis (border + glowWarm shadow,
+  // applied on the Animated.View wrapper above) — available perks stay on
+  // the quiet hairline border from `card` above, matching the mockup
+  // (social.jsx PerkCard, ~lines 47-56), which reserves the loud treatment
+  // for the state the player has actually achieved.
+  cardUnlocked: {
     borderWidth: 2,
     borderColor: withAlpha(palette.cinnabar, 0.5),
-  },
-  cardUnlocked: {
-    borderColor: withAlpha(colors.status.success, 0.35),
   },
   cardLocked: {
     opacity: 0.5,

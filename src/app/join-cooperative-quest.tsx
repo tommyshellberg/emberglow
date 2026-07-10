@@ -8,7 +8,7 @@
  */
 
 import { useRouter } from 'expo-router';
-import { Clock, Inbox, User, Users } from 'lucide-react-native';
+import { Clock, Inbox, Info, User, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -28,7 +28,6 @@ import {
   ScreenHeader,
   showErrorMessage,
 } from '@/components/ui';
-import { InfoCard } from '@/components/ui/info-card';
 import { colors, fontFamily, fontSize, radii, shadows, spacing } from '@/theme';
 
 const MOCK_PUBLIC_QUESTS = [
@@ -292,10 +291,27 @@ export default function JoinCooperativeQuest() {
                   ))}
                 </View>
 
-                <InfoCard
-                  title="Public Quests are coming soon!"
-                  description="Soon you'll be able to join quests created by the community, compete on leaderboards, and find accountability partners worldwide."
-                />
+                {/* Dark token-styled banner — matches the "How it works"
+                    info-card recipe in cooperative-quest-menu.tsx. The
+                    legacy @/components/ui/info-card renders a light salmon
+                    block, which Emberglow forbids in-app. */}
+                <View style={styles.infoCard}>
+                  <Info
+                    size={20}
+                    color={colors.text.accent}
+                    style={styles.infoCardIcon}
+                  />
+                  <View style={styles.infoCardBody}>
+                    <Text style={styles.infoCardTitle}>
+                      Public Quests are coming soon!
+                    </Text>
+                    <Text style={styles.infoCardText}>
+                      Soon you'll be able to join quests created by the
+                      community, compete on leaderboards, and find
+                      accountability partners worldwide.
+                    </Text>
+                  </View>
+                </View>
               </View>
             </>
           ) : (
@@ -434,6 +450,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.hairline,
     ...shadows.card,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[3],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[4],
+    ...shadows.card,
+  },
+  infoCardIcon: {
+    marginTop: 2,
+  },
+  infoCardBody: {
+    flex: 1,
+  },
+  infoCardTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  infoCardText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    lineHeight: 13 * 1.5,
+    color: colors.text.secondary,
   },
   invitationTitle: {
     fontFamily: fontFamily.display,

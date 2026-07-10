@@ -38,17 +38,3 @@ export interface UserWithLegacyCharacter {
   /** Total minutes off phone (server stat) */
   totalMinutesOffPhone?: number;
 }
-
-/**
- * Props for ActionCard component
- */
-export interface ActionCardProps {
-  /** Icon component to display */
-  icon: React.ComponentType<{ size: number; color: string }>;
-  /** Card title */
-  title: string;
-  /** Card description */
-  description: string;
-  /** Press handler */
-  onPress: () => void;
-}

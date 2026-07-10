@@ -65,9 +65,15 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
   return (
     <View style={styles.flex}>
       {/* Background image */}
-      <BackgroundImage />
+      <BackgroundImage tintClassName="">
+        {/* Darkening overlay for text legibility over the art, normalized
+            to a theme token instead of BackgroundImage's default NativeWind
+            white tint (which was never visible before — the old opaque
+            ScreenContainer gradient fully occluded this art). */}
+        <View style={styles.overlay} />
+      </BackgroundImage>
 
-      <ScreenContainer style={styles.screenPadding}>
+      <ScreenContainer transparent style={styles.screenPadding}>
         {/* Title Section */}
         <Animated.View style={[styles.header, headerAnimatedStyle]}>
           <EyebrowLabel>
@@ -102,6 +108,10 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.surface.overlay,
   },
   screenPadding: {
     paddingVertical: spacing[8],

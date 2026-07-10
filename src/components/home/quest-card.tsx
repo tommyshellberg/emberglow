@@ -46,12 +46,20 @@ const COMPLETION_MESSAGE =
  * built here from `Badge`/`EyebrowLabel` plus bare `View`s on theme tokens,
  * matching `XPBar`'s Cinnabar→Sandy track/fill recipe for the progress bar.
  *
+ * The mode label and premium badge render as a normal-flow row *above*
+ * `QuestCard`, not an absolute overlay on top of it — `QuestCard`'s own
+ * content box anchors its badge row/title/description/duration to the
+ * bottom of a `min-height` art area (`justifyContent: 'flex-end'`), and that
+ * minimum is tuned for a bare title + duration. Any card with a description
+ * (the common case) grows past it, so the badge row ends up rendering right
+ * under a fixed-top overlay instead of near the art's bottom. Normal flow
+ * keeps the label above the card unconditionally, regardless of how tall
+ * the card's own content grows.
+ *
  * The story-progress block renders as its own row *below* `QuestCard`
- * (normal flow, not an absolute overlay) rather than stacked on top of the
- * art — `QuestCard`'s own content box anchors title/description/duration to
- * its bottom edge (`justifyContent: 'flex-end'`), so an overlay pinned to
- * that same bottom edge would render on top of that text instead of beside
- * it, particularly for the full completed-storyline paragraph.
+ * (normal flow, not an absolute overlay) for the same reason — an overlay
+ * pinned to the bottom edge would render on top of that text instead of
+ * beside it, particularly for the full completed-storyline paragraph.
  */
 export default function QuestCard({
   mode,
@@ -77,37 +85,35 @@ export default function QuestCard({
   const progressPercent = Math.min(100, Math.round(progress * 100));
 
   return (
-    <View style={styles.wrapper}>
-      <EmberglowQuestCard
-        title={cardTitle}
-        description={cardDescription}
-        xp={xp}
-        duration={cardDuration}
-        image={imageMap[mode]}
-      />
-
-      {/* Mode label — Emberglow QuestCard has no subtitle/eyebrow slot */}
-      <View style={styles.eyebrowOverlay} pointerEvents="none">
+    <View>
+      {/* Mode label + premium lock — Emberglow QuestCard has no slot for
+          either; rendered above it in normal flow (see file header comment
+          for why this can't be an overlay on the card). */}
+      <View style={styles.headerRow}>
         <EyebrowLabel tone="warm">{subtitle}</EyebrowLabel>
+        {requiresPremium && <Badge tone="warm">⭐ Premium</Badge>}
       </View>
 
-      {/* Premium lock — no requiresPremium prop on Emberglow QuestCard */}
-      {requiresPremium && (
-        <View style={styles.premiumOverlay} pointerEvents="none">
-          <Badge tone="warm">⭐ Premium</Badge>
-        </View>
-      )}
+      <View style={styles.cardArt}>
+        <EmberglowQuestCard
+          title={cardTitle}
+          description={cardDescription}
+          xp={xp}
+          duration={cardDuration}
+          image={imageMap[mode]}
+        />
 
-      {/* Restart control — story mode only, once progress has started */}
-      {mode === 'story' && onRestart && progress > 0 && (
-        <Pressable
-          onPress={onRestart}
-          style={styles.restartButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <RotateCcw size={20} color={colors.text.primary} />
-        </Pressable>
-      )}
+        {/* Restart control — story mode only, once progress has started */}
+        {mode === 'story' && onRestart && progress > 0 && (
+          <Pressable
+            onPress={onRestart}
+            style={styles.restartButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <RotateCcw size={20} color={colors.text.primary} />
+          </Pressable>
+        )}
+      </View>
 
       {/*
         Story progress — rendered as a normal-flow row below QuestCard
@@ -145,18 +151,14 @@ export default function QuestCard({
 const PROGRESS_TRACK_HEIGHT = 6;
 
 const styles = StyleSheet.create({
-  wrapper: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[2],
+  },
+  cardArt: {
     position: 'relative',
-  },
-  eyebrowOverlay: {
-    position: 'absolute',
-    top: spacing[3],
-    left: spacing[4],
-  },
-  premiumOverlay: {
-    position: 'absolute',
-    top: spacing[3] + spacing[5],
-    left: spacing[4],
   },
   restartButton: {
     position: 'absolute',

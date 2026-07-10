@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
-  ArrowLeft,
   ChevronRight,
   Info,
   PlusCircle,
@@ -21,14 +20,14 @@ import { useLazyWebSocket } from '@/components/providers/lazy-websocket-provider
 import {
   FocusAwareStatusBar,
   ScreenContainer,
+  ScreenHeader,
   Text,
-  TouchableOpacity,
   View,
 } from '@/components/ui';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { getUserFriends } from '@/lib/services/user';
 import { useUserStore } from '@/store/user-store';
-import { colors, fontFamily, radii, shadows, spacing } from '@/theme';
+import { colors, fontFamily, fontSize, radii, shadows, spacing } from '@/theme';
 
 interface MenuOption {
   id: string;
@@ -130,127 +129,80 @@ export default function CooperativeQuestMenu() {
     }
   };
 
-  // Show loading state while checking friends
-  if (isLoading) {
-    return (
-      <View className="flex-1">
-        <FocusAwareStatusBar />
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.accent.primary} />
-          <Text className="mt-4 text-neutral-200">Loading...</Text>
-        </View>
-      </View>
-    );
-  }
+  const subtitle = hasFriends
+    ? 'Team up with friends to complete quests together. Everyone must keep their phones locked to succeed!'
+    : 'Team up with friends to complete quests together!';
 
-  // If user has no friends, show only the Add Friends option
-  if (!hasFriends) {
-    return (
-      <View className="flex-1 bg-background">
-        <FocusAwareStatusBar />
-
-        <ScreenContainer fullScreen className="px-4">
-          {/* Header */}
-          <View className="mb-6 mt-2">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="mb-4 flex-row items-center"
-            >
-              <ArrowLeft size={24} color={colors.text.primary} />
-              <Text className="ml-2 text-lg text-white">Back</Text>
-            </TouchableOpacity>
-
-            <Text className="mb-2 text-3xl font-bold text-white">
-              Cooperative Quests
-            </Text>
-            <Text className="text-neutral-200">
-              Team up with friends to complete quests together!
-            </Text>
-          </View>
-
-          {/* No Friends Message */}
-          <View className="mb-6 items-center py-8">
-            <Users size={64} color={colors.text.muted} />
-            <Text className="mt-4 text-center text-lg font-semibold text-white">
-              Add Friends to Get Started
-            </Text>
-            <Text className="mt-2 px-8 text-center text-neutral-200">
-              Cooperative quests require friends to play with. Add some friends
-              first to start creating and joining quests together!
-            </Text>
-          </View>
-
-          {/* Add Friends row */}
-          <View style={styles.rowCard}>
-            <ListItem
-              title="Add Friends"
-              subtitle="Connect with friends to quest together"
-              leading={<UserPlus size={20} color={colors.text.accent} />}
-              trailing={<ChevronRight size={18} color={colors.text.muted} />}
-              onPress={() => contactsModalRef.current?.present()}
-            />
-          </View>
-
-          {/* Info Section */}
-          <View style={styles.infoSpacer}>
-            <HowItWorksCard />
-          </View>
-        </ScreenContainer>
-
-        {/* Contacts Import Modal */}
-        <ContactsImportModal
-          ref={contactsModalRef}
-          sendBulkInvites={sendBulkInvites}
-          friends={friendsData?.friends || []}
-          userEmail={userEmail}
-        />
-      </View>
-    );
-  }
-
-  // If user has friends, show all options
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.root}>
       <FocusAwareStatusBar />
 
-      <View className="flex-1 px-4">
-        {/* Header */}
-        <View className="mb-6 mt-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="mb-4 flex-row items-center"
-          >
-            <ArrowLeft size={24} color={colors.text.primary} />
-            <Text className="ml-2 text-lg text-white">Back</Text>
-          </TouchableOpacity>
+      <ScreenContainer fullScreen>
+        <ScreenHeader
+          title="Cooperative Quests"
+          subtitle={subtitle}
+          showBackButton
+        />
 
-          <Text className="mb-2 text-3xl font-bold text-white">
-            Cooperative Quests
-          </Text>
-          <Text className="text-neutral-200">
-            Team up with friends to complete quests together. Everyone must keep
-            their phones locked to succeed!
-          </Text>
-        </View>
+        {isLoading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        ) : hasFriends ? (
+          <>
+            {/* Menu Options */}
+            <View style={styles.menuList}>
+              {menuOptions.map((option) => (
+                <View key={option.id} style={styles.rowCard}>
+                  <ListItem
+                    title={option.title}
+                    subtitle={option.description}
+                    leading={option.icon}
+                    trailing={
+                      <ChevronRight size={18} color={colors.text.muted} />
+                    }
+                    onPress={() => handleOptionPress(option)}
+                  />
+                </View>
+              ))}
+            </View>
 
-        {/* Menu Options */}
-        <View style={styles.menuList}>
-          {menuOptions.map((option) => (
-            <View key={option.id} style={styles.rowCard}>
+            {/* Info Section */}
+            <HowItWorksCard style={styles.infoCardHasFriends} />
+          </>
+        ) : (
+          <>
+            {/* No Friends Message */}
+            <View style={styles.emptyState}>
+              <Users size={64} color={colors.text.muted} />
+              <Text style={styles.emptyStateTitle}>
+                Add Friends to Get Started
+              </Text>
+              <Text style={styles.emptyStateBody}>
+                Cooperative quests require friends to play with. Add some
+                friends first to start creating and joining quests together!
+              </Text>
+            </View>
+
+            {/* Add Friends row */}
+            <View style={styles.rowCard}>
               <ListItem
-                title={option.title}
-                subtitle={option.description}
-                leading={option.icon}
+                title="Add Friends"
+                subtitle="Connect with friends to quest together"
+                leading={<UserPlus size={20} color={colors.text.accent} />}
                 trailing={<ChevronRight size={18} color={colors.text.muted} />}
-                onPress={() => handleOptionPress(option)}
+                onPress={() => contactsModalRef.current?.present()}
               />
             </View>
-          ))}
-        </View>
 
-        {/* Info Section */}
-        <HowItWorksCard style={styles.infoCardHasFriends} />
-      </View>
+            {/* Info Section */}
+            <View style={styles.infoSpacer}>
+              <HowItWorksCard />
+            </View>
+          </>
+        )}
+      </ScreenContainer>
 
       {/* Contacts Import Modal */}
       <ContactsImportModal
@@ -264,6 +216,41 @@ export default function CooperativeQuestMenu() {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    color: colors.text.secondary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing[8],
+    marginBottom: spacing[6],
+  },
+  emptyStateTitle: {
+    marginTop: spacing[4],
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.h3,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptyStateBody: {
+    marginTop: spacing[2],
+    paddingHorizontal: spacing[8],
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.small,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
   menuList: {
     flex: 1,
     gap: spacing[4],

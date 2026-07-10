@@ -336,6 +336,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing[2],
     fontFamily: fontFamily.display,
     fontSize: 30,
+    // Erstoria's default 1.12 leading still clips this display face's tall
+    // ascenders in RN; other recomposed screens' Erstoria headings bump to
+    // 1.15 to give them room (see emberglow/quest/quest-card.tsx's `title`).
+    lineHeight: 30 * 1.15,
     color: colors.text.primary,
   },
   subtitle: {

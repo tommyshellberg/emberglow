@@ -114,8 +114,16 @@ describe('CooperativeQuestMenu', () => {
   it('should navigate back when back button is pressed', () => {
     render(<CooperativeQuestMenu />);
 
-    const backButton = screen.getByText('Back');
-    fireEvent.press(backButton);
+    // ScreenHeader's back button is icon-only (no "Back" text) — find the
+    // touchable back button by looking for the first accessible element in
+    // the header, matching the pattern used by sibling screens (e.g.
+    // join-cooperative-quest.test.tsx).
+    const accessibleElements = screen.root.findAll(
+      (node: any) => node.props?.accessible === true
+    );
+
+    expect(accessibleElements.length).toBeGreaterThan(0);
+    fireEvent.press(accessibleElements[0]);
 
     expect(mockBack).toHaveBeenCalled();
   });

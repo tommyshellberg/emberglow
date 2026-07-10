@@ -89,7 +89,7 @@ export default function CreateGuildScreen() {
   }, [name, tagline, icon, createGuildMutation, router]);
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.screenRoot}>
       <FocusAwareStatusBar />
       <ScreenHeader
         title={GUILD_TITLES.CREATE_TITLE}
@@ -101,7 +101,7 @@ export default function CreateGuildScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <ScreenContainer reverseGradient>
+        <ScreenContainer>
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -185,6 +185,12 @@ export default function CreateGuildScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Flat canvas behind the ScreenHeader band, matching the ScreenContainer
+  // below it so there's no hard color-edge seam.
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
   section: {
     ...shadows.raised,
     backgroundColor: colors.surface.raised,

@@ -211,7 +211,7 @@ export default function StreakCelebrationScreen() {
         <View style={styles.backgroundScrim} />
       </View>
 
-      <ScreenContainer fullScreen style={styles.container}>
+      <ScreenContainer fullScreen transparent style={styles.container}>
         <EyebrowLabel>Quest streak</EyebrowLabel>
 
         {/* Counter */}

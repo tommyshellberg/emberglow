@@ -6,6 +6,7 @@ import {
   Alert,
   ImageBackground,
   Pressable,
+  StyleSheet,
   TextInput,
 } from 'react-native';
 import Animated, {
@@ -22,6 +23,7 @@ import { PROFILE_COLORS } from '@/features/profile/constants/profile-constants';
 import type { Character } from '@/features/profile/types/profile-types';
 import { updateUserCharacter } from '@/lib/services/user';
 import { useCharacterStore } from '@/store/character-store';
+import { colors, fontFamily, radii, spacing, text } from '@/theme';
 
 type ProfileCardProps = {
   /** The character data to render */
@@ -83,46 +85,47 @@ export function ProfileCard({ character }: ProfileCardProps) {
   };
 
   return (
-    <Card className="mx-4 mt-4 overflow-hidden">
+    <Card style={styles.cardWrapper}>
       <ImageBackground
         source={characterDetails?.profileImage}
-        className="aspect-[1.2] w-full bg-[rgba(47,129,142,0.9)] opacity-80"
-        imageStyle={{
-          position: 'absolute',
-          width: '100%',
-        }}
+        style={styles.heroImage}
+        imageStyle={{ position: 'absolute', width: '100%' }}
       >
-        {/* White tint overlay */}
-        <View className="absolute inset-0 bg-white/10" />
-
-        <View className="flex h-full flex-col justify-between">
+        <View style={styles.heroContent}>
           {/* Top area - empty but keeps the layout vertical */}
           <View />
 
           {/* Bottom section with player info and blur */}
-          <BlurView intensity={80} tint="dark" className="overflow-hidden p-5">
+          <BlurView intensity={80} tint="dark" style={styles.blurPanel}>
             <View>
               {/* Name row with edit icon */}
-              <View className="flex-row items-center justify-between">
+              <View style={styles.nameRow}>
                 {isEditing ? (
-                  <View className="flex-1 flex-row items-center gap-2">
+                  <View style={styles.editRow}>
                     <TextInput
                       value={editedName}
                       onChangeText={setEditedName}
-                      className="flex-1 rounded-lg bg-white/80 px-3 py-2 text-lg font-bold"
+                      style={styles.nameInput}
                       autoFocus
                       maxLength={20}
                       editable={!isLoading}
                     />
                     <Pressable
                       onPress={handleSaveName}
-                      className="rounded-full bg-primary-500 p-2"
+                      style={[styles.iconButton, styles.saveButton]}
                       disabled={isLoading}
                     >
                       {isLoading ? (
-                        <ActivityIndicator size="small" color="white" />
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.text.onAccent}
+                        />
                       ) : (
-                        <Feather name="check" size={16} color="white" />
+                        <Feather
+                          name="check"
+                          size={16}
+                          color={colors.text.onAccent}
+                        />
                       )}
                     </Pressable>
                     <Pressable
@@ -130,39 +133,33 @@ export function ProfileCard({ character }: ProfileCardProps) {
                         setEditedName(character.name);
                         setIsEditing(false);
                       }}
-                      className="rounded-full bg-gray-400 p-2"
+                      style={[styles.iconButton, styles.cancelButton]}
                       disabled={isLoading}
                     >
-                      <Feather name="x" size={16} color="white" />
+                      <Feather name="x" size={16} color={colors.text.primary} />
                     </Pressable>
                   </View>
                 ) : (
-                  <View className="flex-row items-center gap-2">
-                    <View className="relative">
-                      <Text className="text-2xl font-bold">
-                        {character.name}
-                      </Text>
+                  <View style={styles.nameDisplayRow}>
+                    <View style={styles.nameWrap}>
+                      <Text style={styles.name}>{character.name}</Text>
                       {/* Success checkmark overlay */}
                       <Animated.View
-                        style={[
-                          successAnimatedStyle,
-                          {
-                            position: 'absolute',
-                            right: -30,
-                            top: '50%',
-                            marginTop: -12,
-                          },
-                        ]}
+                        style={[successAnimatedStyle, styles.successBadge]}
                         pointerEvents="none"
                       >
-                        <View className="rounded-full bg-primary-500 p-1">
-                          <Feather name="check" size={16} color="white" />
+                        <View style={styles.successIcon}>
+                          <Feather
+                            name="check"
+                            size={16}
+                            color={colors.text.onAccent}
+                          />
                         </View>
                       </Animated.View>
                     </View>
                     <Pressable
                       onPress={() => setIsEditing(true)}
-                      className="rounded-full p-1"
+                      style={styles.editPencilButton}
                       accessible={true}
                       accessibilityRole="button"
                       accessibilityLabel="Edit character name"
@@ -177,8 +174,8 @@ export function ProfileCard({ character }: ProfileCardProps) {
                   </View>
                 )}
               </View>
-              {/* Level and character type on second row */}
-              <Text className="mt-1 text-base text-muted-100">
+              {/* Level and character type on second row, styled as a sandy eyebrow */}
+              <Text style={styles.levelLine}>
                 Level {character.level} {characterDetails?.type}
               </Text>
             </View>
@@ -188,3 +185,97 @@ export function ProfileCard({ character }: ProfileCardProps) {
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  cardWrapper: {
+    marginHorizontal: spacing[4],
+    marginTop: spacing[4],
+    overflow: 'hidden',
+  },
+  heroImage: {
+    aspectRatio: 1.2,
+    width: '100%',
+  },
+  heroContent: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  },
+  // `surface.card` is the token documented for "slightly translucent over
+  // art" — the exact scenario here (info panel over the hero portrait).
+  blurPanel: {
+    overflow: 'hidden',
+    padding: spacing[5],
+    backgroundColor: colors.surface.card,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  nameInput: {
+    flex: 1,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.inset,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    fontFamily: fontFamily.semibold,
+    fontSize: 17,
+    color: colors.text.primary,
+  },
+  iconButton: {
+    borderRadius: radii.pill,
+    padding: spacing[2],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButton: {
+    backgroundColor: colors.accent.primary,
+  },
+  cancelButton: {
+    backgroundColor: colors.surface.raised,
+  },
+  nameDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  nameWrap: {
+    position: 'relative',
+  },
+  name: {
+    ...text.h2,
+    color: colors.text.primary,
+    // Erstoria is never bold; a hair of top padding keeps ascenders from
+    // clipping given the display font's tight 1.12 line-height.
+    paddingTop: 2,
+  },
+  successBadge: {
+    position: 'absolute',
+    right: -30,
+    top: '50%',
+    marginTop: -12,
+  },
+  successIcon: {
+    borderRadius: radii.pill,
+    backgroundColor: colors.status.success,
+    padding: spacing[1],
+  },
+  editPencilButton: {
+    borderRadius: radii.pill,
+    padding: spacing[1],
+  },
+  levelLine: {
+    ...text.eyebrow,
+    color: colors.text.accent,
+    marginTop: spacing[1],
+  },
+});

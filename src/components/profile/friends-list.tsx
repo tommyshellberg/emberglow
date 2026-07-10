@@ -1,6 +1,8 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 import { Button, Card, Text, View } from '@/components/ui';
+import { colors, fontFamily } from '@/theme';
 
 import { FriendItem } from './friend-item';
 import { InvitationItem } from './invitation-item';
@@ -47,7 +49,7 @@ export function FriendsList({
           accessibilityLabel="Invite friends"
           accessibilityHint="Tap to invite friends to join Emberglow"
         >
-          <Text className="font-semibold text-secondary-300">+ Invite</Text>
+          <Text style={styles.inviteLabel}>+ Invite</Text>
         </Button>
       </View>
 
@@ -99,3 +101,10 @@ export function FriendsList({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  inviteLabel: {
+    fontFamily: fontFamily.semibold,
+    color: colors.text.accent,
+  },
+});
