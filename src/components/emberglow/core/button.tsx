@@ -121,6 +121,12 @@ export function Button({
   const sizeStyle = sizeStyles[size];
   const variantStyle = variantStyles[variant];
 
+  // Pressed state is tracked here (rather than Pressable's function-style
+  // `style` prop) because NativeWind's react-native-css-interop wraps
+  // Pressable globally and drops function-style styles at runtime — a
+  // static style array is the only form that survives that wrapper.
+  const [pressed, setPressed] = React.useState(false);
+
   return (
     <Animated.View
       testID={testID && `${testID}-wrapper`}
@@ -146,8 +152,10 @@ export function Button({
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={onPress}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
         testID={testID}
-        style={({ pressed }) => [
+        style={[
           styles.base,
           {
             paddingVertical: sizeStyle.paddingVertical,

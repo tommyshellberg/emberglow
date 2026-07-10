@@ -21,8 +21,8 @@ interface ScreenHeaderProps {
 
 /**
  * Standard header component for screens with consistent spacing
- * - Top margin: mt-6 (24px) for consistent spacing from safe area
- * - Bottom margin: mb-4 (16px) for spacing to content
+ * - Top margin: mt-4 (16px) on the title row, for spacing from the safe area
+ * - Bottom margin: mb-4 (16px) on the wrapper, for spacing to content below
  */
 export function ScreenHeader({
   title,

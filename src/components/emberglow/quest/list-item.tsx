@@ -57,6 +57,12 @@ export function ListItem({
     </>
   );
 
+  // Pressed state is tracked here (rather than Pressable's function-style
+  // `style` prop) because NativeWind's react-native-css-interop wraps
+  // Pressable globally and drops function-style styles at runtime — a
+  // static style array is the only form that survives that wrapper.
+  const [pressed, setPressed] = React.useState(false);
+
   // Not wrapped in Pressable when onPress is absent: Pressable's `disabled`
   // prop unconditionally merges into accessibilityState (even with no role
   // set), which would incorrectly announce a static row as "disabled" to
@@ -76,15 +82,13 @@ export function ListItem({
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       testID={testID}
-      style={({ pressed }) => [
-        styles.container,
-        pressed ? styles.pressed : null,
-        style,
-      ]}
+      style={[styles.container, pressed ? styles.pressed : null, style]}
     >
       {content}
     </Pressable>

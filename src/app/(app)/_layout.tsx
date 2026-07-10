@@ -6,7 +6,6 @@ import { View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
-import { useUserStore } from '@/store/user-store';
 import {
   colors,
   fontFamily,
@@ -91,19 +90,10 @@ export default function TabLayout() {
   useLockStateDetection();
 
   const authStatus = useAuth((state) => state.status);
-  const { user } = useUserStore.getState();
 
   // Auth protection
   if (authStatus === 'signOut') {
-    console.log('[AppLayout] Redirecting to login - not authenticated');
     return <Redirect href="/login" />;
-  }
-
-  // provisional users shouldn't be here, cause a login so they can create an account
-  if (user && user?.isProvisional) {
-    console.log(
-      '[AppLayout] Redirecting to login - provisional user trying to access protected app route.'
-    );
   }
 
   // Check if navigation is ready
@@ -118,7 +108,7 @@ export default function TabLayout() {
         tabBarShowLabel: true,
         tabBarActiveTintColor: colors.text.primary,
         tabBarInactiveTintColor: colors.text.muted,
-        sceneContainerStyle: {
+        sceneStyle: {
           backgroundColor: colors.surface.app,
         },
         tabBarStyle: {
