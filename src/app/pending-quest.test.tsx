@@ -3,28 +3,14 @@ import { router } from 'expo-router';
 import React from 'react';
 
 import { render } from '@/lib/test-utils';
-import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
 
 import PendingQuestScreen from './pending-quest';
 
 // Mock dependencies
 jest.mock('expo-router');
-jest.mock('expo-blur', () => ({
-  BlurView: 'BlurView',
-}));
-jest.mock('@/../assets/images/background/active-quest.jpg', () => ({}));
-
-// Mock character utils
-jest.mock('@/app/utils/character-utils', () => ({
-  getCharacterAvatar: jest.fn((characterType?: string) => {
-    if (!characterType) {
-      return require('@/../assets/images/characters/alchemist-profile.jpg');
-    }
-    return require('@/../assets/images/characters/alchemist-profile.jpg');
-  }),
-}));
 
 // Mock the quest reward preview hook
 jest.mock('@/api/quest-runs', () => ({
@@ -35,58 +21,30 @@ jest.mock('@/api/quest-runs', () => ({
   })),
 }));
 
-// Mock the RewardPreviewCard component
-jest.mock('@/components/quest-preview', () => ({
-  RewardPreviewCard: jest.fn(() => null),
+// Mock PerkIcon — same pattern as compact-reward-breakdown.test.tsx and
+// perk-card.test.tsx — to avoid SVG/image loading issues in tests.
+jest.mock('@/components/skill-tree/perk-icon', () => ({
+  PerkIcon: ({ perkId }: { perkId: string }) => {
+    const { View, Text } = require('react-native');
+    return (
+      <View testID={`perk-icon-${perkId}`}>
+        <Text>{perkId}</Text>
+      </View>
+    );
+  },
 }));
-
-// Don't mock the pending-quest module - we want to test the real implementation
 
 // Mock `@/components/ui`, but only for `BackgroundImage` — the real one
 // doesn't forward `testID`/`source` onto a host view (see
 // `src/components/ui/background-image.tsx`), which this suite asserts on
-// directly, so it still needs a stub. Everything else in this module's
-// barrel pulls in unrelated native-heavy components (e.g. `screen-header`),
-// so rather than `requireActual`-ing the whole barrel (as the pre-Emberglow
-// version of this test did, stubbing `Card`/`Eyebrow`/`Title`/`Button`/
-// `Text`/`View`), pull the real `Image` submodule directly — Emberglow's
-// `QuestCard` (used by `QuestInfoCard`) imports `Image` from this module,
-// and a full-module stub without it would shadow that export with
-// `undefined` and crash `QuestCard`'s render.
+// directly, so it still needs a stub.
 jest.mock('@/components/ui', () => {
   const React = jest.requireActual('react');
   const RN = jest.requireActual('react-native');
-  const { Image } = jest.requireActual('@/components/ui/image');
 
   return {
     BackgroundImage: ({ testID, source }: any) =>
       React.createElement(RN.View, { testID, source }),
-    Image,
-  };
-});
-
-// Mock the quest components
-jest.mock('@/components/quest', () => {
-  const React = jest.requireActual('react');
-  const RN = jest.requireActual('react-native');
-
-  return {
-    QuestCard: ({ title, duration, children, ...props }: any) =>
-      React.createElement(RN.View, { testID: 'quest-card', ...props }, [
-        React.createElement(RN.Text, { key: 'title' }, title),
-        React.createElement(
-          RN.Text,
-          { key: 'duration' },
-          `${duration} minutes`
-        ),
-        children,
-      ]),
-    LockInstructions: ({ variant, delay }: any) =>
-      React.createElement(RN.View, {
-        testID: 'lock-instructions',
-        variant,
-        delay,
-      }),
   };
 });
 
@@ -128,54 +86,9 @@ describe('PendingQuestScreen', () => {
       },
     });
 
+    useSkillTreeStore.setState({ skillTreeData: null });
+
     (router.back as jest.Mock).mockImplementation(() => {});
-  });
-
-  it('renders story quest correctly', () => {
-    const { getByText, getByTestId } = render(<PendingQuestScreen />);
-
-    expect(getByText('Start Quest')).toBeTruthy();
-    expect(getByTestId('quest-card')).toBeTruthy();
-    expect(getByText('The Beginning')).toBeTruthy();
-    expect(getByText('5 min')).toBeTruthy();
-    expect(getByText('Your character is ready for their quest')).toBeTruthy();
-  });
-
-  it('renders custom quest correctly', () => {
-    useQuestStore.setState({
-      pendingQuest: mockCustomQuest,
-      cancelQuest: jest.fn(),
-    });
-
-    const { getByText, getByTestId } = render(<PendingQuestScreen />);
-
-    expect(getByText('Start Quest')).toBeTruthy();
-    expect(getByTestId('quest-card')).toBeTruthy();
-    expect(getByText('Morning Run')).toBeTruthy();
-    expect(getByText('30 min')).toBeTruthy();
-    expect(getByText('Time to focus on what matters most')).toBeTruthy();
-  });
-
-  it('displays lock instructions', () => {
-    const { getByTestId } = render(<PendingQuestScreen />);
-
-    const lockInstructions = getByTestId('lock-instructions');
-    expect(lockInstructions).toBeTruthy();
-  });
-
-  it('handles cancel quest button', () => {
-    const mockCancelQuest = jest.fn();
-    useQuestStore.setState({
-      pendingQuest: mockStoryQuest,
-      cancelQuest: mockCancelQuest,
-    });
-
-    const { getByText } = render(<PendingQuestScreen />);
-
-    fireEvent.press(getByText('Cancel Quest'));
-
-    expect(mockCancelQuest).toHaveBeenCalled();
-    expect(router.back).toHaveBeenCalled();
   });
 
   it('shows loading when no pending quest', () => {
@@ -189,26 +102,29 @@ describe('PendingQuestScreen', () => {
     expect(() => getByTestId('activity-indicator')).toBeTruthy();
   });
 
-  it('triggers animations on mount', async () => {
-    const { getByTestId } = render(<PendingQuestScreen />);
-
-    // Check that animated components are rendered
-    await waitFor(() => {
-      expect(getByTestId('quest-card')).toBeTruthy();
-    });
-  });
-
-  it('uses correct background image', () => {
+  it('uses the knight card art as the background (better text contrast)', () => {
     const { getByTestId } = render(<PendingQuestScreen />);
 
     const backgroundImage = getByTestId('background-image');
     expect(backgroundImage.props.source).toBe(
-      require('@/../assets/images/background/pending-quest-bg-alt.jpg')
+      require('@/../assets/images/background/card-background-alt.jpg')
     );
   });
 
-  describe('Quest Subtitles', () => {
-    it('shows custom quest subtitle for custom mode', () => {
+  describe('Header', () => {
+    it('renders the quest title as the heading', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('The Beginning')).toBeTruthy();
+    });
+
+    it('displays the eyebrow with the quest mode for story quests', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Story Quest')).toBeTruthy();
+    });
+
+    it('displays the eyebrow with the quest mode for custom quests', () => {
       useQuestStore.setState({
         pendingQuest: mockCustomQuest,
         cancelQuest: jest.fn(),
@@ -216,60 +132,211 @@ describe('PendingQuestScreen', () => {
 
       const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getByText('Time to focus on what matters most')).toBeTruthy();
+      expect(getByText('Custom Quest')).toBeTruthy();
     });
 
-    it('shows story quest subtitle for story mode', () => {
-      useQuestStore.setState({
-        pendingQuest: mockStoryQuest,
-        cancelQuest: jest.fn(),
-      });
+    it('does not render the old generic "Start Quest" title', () => {
+      const { queryByText } = render(<PendingQuestScreen />);
 
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Your character is ready for their quest')).toBeTruthy();
-    });
-
-    it('shows story quest subtitle when mode is undefined', () => {
-      useQuestStore.setState({
-        pendingQuest: { ...mockStoryQuest, mode: undefined },
-        cancelQuest: jest.fn(),
-      });
-
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Your character is ready for their quest')).toBeTruthy();
+      expect(queryByText('Start Quest')).toBeNull();
     });
   });
 
-  describe('Character Avatar', () => {
-    it('uses character avatar when character exists', () => {
-      const { getCharacterAvatar } = require('@/app/utils/character-utils');
+  describe('Badges', () => {
+    it('shows the XP badge, falling back to the base reward while no preview is loaded', () => {
+      const { getByText } = render(<PendingQuestScreen />);
 
-      useCharacterStore.setState({
-        character: {
-          type: 'alchemist',
-          name: 'TestAlchemist',
-          level: 1,
-          currentXP: 0,
-        },
-      });
-
-      render(<PendingQuestScreen />);
-
-      expect(getCharacterAvatar).toHaveBeenCalledWith('alchemist');
+      expect(getByText('+20 XP')).toBeTruthy();
     });
 
-    it('handles missing character gracefully', () => {
-      const { getCharacterAvatar } = require('@/app/utils/character-utils');
-
-      useCharacterStore.setState({
-        character: null,
+    it('uses the reward preview adjusted XP once loaded', () => {
+      const { useQuestRewardPreview } = require('@/api/quest-runs');
+      (useQuestRewardPreview as jest.Mock).mockReturnValueOnce({
+        data: {
+          participantRewards: [
+            {
+              userId: 'test-user-id',
+              baseXP: 20,
+              adjustedXP: 28,
+              multiplier: 1.4,
+              perksApplied: ['quick_break'],
+            },
+          ],
+          effects: {},
+        },
+        isLoading: false,
+        error: null,
       });
 
-      render(<PendingQuestScreen />);
+      const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getCharacterAvatar).toHaveBeenCalledWith(undefined);
+      expect(getByText('+28 XP')).toBeTruthy();
+    });
+
+    it('shows a duration badge in "N min offline" form', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('5 min offline')).toBeTruthy();
+    });
+
+    it('shows a Vaedros badge for story quests', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Vaedros')).toBeTruthy();
+    });
+
+    it('shows the quest category badge for custom quests', () => {
+      useQuestStore.setState({
+        pendingQuest: mockCustomQuest,
+        cancelQuest: jest.fn(),
+      });
+
+      const { getByText, queryByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('fitness')).toBeTruthy();
+      expect(queryByText('Vaedros')).toBeNull();
+    });
+
+    it('omits the third badge for custom quests without a category', () => {
+      useQuestStore.setState({
+        pendingQuest: { ...mockCustomQuest, category: '' },
+        cancelQuest: jest.fn(),
+      });
+
+      const { queryByText } = render(<PendingQuestScreen />);
+
+      expect(queryByText('Vaedros')).toBeNull();
+      expect(queryByText('fitness')).toBeNull();
+    });
+  });
+
+  describe('Body copy', () => {
+    it('renders the hero body copy', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(
+        getByText(
+          'Your hero stands ready. The story continues the moment you step away.'
+        )
+      ).toBeTruthy();
+    });
+  });
+
+  describe('Active perks card', () => {
+    it('renders the "Active perks" card header', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Active perks')).toBeTruthy();
+    });
+
+    it('shows the empty-state line while no reward preview is loaded', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(
+        getByText('No active perks yet. Unlock perks in the skill tree.')
+      ).toBeTruthy();
+    });
+
+    it('renders a row for each perk applied once the preview loads', () => {
+      const { useQuestRewardPreview } = require('@/api/quest-runs');
+      (useQuestRewardPreview as jest.Mock).mockReturnValueOnce({
+        data: {
+          participantRewards: [
+            {
+              userId: 'test-user-id',
+              baseXP: 20,
+              adjustedXP: 28,
+              multiplier: 1.4,
+              perksApplied: ['quick_break'],
+            },
+          ],
+          effects: {},
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { getByText, getByTestId } = render(<PendingQuestScreen />);
+
+      expect(getByText('Quick Break')).toBeTruthy();
+      expect(getByTestId('perk-icon-quick_break')).toBeTruthy();
+    });
+  });
+
+  describe('Hero art regression', () => {
+    it('does not render the old hero card art block', () => {
+      const { queryByTestId } = render(<PendingQuestScreen />);
+
+      expect(queryByTestId('pending-quest-hero-art')).toBeNull();
+    });
+
+    it('does not render the redundant "on return" XP badge', () => {
+      const { queryByText } = render(<PendingQuestScreen />);
+
+      expect(queryByText(/on return/i)).toBeNull();
+    });
+  });
+
+  describe('Lock instructions', () => {
+    it('displays lock instructions', () => {
+      const { getByTestId } = render(<PendingQuestScreen />);
+
+      expect(getByTestId('lock-instructions')).toBeTruthy();
+    });
+
+    it('displays lock instructions text', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Lock your phone to begin')).toBeTruthy();
+    });
+  });
+
+  describe('Back button', () => {
+    it('renders a back button that cancels the quest and navigates back on press', () => {
+      const mockCancelQuest = jest.fn();
+      useQuestStore.setState({
+        pendingQuest: mockStoryQuest,
+        cancelQuest: mockCancelQuest,
+      });
+
+      const { getByTestId } = render(<PendingQuestScreen />);
+
+      fireEvent.press(getByTestId('pending-quest-back-button'));
+
+      expect(mockCancelQuest).toHaveBeenCalledTimes(1);
+      expect(router.back).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Cancel quest', () => {
+    it('displays a ghost "Cancel quest" button in sentence case', () => {
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Cancel quest')).toBeTruthy();
+    });
+
+    it('calls cancelQuest and navigates back on press', () => {
+      const mockCancelQuest = jest.fn();
+      useQuestStore.setState({
+        pendingQuest: mockStoryQuest,
+        cancelQuest: mockCancelQuest,
+      });
+
+      const { getByText } = render(<PendingQuestScreen />);
+
+      fireEvent.press(getByText('Cancel quest'));
+
+      expect(mockCancelQuest).toHaveBeenCalledTimes(1);
+      expect(router.back).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Regression: no tap-to-start affordance', () => {
+    it('never renders a "Begin quest" button — quests start when the phone locks', () => {
+      const { queryByText } = render(<PendingQuestScreen />);
+
+      expect(queryByText('Begin quest')).toBeNull();
+      expect(queryByText('Begin Quest')).toBeNull();
     });
   });
 
@@ -304,7 +371,7 @@ describe('PendingQuestScreen', () => {
 
       const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getByText('0 min')).toBeTruthy();
+      expect(getByText('0 min offline')).toBeTruthy();
     });
 
     it('handles quest with large duration', () => {
@@ -318,76 +385,15 @@ describe('PendingQuestScreen', () => {
 
       const { getByText } = render(<PendingQuestScreen />);
 
-      expect(getByText('120 min')).toBeTruthy();
+      expect(getByText('120 min offline')).toBeTruthy();
     });
   });
 
-  describe('UI Elements', () => {
-    it('displays "Start Quest" title', () => {
-      const { getByText } = render(<PendingQuestScreen />);
+  it('triggers animations on mount', async () => {
+    const { getByTestId } = render(<PendingQuestScreen />);
 
-      expect(getByText('Start Quest')).toBeTruthy();
-    });
-
-    it('displays the eyebrow with the quest mode for story quests', () => {
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Story Quest')).toBeTruthy();
-    });
-
-    it('displays the eyebrow with the quest mode for custom quests', () => {
-      useQuestStore.setState({
-        pendingQuest: mockCustomQuest,
-        cancelQuest: jest.fn(),
-      });
-
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Custom Quest')).toBeTruthy();
-    });
-
-    it('displays lock instructions text', () => {
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Lock your phone to begin')).toBeTruthy();
-    });
-
-    it('displays cancel button text', () => {
-      const { getByText } = render(<PendingQuestScreen />);
-
-      expect(getByText('Cancel Quest')).toBeTruthy();
-    });
-
-    it('renders quest card with header image', () => {
-      const { getByTestId } = render(<PendingQuestScreen />);
-
-      const card = getByTestId('quest-card');
-      expect(card).toBeTruthy();
-    });
-  });
-
-  describe('Navigation', () => {
-    it('calls router.back when cancel is pressed', () => {
-      const { getByText } = render(<PendingQuestScreen />);
-
-      fireEvent.press(getByText('Cancel Quest'));
-
-      expect(router.back).toHaveBeenCalledTimes(1);
-    });
-
-    it('cancels quest and navigates back', () => {
-      const mockCancelQuest = jest.fn();
-      useQuestStore.setState({
-        pendingQuest: mockStoryQuest,
-        cancelQuest: mockCancelQuest,
-      });
-
-      const { getByText } = render(<PendingQuestScreen />);
-
-      fireEvent.press(getByText('Cancel Quest'));
-
-      expect(mockCancelQuest).toHaveBeenCalledTimes(1);
-      expect(router.back).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(getByTestId('lock-instructions')).toBeTruthy();
     });
   });
 });

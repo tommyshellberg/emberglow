@@ -1,4 +1,12 @@
 /**
+ * Shared by `pending-quest.tsx` and `cooperative-pending-quest.tsx` (which
+ * imports `ANIMATION_CONFIG`, `STRINGS`, and `UI_CONFIG` from this module).
+ * Check both screens before changing an existing value here — add
+ * screen-specific values as local constants in the screen file instead of
+ * repurposing an entry both screens read.
+ */
+
+/**
  * Animation configuration constants
  */
 export const ANIMATION_CONFIG = {
@@ -29,30 +37,30 @@ export const ANIMATION_CONFIG = {
 
 /**
  * UI configuration constants
+ *
+ * `HORIZONTAL_PADDING` is the one value both screens still read at the same
+ * value (24). `HEADER_IMAGE_HEIGHT`, `DURATION_OVERLAY_ICON_SIZE`,
+ * `LOCK_ICON_SIZE`, and `BOTTOM_PADDING` are only consumed by
+ * `cooperative-pending-quest.tsx` now — `pending-quest.tsx` moved to its own
+ * fixed-height hero card art, a duration/XP meta line, and its own
+ * (different) lock-icon size and content bottom padding, defined locally in
+ * that screen.
  */
 export const UI_CONFIG = {
   // Sizes
   HEADER_IMAGE_HEIGHT: 250,
-  CLOCK_ICON_SIZE: 14,
   DURATION_OVERLAY_ICON_SIZE: 18,
   LOCK_ICON_SIZE: 18,
 
   // Padding and spacing
-  TOP_PADDING: 32,
   HORIZONTAL_PADDING: 24,
   BOTTOM_PADDING: 48,
-
-  // Blur
-  BLUR_INTENSITY: 30,
 } as const;
 
 /**
  * Text content strings
  */
 export const STRINGS = {
-  TITLE: 'Start Quest',
-  CUSTOM_QUEST_SUBTITLE: 'Time to focus on what matters most',
-  STORY_QUEST_SUBTITLE: 'Your character is ready for their quest',
   LOCK_INSTRUCTIONS: 'Lock your phone to begin',
   CANCEL_BUTTON: 'Cancel Quest',
 } as const;
@@ -61,7 +69,5 @@ export const STRINGS = {
  * Test IDs for components
  */
 export const TEST_IDS = {
-  BACKGROUND_IMAGE: 'background-image',
-  QUEST_CARD: 'quest-card',
   LOCK_INSTRUCTIONS: 'lock-instructions',
 } as const;
