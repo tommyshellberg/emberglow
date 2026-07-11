@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import Animated, {
@@ -18,7 +19,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Text } from '@/components/ui';
 import { audioCacheService } from '@/lib/services/audio-cache.service';
 import { type StoryQuestTemplate } from '@/store/types';
 import { colors, fontFamily, palette, radii, shadows, spacing } from '@/theme';
@@ -239,8 +239,8 @@ export function StoryNarration({ quest }: Props) {
   // Early returns for error and loading states
   if (loadError) {
     return (
-      <View className="mt-4 w-full items-center rounded-lg bg-cardBackground p-4">
-        <Text className="text-red-500">{loadError}</Text>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{loadError}</Text>
       </View>
     );
   }
@@ -248,10 +248,10 @@ export function StoryNarration({ quest }: Props) {
   const controlsDisabled = isLoading || !audioInitialized;
 
   return (
-    <View className="mt-4 w-full p-4">
+    <View style={styles.container}>
       {isLoading && (
-        <View className="absolute inset-0 z-10 items-center justify-center rounded-lg bg-cardBackground">
-          <Text className="text-sm text-neutral-200">Loading audio...</Text>
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading audio...</Text>
         </View>
       )}
 
@@ -287,7 +287,7 @@ export function StoryNarration({ quest }: Props) {
         <View style={styles.middle}>
           <View style={styles.labelRow}>
             <Text style={styles.label}>Listen to this chapter</Text>
-            <Text style={styles.label}>
+            <Text style={[styles.label, styles.timeLabel]}>
               {formatTime(position)} / {formatTime(duration)}
             </Text>
           </View>
@@ -320,9 +320,45 @@ export function StoryNarration({ quest }: Props) {
   );
 }
 
-const TRACK_HEIGHT = 6;
+/** Mockup spec: 5px track (quest-flow.jsx:162). */
+const TRACK_HEIGHT = 5;
 
 const styles = StyleSheet.create({
+  // In-card inset treatment (quest-flow.jsx:153): drops the old standalone
+  // `mt-4` placement — this now renders as the story card's bottom section,
+  // clipped to the card's rounded corners by the parent's `overflow: hidden`.
+  container: {
+    backgroundColor: colors.surface.inset,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[4],
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.inset,
+  },
+  loadingText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+  errorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.inset,
+    padding: spacing[4],
+  },
+  errorText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.status.danger,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,6 +405,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: 11.5,
     color: colors.text.muted,
+  },
+  timeLabel: {
+    fontVariant: ['tabular-nums'],
   },
   track: {
     height: TRACK_HEIGHT,

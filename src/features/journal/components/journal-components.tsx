@@ -7,7 +7,7 @@ import {
   Users,
 } from 'lucide-react-native';
 import React from 'react';
-import { StyleSheet, Text as RNText, View as RNView } from 'react-native';
+import { StyleSheet, Text as RNText } from 'react-native';
 import Animated, {
   Easing,
   withDelay,
@@ -26,7 +26,13 @@ import type {
 import { formatDuration } from '@/features/journal/utils/journal-utils';
 import { getCurrentUserAdjustedXP } from '@/lib/utils/quest-utils';
 import { useUserStore } from '@/store/user-store';
-import { colors as emberColors, easing, fontFamily, tints } from '@/theme';
+import {
+  colors as emberColors,
+  easing,
+  fontFamily,
+  spacing,
+  tints,
+} from '@/theme';
 
 // --- Entrance animation -----------------------------------------------
 // Ported from the Journal entrance prototype's generated Reanimated spec
@@ -87,10 +93,13 @@ export function FilterChips({
   return (
     <>
       {/* Mode Filters */}
-      <Animated.View className="flex-row px-4 pb-2" entering={riseIn(1)}>
+      <Animated.View
+        style={[filterStyles.row, filterStyles.modeRow]}
+        entering={riseIn(1)}
+      >
         <Chip
-          className={`mr-2 ${filter === 'all' ? 'bg-primary-300' : 'bg-neutral-100'}`}
-          textClassName={filter === 'all' ? 'font-medium' : ''}
+          tone="ember"
+          selected={filter === 'all'}
           onPress={() => onFilterChange('all')}
           accessibilityRole="button"
           accessibilityLabel="Filter: All quests"
@@ -99,8 +108,8 @@ export function FilterChips({
           All
         </Chip>
         <Chip
-          className={`mr-2 ${filter === 'story' ? 'bg-primary-300' : 'bg-neutral-100'}`}
-          textClassName={filter === 'story' ? 'font-medium' : ''}
+          tone="ember"
+          selected={filter === 'story'}
           onPress={() => onFilterChange('story')}
           accessibilityRole="button"
           accessibilityLabel="Filter: Story quests only"
@@ -109,8 +118,8 @@ export function FilterChips({
           Story
         </Chip>
         <Chip
-          className={`mr-2 ${filter === 'custom' ? 'bg-primary-300' : 'bg-neutral-100'}`}
-          textClassName={filter === 'custom' ? 'font-medium' : ''}
+          tone="ember"
+          selected={filter === 'custom'}
           onPress={() => onFilterChange('custom')}
           accessibilityRole="button"
           accessibilityLabel="Filter: Custom quests only"
@@ -119,8 +128,8 @@ export function FilterChips({
           Custom
         </Chip>
         <Chip
-          className={`mr-2 ${filter === 'cooperative' ? 'bg-primary-300' : 'bg-neutral-100'}`}
-          textClassName={filter === 'cooperative' ? 'font-medium' : ''}
+          tone="ember"
+          selected={filter === 'cooperative'}
           onPress={() => onFilterChange('cooperative')}
           accessibilityRole="button"
           accessibilityLabel="Filter: Cooperative quests only"
@@ -131,20 +140,21 @@ export function FilterChips({
       </Animated.View>
 
       {/* Status Filters */}
-      <Animated.View className="flex-row px-4 pb-4" entering={riseIn(2)}>
+      <Animated.View
+        style={[filterStyles.row, filterStyles.statusRow]}
+        entering={riseIn(2)}
+      >
         <Chip
-          className={`mr-2 ${statusFilter === 'all' ? 'bg-secondary-300' : 'bg-neutral-100'}`}
-          textClassName={statusFilter === 'all' ? 'font-medium' : ''}
+          selected={statusFilter === 'all'}
           onPress={() => onStatusFilterChange('all')}
           accessibilityRole="button"
           accessibilityLabel="Filter: All status"
           accessibilityState={{ selected: statusFilter === 'all' }}
         >
-          All Status
+          All status
         </Chip>
         <Chip
-          className={`mr-2 ${statusFilter === 'completed' ? 'bg-secondary-300' : 'bg-neutral-100'}`}
-          textClassName={statusFilter === 'completed' ? 'font-medium' : ''}
+          selected={statusFilter === 'completed'}
           onPress={() => onStatusFilterChange('completed')}
           accessibilityRole="button"
           accessibilityLabel="Filter: Completed quests only"
@@ -153,8 +163,7 @@ export function FilterChips({
           Completed
         </Chip>
         <Chip
-          className={`mr-2 ${statusFilter === 'failed' ? 'bg-secondary-300' : 'bg-neutral-100'}`}
-          textClassName={statusFilter === 'failed' ? 'font-medium' : ''}
+          selected={statusFilter === 'failed'}
           onPress={() => onStatusFilterChange('failed')}
           accessibilityRole="button"
           accessibilityLabel="Filter: Failed quests only"
@@ -166,6 +175,20 @@ export function FilterChips({
     </>
   );
 }
+
+const filterStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing[4],
+    gap: spacing[2],
+  },
+  modeRow: {
+    paddingBottom: spacing[2],
+  },
+  statusRow: {
+    paddingBottom: spacing[4],
+  },
+});
 
 // --- Quest list item ------------------------------------------------------
 
@@ -197,6 +220,14 @@ export function QuestListItem({ quest }: QuestListItemProps) {
 
   const ModeIcon = MODE_ICON[quest.mode];
 
+  // Mockup ListItem: `subtitle={`${e.date} · ${e.minutes} min · ${e.type}`}`
+  // — date, duration, and mode live together under the title; date drops
+  // the year (`MMM d`, not `MMM d, yyyy`).
+  const dateLabel = quest.stopTime
+    ? format(quest.stopTime, 'MMM d')
+    : 'Unknown';
+  const subtitle = `${dateLabel} · ${formatDuration(quest)} · ${MODE_LABEL[quest.mode]}`;
+
   const handlePress = () => {
     if (isCompleted) {
       router.push({
@@ -213,9 +244,7 @@ export function QuestListItem({ quest }: QuestListItemProps) {
   return (
     <ListItem
       title={quest.title}
-      subtitle={
-        quest.stopTime ? format(quest.stopTime, 'MMM d, yyyy') : 'Unknown'
-      }
+      subtitle={subtitle}
       accessibilityLabel={
         isCompleted
           ? `View details for ${quest.title}`
@@ -230,21 +259,14 @@ export function QuestListItem({ quest }: QuestListItemProps) {
           color={isFailed ? tints.cinnabar80 : emberColors.text.accent}
         />
       }
+      // Trailing cell is only the outcome — the ember Failed badge, or the
+      // XP earned. Mode + duration moved into the subtitle above.
       trailing={
-        <RNView style={itemStyles.trailingColumn}>
-          <RNView style={itemStyles.metaRow}>
-            <RNText style={itemStyles.metaText}>
-              {MODE_LABEL[quest.mode]}
-            </RNText>
-            <RNText style={itemStyles.metaDivider}> · </RNText>
-            <RNText style={itemStyles.metaText}>{formatDuration(quest)}</RNText>
-          </RNView>
-          {isFailed ? (
-            <Badge tone="ember">Failed</Badge>
-          ) : isCompleted ? (
-            <RNText style={itemStyles.xpText}>{displayXP} XP</RNText>
-          ) : null}
-        </RNView>
+        isFailed ? (
+          <Badge tone="ember">Failed</Badge>
+        ) : isCompleted ? (
+          <RNText style={itemStyles.xpText}>+{displayXP} XP</RNText>
+        ) : null
       }
       // Only completed quests navigate; ListItem only renders a Pressable
       // (and announces accessibilityRole="button") when onPress is set, so
@@ -255,24 +277,6 @@ export function QuestListItem({ quest }: QuestListItemProps) {
 }
 
 const itemStyles = StyleSheet.create({
-  trailingColumn: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metaText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    color: emberColors.text.muted,
-  },
-  metaDivider: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    color: emberColors.text.muted,
-  },
   xpText: {
     fontFamily: fontFamily.semibold,
     fontSize: 14,

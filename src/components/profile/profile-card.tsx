@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,12 +18,22 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import CHARACTERS from '@/app/data/characters';
-import { Card, Text, View } from '@/components/ui';
+import { levels } from '@/app/data/level-progression';
+import { EyebrowLabel, XPBar } from '@/components/emberglow';
+import { Text, View } from '@/components/ui';
 import { PROFILE_COLORS } from '@/features/profile/constants/profile-constants';
 import type { Character } from '@/features/profile/types/profile-types';
 import { updateUserCharacter } from '@/lib/services/user';
 import { useCharacterStore } from '@/store/character-store';
-import { colors, fontFamily, radii, spacing, text } from '@/theme';
+import {
+  colors,
+  fontFamily,
+  fontSize,
+  radii,
+  scrims,
+  shadows,
+  spacing,
+} from '@/theme';
 
 type ProfileCardProps = {
   /** The character data to render */
@@ -45,6 +55,19 @@ export function ProfileCard({ character }: ProfileCardProps) {
     transform: [{ scale: successScale.value }],
     opacity: successOpacity.value,
   }));
+
+  // XP progress toward next level — same calc the removed standalone
+  // Experience card used to run; the design folds this into the hero card's
+  // bottom bar instead of a separate card (item 2 of the visual-QA spec).
+  const currentLevelData = levels.find((l) => l.level === character.level);
+  const nextLevelData = levels.find((l) => l.level === character.level + 1);
+  // character.currentXP from server is TOTAL XP, not progress toward next level
+  const totalXP = character.currentXP;
+  const xpProgressTowardNext =
+    totalXP - (currentLevelData?.totalXPRequired || 0);
+  const xpRequiredForCurrentToNext = nextLevelData
+    ? nextLevelData.totalXPRequired - (currentLevelData?.totalXPRequired || 0)
+    : 100; // fallback
 
   const handleSaveName = async () => {
     if (editedName.trim() === character.name) {
@@ -85,104 +108,112 @@ export function ProfileCard({ character }: ProfileCardProps) {
   };
 
   return (
-    <Card style={styles.cardWrapper}>
+    <View style={styles.cardWrapper}>
       <ImageBackground
         source={characterDetails?.profileImage}
         style={styles.heroImage}
         imageStyle={{ position: 'absolute', width: '100%' }}
       >
-        <View style={styles.heroContent}>
-          {/* Top area - empty but keeps the layout vertical */}
-          <View />
+        {/* Bottom scrim — the art dissolves into the flat canvas instead of
+            sitting behind a BlurView glass band. */}
+        <LinearGradient
+          colors={scrims.bottom.colors}
+          start={scrims.bottom.start}
+          end={scrims.bottom.end}
+          style={StyleSheet.absoluteFillObject}
+        />
 
-          {/* Bottom section with player info and blur */}
-          <BlurView intensity={80} tint="dark" style={styles.blurPanel}>
-            <View>
-              {/* Name row with edit icon */}
-              <View style={styles.nameRow}>
-                {isEditing ? (
-                  <View style={styles.editRow}>
-                    <TextInput
-                      value={editedName}
-                      onChangeText={setEditedName}
-                      style={styles.nameInput}
-                      autoFocus
-                      maxLength={20}
-                      editable={!isLoading}
-                    />
-                    <Pressable
-                      onPress={handleSaveName}
-                      style={[styles.iconButton, styles.saveButton]}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.text.onAccent}
-                        />
-                      ) : (
-                        <Feather
-                          name="check"
-                          size={16}
-                          color={colors.text.onAccent}
-                        />
-                      )}
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        setEditedName(character.name);
-                        setIsEditing(false);
-                      }}
-                      style={[styles.iconButton, styles.cancelButton]}
-                      disabled={isLoading}
-                    >
-                      <Feather name="x" size={16} color={colors.text.primary} />
-                    </Pressable>
-                  </View>
+        <View style={styles.heroContent}>
+          {/* Name row with edit icon */}
+          {isEditing ? (
+            <View style={styles.editRow}>
+              <TextInput
+                value={editedName}
+                onChangeText={setEditedName}
+                style={styles.nameInput}
+                autoFocus
+                maxLength={20}
+                editable={!isLoading}
+              />
+              <Pressable
+                onPress={handleSaveName}
+                style={[styles.iconButton, styles.saveButton]}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.text.onAccent}
+                  />
                 ) : (
-                  <View style={styles.nameDisplayRow}>
-                    <View style={styles.nameWrap}>
-                      <Text style={styles.name}>{character.name}</Text>
-                      {/* Success checkmark overlay */}
-                      <Animated.View
-                        style={[successAnimatedStyle, styles.successBadge]}
-                        pointerEvents="none"
-                      >
-                        <View style={styles.successIcon}>
-                          <Feather
-                            name="check"
-                            size={16}
-                            color={colors.text.onAccent}
-                          />
-                        </View>
-                      </Animated.View>
-                    </View>
-                    <Pressable
-                      onPress={() => setIsEditing(true)}
-                      style={styles.editPencilButton}
-                      accessible={true}
-                      accessibilityRole="button"
-                      accessibilityLabel="Edit character name"
-                      accessibilityHint="Tap to edit your character name"
-                    >
-                      <Feather
-                        name="edit-2"
-                        size={18}
-                        color={PROFILE_COLORS.editIcon}
-                      />
-                    </Pressable>
-                  </View>
+                  <Feather
+                    name="check"
+                    size={16}
+                    color={colors.text.onAccent}
+                  />
                 )}
-              </View>
-              {/* Level and character type on second row, styled as a sandy eyebrow */}
-              <Text style={styles.levelLine}>
-                Level {character.level} {characterDetails?.type}
-              </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setEditedName(character.name);
+                  setIsEditing(false);
+                }}
+                style={[styles.iconButton, styles.cancelButton]}
+                disabled={isLoading}
+              >
+                <Feather name="x" size={16} color={colors.text.primary} />
+              </Pressable>
             </View>
-          </BlurView>
+          ) : (
+            <View style={styles.nameDisplayRow}>
+              <View style={styles.nameWrap}>
+                <Text style={styles.name}>{character.name}</Text>
+                {/* Success checkmark overlay */}
+                <Animated.View
+                  style={[successAnimatedStyle, styles.successBadge]}
+                  pointerEvents="none"
+                >
+                  <View style={styles.successIcon}>
+                    <Feather
+                      name="check"
+                      size={16}
+                      color={colors.text.onAccent}
+                    />
+                  </View>
+                </Animated.View>
+              </View>
+              <Pressable
+                onPress={() => setIsEditing(true)}
+                style={styles.editPencilButton}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel="Edit character name"
+                accessibilityHint="Tap to edit your character name"
+              >
+                <Feather
+                  name="edit-2"
+                  size={18}
+                  color={PROFILE_COLORS.editIcon}
+                />
+              </Pressable>
+            </View>
+          )}
+
+          {/* Level + class eyebrow — level first, middot separator */}
+          <EyebrowLabel tone="warm" style={styles.levelLine}>
+            {`Level ${character.level} · ${characterDetails?.type ?? ''}`}
+          </EyebrowLabel>
+
+          {/* XP progress toward next level, in-card per the design */}
+          <XPBar
+            level={character.level}
+            xp={xpProgressTowardNext}
+            xpNext={xpRequiredForCurrentToNext}
+            style={styles.xpBar}
+          />
         </View>
       </ImageBackground>
-    </Card>
+    </View>
   );
 }
 
@@ -190,28 +221,21 @@ const styles = StyleSheet.create({
   cardWrapper: {
     marginHorizontal: spacing[4],
     marginTop: spacing[4],
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
     overflow: 'hidden',
+    ...shadows.card,
   },
   heroImage: {
     aspectRatio: 1.2,
     width: '100%',
   },
   heroContent: {
-    flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-  },
-  // `surface.card` is the token documented for "slightly translucent over
-  // art" — the exact scenario here (info panel over the hero portrait).
-  blurPanel: {
-    overflow: 'hidden',
-    padding: spacing[5],
-    backgroundColor: colors.surface.card,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    position: 'absolute',
+    left: spacing[4],
+    right: spacing[4],
+    bottom: spacing[4],
   },
   editRow: {
     flex: 1,
@@ -252,11 +276,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   name: {
-    ...text.h2,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.h2,
+    lineHeight: fontSize.h2 * 1.15,
     color: colors.text.primary,
-    // Erstoria is never bold; a hair of top padding keeps ascenders from
-    // clipping given the display font's tight 1.12 line-height.
-    paddingTop: 2,
   },
   successBadge: {
     position: 'absolute',
@@ -274,8 +297,9 @@ const styles = StyleSheet.create({
     padding: spacing[1],
   },
   levelLine: {
-    ...text.eyebrow,
-    color: colors.text.accent,
     marginTop: spacing[1],
+  },
+  xpBar: {
+    marginTop: spacing[3],
   },
 });

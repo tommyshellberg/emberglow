@@ -20,8 +20,16 @@ const EMBER_OUT = Easing.bezier(...easing.emberOut);
 /** Rise distance for the fade+translateY entrance, matching FailedQuest's convergence. */
 const RISE_DISTANCE = 16;
 
+/**
+ * Bottom action stack (quest-flow.jsx:178-181): a full-width primary "Add
+ * reflection" button, with a secondary full-width "Continue" underneath it
+ * only in the quest-flow context (`fromJournal === false`) — the journal
+ * context never shows Continue.
+ */
 export function QuestCompleteActions({
   quest,
+  fromJournal = false,
+  hasReflection = false,
   onContinue,
   continueText,
   disableAnimations = false,
@@ -72,6 +80,10 @@ export function QuestCompleteActions({
         questId: quest.id,
         questRunId,
         duration: quest.durationMinutes,
+        // Preserves the pre-existing journal-vs-direct navigation targets
+        // (ground rule 1) — only the journal context tags the reflection
+        // screen with where to return to.
+        ...(fromJournal ? { from: 'quest-detail' } : {}),
       },
     });
   };
@@ -79,18 +91,35 @@ export function QuestCompleteActions({
   // Show reflection button if:
   // 1. Quest has a questRunId (server-tracked quest)
   // 2. Quest is not the onboarding quest (quest-1)
+  // 3. It doesn't already have a reflection attached
   const showReflectionButton =
-    (quest as any).questRunId && quest.id !== ONBOARDING_QUEST_ID;
+    (quest as any).questRunId &&
+    quest.id !== ONBOARDING_QUEST_ID &&
+    !hasReflection;
 
   return (
     <Animated.View
       style={[styles.container, actionsStyle]}
       testID="quest-actions-container"
     >
-      <View style={styles.row}>
-        {/* Continue is secondary here — Add Reflection carries the primary
-            (Cinnabar) treatment per the quest-flow.jsx mockup. */}
-        <View style={styles.slot} accessibilityLabel={continueText}>
+      {showReflectionButton && (
+        <View accessibilityLabel="Reflect on quest">
+          <Button
+            label="Add reflection"
+            onPress={handleAddReflection}
+            variant="primary"
+            size="lg"
+            fullWidth
+          />
+        </View>
+      )}
+      {/* Continue is secondary and quest-flow-only — the journal context
+          never shows it (mockup quest-flow.jsx:180). */}
+      {!fromJournal && (
+        <View
+          style={showReflectionButton ? styles.continueSlot : undefined}
+          accessibilityLabel={continueText}
+        >
           <Button
             label={continueText}
             onPress={handleContinue}
@@ -98,17 +127,7 @@ export function QuestCompleteActions({
             fullWidth
           />
         </View>
-        {showReflectionButton && (
-          <View style={styles.slot} accessibilityLabel="Reflect on quest">
-            <Button
-              label="Add Reflection"
-              onPress={handleAddReflection}
-              variant="primary"
-              fullWidth
-            />
-          </View>
-        )}
-      </View>
+      )}
     </Animated.View>
   );
 }
@@ -116,16 +135,8 @@ export function QuestCompleteActions({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginBottom: spacing[4],
   },
-  row: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing[4],
-    paddingHorizontal: spacing[4],
-  },
-  slot: {
-    flex: 1,
+  continueSlot: {
+    marginTop: spacing[3],
   },
 });

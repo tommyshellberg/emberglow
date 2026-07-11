@@ -11,13 +11,12 @@ import {
 
 import { useQuestReflection } from '@/api/quest-reflection';
 import { AVAILABLE_CUSTOM_QUEST_STORIES } from '@/app/data/quests';
-import { Badge, Button } from '@/components/emberglow';
+import { Badge } from '@/components/emberglow';
 import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { FocusAwareStatusBar, ScreenHeader, Text, View } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import {
-  ADD_REFLECTION_BUTTON_TEXT,
   APP_HOME_ROUTE,
   DEFAULT_QUEST_STORY,
   GO_BACK_BUTTON_TEXT,
@@ -26,8 +25,6 @@ import {
   QUEST_NOT_FOUND_MESSAGE,
   REFLECTION_ADDED_BADGE_TEXT,
   REFLECTION_HEADER_TEXT,
-  REFLECTION_PARAM_FROM_VALUE,
-  REFLECTION_ROUTE,
   SCREEN_TITLE,
 } from '@/features/quest/constants/quest-details.constants';
 import { useQuestStore } from '@/store/quest-store';
@@ -199,11 +196,6 @@ export default function AppQuestDetailsScreen() {
     return (
       <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
-        <ScreenHeader
-          title={SCREEN_TITLE}
-          showBackButton
-          onBackPress={handleBackNavigation}
-        />
 
         {/* Show existing reflection section at top - only when viewing from journal */}
         {from === 'journal' && hasReflection && (
@@ -288,37 +280,12 @@ export default function AppQuestDetailsScreen() {
           </View>
         )}
 
-        {/* Add Reflection button at top - only when no reflection exists */}
-        {from === 'journal' && !hasReflection && quest.questRunId && (
-          <View className="mx-4 mb-4">
-            <Button
-              onPress={() => {
-                router.push({
-                  pathname: REFLECTION_ROUTE,
-                  params: {
-                    questId: quest.id,
-                    questRunId: quest.questRunId,
-                    duration: quest.durationMinutes,
-                    from: REFLECTION_PARAM_FROM_VALUE,
-                  },
-                });
-              }}
-              variant="primary"
-              size="sm"
-              glow
-            >
-              <Notebook size={18} color={emberColors.text.onAccent} />
-              <RNText style={styles.addReflectionButtonText}>
-                {ADD_REFLECTION_BUTTON_TEXT}
-              </RNText>
-            </Button>
-          </View>
-        )}
-
         <QuestComplete
           quest={quest}
           story={getQuestCompletionText()}
-          showActionButton={from !== 'journal'}
+          fromJournal={from === 'journal'}
+          hasReflection={Boolean(hasReflection)}
+          onBack={handleBackNavigation}
           disableEnteringAnimations={from === 'journal'}
         />
       </View>
@@ -431,10 +398,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     lineHeight: fontSize.small * 1.5,
     color: emberColors.text.secondary,
-  },
-  addReflectionButtonText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.small,
-    color: emberColors.text.onAccent,
   },
 });

@@ -31,10 +31,6 @@ import {
 } from '@/features/journal/hooks/journal-hooks';
 import { colors as emberColors, radii, shadows } from '@/theme';
 
-// Quest list items stagger in after the header (index 0) and the two
-// filter-chip rows (indices 1-2) — see `riseIn` in journal-components.tsx.
-const LIST_ITEM_START_INDEX = 3;
-
 export default function JournalScreen() {
   const { page, resetPage, incrementPage } = useJournalPagination();
   const { filter, statusFilter, setFilter, setStatusFilter } =
@@ -80,7 +76,7 @@ export default function JournalScreen() {
         <Animated.View entering={riseIn(0)}>
           <ScreenHeader
             title="Journal"
-            subtitle="Your quest history and achievements"
+            subtitle="Every quest leaves a mark."
             animate={false}
           />
         </Animated.View>

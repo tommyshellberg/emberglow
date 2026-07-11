@@ -66,7 +66,7 @@ export function StatsCard({
   streakCount,
 }: StatsCardProps) {
   return (
-    <View className="mx-4 mt-4" style={styles.grid}>
+    <View style={styles.grid}>
       <View
         style={styles.tile}
         accessible={true}
@@ -118,20 +118,26 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     gap: spacing[2],
+    marginHorizontal: spacing[4],
+    marginTop: spacing[4],
   },
   tile: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surface.raised,
     borderWidth: 1,
     borderColor: colors.border.hairline,
     borderRadius: radii.md,
-    paddingVertical: spacing[3],
+    paddingVertical: spacing[4],
     paddingHorizontal: spacing[2],
   },
   tileNumber: {
     fontFamily: fontFamily.display,
     fontSize: fontSize.h2,
+    // Erstoria clips vertically without an explicit line-height — codebase
+    // convention is fontSize * 1.15 (not the documented 1.12).
+    lineHeight: fontSize.h2 * 1.15,
     color: colors.text.primary,
     textAlign: 'center',
   },

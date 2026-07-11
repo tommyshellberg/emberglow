@@ -64,7 +64,7 @@ describe('QuestCompleteActions', () => {
     });
   });
 
-  describe('Continue Button', () => {
+  describe('Continue Button (quest-flow context — fromJournal defaults false)', () => {
     it('should render continue button with default text', () => {
       const { getByText } = render(
         <QuestCompleteActions
@@ -123,17 +123,28 @@ describe('QuestCompleteActions', () => {
       expect(onContinue).toHaveBeenCalled();
       expect(router.push).not.toHaveBeenCalled();
     });
+
+    it('should NOT render the continue button when fromJournal is true', () => {
+      const { queryByText } = render(
+        <QuestCompleteActions
+          quest={mockQuestWithRunId}
+          continueText="Continue"
+          fromJournal
+        />
+      );
+      expect(queryByText('Continue')).toBeNull();
+    });
   });
 
-  describe('Reflection Button', () => {
-    it('should show reflection button for non-onboarding quests with questRunId', () => {
+  describe('Add reflection button', () => {
+    it('should show "Add reflection" for non-onboarding quests with questRunId', () => {
       const { getByText } = render(
         <QuestCompleteActions
           quest={mockQuestWithRunId}
           continueText="Continue"
         />
       );
-      expect(getByText('Add Reflection')).toBeTruthy();
+      expect(getByText('Add reflection')).toBeTruthy();
     });
 
     it('should NOT show reflection button for onboarding quest (quest-1)', () => {
@@ -143,7 +154,7 @@ describe('QuestCompleteActions', () => {
           continueText="Continue"
         />
       );
-      expect(queryByText('Add Reflection')).toBeNull();
+      expect(queryByText('Add reflection')).toBeNull();
     });
 
     it('should NOT show reflection button for quests without questRunId', () => {
@@ -153,10 +164,32 @@ describe('QuestCompleteActions', () => {
           continueText="Continue"
         />
       );
-      expect(queryByText('Add Reflection')).toBeNull();
+      expect(queryByText('Add reflection')).toBeNull();
     });
 
-    it('should navigate to reflection screen when pressed', () => {
+    it('should NOT show reflection button when hasReflection is true', () => {
+      const { queryByText } = render(
+        <QuestCompleteActions
+          quest={mockQuestWithRunId}
+          continueText="Continue"
+          hasReflection
+        />
+      );
+      expect(queryByText('Add reflection')).toBeNull();
+    });
+
+    it('should render "Add reflection" even in the journal context', () => {
+      const { getByText } = render(
+        <QuestCompleteActions
+          quest={mockQuestWithRunId}
+          continueText="Continue"
+          fromJournal
+        />
+      );
+      expect(getByText('Add reflection')).toBeTruthy();
+    });
+
+    it('should navigate to reflection screen when pressed (quest-flow context, no from param)', () => {
       const { getByText } = render(
         <QuestCompleteActions
           quest={mockQuestWithRunId}
@@ -164,13 +197,34 @@ describe('QuestCompleteActions', () => {
         />
       );
 
-      fireEvent.press(getByText('Add Reflection'));
+      fireEvent.press(getByText('Add reflection'));
       expect(router.push).toHaveBeenCalledWith({
         pathname: '/(app)/quest/reflection',
         params: {
           questId: 'quest-2',
           questRunId: 'run-123',
           duration: 5,
+        },
+      });
+    });
+
+    it('should include from=quest-detail when navigating from the journal context', () => {
+      const { getByText } = render(
+        <QuestCompleteActions
+          quest={mockQuestWithRunId}
+          continueText="Continue"
+          fromJournal
+        />
+      );
+
+      fireEvent.press(getByText('Add reflection'));
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/(app)/quest/reflection',
+        params: {
+          questId: 'quest-2',
+          questRunId: 'run-123',
+          duration: 5,
+          from: 'quest-detail',
         },
       });
     });
@@ -199,7 +253,7 @@ describe('QuestCompleteActions', () => {
   });
 
   describe('Layout', () => {
-    it('should render buttons in a row', () => {
+    it('should render the actions container', () => {
       const { getByTestId } = render(
         <QuestCompleteActions
           quest={mockQuestWithRunId}
@@ -217,7 +271,19 @@ describe('QuestCompleteActions', () => {
         />
       );
       expect(getByText('Continue')).toBeTruthy();
-      expect(queryByText('Add Reflection')).toBeNull();
+      expect(queryByText('Add reflection')).toBeNull();
+    });
+
+    it('renders nothing actionable when fromJournal and no reflection is eligible', () => {
+      const { queryByText } = render(
+        <QuestCompleteActions
+          quest={mockQuestWithoutRunId}
+          continueText="Continue"
+          fromJournal
+        />
+      );
+      expect(queryByText('Continue')).toBeNull();
+      expect(queryByText('Add reflection')).toBeNull();
     });
   });
 });

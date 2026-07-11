@@ -1,5 +1,4 @@
 import type { QuestRun } from '@/api/quest/types';
-
 import { MAX_REASONABLE_DURATION_MS } from '@/features/journal/constants/journal-constants';
 import type { TransformedQuest } from '@/features/journal/types/journal-types';
 
@@ -77,7 +76,8 @@ export function transformQuestRun(run: QuestRun): TransformedQuest | null {
 }
 
 /**
- * Formats quest duration into a readable string
+ * Formats quest duration into a readable string, e.g. `25 min` (mockup
+ * `tabs.jsx` JournalScreen — `${e.minutes} min`, not `N minutes`).
  */
 export function formatDuration(quest: TransformedQuest): string {
   if (!quest.startTime || !quest.stopTime) {
@@ -91,8 +91,8 @@ export function formatDuration(quest: TransformedQuest): string {
   // Sanity check: if duration is way longer than expected (e.g., more than 24 hours),
   // use the quest's defined duration instead
   if (durationMinutes > 1440 && quest.durationMinutes) {
-    return `~${quest.durationMinutes} minutes`;
+    return `~${quest.durationMinutes} min`;
   }
 
-  return `${durationMinutes} minutes`;
+  return `${durationMinutes} min`;
 }

@@ -5,13 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 
 import { useQuestReflection } from '@/api/quest-reflection';
-import {
-  cleanup,
-  render,
-  screen,
-  setup,
-  waitFor,
-} from '@/lib/test-utils';
+import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
 import { useQuestStore } from '@/store/quest-store';
 
 import AppQuestDetailsScreen from './[id]';
@@ -107,7 +101,9 @@ const mockCustomQuest = {
 jest.mock('@/store/quest-store');
 
 describe('AppQuestDetailsScreen', () => {
-  let mockUseLocalSearchParams: jest.MockedFunction<typeof useLocalSearchParams>;
+  let mockUseLocalSearchParams: jest.MockedFunction<
+    typeof useLocalSearchParams
+  >;
   let mockUseQuestReflection: jest.MockedFunction<typeof useQuestReflection>;
   let mockUseQuestStore: jest.MockedFunction<typeof useQuestStore>;
 
@@ -301,16 +297,17 @@ describe('AppQuestDetailsScreen', () => {
     it('renders completed quest with all elements', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
+      // ScreenHeader (and its "Quest Details" title) is removed by the
+      // recomposition spec — the art header's floating back disc replaces it.
+      expect(screen.queryByText('Quest Details')).not.toBeOnTheScreen();
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
       // Quest completion screen is rendered
     });
 
-    it('shows header with quest title', () => {
+    it('shows the floating back disc instead of a ScreenHeader', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
-      // Back button exists in header (will be replaced with ScreenHeader)
+      expect(screen.getByLabelText('Go back')).toBeOnTheScreen();
     });
 
     it('renders quest story text for story mode quest', () => {
@@ -412,10 +409,10 @@ describe('AppQuestDetailsScreen', () => {
       });
     });
 
-    it('shows "Add Reflection" button when no reflection exists', () => {
+    it('shows "Add reflection" button when no reflection exists', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Add Reflection')).toBeOnTheScreen();
+      expect(screen.getByText('Add reflection')).toBeOnTheScreen();
     });
 
     it('shows different action button when not from journal', () => {
@@ -536,10 +533,10 @@ describe('AppQuestDetailsScreen', () => {
       expect(screen.getByText('Reflection')).toBeOnTheScreen();
     });
 
-    it('navigates to reflection screen when Add Reflection is pressed', async () => {
+    it('navigates to reflection screen when Add reflection is pressed', async () => {
       const { user } = setup(<AppQuestDetailsScreen />);
 
-      const addButton = screen.getByText('Add Reflection');
+      const addButton = screen.getByText('Add reflection');
       await user.press(addButton);
 
       expect(router.push).toHaveBeenCalledWith({
@@ -758,10 +755,10 @@ describe('AppQuestDetailsScreen', () => {
 
       render(<AppQuestDetailsScreen />);
 
-      // Verify accessible content is rendered
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
+      // Verify accessible content is rendered — the floating back disc
+      // (art header) replaces the old ScreenHeader's back button.
+      expect(screen.getByLabelText('Go back')).toBeOnTheScreen();
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
-      // Back button exists (has Feather icon which will be replaced with accessible ScreenHeader)
     });
 
     it('not found screen has accessible go back button', () => {
@@ -818,8 +815,8 @@ describe('AppQuestDetailsScreen', () => {
 
       render(<AppQuestDetailsScreen />);
 
-      // Should not show Add Reflection button if no questRunId
-      expect(screen.queryByText('Add Reflection')).not.toBeOnTheScreen();
+      // Should not show Add reflection button if no questRunId
+      expect(screen.queryByText('Add reflection')).not.toBeOnTheScreen();
     });
 
     it('handles quest without story or category', () => {
