@@ -1,7 +1,6 @@
-import { FlashList } from '@shopify/flash-list';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -16,7 +15,6 @@ import Animated, {
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
-import QuestCard from '@/components/home/quest-card';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
@@ -30,16 +28,15 @@ import {
   useModal,
   View,
 } from '@/components/ui';
+import {
+  QuestDeck,
+  type QuestDeckItem,
+} from '@/features/home/components/quest-deck';
 import { StoryOptionButtons } from '@/features/home/components/story-option-buttons';
 import {
-  CARD_HEIGHT,
-  CARD_SPACING,
   CARD_WIDTH,
-  CAROUSEL_CONTENT_PADDING,
-  CAROUSEL_VERTICAL_PADDING,
   FOOTER_MIN_HEIGHT,
   QUEST_MODES,
-  SNAP_INTERVAL,
 } from '@/features/home/constants/home-constants';
 import { useCarouselState } from '@/features/home/hooks/use-carousel-state';
 import { useHomeData } from '@/features/home/hooks/use-home-data';
@@ -69,13 +66,11 @@ export default function Home() {
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const { handlePaywallSuccess } = usePremiumAccess();
 
-  // Carousel state with paywall reset
-  const {
-    activeIndex,
-    setActiveIndex: _setActiveIndex,
-    progress,
-    handleMomentumScrollEnd,
-  } = useCarouselState({
+  // Deck state with paywall reset. Item count is tied to QUEST_MODES
+  // (always the 3 fixed modes), not carouselData.length, so this hook can
+  // be called before useHomeData computes carouselData below.
+  const { activeIndex, progress, advance } = useCarouselState({
+    itemCount: QUEST_MODES.length,
     onPaywallReset: () => {
       if (showPaywallModal) {
         setShowPaywallModal(false);
@@ -225,10 +220,6 @@ export default function Home() {
   const headerOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(50);
-  const scrollContainerOpacity = useSharedValue(1);
-  const animatedScrollStyle = useAnimatedStyle(() => ({
-    opacity: scrollContainerOpacity.value,
-  }));
 
   // Check for stuck cooperative quest and clean it up
   useEffect(() => {
@@ -354,27 +345,22 @@ export default function Home() {
     };
   });
 
-  // Render item for the carousel
-  const renderCarouselItem = ({ item }: { item: any }) => {
-    return (
-      <View style={{ width: CARD_WIDTH }}>
-        <QuestCard
-          mode={item.mode}
-          title={item.title}
-          subtitle={item.subtitle}
-          duration={item.duration}
-          xp={item.xp}
-          key={item.id}
-          description={item.recap || ''}
-          progress={item.progress}
-          showProgress={item.mode === 'story'}
-          requiresPremium={item.isPremium && !hasPremiumAccess}
-          isCompleted={item.mode === 'story' && isStorylineComplete}
-          onRestart={item.mode === 'story' ? handleRestartStoryline : undefined}
-        />
-      </View>
-    );
-  };
+  // Mode deck data — the deck's card content, one entry per QUEST_MODES
+  // slot (story / custom / cooperative).
+  const deckData: QuestDeckItem[] = carouselData.map((item) => ({
+    id: item.id,
+    mode: item.mode,
+    title: item.title,
+    subtitle: item.subtitle,
+    duration: item.duration,
+    xp: item.xp,
+    description: item.recap || '',
+    progress: item.progress ?? 0,
+    showProgress: item.mode === 'story',
+    requiresPremium: Boolean(item.isPremium) && !hasPremiumAccess,
+    isCompleted: item.mode === 'story' && isStorylineComplete,
+    onRestart: item.mode === 'story' ? handleRestartStoryline : undefined,
+  }));
 
   // Track premium CTA view
   const PremiumCTATracker = ({
@@ -432,32 +418,13 @@ export default function Home() {
           subtitle="Continue your epic story, create a quest of your own design, or play a cooperative quest with a friend."
         />
 
-        {/* Main content area */}
-        <View className="flex-1 justify-center">
-          <Animated.View
-            style={[animatedScrollStyle, { height: CARD_HEIGHT + 20 }]}
-          >
-            <FlashList
-              data={carouselData}
-              horizontal
-              snapToInterval={SNAP_INTERVAL}
-              decelerationRate="fast"
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              initialScrollIndex={0} // Start at the first item
-              contentContainerStyle={{
-                paddingHorizontal: CAROUSEL_CONTENT_PADDING,
-                paddingVertical: CAROUSEL_VERTICAL_PADDING,
-              }}
-              ItemSeparatorComponent={() => (
-                <View style={{ width: CARD_SPACING }} />
-              )}
-              onMomentumScrollEnd={handleMomentumScrollEnd}
-              renderItem={renderCarouselItem}
-              estimatedItemSize={CARD_WIDTH}
-              removeClippedSubviews={true} // improves performance by clipping offscreen items
-            />
-          </Animated.View>
+        {/* Main content area — the mode deck (story / custom / cooperative) */}
+        <View style={styles.deckWrapper}>
+          <QuestDeck
+            data={deckData}
+            activeIndex={activeIndex}
+            onAdvance={advance}
+          />
         </View>
 
         {/* Footer area with buttons */}
@@ -508,7 +475,7 @@ export default function Home() {
                 >
                   {!hasCoopAccess && (
                     <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
-                      <Badge tone="warm">⭐ Premium</Badge>
+                      <Badge tone="warm">Premium</Badge>
                     </View>
                   )}
                   <Button
@@ -571,3 +538,10 @@ export default function Home() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  deckWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+});

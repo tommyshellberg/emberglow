@@ -1,12 +1,12 @@
 import { usePostHog } from 'posthog-react-native';
 import React from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { type QuestOption } from '@/api/quest/types';
 import { Badge, Button, type ButtonVariant } from '@/components/emberglow';
 import { CARD_WIDTH } from '@/features/home/constants/home-constants';
-import { shadows } from '@/theme';
+import { shadows, spacing } from '@/theme';
 
 interface ServerQuest {
   customId: string;
@@ -54,6 +54,13 @@ const PremiumCTATracker = ({
  * when the destination quest requires premium. Emberglow's `Button` has no
  * premium-locked variant (ground rule 4), so the lock is communicated via
  * the label text (unchanged) and this badge rather than a color swap.
+ *
+ * For the two-option row, a label that wraps to 2 lines would otherwise make
+ * that pill taller than its sibling: the row stretches both `StoryCTA`
+ * wrappers to the same height (`alignItems: 'stretch'`), each wrapper is
+ * `flex: 1`, and the shorter button's own wrapper/pressable are told to
+ * `flexGrow` so they stretch to match — row stretch -> wrapper flex:1 ->
+ * Button's `containerStyle` flexGrow -> Button's Pressable `style` flexGrow.
  */
 function StoryCTA({
   label,
@@ -63,6 +70,7 @@ function StoryCTA({
   isPremiumLocked,
   flex,
   delay,
+  testID,
 }: {
   label: string;
   onPress: () => void;
@@ -71,24 +79,29 @@ function StoryCTA({
   isPremiumLocked: boolean;
   flex?: boolean;
   delay: number;
+  testID?: string;
 }) {
   return (
     <Animated.View
+      testID={testID}
       entering={FadeInDown.duration(600).delay(delay)}
-      style={[flex ? { flex: 1 } : { width: CARD_WIDTH }, shadows.card]}
+      style={[flex ? styles.flexOption : { width: CARD_WIDTH }, shadows.card]}
     >
       {isPremiumLocked && (
-        <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
-          <Badge tone="warm">⭐ Premium</Badge>
+        <View style={styles.premiumBadge}>
+          <Badge tone="warm">Premium</Badge>
         </View>
       )}
       <Button
+        testID={testID ? `${testID}-button` : undefined}
         label={label}
         onPress={onPress}
         disabled={disabled}
         variant={variant}
         size="lg"
         fullWidth
+        containerStyle={flex ? styles.flexGrow : undefined}
+        style={flex ? styles.flexGrow : undefined}
       />
     </Animated.View>
   );
@@ -115,7 +128,7 @@ export function StoryOptionButtons({
     return (
       <Animated.View
         entering={FadeIn.duration(600).delay(200)}
-        className="w-full items-center px-4"
+        style={styles.container}
       >
         {isPremiumLocked && (
           <PremiumCTATracker questId={quest.customId} type="storyline" />
@@ -166,7 +179,7 @@ export function StoryOptionButtons({
     return (
       <Animated.View
         entering={FadeIn.duration(600).delay(200)}
-        className="w-full items-center px-4"
+        style={styles.container}
       >
         <StoryCTA
           label={
@@ -207,7 +220,7 @@ export function StoryOptionButtons({
     return (
       <Animated.View
         entering={FadeIn.duration(600).delay(200)}
-        className="w-full items-center px-4"
+        style={styles.container}
       >
         <StoryCTA
           label="Unlock full Vaedros storyline"
@@ -220,13 +233,13 @@ export function StoryOptionButtons({
     );
   }
 
-  // Multiple options - render side by side
+  // Multiple options - render side by side, equal width and height
   return (
     <Animated.View
       entering={FadeIn.duration(600).delay(200)}
-      className="w-full items-center px-4"
+      style={styles.container}
     >
-      <View className="w-full flex-row justify-between gap-3">
+      <View style={styles.row}>
         {storyOptions.map((option: QuestOption, index: number) => {
           const nextQuest =
             option.nextQuest ||
@@ -243,6 +256,7 @@ export function StoryOptionButtons({
                 />
               )}
               <StoryCTA
+                testID={`story-option-${option.id}`}
                 label={
                   isPremiumLocked
                     ? 'Unlock full Vaedros storyline'
@@ -280,3 +294,27 @@ export function StoryOptionButtons({
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: spacing[4],
+  },
+  row: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  flexOption: {
+    flex: 1,
+  },
+  flexGrow: {
+    flexGrow: 1,
+  },
+  premiumBadge: {
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+});

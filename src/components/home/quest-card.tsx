@@ -4,16 +4,22 @@ import * as React from 'react';
 import type { ImageSourcePropType } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Badge, EyebrowLabel } from '@/components/emberglow';
+import { Image } from '@/components/ui';
+import { CARD_HEIGHT } from '@/features/home/constants/home-constants';
 import {
-  Badge,
-  EyebrowLabel,
-  QuestCard as EmberglowQuestCard,
-} from '@/components/emberglow';
-import { colors, fontFamily, palette, radii, spacing } from '@/theme';
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
-type HomeQuestMode = 'story' | 'custom' | 'cooperative';
+export type HomeQuestMode = 'story' | 'custom' | 'cooperative';
 
-interface QuestCardProps {
+export interface QuestCardProps {
   mode: HomeQuestMode;
   title: string;
   subtitle: string;
@@ -25,6 +31,7 @@ interface QuestCardProps {
   requiresPremium?: boolean;
   isCompleted?: boolean;
   onRestart?: () => void;
+  testID?: string;
 }
 
 const imageMap: Record<HomeQuestMode, ImageSourcePropType> = {
@@ -36,30 +43,28 @@ const imageMap: Record<HomeQuestMode, ImageSourcePropType> = {
 const COMPLETION_MESSAGE =
   "Congratulations! You've completed the entire Vaedros storyline. Your quest history is preserved - start a new adventure to experience different story branches!";
 
+// Bottom -> top scrim (play-screen handoff): richBlack 0.95 at 8%, 0.45 at
+// 45%, 0.25 at the top.
+const SCRIM_COLORS = [
+  withAlpha(palette.richBlack, 0.95),
+  withAlpha(palette.richBlack, 0.45),
+  withAlpha(palette.richBlack, 0.25),
+] as const;
+const SCRIM_LOCATIONS = [0.08, 0.45, 1] as const;
+
+const TITLE_FONT_SIZE = 27;
+const META_FONT_SIZE = 13;
+const META_TRACKING = 0.06;
+const DESCRIPTION_FONT_SIZE = 14.5;
+const PROGRESS_TRACK_HEIGHT = 6;
+
 /**
- * Home carousel card.
- *
- * Wraps Emberglow's `QuestCard` (title/description/xp/duration/image) with
- * the pieces it has no slot for — a mode label, a premium-lock badge, a
- * story-restart control, and a linear story-progress bar. None of these
- * exist as shared Emberglow primitives yet (ground rule 4), so they're
- * built here from `Badge`/`EyebrowLabel` plus bare `View`s on theme tokens,
- * matching `XPBar`'s Cinnabar→Sandy track/fill recipe for the progress bar.
- *
- * The mode label and premium badge render as a normal-flow row *above*
- * `QuestCard`, not an absolute overlay on top of it — `QuestCard`'s own
- * content box anchors its badge row/title/description/duration to the
- * bottom of a `min-height` art area (`justifyContent: 'flex-end'`), and that
- * minimum is tuned for a bare title + duration. Any card with a description
- * (the common case) grows past it, so the badge row ends up rendering right
- * under a fixed-top overlay instead of near the art's bottom. Normal flow
- * keeps the label above the card unconditionally, regardless of how tall
- * the card's own content grows.
- *
- * The story-progress block renders as its own row *below* `QuestCard`
- * (normal flow, not an absolute overlay) for the same reason — an overlay
- * pinned to the bottom edge would render on top of that text instead of
- * beside it, particularly for the full completed-storyline paragraph.
+ * Home deck "mode card" — the full-bleed art card behind the Play screen's
+ * card deck (story / custom / cooperative), per the play-screen handoff.
+ * Self-contained (not a wrapper around Emberglow's shared `QuestCard`):
+ * fixed height, full-opacity art under its own scrim (the shared QuestCard
+ * dims art to 0.55, which reads as murky over a deliberately painted hero
+ * image), a mode-storyline eyebrow, and a linear story-progress bar.
  */
 export default function QuestCard({
   mode,
@@ -73,92 +78,109 @@ export default function QuestCard({
   requiresPremium = false,
   isCompleted = false,
   onRestart,
+  testID,
 }: QuestCardProps) {
-  const cardTitle = isCompleted ? 'Quest Complete!' : title;
-  const cardDescription = isCompleted
-    ? COMPLETION_MESSAGE
-    : description || undefined;
-  // When the progress row is shown, duration is displayed once there
-  // instead of a second time on QuestCard's own built-in duration line, to
-  // avoid showing "45 MIN" twice in a row.
-  const cardDuration = showProgress ? undefined : `${duration} min`;
+  const cardTitle = isCompleted ? 'Quest complete' : title;
+  const cardDescription = isCompleted ? COMPLETION_MESSAGE : description;
   const progressPercent = Math.min(100, Math.round(progress * 100));
+  const showRestart = mode === 'story' && Boolean(onRestart) && progress > 0;
 
   return (
-    <View>
-      {/* Mode label + premium lock — Emberglow QuestCard has no slot for
-          either; rendered above it in normal flow (see file header comment
-          for why this can't be an overlay on the card). */}
-      <View style={styles.headerRow}>
-        <EyebrowLabel tone="warm">{subtitle}</EyebrowLabel>
-        {requiresPremium && <Badge tone="warm">⭐ Premium</Badge>}
-      </View>
-
-      <View style={styles.cardArt}>
-        <EmberglowQuestCard
-          title={cardTitle}
-          description={cardDescription}
-          xp={xp}
-          duration={cardDuration}
-          image={imageMap[mode]}
+    // Two layers: iOS drops a View's shadow once it clips with
+    // `overflow: hidden`, so the shadow lives on the outer, unclipped
+    // wrapper and the border/art-clipping on the inner view (same split as
+    // emberglow/quest/quest-card.tsx).
+    <View style={styles.cardShadow} testID={testID}>
+      <View style={styles.card} testID={testID ? `${testID}-inner` : undefined}>
+        <Image
+          source={imageMap[mode]}
+          contentFit="cover"
+          style={StyleSheet.absoluteFillObject}
+          testID={testID ? `${testID}-art` : undefined}
+        />
+        <LinearGradient
+          colors={SCRIM_COLORS}
+          locations={SCRIM_LOCATIONS}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
+          style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Restart control — story mode only, once progress has started */}
-        {mode === 'story' && onRestart && progress > 0 && (
+        {requiresPremium && (
+          <View style={styles.premiumBadge}>
+            <Badge tone="warm">Premium</Badge>
+          </View>
+        )}
+
+        {showRestart && (
           <Pressable
             onPress={onRestart}
             style={styles.restartButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            testID={testID ? `${testID}-restart` : undefined}
           >
             <RotateCcw size={20} color={colors.text.primary} />
           </Pressable>
         )}
-      </View>
 
-      {/*
-        Story progress — rendered as a normal-flow row below QuestCard
-        (not an absolute overlay), so it never collides with QuestCard's
-        own bottom-anchored title/description/duration text. No plain
-        linear 0-100 progress primitive exists (ground rule 4).
-      */}
-      {showProgress && (
-        <View style={styles.progressSection}>
-          <View style={styles.progressLabelRow}>
-            <Text style={styles.progressLabel}>Story Progress</Text>
-            <Text style={styles.progressLabel}>{progressPercent}%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            {progressPercent > 0 && (
-              <View
-                style={[styles.progressFill, { width: `${progressPercent}%` }]}
-              >
-                <LinearGradient
-                  colors={[palette.cinnabar, palette.sandy]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={styles.progressGradient}
-                />
+        <View style={styles.content}>
+          <EyebrowLabel>{subtitle}</EyebrowLabel>
+          <Text style={styles.title}>{cardTitle}</Text>
+          <Text style={styles.meta}>{`${duration} min · ${xp} XP`}</Text>
+          <Text style={styles.description} numberOfLines={3}>
+            {cardDescription}
+          </Text>
+
+          {showProgress && (
+            <View style={styles.progressSection}>
+              <View style={styles.progressLabelRow}>
+                <Text style={styles.progressLabel}>Story progress</Text>
+                <Text
+                  style={styles.progressLabel}
+                >{`${progressPercent}%`}</Text>
               </View>
-            )}
-          </View>
-          <Text style={styles.progressDuration}>{`${duration} min`}</Text>
+              <View style={styles.progressTrack}>
+                {progressPercent > 0 && (
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${progressPercent}%` },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={[palette.cinnabar, palette.sandy]}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={styles.progressGradient}
+                    />
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
         </View>
-      )}
+      </View>
     </View>
   );
 }
 
-const PROGRESS_TRACK_HEIGHT = 6;
-
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing[2],
+  cardShadow: {
+    ...shadows.card,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
   },
-  cardArt: {
-    position: 'relative',
+  card: {
+    height: CARD_HEIGHT,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    overflow: 'hidden',
+  },
+  premiumBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
   },
   restartButton: {
     position: 'absolute',
@@ -171,24 +193,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.fill.subtle,
   },
+  content: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+  },
+  title: {
+    fontFamily: fontFamily.display,
+    fontSize: TITLE_FONT_SIZE,
+    lineHeight: TITLE_FONT_SIZE * 1.15,
+    color: colors.text.primary,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  meta: {
+    fontFamily: fontFamily.semibold,
+    fontSize: META_FONT_SIZE,
+    letterSpacing: META_FONT_SIZE * META_TRACKING,
+    textTransform: 'uppercase',
+    color: palette.sandy,
+  },
+  description: {
+    fontFamily: fontFamily.regular,
+    fontSize: DESCRIPTION_FONT_SIZE,
+    lineHeight: DESCRIPTION_FONT_SIZE * 1.5,
+    color: colors.text.secondary,
+    marginTop: 6,
+  },
   progressSection: {
-    marginTop: spacing[3],
-    paddingHorizontal: spacing[1],
+    marginTop: 12,
   },
   progressLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing[1],
+    marginBottom: 5,
   },
   progressLabel: {
     fontFamily: fontFamily.semibold,
     fontSize: 12,
-    color: colors.text.primary,
+    color: colors.text.secondary,
   },
   progressTrack: {
     height: PROGRESS_TRACK_HEIGHT,
     borderRadius: radii.pill,
-    backgroundColor: colors.fill.subtle,
+    backgroundColor: withAlpha(palette.bone, 0.18),
     overflow: 'hidden',
   },
   progressFill: {
@@ -198,12 +247,5 @@ const styles = StyleSheet.create({
   progressGradient: {
     flex: 1,
     borderRadius: radii.pill,
-  },
-  progressDuration: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: spacing[1],
-    textTransform: 'uppercase',
   },
 });
