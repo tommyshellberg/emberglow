@@ -15,7 +15,7 @@ export const TERMS_URL = 'https://emberglowapp.com/terms';
 /**
  * Logo dimensions (width and height)
  */
-export const LOGO_SIZE = 100;
+export const LOGO_SIZE = 64;
 
 /**
  * Number of send attempts before showing support contact info
