@@ -36,7 +36,12 @@ export type ButtonProps = {
   onPress?: () => void;
   /** Icon + text row (gap 8) — takes precedence over `label` when provided. */
   children?: React.ReactNode;
+  /** Screen-reader name; omitted = derived from the label/children text. */
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
+  /** Extra style for the outer glow-carrying wrapper (e.g. `{ flexGrow: 1 }` to match a sibling's height in a row). */
+  containerStyle?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
@@ -98,7 +103,10 @@ export function Button({
   disabled = false,
   onPress,
   children,
+  accessibilityLabel,
+  accessibilityHint,
   style,
+  containerStyle,
   testID,
 }: ButtonProps) {
   // Disabled forces the glow off regardless of what the screen asked for.
@@ -136,6 +144,7 @@ export function Button({
         // button beyond its content even when fullWidth is false.
         styles.wrapper,
         fullWidth && styles.stretch,
+        containerStyle,
         // Colored shadows only render on iOS; Android would just paint a grey
         // box via `elevation`, which is worse than no glow (ground rule 5).
         Platform.OS === 'ios' && {
@@ -149,6 +158,8 @@ export function Button({
     >
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={onPress}
@@ -202,6 +213,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fontFamily.semibold,
+    textAlign: 'center',
   },
   pressed: {
     transform: [{ scale: pressedScale }],

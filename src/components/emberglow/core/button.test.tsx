@@ -36,12 +36,7 @@ describe('Button', () => {
   it('blocks onPress and marks accessibilityState.disabled when disabled', async () => {
     const onPress = jest.fn();
     const { user } = setup(
-      <Button
-        testID="button"
-        label="Begin quest"
-        disabled
-        onPress={onPress}
-      />
+      <Button testID="button" label="Begin quest" disabled onPress={onPress} />
     );
     const button = screen.getByTestId('button');
     expect(button.props.accessibilityState.disabled).toBe(true);
@@ -51,16 +46,12 @@ describe('Button', () => {
 
   it('exposes the button accessibility role', () => {
     render(<Button testID="button" label="Begin quest" />);
-    expect(screen.getByTestId('button').props.accessibilityRole).toBe(
-      'button'
-    );
+    expect(screen.getByTestId('button').props.accessibilityRole).toBe('button');
   });
 
   describe('variant styling at rest', () => {
     it('primary: cinnabar background, transparent border, on-accent text', () => {
-      render(
-        <Button testID="button" label="Begin quest" variant="primary" />
-      );
+      render(<Button testID="button" label="Begin quest" variant="primary" />);
       const style = StyleSheet.flatten(
         screen.getByTestId('button').props.style
       );
@@ -104,9 +95,7 @@ describe('Button', () => {
     });
 
     it('outline: transparent background, strong border, primary text', () => {
-      render(
-        <Button testID="button" label="Begin quest" variant="outline" />
-      );
+      render(<Button testID="button" label="Begin quest" variant="outline" />);
       const style = StyleSheet.flatten(
         screen.getByTestId('button').props.style
       );
@@ -166,17 +155,13 @@ describe('Button', () => {
 
   it('stretches to fill its container when fullWidth is set', () => {
     render(<Button testID="button" label="Begin quest" fullWidth />);
-    const style = StyleSheet.flatten(
-      screen.getByTestId('button').props.style
-    );
+    const style = StyleSheet.flatten(screen.getByTestId('button').props.style);
     expect(style.alignSelf).toBe('stretch');
   });
 
   it('defaults to alignSelf flex-start when not fullWidth', () => {
     render(<Button testID="button" label="Begin quest" />);
-    const style = StyleSheet.flatten(
-      screen.getByTestId('button').props.style
-    );
+    const style = StyleSheet.flatten(screen.getByTestId('button').props.style);
     expect(style.alignSelf).toBe('flex-start');
   });
 
@@ -196,11 +181,31 @@ describe('Button', () => {
     expect(wrapperStyle.alignSelf).toBe('stretch');
   });
 
+  it('applies containerStyle to the outer wrapper', () => {
+    render(
+      <Button
+        testID="button"
+        label="Begin quest"
+        containerStyle={{ flexGrow: 1 }}
+      />
+    );
+    const wrapperStyle = StyleSheet.flatten(
+      screen.getByTestId('button-wrapper').props.style
+    );
+    expect(wrapperStyle.flexGrow).toBe(1);
+  });
+
+  it('centers wrapped label text so a two-line label centers under the button', () => {
+    render(<Button testID="button" label="Begin quest" />);
+    const textStyle = StyleSheet.flatten(
+      screen.getByText('Begin quest').props.style
+    );
+    expect(textStyle.textAlign).toBe('center');
+  });
+
   it('applies opacity 0.4 when disabled', () => {
     render(<Button testID="button" label="Begin quest" disabled />);
-    const style = StyleSheet.flatten(
-      screen.getByTestId('button').props.style
-    );
+    const style = StyleSheet.flatten(screen.getByTestId('button').props.style);
     expect(style.opacity).toBe(0.4);
   });
 
@@ -234,9 +239,7 @@ describe('Button', () => {
     render(
       <Button testID="button" label="Begin quest" style={{ marginTop: 12 }} />
     );
-    const style = StyleSheet.flatten(
-      screen.getByTestId('button').props.style
-    );
+    const style = StyleSheet.flatten(screen.getByTestId('button').props.style);
     expect(style.marginTop).toBe(12);
   });
 });
