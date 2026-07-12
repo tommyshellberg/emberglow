@@ -31,8 +31,7 @@ jest.mock('@/app/data/characters', () => ({
       id: 'alchemist',
       type: 'Alchemist',
       title: 'Master of Transformation',
-      description:
-        'Transforms idle time into powerful elixirs and mystical concoctions.',
+      description: 'Turns idle hours into gold.',
       image: 'mock-image-path',
       profileImage: 'mock-profile-path',
     },
@@ -40,8 +39,7 @@ jest.mock('@/app/data/characters', () => ({
       id: 'knight',
       type: 'Knight',
       title: 'Paragon of Discipline',
-      description:
-        'Builds strength and honor through dedication and restraint.',
+      description: 'Holds the line, one quest at a time.',
       image: 'mock-image-path',
       profileImage: 'mock-profile-path',
     },
@@ -93,12 +91,14 @@ describe('ChooseCharacterScreen', () => {
     );
 
     // Step 1: Should start on intro and name input screen
-    expect(getByText('Your Character')).toBeTruthy();
-    expect(getByText('Your companion on this journey')).toBeTruthy();
-    expect(getByText('Character Name')).toBeTruthy();
+    expect(getByText('Every legend needs a name')).toBeTruthy();
+    expect(
+      getByText('This is who quests while your phone rests.')
+    ).toBeTruthy();
+    expect(getByText('Hero name')).toBeTruthy();
 
     // Enter character name
-    const input = getByPlaceholderText('Enter character name');
+    const input = getByPlaceholderText('e.g. Rowan');
     fireEvent.changeText(input, 'Arthur');
 
     // Flush debounce by advancing timers.
@@ -110,8 +110,7 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(getByText('Continue'));
 
     // Step 2: Should now be on character selection step
-    expect(getByText('Hello, Arthur')).toBeTruthy();
-    expect(getByText("It's time to choose your hero.")).toBeTruthy();
+    expect(getByText("Choose Arthur's path")).toBeTruthy();
 
     // Get the FlatList component and simulate swipe to knight (second character)
     const flatList = getByTestId('character-carousel');
@@ -123,8 +122,8 @@ describe('ChooseCharacterScreen', () => {
       },
     });
 
-    // Tap the Create Character button.
-    const createButton = getByText('Create Character');
+    // Tap the Create character button.
+    const createButton = getByText('Create character');
 
     // We need to handle promise resolution manually in tests
     await act(async () => {
@@ -161,7 +160,7 @@ describe('ChooseCharacterScreen', () => {
     );
 
     // Step 1: Enter name on intro screen
-    const input = getByPlaceholderText('Enter character name');
+    const input = getByPlaceholderText('e.g. Rowan');
     fireEvent.changeText(input, 'Merlin');
 
     // Flush debounce.
@@ -173,7 +172,7 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(getByText('Continue'));
 
     // Step 2: Character selection (default is alchemist)
-    const createButton = getByText('Create Character');
+    const createButton = getByText('Create character');
 
     // We need to handle promise rejection manually in tests
     await act(async () => {
@@ -214,7 +213,7 @@ describe('ChooseCharacterScreen', () => {
     );
 
     // Step 1: Enter name
-    const input = getByPlaceholderText('Enter character name');
+    const input = getByPlaceholderText('e.g. Rowan');
     fireEvent.changeText(input, 'Gandalf');
 
     // Flush debounce.
@@ -226,7 +225,7 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(getByText('Continue'));
 
     // Step 2: Try to create character
-    const createButton = getByText('Create Character');
+    const createButton = getByText('Create character');
 
     // We need to handle promise rejection manually in tests
     await act(async () => {
@@ -278,7 +277,7 @@ describe('ChooseCharacterScreen', () => {
     );
 
     // Step 1: Enter name
-    const input = getByPlaceholderText('Enter character name');
+    const input = getByPlaceholderText('e.g. Rowan');
     fireEvent.changeText(input, 'TestUser');
 
     // Flush debounce.
@@ -290,7 +289,7 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(getByText('Continue'));
 
     // Step 2: Try to create character
-    const createButton = getByText('Create Character');
+    const createButton = getByText('Create character');
 
     // Press the button but don't resolve the promise yet
     act(() => {
@@ -298,8 +297,8 @@ describe('ChooseCharacterScreen', () => {
     });
 
     // Should show loading state with different button text
-    expect(queryByText('Creating...')).toBeTruthy();
-    expect(queryByText('Create Character')).toBeFalsy();
+    expect(queryByText('Forging your legend…')).toBeTruthy();
+    expect(queryByText('Create character')).toBeFalsy();
 
     // Resolve the promise
     await act(async () => {
@@ -326,12 +325,12 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(continueButton);
 
     // Should still be on the same screen
-    expect(getByText('Your Character')).toBeTruthy();
-    expect(getByText('Character Name')).toBeTruthy();
+    expect(getByText('Every legend needs a name')).toBeTruthy();
+    expect(getByText('Hero name')).toBeTruthy();
 
-    // Now enter a name
-    const input = getByPlaceholderText('Enter character name');
-    fireEvent.changeText(input, 'A');
+    // Now enter a name that satisfies the 2-16 char rule
+    const input = getByPlaceholderText('e.g. Rowan');
+    fireEvent.changeText(input, 'Al');
 
     // Flush debounce
     act(() => {
@@ -342,13 +341,73 @@ describe('ChooseCharacterScreen', () => {
     fireEvent.press(continueButton);
 
     // Should be on character selection screen
-    expect(getByText('Hello, A')).toBeTruthy();
+    expect(getByText("Choose Al's path")).toBeTruthy();
+  });
+
+  it('should keep continue disabled for a 1-character name (2-16 char rule regression guard)', () => {
+    const { getByText, getByPlaceholderText, queryByText } = render(
+      <ChooseCharacterScreen />
+    );
+
+    const continueButton = getByText('Continue');
+    const input = getByPlaceholderText('e.g. Rowan');
+
+    // A single-character name no longer satisfies the 2-16 char rule.
+    fireEvent.changeText(input, 'A');
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    fireEvent.press(continueButton);
+
+    // Should still be on the name step — Continue stayed disabled.
+    expect(getByText('Every legend needs a name')).toBeTruthy();
+    expect(queryByText("Choose A's path")).toBeFalsy();
+  });
+
+  it('should enforce the 16-character maximum (2-16 char rule regression guard)', () => {
+    const { getByText, getByPlaceholderText, queryByText } = render(
+      <ChooseCharacterScreen />
+    );
+
+    const continueButton = getByText('Continue');
+    const input = getByPlaceholderText('e.g. Rowan');
+
+    // The input filter only strips disallowed characters — it does NOT cap
+    // length, so a 17-character value is typeable and must be blocked by
+    // the length validation instead.
+    const seventeenChars = 'A'.repeat(17);
+    fireEvent.changeText(input, seventeenChars);
+    expect(input.props.value).toBe(seventeenChars);
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    fireEvent.press(continueButton);
+
+    // Still on the name step — 17 characters exceeds the maximum.
+    expect(getByText('Every legend needs a name')).toBeTruthy();
+    expect(queryByText(`Choose ${seventeenChars}'s path`)).toBeFalsy();
+
+    // Exactly 16 characters sits on the boundary and is valid.
+    const sixteenChars = 'A'.repeat(16);
+    fireEvent.changeText(input, sixteenChars);
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    fireEvent.press(continueButton);
+
+    expect(getByText(`Choose ${sixteenChars}'s path`)).toBeTruthy();
   });
 
   it('should filter out special characters from name input', () => {
     const { getByPlaceholderText } = render(<ChooseCharacterScreen />);
 
-    const input = getByPlaceholderText('Enter character name');
+    const input = getByPlaceholderText('e.g. Rowan');
 
     // Try to enter special characters
     fireEvent.changeText(input, 'Test@Name#123!');
