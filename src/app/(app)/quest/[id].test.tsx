@@ -6,6 +6,7 @@ import React from 'react';
 
 import { useQuestReflection } from '@/api/quest-reflection';
 import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 
 import AppQuestDetailsScreen from './[id]';
@@ -99,6 +100,7 @@ const mockCustomQuest = {
 };
 
 jest.mock('@/store/quest-store');
+jest.mock('@/store/onboarding-store');
 
 describe('AppQuestDetailsScreen', () => {
   let mockUseLocalSearchParams: jest.MockedFunction<
@@ -143,11 +145,44 @@ describe('AppQuestDetailsScreen', () => {
     });
 
     mockUseQuestStore.getState = jest.fn().mockReturnValue(mockStoreState);
+
+    // These screen tests represent a post-onboarding user (journal viewing)
+    (useOnboardingStore as unknown as jest.Mock).mockImplementation(
+      (selector: any) => selector({ isOnboardingComplete: () => true })
+    );
   });
 
   afterEach(() => {
     cleanup();
     jest.clearAllMocks();
+  });
+
+  describe('Reflection fetching', () => {
+    it('does NOT fetch the reflection outside the journal context', () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+
+      render(<AppQuestDetailsScreen />);
+
+      // The query hook receives no questRunId, so `enabled` stays false and
+      // no request is made (e.g. during the post-quest completion flow).
+      expect(mockUseQuestReflection).toHaveBeenCalledWith(undefined);
+      expect(mockUseQuestReflection).not.toHaveBeenCalledWith('run-123');
+    });
+
+    it('fetches the reflection when viewing a journal entry', () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        from: 'journal',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+
+      render(<AppQuestDetailsScreen />);
+
+      expect(mockUseQuestReflection).toHaveBeenCalledWith('run-123');
+    });
   });
 
   describe('Quest Resolution (Priority Order)', () => {

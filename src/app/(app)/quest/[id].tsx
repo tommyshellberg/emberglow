@@ -145,9 +145,13 @@ export default function AppQuestDetailsScreen() {
     recentCompletedQuest,
   ]);
 
-  // Fetch reflection from server if questRunId is available
+  // Fetch reflection from server only when viewing a journal entry — the
+  // only context where a reflection can already exist. Passing undefined
+  // keeps the query disabled (see useQuestReflection's `enabled`).
   const questRunId = quest?.questRunId;
-  const { data: serverReflection } = useQuestReflection(questRunId);
+  const { data: serverReflection } = useQuestReflection(
+    from === 'journal' ? questRunId : undefined
+  );
 
   if (!quest) {
     return (

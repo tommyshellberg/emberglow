@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Button } from '@/components/emberglow';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { easing, spacing } from '@/theme';
 
@@ -36,6 +37,9 @@ export function QuestCompleteActions({
 }: QuestCompleteActionsProps) {
   const clearRecentCompletedQuest = useQuestStore(
     (state) => state.clearRecentCompletedQuest
+  );
+  const isOnboardingComplete = useOnboardingStore((s) =>
+    s.isOnboardingComplete()
   );
 
   const actionsOpacity = useSharedValue(0);
@@ -90,10 +94,13 @@ export function QuestCompleteActions({
 
   // Show reflection button if:
   // 1. Quest has a questRunId (server-tracked quest)
-  // 2. Quest is not the onboarding quest (quest-1)
-  // 3. It doesn't already have a reflection attached
+  // 2. Onboarding is finished — the first quest's id is server-driven
+  //    (quest-1, quest-1a, ...), so the id check alone can't identify it
+  // 3. Quest is not the onboarding quest (quest-1)
+  // 4. It doesn't already have a reflection attached
   const showReflectionButton =
     (quest as any).questRunId &&
+    isOnboardingComplete &&
     quest.id !== ONBOARDING_QUEST_ID &&
     !hasReflection;
 

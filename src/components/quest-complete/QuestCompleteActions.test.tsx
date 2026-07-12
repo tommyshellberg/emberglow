@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 
 import { QuestCompleteActions } from './QuestCompleteActions';
@@ -15,6 +16,7 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('@/store/quest-store');
+jest.mock('@/store/onboarding-store');
 
 describe('QuestCompleteActions', () => {
   const mockClearRecentCompletedQuest = jest.fn();
@@ -62,6 +64,11 @@ describe('QuestCompleteActions', () => {
       };
       return selector(state);
     });
+
+    // Default: onboarding finished — the common post-signup context
+    (useOnboardingStore as unknown as jest.Mock).mockImplementation(
+      (selector) => selector({ isOnboardingComplete: () => true })
+    );
   });
 
   describe('Continue Button (quest-flow context — fromJournal defaults false)', () => {
@@ -151,6 +158,27 @@ describe('QuestCompleteActions', () => {
       const { queryByText } = render(
         <QuestCompleteActions
           quest={mockOnboardingQuest}
+          continueText="Continue"
+        />
+      );
+      expect(queryByText('Add reflection')).toBeNull();
+    });
+
+    it('should NOT show reflection button while onboarding is incomplete', () => {
+      // The first quest is served by the server and its id can drift
+      // (e.g. quest-1a), so the onboarding state must gate the button.
+      (useOnboardingStore as unknown as jest.Mock).mockImplementation(
+        (selector) => selector({ isOnboardingComplete: () => false })
+      );
+
+      const firstServerQuest = {
+        ...mockQuestWithRunId,
+        id: 'quest-1a',
+      };
+
+      const { queryByText } = render(
+        <QuestCompleteActions
+          quest={firstServerQuest}
           continueText="Continue"
         />
       );
