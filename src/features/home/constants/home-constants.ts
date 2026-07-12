@@ -53,7 +53,15 @@ export const ANIMATION_TIMINGS = {
 export const STORYLINE_COMPLETE_THRESHOLD = 0.999;
 
 // Layout constants
-export const FOOTER_MIN_HEIGHT = 140;
+// The DecisionSlider's two-choice block (the tallest of the footer's three
+// modes) runs ~150pt (eyebrow + 14pt stack gaps + 44pt choice row + 60pt
+// track zone; the decisionSlider README estimates ~160pt). At the old 140
+// the story footer would have outgrown the floor (minHeight yields to
+// taller content) while custom/co-op stayed pinned at 140 — a visible
+// height jump when paging between modes. 176 keeps one shared floor taller
+// than every mode's content, so all three footers render identically tall
+// and the shorter Button blocks (54pt) simply center within it.
+export const FOOTER_MIN_HEIGHT = 176;
 export const BACKGROUND_OPACITY = 0.6;
 
 // Shadow styles (reusable)

@@ -4,7 +4,12 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { type QuestOption } from '@/api/quest/types';
-import { Badge, Button, type ButtonVariant } from '@/components/emberglow';
+import {
+  Badge,
+  Button,
+  type ButtonVariant,
+  DecisionSlider,
+} from '@/components/emberglow';
 import { CARD_WIDTH } from '@/features/home/constants/home-constants';
 import { shadows, spacing } from '@/theme';
 
@@ -49,18 +54,15 @@ const PremiumCTATracker = ({
 };
 
 /**
- * A single story CTA — the shadowed, fixed-width (or flexed, for side-by-side
- * options) wrapper around an Emberglow `Button`, plus a premium-lock `Badge`
- * when the destination quest requires premium. Emberglow's `Button` has no
- * premium-locked variant (ground rule 4), so the lock is communicated via
- * the label text (unchanged) and this badge rather than a color swap.
+ * A single story CTA — the shadowed, fixed-width wrapper around an
+ * Emberglow `Button`, plus a premium-lock `Badge` when the destination
+ * quest requires premium. Emberglow's `Button` has no premium-locked
+ * variant (ground rule 4), so the lock is communicated via the label text
+ * (unchanged) and this badge rather than a color swap.
  *
- * For the two-option row, a label that wraps to 2 lines would otherwise make
- * that pill taller than its sibling: the row stretches both `StoryCTA`
- * wrappers to the same height (`alignItems: 'stretch'`), each wrapper is
- * `flex: 1`, and the shorter button's own wrapper/pressable are told to
- * `flexGrow` so they stretch to match — row stretch -> wrapper flex:1 ->
- * Button's `containerStyle` flexGrow -> Button's Pressable `style` flexGrow.
+ * Now used only for the premium-locked / paywall branches — non-premium
+ * story decisions render `DecisionSlider` instead (see `StoryDecision`
+ * below).
  */
 function StoryCTA({
   label,
@@ -68,7 +70,6 @@ function StoryCTA({
   disabled,
   variant,
   isPremiumLocked,
-  flex,
   delay,
   testID,
 }: {
@@ -77,7 +78,6 @@ function StoryCTA({
   disabled?: boolean;
   variant: ButtonVariant;
   isPremiumLocked: boolean;
-  flex?: boolean;
   delay: number;
   testID?: string;
 }) {
@@ -85,7 +85,7 @@ function StoryCTA({
     <Animated.View
       testID={testID}
       entering={FadeInDown.duration(600).delay(delay)}
-      style={[flex ? styles.flexOption : { width: CARD_WIDTH }, shadows.card]}
+      style={[{ width: CARD_WIDTH }, shadows.card]}
     >
       {isPremiumLocked && (
         <View style={styles.premiumBadge}>
@@ -100,10 +100,73 @@ function StoryCTA({
         variant={variant}
         size="lg"
         fullWidth
-        containerStyle={flex ? styles.flexGrow : undefined}
-        style={flex ? styles.flexGrow : undefined}
       />
     </Animated.View>
+  );
+}
+
+/**
+ * Entrance wrapper for a `DecisionSlider` CTA — mirrors `StoryCTA`'s
+ * `FadeInDown` choreography (same 600ms duration / delay convention) but
+ * without the `CARD_WIDTH`/`shadows.card` treatment: the slider is a single
+ * full-width block (decisionSlider README), not a button pill.
+ */
+function StoryDecision({
+  children,
+  delay,
+}: {
+  children: React.ReactNode;
+  delay: number;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(600).delay(delay)}
+      style={styles.decisionWrapper}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * The two-choice story decision. `DecisionSlider` locks after a commit and
+ * has no way to disable just one side — if a commit lands on the side
+ * missing `nextQuestId` (a rare data-integrity edge case; today's Button
+ * row instead renders that one side disabled while the other stays
+ * usable), routing a `null` questId would be wrong and the now-locked
+ * slider would dead-end the player with no way to retry. Treat that commit
+ * as a no-op and remount the slider (via `key`) so it's interactive again
+ * instead of stuck on a route to nowhere.
+ */
+function TwoChoiceDecision({
+  optionA,
+  optionB,
+  onQuestSelect,
+  testID,
+}: {
+  optionA: QuestOption;
+  optionB: QuestOption;
+  /** Never called with null — the dead-side guard filters that out. */
+  onQuestSelect: (questId: string) => void;
+  testID?: string;
+}) {
+  const [resetKey, setResetKey] = React.useState(0);
+  const options = [optionA, optionB] as const;
+
+  return (
+    <DecisionSlider
+      key={resetKey}
+      testID={testID}
+      choices={[optionA.text, optionB.text]}
+      onCommit={(index) => {
+        const nextQuestId = options[index].nextQuestId;
+        if (!nextQuestId) {
+          setResetKey((n) => n + 1);
+          return;
+        }
+        onQuestSelect(nextQuestId);
+      }}
+    />
   );
 }
 
@@ -121,30 +184,22 @@ export function StoryOptionButtons({
   // Only show for story mode (carousel index 0)
   if (activeIndex !== 0) return null;
 
-  // Single server quest with no branching - show start button
+  // Single server quest with no branching — hold-to-commit slider (or the
+  // premium unlock button, unchanged).
   if (serverQuests.length === 1 && storyOptions.length === 0) {
     const quest = serverQuests[0];
     const isPremiumLocked = Boolean(quest.isPremium) && !hasPremiumAccess;
-    return (
-      <Animated.View
-        entering={FadeIn.duration(600).delay(200)}
-        style={styles.container}
-      >
-        {isPremiumLocked && (
+
+    if (isPremiumLocked) {
+      return (
+        <Animated.View
+          entering={FadeIn.duration(600).delay(200)}
+          style={styles.container}
+        >
           <PremiumCTATracker questId={quest.customId} type="storyline" />
-        )}
-        <StoryCTA
-          label={
-            isPremiumLocked
-              ? 'Unlock full Vaedros storyline'
-              : !hasStartedStoryline
-                ? 'Begin your journey'
-                : 'Start Quest'
-          }
-          onPress={() => {
-            if (!isPremiumLocked) {
-              onQuestSelect(quest.customId);
-            } else {
+          <StoryCTA
+            label="Unlock full Vaedros storyline"
+            onPress={() => {
               posthog.capture('premium_upsell_cta_clicked', {
                 upsell_type: 'storyline_quest',
                 trigger_location: 'home_storyline',
@@ -152,12 +207,31 @@ export function StoryOptionButtons({
                 quest_id: quest.customId,
               });
               onShowPaywall();
-            }
-          }}
-          variant="primary"
-          isPremiumLocked={isPremiumLocked}
-          delay={400}
-        />
+            }}
+            variant="primary"
+            isPremiumLocked
+            delay={400}
+          />
+        </Animated.View>
+      );
+    }
+
+    return (
+      <Animated.View
+        entering={FadeIn.duration(600).delay(200)}
+        style={styles.container}
+      >
+        <StoryDecision delay={400}>
+          <DecisionSlider
+            // Fresh decision (new quest) -> fresh, unlocked slider instance,
+            // matching the two-choice wrapper's identity semantics.
+            key={quest.customId}
+            choices={[
+              !hasStartedStoryline ? 'Begin your journey' : 'Start Quest',
+            ]}
+            onCommit={() => onQuestSelect(quest.customId)}
+          />
+        </StoryDecision>
       </Animated.View>
     );
   }
@@ -167,7 +241,8 @@ export function StoryOptionButtons({
     return null;
   }
 
-  // Single option
+  // Single option — hold-to-commit slider (or the premium unlock button,
+  // unchanged).
   if (storyOptions.length === 1) {
     const option = storyOptions[0];
     const nextQuest =
@@ -176,17 +251,15 @@ export function StoryOptionButtons({
     const questIsPremium = nextQuest?.isPremium || false;
     const isPremiumLocked = questIsPremium && !hasPremiumAccess;
 
-    return (
-      <Animated.View
-        entering={FadeIn.duration(600).delay(200)}
-        style={styles.container}
-      >
-        <StoryCTA
-          label={
-            isPremiumLocked ? 'Unlock full Vaedros storyline' : option.text
-          }
-          onPress={() => {
-            if (isPremiumLocked) {
+    if (isPremiumLocked) {
+      return (
+        <Animated.View
+          entering={FadeIn.duration(600).delay(200)}
+          style={styles.container}
+        >
+          <StoryCTA
+            label="Unlock full Vaedros storyline"
+            onPress={() => {
               posthog.capture('premium_upsell_cta_clicked', {
                 upsell_type: 'storyline_quest',
                 trigger_location: 'home_storyline_options',
@@ -194,15 +267,31 @@ export function StoryOptionButtons({
                 quest_id: option.nextQuestId,
               });
               onShowPaywall();
-            } else {
-              onQuestSelect(option.nextQuestId);
-            }
-          }}
-          variant="primary"
-          isPremiumLocked={isPremiumLocked}
-          disabled={!option.nextQuestId}
-          delay={400}
-        />
+            }}
+            variant="primary"
+            isPremiumLocked
+            disabled={!option.nextQuestId}
+            delay={400}
+          />
+        </Animated.View>
+      );
+    }
+
+    return (
+      <Animated.View
+        entering={FadeIn.duration(600).delay(200)}
+        style={styles.container}
+      >
+        <StoryDecision delay={400}>
+          <DecisionSlider
+            // Fresh decision (new option) -> fresh, unlocked slider instance,
+            // matching the two-choice wrapper's identity semantics.
+            key={option.id}
+            choices={[option.text]}
+            onCommit={() => onQuestSelect(option.nextQuestId)}
+            disabled={!option.nextQuestId}
+          />
+        </StoryDecision>
       </Animated.View>
     );
   }
@@ -215,7 +304,8 @@ export function StoryOptionButtons({
     return nextQuest?.isPremium || false;
   });
 
-  // If any options are premium and user doesn't have access, show single unlock button
+  // If any options are premium and user doesn't have access, show single
+  // unlock button — unchanged.
   if (anyOptionsPremium && !hasPremiumAccess) {
     return (
       <Animated.View
@@ -233,64 +323,25 @@ export function StoryOptionButtons({
     );
   }
 
-  // Multiple options - render side by side, equal width and height
+  // Two options, unlocked — drag-to-commit slider. Local quest data
+  // confirms the spec invariant of exactly one or two options per branch
+  // (never more), so this fallback is always exactly two.
+  const [optionA, optionB] = storyOptions;
+
   return (
     <Animated.View
       entering={FadeIn.duration(600).delay(200)}
       style={styles.container}
     >
-      <View style={styles.row}>
-        {storyOptions.map((option: QuestOption, index: number) => {
-          const nextQuest =
-            option.nextQuest ||
-            serverQuests.find((q) => q.customId === option.nextQuestId);
-          const questIsPremium = nextQuest?.isPremium || false;
-          const isPremiumLocked = questIsPremium && !hasPremiumAccess;
-
-          return (
-            <React.Fragment key={option.id}>
-              {isPremiumLocked && (
-                <PremiumCTATracker
-                  questId={option.nextQuestId || undefined}
-                  type="storyline"
-                />
-              )}
-              <StoryCTA
-                testID={`story-option-${option.id}`}
-                label={
-                  isPremiumLocked
-                    ? 'Unlock full Vaedros storyline'
-                    : option.text
-                }
-                onPress={() => {
-                  if (isPremiumLocked) {
-                    posthog.capture('premium_upsell_cta_clicked', {
-                      upsell_type: 'storyline_quest',
-                      trigger_location: 'home_storyline_options',
-                      quest_type: 'story',
-                      quest_id: option.nextQuestId,
-                    });
-                    onShowPaywall();
-                  } else {
-                    onQuestSelect(option.nextQuestId);
-                  }
-                }}
-                variant={
-                  isPremiumLocked
-                    ? 'primary'
-                    : index === 0
-                      ? 'secondary'
-                      : 'primary'
-                }
-                isPremiumLocked={isPremiumLocked}
-                disabled={!option.nextQuestId}
-                flex
-                delay={400 + index * 100}
-              />
-            </React.Fragment>
-          );
-        })}
-      </View>
+      <StoryDecision delay={400}>
+        <TwoChoiceDecision
+          key={`${optionA.id}-${optionB.id}`}
+          optionA={optionA}
+          optionB={optionB}
+          onQuestSelect={onQuestSelect}
+          testID={`story-option-${optionA.id}-${optionB.id}`}
+        />
+      </StoryDecision>
     </Animated.View>
   );
 }
@@ -299,19 +350,19 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
-    paddingHorizontal: spacing[4],
+    // Local padding is on top of ScreenContainer's own 16pt inset. The
+    // CARD_WIDTH-based StoryCTA buttons below are wider than the resulting
+    // content box and self-center via overflow, so their rendered inset
+    // from the true screen edge is unaffected by this value (always nets
+    // out to the deck's 20pt — verified by inspection). DecisionSlider has
+    // no fixed width, so it *does* respect this padding: spacing[2] (8pt)
+    // combined with ScreenContainer's 16pt lands it at a 24pt inset,
+    // matching the decisionSlider README's 24pt side padding at 390pt
+    // design width exactly.
+    paddingHorizontal: spacing[2],
   },
-  row: {
+  decisionWrapper: {
     width: '100%',
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  flexOption: {
-    flex: 1,
-  },
-  flexGrow: {
-    flexGrow: 1,
   },
   premiumBadge: {
     alignSelf: 'flex-start',

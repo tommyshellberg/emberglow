@@ -2,6 +2,10 @@ module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
+  // .worktrees/ holds other sessions' checkouts — without this, bare
+  // `pnpm test` collects hundreds of duplicate test files that fail on
+  // mixed-tree module resolution.
+  testPathIgnorePatterns: ['/node_modules/', '/.worktrees/'],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

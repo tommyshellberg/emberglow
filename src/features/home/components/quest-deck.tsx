@@ -65,11 +65,13 @@ const CARD_TOP = DECK_HEIGHT - CARD_HEIGHT;
  * deck advances to the next mode.
  *
  * Uses `PanResponder` rather than `react-native-gesture-handler`'s
- * `Gesture`/`GestureDetector` API: the repo's `__mocks__/react-native-
- * gesture-handler.ts` points at a stale `src/mocks.ts` path the installed
- * package no longer ships (it's `mocks.tsx` now), so `GestureDetector`
- * can't render in tests. PanResponder is core React Native and needs no
- * special jest wiring.
+ * `Gesture`/`GestureDetector` API. Historical reason: the repo's
+ * `__mocks__/react-native-gesture-handler.ts` was broken (stale
+ * `src/mocks.ts` path), so `GestureDetector` couldn't render in tests.
+ * That mock has since been fixed (it now mirrors the package's official
+ * jestSetup, so `GestureDetector` works — see decision-slider.tsx), but
+ * PanResponder is kept here: it works, and swapping gesture systems is a
+ * behavior change with no payoff for this deck.
  */
 export function QuestDeck({ data, activeIndex, onAdvance }: QuestDeckProps) {
   const total = data.length;

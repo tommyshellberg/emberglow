@@ -13,7 +13,7 @@ import Animated, {
 
 import { useNextAvailableQuests } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
-import { Button, EyebrowLabel } from '@/components/emberglow';
+import { DecisionSlider, EyebrowLabel } from '@/components/emberglow';
 import { EmberProgress } from '@/components/onboarding/ember-progress';
 import { BackgroundImage, FocusAwareStatusBar } from '@/components/ui';
 import { audioCacheService } from '@/lib/services/audio-cache.service';
@@ -41,6 +41,8 @@ const TITLE_FONT_SIZE = 36;
 const NARRATIVE_MAX_WIDTH = 291;
 const NARRATIVE_FONT_SIZE = 16;
 const INSTRUCTION_FONT_SIZE = 14;
+// One step below the instruction line — a hint, not an instruction.
+const HOLD_HINT_FONT_SIZE = 13;
 
 // Staged fade+rise entrance — converges the screen's former 4-stage
 // bespoke-spring choreography onto the phase's standard pattern
@@ -274,13 +276,20 @@ export default function FirstQuestScreen() {
         </Animated.View>
 
         <Animated.View style={[buttonStyle, styles.buttonWrapper]}>
-          <Button
-            label="Wake up"
+          {/* First-time users won't know the orb is a hold control — this
+              hint enters with the CTA stage. Copy is provisional; the
+              founder adjusts wording on the visual pass. */}
+          <Text style={styles.holdHint}>Press and hold the ember to begin</Text>
+          {/* Single-choice hold-to-commit (Task 28): the screen already
+              leads with the "Chapter one" EyebrowLabel above, so the
+              slider's own default eyebrow ("One path remains") is
+              suppressed here to avoid doubling the device — a founder-
+              flagged judgment call, reversible by dropping this prop. */}
+          <DecisionSlider
+            choices={['Wake up']}
+            eyebrow={null}
             testID="wake-up-button"
-            onPress={handleStartQuest}
-            variant="primary"
-            size="lg"
-            fullWidth
+            onCommit={handleStartQuest}
           />
         </Animated.View>
       </View>
@@ -340,6 +349,20 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   buttonWrapper: {
-    marginTop: 26,
+    // Reduced from the former Button's 26pt: the CTA stage is now the hint
+    // line (~20pt + 8pt gap) + the single-choice slider block (eyebrow-less
+    // label row + 60pt track zone + 14pt internal gap ≈ 98pt) — ~126pt total
+    // vs. the 54pt Button it replaced (net ~+58pt after this 14pt trim).
+    // The `spacer` above absorbs the slack on typical screens; small-screen
+    // fit is only verifiable on-device.
+    marginTop: 12,
+  },
+  holdHint: {
+    fontFamily: fontFamily.regular,
+    fontSize: HOLD_HINT_FONT_SIZE,
+    lineHeight: HOLD_HINT_FONT_SIZE * 1.5,
+    color: colors.text.muted,
+    textAlign: 'center',
+    marginBottom: spacing[2],
   },
 });

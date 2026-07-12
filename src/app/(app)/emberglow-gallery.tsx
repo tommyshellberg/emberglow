@@ -28,6 +28,7 @@ import type {
   BadgeTone,
   ButtonSize,
   ButtonVariant,
+  DecisionSliderProps,
   EyebrowLabelTone,
   QuestCardStatus,
 } from '@/components/emberglow';
@@ -35,6 +36,7 @@ import {
   Badge,
   BottomSheet,
   Button,
+  DecisionSlider,
   EyebrowLabel,
   IconButton,
   Input,
@@ -90,6 +92,42 @@ function SubSection({
     <View style={styles.subSection}>
       <Text style={styles.subSectionTitle}>{title}</Text>
       {children}
+    </View>
+  );
+}
+
+function DecisionSliderDemo({
+  choices,
+}: {
+  choices: DecisionSliderProps['choices'];
+}) {
+  const [committed, setCommitted] = React.useState<number | null>(null);
+  // Committing locks a slider instance by design; remount to try again.
+  const [instance, setInstance] = React.useState(0);
+
+  return (
+    <View style={styles.column}>
+      <DecisionSlider
+        key={instance}
+        choices={choices}
+        onCommit={setCommitted}
+      />
+      {committed !== null ? (
+        <>
+          <Text style={styles.helperText}>
+            {`Committed: "${choices[committed]}"`}
+          </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Reset"
+            onPress={() => {
+              setCommitted(null);
+              setInstance((n) => n + 1);
+            }}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -296,6 +334,23 @@ export default function EmberglowGalleryScreen() {
             image={QUEST_IMAGE}
             glow
           />
+        </SubSection>
+      </Section>
+
+      <Section title="DecisionSlider">
+        <SubSection title="Two choices (long + short label pair)">
+          <DecisionSliderDemo
+            choices={[
+              'Trust the flickering magic within you, whatever it costs',
+              'Turn back',
+            ]}
+          />
+        </SubSection>
+        <SubSection title="Single choice (hold to commit)">
+          <DecisionSliderDemo choices={['Wake up']} />
+        </SubSection>
+        <SubSection title="Disabled">
+          <DecisionSlider choices={['Wake up']} onCommit={() => {}} disabled />
         </SubSection>
       </Section>
 

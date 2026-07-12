@@ -20,6 +20,12 @@ export type { SwitchProps } from './core/switch';
 export { Switch } from './core/switch';
 
 // quest
+export type { DecisionSliderProps } from './quest/decision-slider';
+export {
+  decisionCommitIndex,
+  DecisionSlider,
+  isDecisionCommitRelease,
+} from './quest/decision-slider';
 export type { ListItemProps } from './quest/list-item';
 export { ListItem } from './quest/list-item';
 export type { ProgressRingProps } from './quest/progress-ring';
