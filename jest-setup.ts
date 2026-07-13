@@ -189,6 +189,9 @@ jest.mock('@gorhom/bottom-sheet', () => {
     BottomSheetModalProvider: jest.fn(({ children }) => children),
     BottomSheetBackdrop: jest.fn(() => null),
     BottomSheetScrollView: jest.fn(({ children }) => children),
+    BottomSheetTextInput: jest.fn((props) =>
+      React.createElement(RN.TextInput, props)
+    ),
     BottomSheetFlatList: jest.fn((props) =>
       React.createElement(RN.FlatList, props)
     ),
