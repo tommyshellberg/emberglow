@@ -16,7 +16,7 @@ jest.mock('../guild-icon', () => ({
 const createMockGuild = (overrides?: Partial<Guild>): Guild => ({
   id: 'guild-123',
   name: 'Morning Warriors',
-  icon: 'campfire',
+  icon: 'flame',
   tagline: 'Rise and disconnect',
   owner: {
     id: 'user-1',

@@ -4,10 +4,11 @@
  * A 2x4 grid of guild icons for selection during guild creation/editing.
  */
 
+import { Check } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
-import { Text, View } from '@/components/ui';
+import { View } from '@/components/ui';
 import { colors, palette, radii, shadows, spacing, withAlpha } from '@/theme';
 
 import { GUILD_ICONS } from '../constants/guild-icons';
@@ -45,7 +46,7 @@ export function GuildIconSelector({
                 testID={`selected-indicator-${icon.id}`}
                 style={styles.badge}
               >
-                <Text style={styles.badgeText}>✓</Text>
+                <Check size={12} color={colors.text.onAccent} strokeWidth={3} />
               </View>
             )}
           </Pressable>
@@ -89,9 +90,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent.primary,
-  },
-  badgeText: {
-    fontSize: 12,
-    color: colors.text.onAccent,
   },
 });

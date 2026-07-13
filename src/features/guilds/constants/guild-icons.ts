@@ -1,11 +1,33 @@
 /**
  * Guild Icons Configuration
  *
- * Defines the available guild icons with their SVG sources
- * and accessibility labels.
+ * Defines the available guild icons, mapping each id to a line-art
+ * Lucide icon component (matching the Emberglow design system) and its
+ * accessibility label. This module is the single source of truth for the
+ * id → icon mapping — every consumer (GuildIcon, list rows, the picker
+ * grid) resolves through `getGuildIconComponent`.
  */
 
+import {
+  Axe,
+  Coffee,
+  Compass,
+  Flag,
+  Flame,
+  Gem,
+  Hammer,
+  Scroll,
+  Tent,
+  Wand,
+} from 'lucide-react-native';
+
 import type { GuildIcon } from '../types/guild-types';
+
+/**
+ * `typeof Flag` stands in for lucide-react-native's internal (unexported)
+ * icon component signature — every icon in the package shares it.
+ */
+type GuildIconComponent = typeof Flag;
 
 /**
  * Icon configuration including display and accessibility properties
@@ -17,20 +39,20 @@ export interface GuildIconConfig {
 }
 
 /**
- * Map guild icon IDs to their SVG sources
- * Must be manually maintained since React Native doesn't support dynamic require()
+ * Map guild icon IDs to their Lucide icon component.
+ * Must be manually maintained since the id union is fixed.
  */
-export const GUILD_ICON_MAP: Record<GuildIcon, any> = {
-  axe: require('@/../assets/icons/guild/axe.svg'),
-  hammer: require('@/../assets/icons/guild/hammer.svg'),
-  camping: require('@/../assets/icons/guild/camping.svg'),
-  mug: require('@/../assets/icons/guild/mug.svg'),
-  flame: require('@/../assets/icons/guild/flame.svg'),
-  explorer: require('@/../assets/icons/guild/explorer.svg'),
-  magic: require('@/../assets/icons/guild/magic.svg'),
-  banner: require('@/../assets/icons/guild/banner.svg'),
-  scroll: require('@/../assets/icons/guild/scroll.svg'),
-  diamond: require('@/../assets/icons/guild/diamond.svg'),
+export const GUILD_ICON_COMPONENTS: Record<GuildIcon, GuildIconComponent> = {
+  axe: Axe,
+  hammer: Hammer,
+  camping: Tent,
+  mug: Coffee,
+  flame: Flame,
+  explorer: Compass,
+  magic: Wand,
+  banner: Flag,
+  scroll: Scroll,
+  diamond: Gem,
 };
 
 /**
@@ -94,15 +116,16 @@ export const GUILD_ICONS: readonly GuildIconConfig[] = [
  */
 export function getGuildIconConfig(iconId: GuildIcon): GuildIconConfig {
   const config = GUILD_ICONS.find((icon) => icon.id === iconId);
-  // Default to campfire if not found
+  // Default to camping (GUILD_ICONS[2]) if not found.
   return config ?? GUILD_ICONS[2];
 }
 
 /**
- * Get SVG source for a guild icon
+ * Get the Lucide icon component for a guild icon ID.
+ * Falls back to the banner icon for unknown ids.
  */
-export function getGuildIconSource(iconId: GuildIcon): any {
-  return GUILD_ICON_MAP[iconId] ?? GUILD_ICON_MAP.banner;
+export function getGuildIconComponent(iconId: GuildIcon): GuildIconComponent {
+  return GUILD_ICON_COMPONENTS[iconId] ?? GUILD_ICON_COMPONENTS.banner;
 }
 
 /**
