@@ -163,6 +163,13 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject,
+    // Explicit 100%/100% is required on the New Architecture (Fabric): an
+    // absolutely-positioned <Image> whose size comes only from the
+    // absoluteFill insets falls back to the require()'d asset's intrinsic
+    // pixel size anchored top-left, ignoring resizeMode. Giving it a
+    // definite frame makes the image cover the screen. Do not remove.
+    width: '100%',
+    height: '100%',
   },
   scrimTop: {
     position: 'absolute',
