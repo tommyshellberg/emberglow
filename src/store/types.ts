@@ -151,6 +151,8 @@ export interface CooperativeQuestRun {
   hostId: string;
   participants: QuestParticipant[];
   status: 'pending' | 'active' | 'completed' | 'failed';
+  /** 'individual' for scheduled events - your unlock fails only you. */
+  completionPolicy?: 'all_or_nothing' | 'individual';
   invitationId?: string;
   actualStartTime?: number;
   scheduledEndTime?: number;

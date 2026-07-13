@@ -160,4 +160,25 @@ describe('QuestCompleteStory', () => {
       expect(queryByTestId('story-narration-mock')).toBeNull();
     });
   });
+
+  describe('Cooperative Quest Card', () => {
+    it('should not wrap cooperative quest text in a Card', () => {
+      const { UNSAFE_queryByType } = render(
+        <QuestCompleteStory
+          story="Cooperative quest text"
+          quest={mockCooperativeQuest}
+        />
+      );
+      const Card = require('@/components/ui/card').Card;
+      expect(UNSAFE_queryByType(Card)).toBeNull();
+    });
+
+    it('should still wrap story quest text in a Card', () => {
+      const { UNSAFE_queryByType } = render(
+        <QuestCompleteStory story="Story quest text" quest={mockStoryQuest} />
+      );
+      const Card = require('@/components/ui/card').Card;
+      expect(UNSAFE_queryByType(Card)).toBeTruthy();
+    });
+  });
 });

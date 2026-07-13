@@ -14,12 +14,17 @@ const button = tv({
   variants: {
     variant: {
       default: {
-        container: 'bg-primary-500',
-        label: 'text-white',
-        indicator: 'text-white',
+        container: 'bg-primary-400',
+        label: 'text-black',
+        indicator: 'text-black',
       },
       secondary: {
         container: 'bg-primary-300',
+        label: 'text-white',
+        indicator: 'text-white',
+      },
+      muted: {
+        container: 'bg-cardBackground',
         label: 'text-white',
         indicator: 'text-white',
       },

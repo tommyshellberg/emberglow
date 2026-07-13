@@ -11,6 +11,9 @@ import { Env } from '@env';
 type CombinedQuestInputProps = {
   initialQuestName?: string;
   initialDuration?: number;
+  /** When provided (e.g. a scheduled event's chosen start time), the FROM/TO
+   * preview is derived from it instead of the current time. */
+  startsAt?: Date;
   onQuestNameChange?: (value: string) => void;
   onDurationChange?: (value: number) => void;
 };
@@ -18,6 +21,7 @@ type CombinedQuestInputProps = {
 export const CombinedQuestInput = ({
   initialQuestName = '',
   initialDuration = 30,
+  startsAt,
   onQuestNameChange,
   onDurationChange,
 }: CombinedQuestInputProps) => {
@@ -38,7 +42,7 @@ export const CombinedQuestInput = ({
   }, [initialQuestName, initialDuration]);
 
   // Calculate start and end times based on visual slider value for real-time feedback
-  const now = new Date();
+  const now = startsAt ?? new Date();
   const endTime = new Date(now.getTime() + sliderValue * 60000);
 
   // Handle quest name change - update both local state and parent

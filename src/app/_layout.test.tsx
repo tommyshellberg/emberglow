@@ -503,6 +503,103 @@ describe('RootLayout', () => {
     jest.useRealTimers();
   });
 
+  it('should route scheduled_quest_starting_soon/started/cancelled clicks to the event screen', async () => {
+    // Use fake timers for this test since there's a setTimeout in the code
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    // Wait for OneSignal to be initialized
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    // Get the click handler
+    const clickHandler = (
+      OneSignal.Notifications.addEventListener as jest.Mock
+    ).mock.calls.find((call) => call[0] === 'click')[1];
+
+    for (const type of [
+      'scheduled_quest_starting_soon',
+      'scheduled_quest_started',
+      'scheduled_quest_cancelled',
+    ]) {
+      mockPush.mockClear();
+
+      // Simulate notification click
+      const mockEvent = {
+        notification: {
+          additionalData: {
+            type,
+            questRunId: 'r1',
+          },
+        },
+      };
+
+      clickHandler(mockEvent);
+
+      // Fast-forward time by 1 second (the setTimeout delay in the code)
+      jest.advanceTimersByTime(1000);
+
+      // Should navigate to the scheduled quest event screen
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/scheduled-quest/r1');
+      });
+    }
+
+    // Restore real timers
+    jest.useRealTimers();
+  });
+
+  it('should route scheduled_quest_kicked clicks to the scheduled quest list', async () => {
+    // Use fake timers for this test since there's a setTimeout in the code
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    // Wait for OneSignal to be initialized
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    // Get the click handler
+    const clickHandler = (
+      OneSignal.Notifications.addEventListener as jest.Mock
+    ).mock.calls.find((call) => call[0] === 'click')[1];
+
+    // Simulate notification click
+    const mockEvent = {
+      notification: {
+        additionalData: {
+          type: 'scheduled_quest_kicked',
+        },
+      },
+    };
+
+    clickHandler(mockEvent);
+
+    // Fast-forward time by 1 second (the setTimeout delay in the code)
+    jest.advanceTimersByTime(1000);
+
+    // Should navigate to the scheduled quest list
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
+    });
+
+    // Restore real timers
+    jest.useRealTimers();
+  });
+
   it('should handle quest failure notifications', async () => {
     const { OneSignal } = require('react-native-onesignal');
     const { useQuestStore } = require('@/store/quest-store');

@@ -1,0 +1,19 @@
+<!-- @dsCard group="Spacing" viewport="700x240" subtitle="Scrim gradients protect text over full-bleed art" name="Scrims Over Art" -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; font-family: var(--font-body); }
+  .frame { position: relative; height: 240px; background: url('../assets/backgrounds/onboarding-bg.jpg') center 30% / cover; overflow: hidden; }
+  .top { position: absolute; inset: 0 0 auto 0; height: 45%; background: var(--scrim-top); }
+  .bot { position: absolute; inset: auto 0 0 0; height: 55%; background: var(--scrim-bottom); }
+  .txt { position: absolute; left: 24px; bottom: 18px; color: var(--text-primary); }
+  .txt h2 { font-family: var(--font-display); font-weight: 400; font-size: 24px; margin: 0 0 4px; }
+  .txt p { margin: 0; font-size: 14px; color: var(--text-secondary); }
+  a { color: var(--text-accent); } a:hover { color: var(--ember-sandy-80); }
+</style></head><body>
+<div class="frame">
+  <div class="top"></div>
+  <div class="bot"></div>
+  <div class="txt"><h2>The road calls</h2><p>scrim-top + scrim-bottom · Rich Black gradients, never flat overlays</p></div>
+</div>
+</body></html>

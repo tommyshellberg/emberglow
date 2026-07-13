@@ -418,6 +418,15 @@ describe('AppQuestDetailsScreen', () => {
       expect(screen.getByText('Add Reflection')).toBeOnTheScreen();
     });
 
+    it('renders the "Add Reflection" button below the quest-complete content, not above it', () => {
+      render(<AppQuestDetailsScreen />);
+
+      const tree = JSON.stringify(screen.toJSON());
+      expect(tree.indexOf('Quest Complete!')).toBeLessThan(
+        tree.indexOf('Add Reflection')
+      );
+    });
+
     it('shows different action button when not from journal', () => {
       mockUseLocalSearchParams.mockReturnValue({
         id: 'quest-123',

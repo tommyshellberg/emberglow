@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  CalendarClock,
   ChevronRight,
   Info,
   PlusCircle,
@@ -56,6 +57,14 @@ const menuOptions: MenuOption[] = [
     color: 'bg-secondary-400',
   },
   {
+    id: 'events',
+    title: 'Public Events',
+    description: 'Discover and register for scheduled community quests',
+    icon: <CalendarClock size={32} color="#FFFFFF" />,
+    route: '/scheduled-quest',
+    color: 'bg-primary-400',
+  },
+  {
     id: 'friends',
     title: 'Add Friends',
     description: 'Connect with friends to quest together',
@@ -72,6 +81,11 @@ export default function CooperativeQuestMenu() {
   const user = useUserStore((state) => state.user);
   const userEmail = user?.email || '';
   const { connect: connectWebSocket } = useLazyWebSocket();
+  const hasScheduledEventsAccess =
+    user?.featureFlags?.includes('scheduled_events') ?? false;
+  const visibleMenuOptions = menuOptions.filter(
+    (option) => option.id !== 'events' || hasScheduledEventsAccess
+  );
 
   // Connect WebSocket when entering cooperative quest flow
   React.useEffect(() => {
@@ -242,7 +256,7 @@ export default function CooperativeQuestMenu() {
 
         {/* Menu Options */}
         <View className="flex-1 gap-4">
-          {menuOptions.map((option) => (
+          {visibleMenuOptions.map((option) => (
             <TouchableOpacity
               key={option.id}
               onPress={() => handleOptionPress(option)}
