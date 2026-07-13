@@ -115,12 +115,6 @@ export function QuestDeck({ data, activeIndex, onAdvance }: QuestDeckProps) {
           );
         })}
       </View>
-      <View style={styles.hintRow}>
-        <Layers size={14} color={colors.text.muted} />
-        <Text style={styles.hintText}>
-          {`Swipe or tap the stack — ${nextLabel} is next`}
-        </Text>
-      </View>
     </View>
   );
 }

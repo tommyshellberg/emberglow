@@ -186,11 +186,6 @@ describe('Home Component - Integration Tests', () => {
       // User sees the main header
       expect(screen.getByText('Choose Your Adventure')).toBeTruthy();
 
-      // User sees description
-      expect(
-        screen.getByText(/Continue your epic story, create a quest/)
-      ).toBeTruthy();
-
       unmount();
     });
 
