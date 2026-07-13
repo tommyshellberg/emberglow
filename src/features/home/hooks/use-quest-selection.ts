@@ -2,24 +2,16 @@ import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import { useCallback } from 'react';
 
+import { type QuestOption, type QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
-import { type StoryQuestTemplate } from '@/store/types';
+import { type LocalQuestTemplate } from '@/store/types';
 
-interface ServerQuest {
-  customId: string;
-  _id?: string;
-  title?: string;
-  mode?: 'story' | 'custom';
-  [key: string]: any;
-}
-
-interface QuestOption {
-  nextQuestId: string | null;
-  nextQuest?: ServerQuest;
-  [key: string]: any;
-}
+// The server-provided quest shape (matches the API's QuestTemplate, which
+// already carries the story-specific fields like poiSlug/story/recap/options
+// as well as durationMinutes/reward needed by LocalQuestTemplate).
+type ServerQuest = QuestTemplate;
 
 interface UseQuestSelectionProps {
   serverQuests: ServerQuest[];
@@ -67,10 +59,10 @@ export function useQuestSelection({
         };
 
         posthog.capture('trigger_start_quest');
-        prepareQuest(clientQuest as StoryQuestTemplate);
+        prepareQuest(clientQuest as LocalQuestTemplate);
 
         try {
-          await QuestTimer.prepareQuest(clientQuest as StoryQuestTemplate);
+          await QuestTimer.prepareQuest(clientQuest as LocalQuestTemplate);
           posthog.capture('success_start_quest');
 
           // Navigate to pending-quest screen with push (not replace) so back button works

@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import { useCallback, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import {
   acceptFriendInvitation,
+  type FriendDetails,
   getUserFriends,
   getUserInvitations,
+  type Invitation,
   rejectFriendInvitation,
   removeFriend,
   rescindInvitation,
@@ -23,6 +26,23 @@ interface BulkInviteResult {
   reason?: string;
 }
 
+// `sendBulkFriendInvites`'s declared return type (src/lib/services/user.ts) is
+// missing `invalidEmails`, even though the server always includes it
+// (unquest-server src/controllers/user.controller.js `sendBulkFriendInvites`).
+// Extend the type locally rather than casting to `any` at each call site.
+// Ideally this field should be added to the canonical return type in
+// src/lib/services/user.ts.
+type BulkInviteApiResponse = Awaited<
+  ReturnType<typeof sendBulkFriendInvites>
+> & {
+  invalidEmails?: { email: string; reason: string }[];
+};
+
+type CombinedFriendEntry =
+  | { type: 'invitation'; data: Invitation; id: string; incoming: true }
+  | { type: 'friend'; data: FriendDetails; id: string }
+  | { type: 'invitation'; data: Invitation; id: string; outgoing: true };
+
 export function useFriendManagement(
   userEmail: string,
   contactsModalRef?: React.RefObject<any>
@@ -30,8 +50,11 @@ export function useFriendManagement(
   const [refreshing, setRefreshing] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [rescindModalVisible, setRescindModalVisible] = useState(false);
-  const [friendToDelete, setFriendToDelete] = useState(null);
-  const [invitationToRescind, setInvitationToRescind] = useState(null);
+  const [friendToDelete, setFriendToDelete] = useState<FriendDetails | null>(
+    null
+  );
+  const [invitationToRescind, setInvitationToRescind] =
+    useState<Invitation | null>(null);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
 
@@ -66,7 +89,7 @@ export function useFriendManagement(
 
   // Function to determine if an invitation is outgoing
   const isOutgoingInvitation = useCallback(
-    (invitation) => {
+    (invitation: Invitation) => {
       return invitation.sender.email.toLowerCase() === userEmail.toLowerCase();
     },
     [userEmail]
@@ -78,8 +101,8 @@ export function useFriendManagement(
     const invitations = invitationsData?.results || [];
 
     // Create a Map to track emails we've already seen
-    const seenEmails = new Map();
-    const result = [];
+    const seenEmails = new Map<string, boolean>();
+    const result: CombinedFriendEntry[] = [];
 
     // First process incoming invitations
     invitations
@@ -167,7 +190,10 @@ export function useFriendManagement(
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
     },
     onError: (error) => {
-      if (error.response?.data?.message) {
+      if (
+        axios.isAxiosError<{ message?: string }>(error) &&
+        error.response?.data?.message
+      ) {
         setInviteError(error.response.data.message);
       } else {
         setInviteError('Failed to send friend request');
@@ -177,7 +203,7 @@ export function useFriendManagement(
 
   // Handlers
   const handleAcceptInvitation = useCallback(
-    (invitationId) => {
+    (invitationId: string) => {
       if (
         acceptMutation.isPending &&
         acceptMutation.variables === invitationId
@@ -190,7 +216,7 @@ export function useFriendManagement(
   );
 
   const handleRejectInvitation = useCallback(
-    (invitationId) => {
+    (invitationId: string) => {
       if (
         rejectMutation.isPending &&
         rejectMutation.variables === invitationId
@@ -202,7 +228,7 @@ export function useFriendManagement(
     [rejectMutation]
   );
 
-  const handleDeleteFriend = useCallback((friend) => {
+  const handleDeleteFriend = useCallback((friend: FriendDetails) => {
     setFriendToDelete(friend);
     setDeleteModalVisible(true);
   }, []);
@@ -220,7 +246,7 @@ export function useFriendManagement(
     setFriendToDelete(null);
   }, []);
 
-  const handleRescindInvitation = useCallback((invitation) => {
+  const handleRescindInvitation = useCallback((invitation: Invitation) => {
     setInvitationToRescind(invitation);
     setRescindModalVisible(true);
   }, []);
@@ -239,7 +265,7 @@ export function useFriendManagement(
   }, []);
 
   const handleSendFriendRequest = useCallback(
-    async (data) => {
+    async (data: InviteFormData) => {
       if (data.email.trim().toLowerCase() === userEmail) {
         setInviteError('You cannot invite yourself as a friend');
         return;
@@ -269,7 +295,8 @@ export function useFriendManagement(
         }
 
         // Use the bulk endpoint
-        const response = await sendBulkFriendInvites(emailsToSend);
+        const response: BulkInviteApiResponse =
+          await sendBulkFriendInvites(emailsToSend);
 
         // Convert response to expected format
         const results: BulkInviteResult[] = [];
@@ -291,7 +318,12 @@ export function useFriendManagement(
         // Add failed emails
         if (response.failedEmails && Array.isArray(response.failedEmails)) {
           response.failedEmails.forEach((failedItem) => {
-            const email = failedItem.email || failedItem;
+            // `failedItem` is always `{ email, reason }` per the server response
+            // (unquest-server user.controller.js `sendBulkFriendInvites`), so
+            // `.email` is always a non-empty string and this fallback never
+            // actually runs; the `as string` just satisfies the `||`
+            // fallback's structural union without altering behavior.
+            const email = (failedItem.email || failedItem) as string;
             const reason = failedItem.reason || 'Failed to send invitation';
             emailToResultMap.set(email.toLowerCase(), {
               email,
@@ -304,7 +336,10 @@ export function useFriendManagement(
         // Add invalid emails
         if (response.invalidEmails && Array.isArray(response.invalidEmails)) {
           response.invalidEmails.forEach((invalidItem) => {
-            const email = invalidItem.email || invalidItem;
+            // Same rationale as the `failedEmails` branch above: `invalidItem`
+            // is always `{ email, reason }` at runtime, so this fallback is
+            // unreachable and the cast is purely to satisfy the type checker.
+            const email = (invalidItem.email || invalidItem) as string;
             const reason = invalidItem.reason || 'Invalid email address';
             emailToResultMap.set(email.toLowerCase(), {
               email,

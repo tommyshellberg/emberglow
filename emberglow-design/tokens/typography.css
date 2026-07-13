@@ -1,0 +1,38 @@
+/* Emberglow — Typography (Erstoria display + Source Sans 3 body) */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300..700;1,400&display=swap');
+
+@font-face {
+  font-family: 'Erstoria';
+  src: url('../assets/fonts/Erstoria-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: 'Erstoria', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif;
+
+  /* Scale */
+  --text-hero: 44px;        /* Erstoria — screen titles */
+  --text-h1: 34px;          /* Erstoria */
+  --text-h2: 26px;          /* Erstoria */
+  --text-h3: 20px;          /* Source Sans 3 semibold */
+  --text-body-lg: 18px;     /* brand guide body size */
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-caption: 12px;
+
+  --leading-body: 1.5;      /* brand guide: size × 1.5 */
+  --leading-display: 1.12;
+
+  /* Eyebrow / label style (QUEST IN PROGRESS) */
+  --tracking-label: 0.22em;
+  --tracking-wide: 0.08em;
+
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+}

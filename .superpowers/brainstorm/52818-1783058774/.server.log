@@ -1,0 +1,4 @@
+{"type":"server-started","port":63912,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:63912","screen_dir":"/Users/thomasshellberg/Projects/unquest/unquest/.superpowers/brainstorm/52818-1783058774"}
+{"type":"screen-added","file":"/Users/thomasshellberg/Projects/unquest/unquest/.superpowers/brainstorm/52818-1783058774/quest-screen-direction.html"}
+{"type":"screen-added","file":"/Users/thomasshellberg/Projects/unquest/unquest/.superpowers/brainstorm/52818-1783058774/quest-screen-v2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

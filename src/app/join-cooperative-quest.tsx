@@ -1,14 +1,14 @@
 /**
  * Join Cooperative Quest Screen
  *
- * Lists pending cooperative-quest invitations (accept/decline) and previews
- * the out-of-scope "Public Quests" feature when there are none. Recomposed
- * onto Emberglow base components (Badge, Button) + theme tokens — see
- * docs/plans/emberglow-phase-3-screen-recomposition.md, Task 17.
+ * Lists pending cooperative-quest invitations (accept/decline) and surfaces
+ * an entry point into Public Events (scheduled community quests) when there
+ * are none. Recomposed onto Emberglow base components (Button) + theme
+ * tokens — see docs/plans/emberglow-phase-3-screen-recomposition.md, Task 17.
  */
 
 import { useRouter } from 'expo-router';
-import { Clock, Inbox, Info, User, Users } from 'lucide-react-native';
+import { Clock, Inbox, User, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 
 import { invitationApi } from '@/api/invitation';
-import { Badge, Button } from '@/components/emberglow';
+import { Button } from '@/components/emberglow';
 import {
   FocusAwareStatusBar,
   ScreenContainer,
@@ -29,16 +29,6 @@ import {
   showErrorMessage,
 } from '@/components/ui';
 import { colors, fontFamily, fontSize, radii, shadows, spacing } from '@/theme';
-
-const MOCK_PUBLIC_QUESTS = [
-  {
-    title: 'Morning Productivity Challenge',
-    host: 'ProductivityPro',
-    duration: 25,
-    participants: '12/20',
-    startTime: 'Starts in 5 min',
-  },
-];
 
 interface InvitationCardProps {
   invitation: any;
@@ -242,76 +232,23 @@ export default function JoinCooperativeQuest() {
                 </Text>
               </View>
 
-              {/* Public Quests Section - Coming Soon */}
+              {/* Public Events — entry into the scheduled community quests
+                  feature. Replaces the former "Public Quests — Coming Soon"
+                  placeholder now that /scheduled-quest has shipped (recomposed
+                  onto Emberglow Button + theme tokens). */}
               <View style={styles.publicQuestsSection}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Public Quests</Text>
-                  <Badge tone="neutral">Coming Soon</Badge>
-                </View>
-
-                {/* Mock Public Quest Cards */}
-                <View style={styles.mockQuestsWrapper}>
-                  {MOCK_PUBLIC_QUESTS.map((quest) => (
-                    <View key={quest.title} style={styles.mockQuestCard}>
-                      <View style={styles.mockQuestHeader}>
-                        <Text style={styles.mockQuestTitle}>{quest.title}</Text>
-                        <View style={styles.metaRow}>
-                          <User size={16} color={colors.text.muted} />
-                          <Text style={styles.metaText}>
-                            Hosted by {quest.host}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.mockQuestStatsRow}>
-                        <View style={styles.metaRow}>
-                          <Clock size={16} color={colors.text.muted} />
-                          <Text style={styles.metaText}>
-                            {quest.duration} min
-                          </Text>
-                        </View>
-                        <View style={styles.metaRow}>
-                          <Users size={16} color={colors.text.muted} />
-                          <Text style={styles.metaText}>
-                            {quest.participants}
-                          </Text>
-                        </View>
-                        <Text style={styles.mockQuestStartTime}>
-                          {quest.startTime}
-                        </Text>
-                      </View>
-
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        label="Join (Coming Soon)"
-                        disabled
-                      />
-                    </View>
-                  ))}
-                </View>
-
-                {/* Dark token-styled banner — matches the "How it works"
-                    info-card recipe in cooperative-quest-menu.tsx. The
-                    legacy @/components/ui/info-card renders a light salmon
-                    block, which Emberglow forbids in-app. */}
-                <View style={styles.infoCard}>
-                  <Info
-                    size={20}
-                    color={colors.text.accent}
-                    style={styles.infoCardIcon}
-                  />
-                  <View style={styles.infoCardBody}>
-                    <Text style={styles.infoCardTitle}>
-                      Public Quests are coming soon!
-                    </Text>
-                    <Text style={styles.infoCardText}>
-                      Soon you'll be able to join quests created by the
-                      community, compete on leaderboards, and find
-                      accountability partners worldwide.
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.sectionTitle}>Public Events</Text>
+                <Text style={styles.publicEventsBlurb}>
+                  Join scheduled quests from the community — register now, show
+                  up at start time.
+                </Text>
+                <Button
+                  testID="browse-public-events"
+                  variant="primary"
+                  label="Browse public events"
+                  onPress={() => router.push('/scheduled-quest')}
+                  fullWidth
+                />
               </View>
             </>
           ) : (
@@ -394,43 +331,11 @@ const styles = StyleSheet.create({
   publicQuestsSection: {
     marginTop: spacing[8],
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing[4],
-  },
-  mockQuestsWrapper: {
-    opacity: 0.6,
-  },
-  mockQuestCard: {
+  publicEventsBlurb: {
     marginBottom: spacing[3],
-    padding: spacing[4],
-    backgroundColor: colors.surface.raised,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.hairline,
-    ...shadows.raised,
-    gap: spacing[3],
-  },
-  mockQuestHeader: {
-    gap: spacing[1],
-  },
-  mockQuestTitle: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.body,
-    color: colors.text.primary,
-  },
-  mockQuestStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[4],
-  },
-  mockQuestStartTime: {
-    fontFamily: fontFamily.semibold,
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.small,
-    color: colors.text.accent,
-    marginLeft: 'auto',
+    color: colors.text.secondary,
   },
   metaRow: {
     flexDirection: 'row',
@@ -450,35 +355,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.hairline,
     ...shadows.card,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing[3],
-    backgroundColor: colors.surface.raised,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.hairline,
-    padding: spacing[4],
-    ...shadows.card,
-  },
-  infoCardIcon: {
-    marginTop: 2,
-  },
-  infoCardBody: {
-    flex: 1,
-  },
-  infoCardTitle: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 15,
-    color: colors.text.primary,
-    marginBottom: 4,
-  },
-  infoCardText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-    lineHeight: 13 * 1.5,
-    color: colors.text.secondary,
   },
   invitationTitle: {
     fontFamily: fontFamily.display,

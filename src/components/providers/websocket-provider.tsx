@@ -198,7 +198,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         const questStore = useQuestStore.getState();
         const cooperativeQuestRun = questStore.cooperativeQuestRun;
 
-        if (cooperativeQuestRun?.id === data.questRunId) {
+        if (cooperativeQuestRun && cooperativeQuestRun.id === data.questRunId) {
           // Update the cooperative quest run status
           questStore.setCooperativeQuestRun({
             ...cooperativeQuestRun,
@@ -271,15 +271,19 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue: WebSocketContextValue = {
     isConnected: webSocketService.getConnectionStatus(),
-    on: (event, handler) => webSocketService.on(event, handler),
-    off: (event, handler) => webSocketService.off(event, handler),
+    on: (event: string, handler: (...args: any[]) => void) =>
+      webSocketService.on(event, handler),
+    off: (event: string, handler?: (...args: any[]) => void) =>
+      webSocketService.off(event, handler),
     emit: (event, data) => webSocketService.emit(event, data),
     joinQuestRoom: (questRunId) => webSocketService.joinQuestRoom(questRunId),
     leaveQuestRoom: (questRunId) => webSocketService.leaveQuestRoom(questRunId),
     forceReconnect: () => webSocketService.forceReconnect(),
     // Alias methods for compatibility
-    addListener: (event, handler) => webSocketService.on(event, handler),
-    removeListener: (event, handler) => webSocketService.off(event, handler),
+    addListener: (event: string, handler: (...args: any[]) => void) =>
+      webSocketService.on(event, handler),
+    removeListener: (event: string, handler?: (...args: any[]) => void) =>
+      webSocketService.off(event, handler),
   };
 
   return (

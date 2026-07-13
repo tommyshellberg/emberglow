@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import {
+  CalendarClock,
   ChevronRight,
   Info,
   PlusCircle,
@@ -53,6 +54,13 @@ const menuOptions: MenuOption[] = [
     route: '/join-cooperative-quest',
   },
   {
+    id: 'events',
+    title: 'Public Events',
+    description: 'Discover and register for scheduled community quests',
+    icon: <CalendarClock size={20} color={colors.text.accent} />,
+    route: '/scheduled-quest',
+  },
+  {
     id: 'friends',
     title: 'Add Friends',
     description: 'Connect with friends to quest together',
@@ -87,9 +95,14 @@ export default function CooperativeQuestMenu() {
   const contactsModalRef = useRef<ContactsImportModalRef>(null);
   // `AuthState` (src/lib/auth) has no `user` field — the real signed-in
   // user's email lives in the user store, not the auth store.
-  const currentUser = useUserStore((state) => state.user);
-  const userEmail = currentUser?.email || '';
+  const user = useUserStore((state) => state.user);
+  const userEmail = user?.email || '';
   const { connect: connectWebSocket } = useLazyWebSocket();
+  const hasScheduledEventsAccess =
+    user?.featureFlags?.includes('scheduled_events') ?? false;
+  const visibleMenuOptions = menuOptions.filter(
+    (option) => option.id !== 'events' || hasScheduledEventsAccess
+  );
 
   // Connect WebSocket when entering cooperative quest flow
   React.useEffect(() => {
@@ -153,7 +166,7 @@ export default function CooperativeQuestMenu() {
           <>
             {/* Menu Options */}
             <View style={styles.menuList}>
-              {menuOptions.map((option) => (
+              {visibleMenuOptions.map((option) => (
                 <View key={option.id} style={styles.rowCard}>
                   <ListItem
                     title={option.title}

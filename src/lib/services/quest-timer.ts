@@ -18,11 +18,7 @@ import {
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
-import {
-  type CustomQuestTemplate,
-  type Quest,
-  type StoryQuestTemplate,
-} from '@/store/types';
+import { type LocalQuestTemplate, type Quest } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
 // --- Linter Fix for Type Errors ---
@@ -55,9 +51,7 @@ function parseIntSafe(value: string | null | undefined): number | null {
 export default class QuestTimer {
   private static isPhoneLocked: boolean = false;
   private static questStartTime: number | null = null;
-  private static questTemplate:
-    | (CustomQuestTemplate | StoryQuestTemplate)
-    | null = null;
+  private static questTemplate: LocalQuestTemplate | null = null;
   // Store the OneSignal activity ID (this replaces the old liveActivityId)
   private static oneSignalActivityId: string | null = null;
   // Add quest run ID to track the server-side quest run
@@ -99,9 +93,7 @@ export default class QuestTimer {
       // Use the safe parsing helper
       const templateJson = getItem<string>('QUEST_TIMER_TEMPLATE');
       if (templateJson) {
-        this.questTemplate = parseJson<
-          CustomQuestTemplate | StoryQuestTemplate
-        >(templateJson);
+        this.questTemplate = parseJson<LocalQuestTemplate>(templateJson);
       }
 
       // Use the safe parsing helper
@@ -151,7 +143,7 @@ export default class QuestTimer {
 
   // Single entry point - prepare the quest and wait for phone lock
   static async prepareQuest(
-    questTemplate: CustomQuestTemplate | StoryQuestTemplate,
+    questTemplate: LocalQuestTemplate,
     cooperativeQuestRunId?: string
   ) {
     console.log('[QuestTimer] prepareQuest called with:', {
@@ -184,7 +176,11 @@ export default class QuestTimer {
         cooperativeQuestRunId
       );
       this.questRunId = cooperativeQuestRunId;
-    } else if (questTemplate.category === 'cooperative') {
+    } else if (
+      questTemplate.mode === 'cooperative' ||
+      (questTemplate.mode === 'custom' &&
+        questTemplate.category === 'cooperative')
+    ) {
       // This is a cooperative quest but no quest run ID was provided
       // This should not happen - cooperative quests should always have a quest run
       // from the server before reaching this point
@@ -659,11 +655,14 @@ export default class QuestTimer {
           const completedQuest = questStore.recentCompletedQuest;
           const questRunId = completedQuest?.questRunId;
 
-          console.log('[QuestTimer] After completion, checking for questRunId:', {
-            hasCompletedQuest: !!completedQuest,
-            questRunId,
-            thisQuestRunId: this.questRunId,
-          });
+          console.log(
+            '[QuestTimer] After completion, checking for questRunId:',
+            {
+              hasCompletedQuest: !!completedQuest,
+              questRunId,
+              thisQuestRunId: this.questRunId,
+            }
+          );
 
           if (questRunId) {
             try {
@@ -697,7 +696,8 @@ export default class QuestTimer {
                 useQuestStore.setState({
                   recentCompletedQuest: updatedQuest,
                   completedQuests: questStore.completedQuests.map((q) =>
-                    q.id === updatedQuest.id && q.stopTime === updatedQuest.stopTime
+                    q.id === updatedQuest.id &&
+                    q.stopTime === updatedQuest.stopTime
                       ? updatedQuest
                       : q
                   ),
@@ -775,16 +775,20 @@ export default class QuestTimer {
                 participants: questRunData.participants as any[],
               };
 
-              console.log('[QuestTimer] Updating pending quest with participants:', {
-                questId: updatedQuest.id,
-                participantCount: questRunData.participants.length,
-                hasRewards: !!(questRunData.participants[0] as any)?.rewards,
-              });
+              console.log(
+                '[QuestTimer] Updating pending quest with participants:',
+                {
+                  questId: updatedQuest.id,
+                  participantCount: questRunData.participants.length,
+                  hasRewards: !!(questRunData.participants[0] as any)?.rewards,
+                }
+              );
 
               useQuestStore.setState((state) => ({
                 recentCompletedQuest: updatedQuest,
                 completedQuests: state.completedQuests.map((q) =>
-                  q.id === updatedQuest.id && q.stopTime === updatedQuest.stopTime
+                  q.id === updatedQuest.id &&
+                  q.stopTime === updatedQuest.stopTime
                     ? updatedQuest
                     : q
                 ),

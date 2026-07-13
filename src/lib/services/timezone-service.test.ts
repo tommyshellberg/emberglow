@@ -148,18 +148,23 @@ describe('timezone-service', () => {
       expect(mockAddEventListener).toHaveBeenCalled();
     });
 
-    it('should sync timezone when user logs in', () => {
+    it('should sync timezone when user logs in', async () => {
       let userSubscribeCallback: any;
       // @ts-ignore
-      useUserStore.subscribe.mockImplementation((selector, callback) => {
-        userSubscribeCallback = callback;
+      useUserStore.subscribe.mockImplementation((listener) => {
+        userSubscribeCallback = listener;
         return jest.fn();
       });
 
       initializeTimezoneSync();
 
-      // Simulate user login
-      userSubscribeCallback(mockUser);
+      // Simulate user login: prevState had no user, new state does.
+      // (No assertion on getNotificationSettings here: lastKnownTimezone is
+      // module-level state shared across tests in this file, so whether the
+      // resulting syncTimezoneWithDevice() call reaches the network depends
+      // on execution order — exercising the callback without throwing is
+      // what this test actually verifies.)
+      await userSubscribeCallback({ user: mockUser }, { user: null });
     });
   });
 });

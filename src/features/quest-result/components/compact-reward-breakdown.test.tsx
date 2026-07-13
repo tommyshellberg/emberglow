@@ -59,6 +59,19 @@ describe('CompactRewardBreakdown', () => {
     expect(screen.getByTestId('perk-badge-endurance_focus')).toBeTruthy();
   });
 
+  it('shows each perk name as visible text, so the perk is identifiable from the icon alone', () => {
+    render(
+      <CompactRewardBreakdown
+        baseXP={45}
+        adjustedXP={68}
+        perksApplied={mockPerksApplied}
+      />
+    );
+
+    expect(screen.getByText('Quick Break')).toBeTruthy();
+    expect(screen.getByText('Endurance Focus')).toBeTruthy();
+  });
+
   it('handles empty perks array', () => {
     render(
       <CompactRewardBreakdown baseXP={45} adjustedXP={45} perksApplied={[]} />

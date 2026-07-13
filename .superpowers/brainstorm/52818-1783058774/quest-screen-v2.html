@@ -1,0 +1,85 @@
+<style>
+  .phone {
+    width: 270px; height: 560px; margin: 0 auto;
+    border-radius: 30px; border: 3px solid #2b2438;
+    background: #0a0712;
+    overflow: hidden; position: relative; color: #e8e0d4;
+    font-family: -apple-system, sans-serif; text-align: left;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  }
+  .phone * { box-sizing: border-box; }
+  @keyframes glowpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.35); } }
+  @keyframes flicker { 0%,100% { opacity: .85; transform: translateX(-50%) scale(1); } 40% { opacity: 1; transform: translateX(-50%) scale(1.06); } 70% { opacity: .75; transform: translateX(-50%) scale(.97); } }
+  @keyframes floatup { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translateY(-110px); opacity: 0; } }
+
+  .glow { position: absolute; bottom: -70px; left: 50%;
+    width: 320px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 80%, rgba(255,150,60,0.6) 0%, rgba(255,90,40,0.22) 45%, transparent 70%);
+    animation: flicker 2.4s ease-in-out infinite; }
+  .fire { position: absolute; bottom: 40px; left: 50%; font-size: 34px;
+    animation: flicker 1.8s ease-in-out infinite; }
+  .ember { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #ffb35c;
+    bottom: 80px; animation: floatup 3.2s linear infinite; }
+
+  .p-head { position: relative; padding: 22px 18px 0; z-index: 2; }
+  .q-chip { display: inline-block; font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    background: rgba(255,140,60,0.15); color: #ff9d5c; border: 1px solid rgba(255,140,60,0.35);
+    padding: 2px 8px; border-radius: 10px; }
+  .q-title { font-size: 17px; font-weight: 700; color: #f4ede1; margin: 8px 0 0; }
+
+  .countdown { position: relative; z-index: 2; font-size: 44px; font-weight: 800; text-align: center;
+    color: #ffd9a8; font-variant-numeric: tabular-nums; margin-top: 92px;
+    text-shadow: 0 0 24px rgba(255,150,70,0.35); }
+  .countdown small { display: block; font-size: 9px; letter-spacing: 3px; color: #9c8fa8;
+    text-transform: uppercase; font-weight: 500; margin-top: 4px; }
+
+  .bonus-bar { position: relative; z-index: 2; margin: 26px 32px 0;
+    background: rgba(255,255,255,0.08); border-radius: 8px; height: 10px; overflow: hidden; }
+  .bonus-fill { height: 100%; width: 36%; border-radius: 8px;
+    background: linear-gradient(90deg, #ff6a2b, #ffc46b); animation: glowpulse 2s ease-in-out infinite; }
+  .bonus-label { position: relative; z-index: 2; font-size: 11px; color: #cbbfae; text-align: center; margin: 8px 0 0; }
+
+  .music { position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: #d8c9b0; border: 1px solid rgba(255,255,255,0.18);
+    padding: 4px 12px; border-radius: 12px; background: rgba(0,0,0,0.35); white-space: nowrap; z-index: 2; }
+  .hint { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center;
+    font-size: 10px; color: #9c8fa8; z-index: 2; }
+
+  .annotations { max-width: 560px; margin: 24px auto 0; font-size: 14px; line-height: 1.7; }
+  .annotations li { margin-bottom: 6px; }
+</style>
+
+<h2>Merged: A's data + C's campfire, no quest log</h2>
+<p class="subtitle">Full-bleed campfire ambience with the journey screen's information hierarchy laid over it. This is the single screen a user sees for the whole quest.</p>
+
+<div class="mockup" style="max-width: 340px; margin: 0 auto; background: transparent; border: none;">
+  <div class="phone">
+    <div class="glow"></div>
+    <div class="fire">🔥</div>
+    <div class="ember" style="left:46%; animation-delay:0s;"></div>
+    <div class="ember" style="left:54%; animation-delay:1.1s;"></div>
+    <div class="ember" style="left:50%; animation-delay:2.2s;"></div>
+    <div class="ember" style="left:42%; animation-delay:1.7s;"></div>
+
+    <div class="p-head">
+      <span class="q-chip">Chapter 3 · Story</span>
+      <p class="q-title">The Whispering Glade</p>
+    </div>
+
+    <div class="countdown">23:41<small>remaining</small></div>
+
+    <div class="bonus-bar"><div class="bonus-fill"></div></div>
+    <p class="bonus-label">🔥 1.18× XP · lock your phone to earn faster</p>
+
+    <div class="music">♪ Ambient: Emberglow Nights</div>
+    <p class="hint">Stay here or lock your phone — leaving the app fails the quest</p>
+  </div>
+</div>
+
+<div class="annotations">
+  <ul>
+    <li><strong>Kept from A:</strong> chip + quest title top-left, big tabular countdown, live XP bonus bar with the "lock to earn faster" nudge, bottom rule-reminder hint.</li>
+    <li><strong>Kept from C:</strong> flickering fire glow, drifting embers, dark full-bleed ambience. No self-writing log.</li>
+    <li><strong>Open:</strong> the ♪ music pill — ambient audio would be a net-new system (current audio infra only does post-quest narration). It can ship in v1 or the pill can be dropped with zero layout impact.</li>
+  </ul>
+</div>

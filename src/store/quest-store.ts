@@ -16,17 +16,16 @@ import { useCharacterStore } from './character-store';
 import { useOnboardingStore } from './onboarding-store';
 import {
   type CooperativeQuestRun,
-  type CustomQuestTemplate,
+  type LocalQuestTemplate,
   type Quest,
   type QuestInvitation,
   type QuestReflection,
-  type StoryQuestTemplate,
 } from './types';
 
 interface QuestState {
   activeQuest: Quest | null;
-  pendingQuest: (CustomQuestTemplate | StoryQuestTemplate) | null;
-  availableQuests: (CustomQuestTemplate | StoryQuestTemplate)[];
+  pendingQuest: LocalQuestTemplate | null;
+  availableQuests: LocalQuestTemplate[];
   failedQuest: Quest | null;
   completedQuests: Quest[];
   recentCompletedQuest: Quest | null;
@@ -53,7 +52,7 @@ interface QuestState {
   setShouldShowStreakCelebration: (show: boolean) => void;
   reset: () => void;
   getCompletedQuests: () => Quest[];
-  prepareQuest: (quest: CustomQuestTemplate | StoryQuestTemplate) => void;
+  prepareQuest: (quest: LocalQuestTemplate) => void;
   setLiveActivityId: (id: string | null) => void;
   // Server-driven quest actions
   setServerAvailableQuests: (
@@ -106,7 +105,7 @@ export const useQuestStore = create<QuestState>()(
       currentInvitation: null,
       cooperativeQuestRun: null,
       pendingInvitations: [],
-      prepareQuest: (quest: CustomQuestTemplate | StoryQuestTemplate) => {
+      prepareQuest: (quest: LocalQuestTemplate) => {
         const currentCooperativeQuestRun = get().cooperativeQuestRun;
         // Only clear cooperative quest data when preparing a non-cooperative quest
         // A quest is cooperative if mode is 'cooperative' OR if it's a custom quest with cooperative category
@@ -156,8 +155,13 @@ export const useQuestStore = create<QuestState>()(
             // Fetch quest run data from server to get participant rewards
             if (questRunId) {
               try {
-                console.log('[QuestStore] Fetching quest run data to get rewards:', questRunId);
-                const { getQuestRunStatus } = await import('@/lib/services/quest-run-service');
+                console.log(
+                  '[QuestStore] Fetching quest run data to get rewards:',
+                  questRunId
+                );
+                const { getQuestRunStatus } = await import(
+                  '@/lib/services/quest-run-service'
+                );
                 const questRunData = await getQuestRunStatus(questRunId);
 
                 console.log('[QuestStore] Quest run data received:', {
@@ -169,22 +173,32 @@ export const useQuestStore = create<QuestState>()(
 
                 // Add participants with rewards to the completed quest
                 if (questRunData.participants) {
-                  completedQuest.participants = questRunData.participants.map((p: any) => ({
-                    userId: typeof p === 'string' ? p : p.userId,
-                    ready: typeof p === 'object' ? p.ready : true,
-                    status: typeof p === 'object' ? p.status : 'completed',
-                    phoneLocked: typeof p === 'object' ? p.phoneLocked : undefined,
-                    rewards: typeof p === 'object' ? p.rewards : undefined,
-                  }));
+                  completedQuest.participants = questRunData.participants.map(
+                    (p: any) => ({
+                      userId: typeof p === 'string' ? p : p.userId,
+                      ready: typeof p === 'object' ? p.ready : true,
+                      status: typeof p === 'object' ? p.status : 'completed',
+                      phoneLocked:
+                        typeof p === 'object' ? p.phoneLocked : undefined,
+                      rewards: typeof p === 'object' ? p.rewards : undefined,
+                    })
+                  );
 
-                  console.log('[QuestStore] Added participant rewards to completed quest:', {
-                    questId: completedQuest.id,
-                    participantCount: completedQuest.participants.length,
-                    firstParticipantRewards: completedQuest.participants[0]?.rewards,
-                  });
+                  console.log(
+                    '[QuestStore] Added participant rewards to completed quest:',
+                    {
+                      questId: completedQuest.id,
+                      participantCount: completedQuest.participants.length,
+                      firstParticipantRewards:
+                        completedQuest.participants[0]?.rewards,
+                    }
+                  );
                 }
               } catch (error) {
-                console.error('[QuestStore] Failed to fetch quest run data for rewards:', error);
+                console.error(
+                  '[QuestStore] Failed to fetch quest run data for rewards:',
+                  error
+                );
                 // Continue with base completed quest if fetch fails
               }
             }
@@ -660,10 +674,7 @@ export const useQuestStore = create<QuestState>()(
         // This includes previously completed quests for checkpoint scenarios
         set({
           serverAvailableQuests: quests,
-          availableQuests: clientQuests as (
-            | CustomQuestTemplate
-            | StoryQuestTemplate
-          )[],
+          availableQuests: clientQuests as LocalQuestTemplate[],
           hasMoreQuests: hasMore,
           storylineComplete: complete,
         });

@@ -13,7 +13,10 @@ import {
 import { removeItem, setItem } from '@/lib/storage';
 // Import the store for assertions
 // Import types
-import type { StoryQuestTemplate } from '@/store/types';
+import type {
+  CooperativeQuestTemplate,
+  StoryQuestTemplate,
+} from '@/store/types';
 
 import QuestTimer from './quest-timer';
 
@@ -431,16 +434,12 @@ describe('QuestTimer', () => {
   describe('prepareQuest with cooperative quest', () => {
     it('should throw error if cooperative quest has no questRunId', async () => {
       // Arrange
-      const cooperativeQuest: StoryQuestTemplate = {
+      const cooperativeQuest: CooperativeQuestTemplate = {
         id: 'coop-quest-1',
         title: 'Cooperative Quest',
         durationMinutes: 10,
-        mode: 'story',
+        mode: 'cooperative',
         category: 'cooperative',
-        recap: 'Test cooperative quest',
-        poiSlug: 'test-poi',
-        story: 'Test story',
-        options: [],
         reward: { xp: 200 },
       };
 
@@ -452,16 +451,12 @@ describe('QuestTimer', () => {
 
     it('should use provided cooperativeQuestRunId for cooperative quests', async () => {
       // Arrange
-      const cooperativeQuest: StoryQuestTemplate = {
+      const cooperativeQuest: CooperativeQuestTemplate = {
         id: 'coop-quest-1',
         title: 'Cooperative Quest',
         durationMinutes: 10,
-        mode: 'story',
+        mode: 'cooperative',
         category: 'cooperative',
-        recap: 'Test cooperative quest',
-        poiSlug: 'test-poi',
-        story: 'Test story',
-        options: [],
         reward: { xp: 200 },
       };
 

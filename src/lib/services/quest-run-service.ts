@@ -1,8 +1,12 @@
 import { apiClient } from '@/api';
 import { provisionalApiClient } from '@/api/common/provisional-client';
 import { getItem } from '@/lib/storage';
-import { type CustomQuestTemplate } from '@/store/types';
-import { type StoryQuestTemplate } from '@/store/types';
+import {
+  type CooperativeQuestTemplate,
+  type CustomQuestTemplate,
+  type LocalQuestTemplate,
+  type StoryQuestTemplate,
+} from '@/store/types';
 // Adjust import path as needed
 
 export type QuestRunStatus = 'pending' | 'active' | 'failed' | 'success';
@@ -12,6 +16,7 @@ export interface QuestRunResponse {
   status: QuestRunStatus;
   participants: string[] | QuestParticipant[];
   quest: {
+    id?: string;
     title: string;
     durationMinutes: number;
     mode: string;
@@ -44,19 +49,18 @@ interface QuestParticipant {
   rewards?: QuestParticipantRewards;
 }
 
-const generateQuestRunBodyCustom = (questTemplate: CustomQuestTemplate) => {
+const generateQuestRunBodyCustom = (
+  questTemplate: CustomQuestTemplate | CooperativeQuestTemplate
+) => {
   // @TODO: For now, leave out the questTemplateId as the server doesn't have the template documents added yet.
   // Remove both id and inviteeIds from the quest object
   const { id: _id, inviteeIds, ...rest } = questTemplate;
 
-  // Ensure mode is set
-  if (!rest.mode) {
-    rest.mode = 'custom';
-  }
-
-  // Build the request body
+  // Build the request body, defaulting mode if it's missing.
+  // (Mutating `rest.mode` in place doesn't type-check: `rest` spans two
+  // literal `mode` types, so TS can't assign into the union's property.)
   const body: any = {
-    quest: rest,
+    quest: { ...rest, mode: rest.mode || 'custom' },
   };
 
   // Add inviteeIds if this is a cooperative quest
@@ -85,7 +89,7 @@ const generateQuestRunBodyStory = (questTemplate: StoryQuestTemplate) => {
     console.log(
       '[generateQuestRunBodyStory] Using local quest template, sending full quest object'
     );
-    const { id: _id, inviteeIds, ...rest } = questTemplate;
+    const { id: _id, ...rest } = questTemplate;
 
     // Ensure mode is set
     if (!rest.mode) {
@@ -99,7 +103,7 @@ const generateQuestRunBodyStory = (questTemplate: StoryQuestTemplate) => {
 };
 
 export async function createQuestRun(
-  questTemplate: CustomQuestTemplate | StoryQuestTemplate
+  questTemplate: LocalQuestTemplate
 ): Promise<QuestRunResponse> {
   console.log('[createQuestRun] Called with template:', {
     id: questTemplate.id,
@@ -116,10 +120,15 @@ export async function createQuestRun(
       ? 'story'
       : 'custom');
 
+  // `mode` is derived above (with a fallback heuristic for untyped/legacy
+  // data), not read directly off `questTemplate.mode`, so TS can't narrow
+  // `questTemplate` from it — assert the branch each generator expects.
   const body =
     mode === 'story'
-      ? generateQuestRunBodyStory(questTemplate)
-      : generateQuestRunBodyCustom(questTemplate);
+      ? generateQuestRunBodyStory(questTemplate as StoryQuestTemplate)
+      : generateQuestRunBodyCustom(
+          questTemplate as CustomQuestTemplate | CooperativeQuestTemplate
+        );
 
   console.log(
     '[createQuestRun] Generated body for API call:',

@@ -23,13 +23,19 @@ export function usePendingQuestAnimations(
   shouldAnimate: boolean
 ): AnimationStyles {
   // Animation shared values
-  const headerOpacity = useSharedValue(ANIMATION_CONFIG.INITIAL_OPACITY);
-  const headerScale = useSharedValue(ANIMATION_CONFIG.INITIAL_SCALE);
-  const cardOpacity = useSharedValue(ANIMATION_CONFIG.INITIAL_OPACITY);
-  const cardScale = useSharedValue(ANIMATION_CONFIG.INITIAL_SCALE);
-  const buttonOpacity = useSharedValue(ANIMATION_CONFIG.INITIAL_OPACITY);
-  const buttonScale = useSharedValue(ANIMATION_CONFIG.INITIAL_SCALE);
-  const shimmerOpacity = useSharedValue(ANIMATION_CONFIG.SHIMMER_MAX_OPACITY);
+  const headerOpacity = useSharedValue<number>(
+    ANIMATION_CONFIG.INITIAL_OPACITY
+  );
+  const headerScale = useSharedValue<number>(ANIMATION_CONFIG.INITIAL_SCALE);
+  const cardOpacity = useSharedValue<number>(ANIMATION_CONFIG.INITIAL_OPACITY);
+  const cardScale = useSharedValue<number>(ANIMATION_CONFIG.INITIAL_SCALE);
+  const buttonOpacity = useSharedValue<number>(
+    ANIMATION_CONFIG.INITIAL_OPACITY
+  );
+  const buttonScale = useSharedValue<number>(ANIMATION_CONFIG.INITIAL_SCALE);
+  const shimmerOpacity = useSharedValue<number>(
+    ANIMATION_CONFIG.SHIMMER_MAX_OPACITY
+  );
 
   // Animated styles
   const headerStyle = useAnimatedStyle(() => ({

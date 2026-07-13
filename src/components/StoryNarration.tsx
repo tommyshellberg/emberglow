@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, type AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
@@ -124,7 +124,7 @@ export function StoryNarration({ quest }: Props) {
   }, [quest.id]); // Only depend on quest.id, not the entire audioFile object
 
   // Status update callback - handles all playback state
-  const onPlaybackStatusUpdate = (status: Audio.AVPlaybackStatus) => {
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
 
     setIsPlaying(status.isPlaying);
