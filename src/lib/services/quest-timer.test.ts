@@ -137,6 +137,11 @@ jest.mock('react-native-bg-actions', () => ({
 describe('QuestTimer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks only clears call records, not implementations. Re-establish
+    // createQuestRun's default resolved value so a prior test's mockRejectedValue
+    // can't leak forward. (Previously masked by the static questRunId never being
+    // reset between tests; M1's prepare-time reset removes that masking.)
+    (createQuestRun as jest.Mock).mockResolvedValue({ id: 'mock-quest-run-id' });
     // Clear the mock storage
     Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
     // Reset Platform.OS to ios for most tests
@@ -252,6 +257,32 @@ describe('QuestTimer', () => {
         false,
         activityId
       );
+    });
+
+    it('does not register a stale prior run id when createQuestRun fails (M1)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Simulate a leftover questRunId from a prior quest
+      // @ts-ignore - private static
+      QuestTimer.questRunId = 'stale-prior-run-id';
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('server down'));
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+
+      // Assert - H2 must NOT register the current card's id onto the stale prior run
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
     });
   });
 
