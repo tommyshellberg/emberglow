@@ -6,7 +6,13 @@
 
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ArrowRight, User } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -41,8 +47,11 @@ const SAMPLE_MEMBERS = [
 /**
  * Visual illustration showing the concept of joining a guild:
  * "You" on the left, an arrow, and the guild's member avatars on the right.
+ *
+ * Memoised (no props) so it never re-renders while the user types in the code
+ * field — the illustration is a dozen static views with nothing to update.
  */
-function JoinIllustration() {
+const JoinIllustration = React.memo(function JoinIllustration() {
   return (
     <View style={styles.previewCard}>
       <View style={styles.illustrationRow}>
@@ -77,7 +86,7 @@ function JoinIllustration() {
       </View>
     </View>
   );
-}
+});
 
 export function JoinGuildModal({
   visible,
@@ -94,27 +103,48 @@ export function JoinGuildModal({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
 
-  // Present or dismiss the sheet based on the `visible` prop
+  // Mirror `code` in a ref so `handleSubmit` can read the latest value without
+  // depending on `code` — that keeps its identity (and the memoised action row,
+  // with its reanimated Buttons) stable across keystrokes.
+  const codeRef = useRef(code);
+
+  const resetForm = useCallback(() => {
+    codeRef.current = '';
+    setCode('');
+    setValidationError(null);
+  }, []);
+
+  // Single source of truth for present/dismiss, driven by the controlled
+  // `visible` prop. Every close path (Cancel, gesture, programmatic) flips
+  // `visible` via `onClose` and lets this effect actually close + reset.
   useEffect(() => {
     if (visible && !hasPresented.current) {
       present();
       hasPresented.current = true;
     } else if (!visible && hasPresented.current) {
-      dismiss();
+      // Clear the flag before dismissing so a synchronous onDismiss no-ops.
       hasPresented.current = false;
-      // Reset form when closing
-      setCode('');
-      setValidationError(null);
+      resetForm();
+      dismiss();
     }
-  }, [visible, present, dismiss]);
+  }, [visible, present, dismiss, resetForm]);
 
-  const handleDismiss = useCallback(() => {
-    hasPresented.current = false;
+  // Fires when the sheet is dismissed by swipe-down or backdrop tap (paths that
+  // don't touch `visible`). Sync the store so re-opening works; the effect above
+  // then runs its close branch. Guarded so a programmatic dismiss doesn't loop.
+  const handleSheetDismiss = useCallback(() => {
+    if (hasPresented.current) {
+      onClose();
+    }
+  }, [onClose]);
+
+  const handleCancel = useCallback(() => {
+    // Just ask the store to close; the effect owns the actual dismiss + reset.
     onClose();
   }, [onClose]);
 
   const handleSubmit = useCallback(() => {
-    const trimmedCode = code.trim().toUpperCase();
+    const trimmedCode = codeRef.current.trim().toUpperCase();
 
     // Validate code is not empty
     if (!trimmedCode) {
@@ -133,25 +163,48 @@ export function JoinGuildModal({
 
     setValidationError(null);
     onSubmit(trimmedCode);
-  }, [code, onSubmit]);
+  }, [onSubmit]);
 
-  const handleCodeChange = useCallback(
-    (text: string) => {
-      // Auto-uppercase and remove non-alphanumeric characters
-      const sanitized = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      setCode(sanitized);
-      // Clear validation error when user starts typing
-      if (validationError) {
-        setValidationError(null);
-      }
-    },
-    [validationError]
-  );
+  const handleCodeChange = useCallback((text: string) => {
+    // Auto-uppercase and remove non-alphanumeric characters
+    const sanitized = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    codeRef.current = sanitized;
+    setCode(sanitized);
+    // Clear a showing validation error as the user corrects it. Functional
+    // update keeps this callback's identity stable (no `validationError` dep).
+    setValidationError((prev) => (prev ? null : prev));
+  }, []);
+
+  const handleFocus = useCallback(() => setFocused(true), []);
+  const handleBlur = useCallback(() => setFocused(false), []);
 
   const displayedError = validationError ?? error;
 
+  // Static action row — stable deps mean React reuses this element across
+  // keystrokes, so the reanimated Buttons don't re-render while typing.
+  const actions = useMemo(
+    () => (
+      <View style={styles.actions}>
+        <Button
+          testID="join-guild-submit"
+          label="Join Guild"
+          onPress={handleSubmit}
+          disabled={isLoading}
+          fullWidth
+        />
+        <Button
+          label="Cancel"
+          variant="ghost"
+          onPress={handleCancel}
+          fullWidth
+        />
+      </View>
+    ),
+    [handleSubmit, handleCancel, isLoading]
+  );
+
   return (
-    <BottomSheet ref={ref} title="Join a Guild">
+    <BottomSheet ref={ref} title="Join a Guild" onDismiss={handleSheetDismiss}>
       <View style={styles.illustrationWrapper}>
         <JoinIllustration />
       </View>
@@ -172,8 +225,8 @@ export function JoinGuildModal({
         autoCapitalize="characters"
         autoCorrect={false}
         maxLength={INVITE_CODE_LENGTH}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         style={[
           styles.codeField,
           {
@@ -192,21 +245,7 @@ export function JoinGuildModal({
         </View>
       ) : null}
 
-      <View style={styles.actions}>
-        <Button
-          testID="join-guild-submit"
-          label="Join Guild"
-          onPress={handleSubmit}
-          disabled={isLoading}
-          fullWidth
-        />
-        <Button
-          label="Cancel"
-          variant="ghost"
-          onPress={handleDismiss}
-          fullWidth
-        />
-      </View>
+      {actions}
     </BottomSheet>
   );
 }

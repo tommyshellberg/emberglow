@@ -100,6 +100,8 @@ export const GUILD_ERRORS = {
   TRANSFER_FIRST: 'Transfer ownership before leaving.',
   NETWORK_ERROR: 'Connection issue. Please check your network.',
   NOT_FOUND: 'Guild not found.',
+  /** Shown when a typed invite code matches no guild (server 404). */
+  CODE_NOT_FOUND: "Couldn't find this invite code",
   ALREADY_MEMBER: 'You are already a member of this guild.',
 } as const;
 
@@ -154,8 +156,7 @@ export const GUILD_A11Y = {
   OWNER_BADGE: 'Guild owner',
   CURRENT_USER: 'You',
   MEMBER_COUNT: (count: number, max: number) => `${count} of ${max} members`,
-  STATS_QUESTS: (count: number) =>
-    `${count} quests completed by guild members`,
+  STATS_QUESTS: (count: number) => `${count} quests completed by guild members`,
   STATS_MINUTES: (minutes: number) =>
     `${minutes} total minutes of digital wellness`,
 } as const;

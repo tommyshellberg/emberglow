@@ -30,6 +30,7 @@ import { colors, radii, shadows, spacing } from '@/theme';
 import { GUILD_A11Y, GUILD_LIMITS } from '../constants/guild-strings';
 import { useGuilds, useJoinByInviteCode } from '../hooks/use-guilds';
 import type { GuildIcon } from '../types/guild-types';
+import { mapJoinGuildError } from '../utils/map-join-guild-error';
 import { GuildEmptyState } from './guild-empty-state';
 import { JoinGuildModal } from './modals/join-guild-modal';
 
@@ -197,7 +198,11 @@ export function GuildsSection() {
         onClose={closeJoinModal}
         onSubmit={handleJoinSubmit}
         isLoading={joinGuildMutation.isPending}
-        error={joinGuildMutation.error?.message}
+        error={
+          joinGuildMutation.error
+            ? mapJoinGuildError(joinGuildMutation.error)
+            : undefined
+        }
       />
     </>
   );
