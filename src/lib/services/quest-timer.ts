@@ -286,6 +286,25 @@ export default class QuestTimer {
       }
     }
 
+    // H2: register the new activity id with the server now (best-effort), before the
+    // phone is ever locked, so the stale-activity sweep can dismiss this card even if
+    // the quest is abandoned before locking. Uses locked:false — the phone isn't locked
+    // yet. Non-fatal: a failure here must not break quest preparation.
+    if (Platform.OS === 'ios' && this.questRunId && this.oneSignalActivityId) {
+      try {
+        await updatePhoneLockStatus(
+          this.questRunId,
+          false,
+          this.oneSignalActivityId
+        );
+      } catch (error) {
+        console.log(
+          '[QuestTimer] prepare-time live activity registration failed (non-fatal):',
+          error
+        );
+      }
+    }
+
     await this.saveQuestData();
 
     // Android Background Service Setup (remains the same)
