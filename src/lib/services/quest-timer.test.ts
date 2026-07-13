@@ -226,6 +226,33 @@ describe('QuestTimer', () => {
       expect(firstId).toBeTruthy();
       expect(secondId).not.toBe(firstId);
     });
+
+    it('registers the new activity id with the server at prepare (H2)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const activityId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[0][0];
+
+      // Assert
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'mock-quest-run-id',
+        false,
+        activityId
+      );
+    });
   });
 
   describe('onPhoneLocked', () => {
