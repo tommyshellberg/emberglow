@@ -154,7 +154,8 @@ export default function QuestCompletedSignupScreen() {
         entering={FadeInDown.delay(ANIM_STAGGER * 3).duration(ANIM_DURATION)}
       >
         <Text style={styles.footnote}>
-          {`${heroName} lives only on this device for now. A free account is how you keep them.`}
+          {`${heroName} lives only on this device for now. 
+          A free account is how you keep them.`}
         </Text>
       </Animated.View>
 

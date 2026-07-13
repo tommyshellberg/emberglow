@@ -6,8 +6,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -53,6 +56,20 @@ const STAGE_DURATION = durations.slow; // 600ms fade+rise per stage
 // `: number` widens spacing's literal type for useSharedValue.
 const RISE_DISTANCE: number = spacing[4]; // 16 — gentle rise distance
 
+// Discoverability breathe on the hold hint — the orb below reads as inert
+// "dark glass" at rest (DecisionSlider's resting pulse peaks at only 12%), so
+// this ember-like fade draws the eye to the hold affordance. Half-cycle is
+// close to the orb's own 1100ms pulse so caption and ember feel kin; the
+// `Easing.inOut(Easing.sin)` shape matches the orb's breathe exactly. Kicks in
+// only after the CTA entrance stage settles, and yields to reduce-motion (the
+// orb stops its pulse there too — the warm Sandy color carries salience alone).
+const HINT_BREATHE_MS = 1400;
+const HINT_BREATHE_MIN_OPACITY = 0.55;
+const HINT_BREATHE_MAX_OPACITY = 1;
+// CTA stage starts at STAGE_STAGGER*3, then STAGE_DURATION to settle — begin
+// the breathe after that so the entrance fade-in owns the intro cleanly.
+const HINT_BREATHE_DELAY = STAGE_STAGGER * 3 + STAGE_DURATION;
+
 export default function FirstQuestScreen() {
   const router = useRouter();
   const prepareQuest = useQuestStore((state) => state.prepareQuest);
@@ -81,6 +98,11 @@ export default function FirstQuestScreen() {
 
   const buttonOpacity = useSharedValue(0);
   const buttonTranslateY = useSharedValue(RISE_DISTANCE);
+
+  // Steady-state breathe on the hold hint (starts at full so the entrance
+  // fade-in owns the intro; the repeat is armed post-entrance below).
+  const reduceMotion = useReducedMotion();
+  const hintOpacity = useSharedValue(HINT_BREATHE_MAX_OPACITY);
 
   useEffect(() => {
     posthog.capture('onboarding_open_first_quest_screen');
@@ -156,9 +178,37 @@ export default function FirstQuestScreen() {
     textTranslateY,
   ]);
 
+  // Arm the infinite hold-hint breathe once, after the entrance settles.
+  // Reduce-motion holds it static at full opacity — parity with the orb
+  // below, whose resting pulse is also suppressed under reduce-motion.
+  useEffect(() => {
+    if (reduceMotion) {
+      hintOpacity.value = HINT_BREATHE_MAX_OPACITY;
+      return;
+    }
+    const breatheConfig = {
+      duration: HINT_BREATHE_MS,
+      easing: Easing.inOut(Easing.sin),
+    };
+    hintOpacity.value = withDelay(
+      HINT_BREATHE_DELAY,
+      withRepeat(
+        withSequence(
+          withTiming(HINT_BREATHE_MIN_OPACITY, breatheConfig),
+          withTiming(HINT_BREATHE_MAX_OPACITY, breatheConfig)
+        ),
+        -1
+      )
+    );
+  }, [hintOpacity, reduceMotion]);
+
   const progressStyle = useAnimatedStyle(() => ({
     opacity: progressOpacity.value,
     transform: [{ translateY: progressTranslateY.value }],
+  }));
+
+  const hintStyle = useAnimatedStyle(() => ({
+    opacity: hintOpacity.value,
   }));
 
   const textStyle = useAnimatedStyle(() => ({
@@ -268,18 +318,13 @@ export default function FirstQuestScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.View style={instructionStyle}>
-          <Text style={styles.instruction}>
-            Your first quest: gather firewood before dark. Lock your phone, and
-            the story begins.
-          </Text>
-        </Animated.View>
-
         <Animated.View style={[buttonStyle, styles.buttonWrapper]}>
           {/* First-time users won't know the orb is a hold control — this
               hint enters with the CTA stage. Copy is provisional; the
               founder adjusts wording on the visual pass. */}
-          <Text style={styles.holdHint}>Press and hold the ember to begin</Text>
+          <Animated.Text style={[styles.holdHint, hintStyle]}>
+            Press and hold the ember to begin
+          </Animated.Text>
           {/* Single-choice hold-to-commit (Task 28): the screen already
               leads with the "Chapter one" EyebrowLabel above, so the
               slider's own default eyebrow ("One path remains") is
@@ -361,7 +406,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: HOLD_HINT_FONT_SIZE,
     lineHeight: HOLD_HINT_FONT_SIZE * 1.5,
-    color: colors.text.muted,
+    // Sandy (the "glow/highlight" ember tone), not muted bone: warms the hint
+    // toward the literal "ember" it names and lifts it above the surrounding
+    // muted body copy. Paired with the breathe above for discoverability.
+    color: colors.accent.glow,
     textAlign: 'center',
     marginBottom: spacing[2],
   },

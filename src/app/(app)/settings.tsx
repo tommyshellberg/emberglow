@@ -56,7 +56,7 @@ import {
 // Constants
 const APP_VERSION = Env.VERSION || '1.0.0';
 const NOTIFICATIONS_ENABLED_KEY = 'notificationsEnabled';
-const CONTACT_EMAIL = 'hello@unquestapp.com';
+const CONTACT_EMAIL = 'hello@emberglowapp.com';
 // Sub-row indent — aligns nested rows (Reminder/Streak time) under their
 // parent's title text: ListItem's 42px leading tile + its 14px leading gap.
 const SUB_ROW_INDENT = 56;

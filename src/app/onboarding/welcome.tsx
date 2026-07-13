@@ -50,7 +50,6 @@ export default function WelcomeScreen() {
           from the accessibility tree (unlike login-form.tsx's labeled
           equivalent). */}
       <Image
-        accessible={false}
         source={require('@/../assets/images/background/onboarding-bg.jpg')}
         style={styles.backgroundImage}
         resizeMode="cover"
@@ -133,7 +132,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '62%',
+    // Shortened from 62% → 58% so the scrim's top edge sits ~42% down,
+    // below the sun (which ends ~50%). Keeps the sun/castle halo clear
+    // while still darkening the mountain base behind the tagline + CTAs.
+    height: '58%',
   },
   content: {
     flex: 1,
@@ -142,11 +144,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: CONTENT_PADDING_HORIZONTAL,
     paddingBottom: CONTENT_PADDING_BOTTOM,
   },
+  // Art-direction: "hero the sun" (Option A). The background art puts the
+  // glowing sun + castle peak at ~33–50% of screen height on every phone
+  // (cover shows the art's full height, cropping only the sides). These
+  // spacers bias the content downward so the logo sits just *above* the sun
+  // (~30%), a wide gap lets the castle+halo breathe as the focal point, and
+  // the tagline drops *below* the sun (~55%) over the darker mountain base.
+  // Ratios are a starting point — tune against the simulator.
   spacerLogo: {
-    flex: 1.2,
+    flex: 2.5,
   },
   spacerTagline: {
-    flex: 1,
+    flex: 2,
   },
   spacerCta: {
     flex: 1,

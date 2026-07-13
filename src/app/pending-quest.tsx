@@ -13,6 +13,7 @@ import {
   EyebrowLabel,
   IconButton,
 } from '@/components/emberglow';
+import { ONBOARDING_QUEST_ID } from '@/components/quest-complete/constants';
 import { BackgroundImage } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import { useQuestStore } from '@/store/quest-store';
@@ -106,6 +107,12 @@ export default function PendingQuestScreen() {
       ? STORY_MODE_BADGE_LABEL
       : pendingQuest.category || undefined;
 
+  // The onboarding quest ('quest-1') can't have any perks yet, and we don't
+  // introduce the perks mechanic during the opening beat — so its perks card
+  // is suppressed. Every other pending screen keeps it. The onboarding flow
+  // (first-quest.tsx) sets the quest's `id` to this stable template id.
+  const isOnboardingQuest = pendingQuest.id === ONBOARDING_QUEST_ID;
+
   return (
     <View style={styles.flex}>
       {/* Full-screen Background Image */}
@@ -164,10 +171,13 @@ export default function PendingQuestScreen() {
         </Animated.View>
 
         {/* Active perks — restores the "active perks" info the redesign
-            regressed, as a list card instead of layered art. */}
-        <Animated.View style={[cardStyle, styles.perksCardWrapper]}>
-          <ActivePerksCard participant={participant} />
-        </Animated.View>
+            regressed, as a list card instead of layered art. Hidden on the
+            onboarding quest (see `isOnboardingQuest`). */}
+        {!isOnboardingQuest ? (
+          <Animated.View style={[cardStyle, styles.perksCardWrapper]}>
+            <ActivePerksCard participant={participant} />
+          </Animated.View>
+        ) : null}
 
         <View style={styles.spacer} />
 

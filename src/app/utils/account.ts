@@ -82,20 +82,20 @@ export const handleDeleteAccount = (
 
             Alert.alert(
               'Account Deletion Failed',
-              `${errorMessage} We couldn't process your deletion request automatically. Please contact hello@unquestapp.com or visit unquestapp.com/contact for assistance with manual account deletion.`,
+              `${errorMessage} We couldn't process your deletion request automatically. Please contact hello@emberglowapp.com or visit emberglowapp.com/contact for assistance with manual account deletion.`,
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
                   text: 'Email Support',
                   onPress: () =>
                     Linking.openURL(
-                      'mailto:hello@unquestapp.com?subject=Account%20Deletion%20Request'
+                      'mailto:hello@emberglowapp.com?subject=Account%20Deletion%20Request'
                     ),
                 },
                 {
                   text: 'Visit Website',
                   onPress: () =>
-                    Linking.openURL('https://unquestapp.com/contact'),
+                    Linking.openURL('https://emberglowapp.com/contact'),
                 },
               ]
             );
