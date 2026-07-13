@@ -25,12 +25,6 @@ type SettingsState = {
   setStreakWarning: (streakWarning: StreakWarning) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
-  hasSeenBranchingAnnouncement: boolean;
-  setHasSeenBranchingAnnouncement: (value: boolean) => void;
-  hasSeenSkillTreeAnnouncement: boolean;
-  setHasSeenSkillTreeAnnouncement: (value: boolean) => void;
-  hasSeenGuildsAnnouncement: boolean;
-  setHasSeenGuildsAnnouncement: (value: boolean) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -54,15 +48,6 @@ export const useSettingsStore = create<SettingsState>()(
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),
-      hasSeenBranchingAnnouncement: false,
-      setHasSeenBranchingAnnouncement: (value) =>
-        set({ hasSeenBranchingAnnouncement: value }),
-      hasSeenSkillTreeAnnouncement: false,
-      setHasSeenSkillTreeAnnouncement: (value) =>
-        set({ hasSeenSkillTreeAnnouncement: value }),
-      hasSeenGuildsAnnouncement: false,
-      setHasSeenGuildsAnnouncement: (value) =>
-        set({ hasSeenGuildsAnnouncement: value }),
     }),
     {
       name: 'unquest-settings',
