@@ -346,6 +346,32 @@ describe('StreakCelebrationScreen', () => {
     });
   });
 
+  describe('Focus effect stability (regression: re-focus loop)', () => {
+    // The real @react-navigation useFocusEffect re-runs its effect whenever
+    // the callback identity changes (its internal useEffect depends on the
+    // callback). If the screen recreates that callback on every render — which
+    // happened when `generateStreakVisualization` was called inline and
+    // produced a fresh array each render — the effect re-fires continuously,
+    // resetting/replaying the count-up animation forever so the screen never
+    // settles (visible as the counter looping 1 -> 2 -> 1). The animation +
+    // useFocusEffect jest mocks hide the runtime loop, so we instead pin the
+    // root cause: with an unchanged streak, the focus callback must be stable.
+    it('does not recreate the focus effect callback on re-render when the streak is unchanged', () => {
+      const { useFocusEffect } = require('expo-router');
+      (useFocusEffect as jest.Mock).mockClear();
+
+      const { rerender } = render(<StreakCelebrationScreen />);
+      rerender(<StreakCelebrationScreen />);
+
+      const calls = (useFocusEffect as jest.Mock).mock.calls;
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+
+      const firstCallback = calls[0][0];
+      const lastCallback = calls[calls.length - 1][0];
+      expect(lastCallback).toBe(firstCallback);
+    });
+  });
+
   describe('Accessibility', () => {
     it('should have accessible Continue button', () => {
       const { getByLabelText } = render(<StreakCelebrationScreen />);

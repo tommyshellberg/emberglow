@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Share as ShareIcon } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -116,7 +116,17 @@ export default function StreakCelebrationScreen() {
   );
 
   // Generate the 7-day (full week) streak visualization.
-  const streakDays = generateStreakVisualization(dailyQuestStreak);
+  //
+  // Memoized on the streak value: this array is a dependency of
+  // `playAnimations`, which in turn is the `useFocusEffect` callback dep.
+  // Recreating it every render gave the focus callback a new identity each
+  // render, and useFocusEffect re-runs its effect on identity change — which
+  // re-fired the count-up animation in an unbounded loop (the "never loads,
+  // counts 1 -> 2 -> 1" bug). A stable reference breaks that loop.
+  const streakDays = useMemo(
+    () => generateStreakVisualization(dailyQuestStreak),
+    [dailyQuestStreak]
+  );
 
   const {
     discOpacity,

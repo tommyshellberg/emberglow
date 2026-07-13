@@ -87,8 +87,10 @@ const HOLD_EMBER_CAP = 0.9;
  * needs must live here; they're static, so per-frame computation was waste
  * regardless.
  */
-const LABEL_ACTIVE_COLOR = palette.sandy;
-const LABEL_RESTING_COLOR = palette.bone;
+const LABEL_ACTIVE_COLOR = palette.sandy; // worklet-consumed (label color tween)
+const LABEL_RESTING_COLOR = palette.bone; // worklet-consumed (label color tween)
+// Consumed by the static `styles.label`, not a worklet — textShadowColor must
+// stay out of the animated label style (see the labelVisuals return note).
 const LABEL_GLOW_COLOR = withAlpha(palette.sandy, 0.45);
 
 /**
@@ -703,6 +705,11 @@ export function DecisionSlider({
           ? committed === mySide
           : side === mySide && p > LABEL_ACTIVE_THRESHOLD;
       const dim = committed !== null && committed !== mySide;
+      // textShadowColor/textShadowOffset are constant and live in the static
+      // `styles.label` (see note there): a color-valued style-only attribute in
+      // the animated style is surfaced flat by reanimated on Fabric, tripping
+      // RN's warnForStyleProps. Only the radius is dynamic, and it's safe to
+      // animate (a plain style attribute, unlike the color).
       return {
         color: withTiming(active ? LABEL_ACTIVE_COLOR : LABEL_RESTING_COLOR, {
           duration: LABEL_COLOR_MS,
@@ -710,8 +717,6 @@ export function DecisionSlider({
         opacity: withTiming(dim ? 0.3 : active ? 1 : 0.85, {
           duration: LABEL_FADE_MS,
         }),
-        textShadowColor: LABEL_GLOW_COLOR,
-        textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: active && !reduceMotionEnabled ? 14 * p : 0,
       };
     },
@@ -968,6 +973,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.semibold,
     fontSize: LABEL_FONT_SIZE,
     lineHeight: LABEL_FONT_SIZE * 1.35,
+    // The glow's color + offset are declared statically here, not in the
+    // animated label style. textShadowColor is a color-valued, style-only
+    // attribute; on the New Architecture reanimated hands color props to
+    // Text's setNativeProps flat (top-level), so RN's warnForStyleProps flags
+    // "setting the style { textShadowColor: ... } as a prop". Radius (the only
+    // animated part) stays in labelVisuals and merges over this at render.
+    textShadowColor: LABEL_GLOW_COLOR,
+    textShadowOffset: { width: 0, height: 0 },
   },
   labelLeft: {
     textAlign: 'left',

@@ -1,7 +1,8 @@
 import * as React from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 
 import { act, fireEvent, render, screen } from '@/lib/test-utils';
+import { palette, withAlpha } from '@/theme';
 
 import {
   DecisionSlider,
@@ -139,6 +140,22 @@ describe('DecisionSlider — two-choice mode', () => {
     expect(screen.getByText(TWO_CHOICES[0])).toBeOnTheScreen();
     expect(screen.getByText(TWO_CHOICES[1])).toBeOnTheScreen();
     expect(screen.getByText('or')).toBeOnTheScreen();
+  });
+
+  it('declares the label glow color in static style, keeping it off the animated (worklet) style', async () => {
+    render(<DecisionSlider choices={TWO_CHOICES} onCommit={jest.fn()} />);
+    await flushMountEffects();
+
+    // textShadowColor is a color-valued, style-only attribute. On Fabric,
+    // reanimated surfaces color props flat to Text's setNativeProps, tripping
+    // RN's warnForStyleProps ("setting the style ... as a prop"). Keeping the
+    // glow color + offset in the static stylesheet — never in the animated
+    // worklet style — is what silences it; only textShadowRadius stays animated.
+    const flat = StyleSheet.flatten(
+      screen.getByText(TWO_CHOICES[0]).props.style
+    );
+    expect(flat.textShadowColor).toBe(withAlpha(palette.sandy, 0.45));
+    expect(flat.textShadowOffset).toEqual({ width: 0, height: 0 });
   });
 
   it('shows the default eyebrow "The path splits"', async () => {
