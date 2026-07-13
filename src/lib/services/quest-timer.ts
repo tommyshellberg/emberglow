@@ -164,6 +164,11 @@ export default class QuestTimer {
     this.questTemplate = questTemplate;
     this.questStartTime = null;
 
+    // M1: reset the run id up front. A new prepare always establishes a new run id
+    // (coop param or createQuestRun); clearing it first ensures a failed createQuestRun
+    // can't leave a stale prior run id that H2 would then register the current card onto.
+    this.questRunId = null;
+
     // Use the provided cooperative quest run ID if available
     if (cooperativeQuestRunId) {
       console.log(
@@ -252,9 +257,9 @@ export default class QuestTimer {
 
     if (Platform.OS === 'ios') {
       try {
-        if (!this.oneSignalActivityId) {
-          this.oneSignalActivityId = uuidv4();
-        }
+        // H1: always mint a fresh id for each new quest. Reusing a restored/stale id
+        // would let the server's stale-activity sweep dismiss the current quest's card.
+        this.oneSignalActivityId = uuidv4();
         // Construct attributes and content with status='pending'
         const attributes = {
           title: pendingQuestTitle,
@@ -279,6 +284,25 @@ export default class QuestTimer {
           error
         );
         this.oneSignalActivityId = null;
+      }
+    }
+
+    // H2: register the new activity id with the server now (best-effort), before the
+    // phone is ever locked, so the stale-activity sweep can dismiss this card even if
+    // the quest is abandoned before locking. Uses locked:false — the phone isn't locked
+    // yet. Non-fatal: a failure here must not break quest preparation.
+    if (Platform.OS === 'ios' && this.questRunId && this.oneSignalActivityId) {
+      try {
+        await updatePhoneLockStatus(
+          this.questRunId,
+          false,
+          this.oneSignalActivityId
+        );
+      } catch (error) {
+        console.log(
+          '[QuestTimer] prepare-time live activity registration failed (non-fatal):',
+          error
+        );
       }
     }
 
