@@ -199,6 +199,33 @@ describe('QuestTimer', () => {
         JSON.stringify(mockQuestTemplate)
       );
     });
+
+    it('mints a fresh Live Activity id on every prepare (H1)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const firstId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[0][0];
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const secondId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[1][0];
+
+      // Assert
+      expect(firstId).toBeTruthy();
+      expect(secondId).not.toBe(firstId);
+    });
   });
 
   describe('onPhoneLocked', () => {

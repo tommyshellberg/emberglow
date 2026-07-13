@@ -256,9 +256,9 @@ export default class QuestTimer {
 
     if (Platform.OS === 'ios') {
       try {
-        if (!this.oneSignalActivityId) {
-          this.oneSignalActivityId = uuidv4();
-        }
+        // H1: always mint a fresh id for each new quest. Reusing a restored/stale id
+        // would let the server's stale-activity sweep dismiss the current quest's card.
+        this.oneSignalActivityId = uuidv4();
         // Construct attributes and content with status='pending'
         const attributes = {
           title: pendingQuestTitle,
