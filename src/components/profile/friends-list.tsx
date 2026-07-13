@@ -1,12 +1,24 @@
+import { Users } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet } from 'react-native';
 
 import { Button, EyebrowLabel } from '@/components/emberglow';
 import { Text, View } from '@/components/ui';
-import { colors, radii, shadows, spacing } from '@/theme';
+import {
+  colors,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  text,
+  withAlpha,
+} from '@/theme';
 
 import { FriendItem } from './friend-item';
 import { InvitationItem } from './invitation-item';
+
+// Matches the guild empty state's icon circle (h-16 w-16 / 64px).
+const EMPTY_ICON_SIZE = 64;
 
 type CombinedItem = {
   type: 'friend' | 'invitation';
@@ -80,15 +92,20 @@ export function FriendsList({
         <EyebrowLabel tone="warm">
           {`Friends · ${combinedData?.length || 0}`}
         </EyebrowLabel>
-        <Button
-          variant="ghost"
-          size="sm"
-          label="+ Invite"
-          onPress={onInvite}
-          accessibilityLabel="Invite friends"
-          accessibilityHint="Tap to invite friends to join Emberglow"
-          testID="invite-friends-button"
-        />
+        {/* Redundant with the empty-state card's own "Invite friends" CTA
+            when the list is empty — only show the compact header action
+            once there's a list for it to sit alongside. */}
+        {combinedData.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            label="+ Invite"
+            onPress={onInvite}
+            accessibilityLabel="Invite friends"
+            accessibilityHint="Tap to invite friends to join Emberglow"
+            testID="invite-friends-button"
+          />
+        )}
       </View>
 
       {groups.map((group, index) => {
@@ -132,10 +149,20 @@ export function FriendsList({
 
       {combinedData.length === 0 && !isLoading && (
         <View style={styles.emptyCard}>
+          <View style={styles.emptyIconCircle}>
+            <Users size={28} color={colors.text.accent} strokeWidth={2} />
+          </View>
+          {/* Copy judgment call — flagged for review. */}
+          <Text style={styles.emptyHeadline}>Bring your circle along</Text>
           <Text style={styles.emptyText}>
             Don't see someone you want to connect with?
           </Text>
-          <Button label="Invite friends" onPress={onInvite} />
+          <Button
+            label="Invite friends"
+            variant="primary"
+            fullWidth
+            onPress={onInvite}
+          />
         </View>
       )}
 
@@ -181,10 +208,26 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border.hairline,
-    padding: spacing[5],
+    padding: spacing[6],
     gap: spacing[3],
   },
+  emptyIconCircle: {
+    width: EMPTY_ICON_SIZE,
+    height: EMPTY_ICON_SIZE,
+    borderRadius: EMPTY_ICON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Warm ember tint, same accent EyebrowLabel's tone="warm" resolves to.
+    backgroundColor: withAlpha(palette.sandy, 0.16),
+    marginBottom: spacing[1],
+  },
+  emptyHeadline: {
+    ...text.h3,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
   emptyText: {
+    ...text.body,
     textAlign: 'center',
     color: colors.text.secondary,
   },
