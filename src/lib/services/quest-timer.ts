@@ -172,6 +172,11 @@ export default class QuestTimer {
     this.questTemplate = questTemplate;
     this.questStartTime = null;
 
+    // M1: reset the run id up front. A new prepare always establishes a new run id
+    // (coop param or createQuestRun); clearing it first ensures a failed createQuestRun
+    // can't leave a stale prior run id that H2 would then register the current card onto.
+    this.questRunId = null;
+
     // Use the provided cooperative quest run ID if available
     if (cooperativeQuestRunId) {
       console.log(
