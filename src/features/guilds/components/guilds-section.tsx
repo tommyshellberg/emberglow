@@ -6,18 +6,6 @@
  */
 
 import { useRouter } from 'expo-router';
-import {
-  Axe,
-  Coffee,
-  Compass,
-  Flag,
-  Flame,
-  Gem,
-  Hammer,
-  Scroll,
-  Tent,
-  Wand,
-} from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 
@@ -27,6 +15,7 @@ import { useGuildStore } from '@/store/guild-store';
 import { useUserStore } from '@/store/user-store';
 import { colors, radii, shadows, spacing } from '@/theme';
 
+import { getGuildIconComponent } from '../constants/guild-icons';
 import { GUILD_A11Y, GUILD_LIMITS } from '../constants/guild-strings';
 import { useGuilds, useJoinByInviteCode } from '../hooks/use-guilds';
 import type { GuildIcon } from '../types/guild-types';
@@ -36,26 +25,10 @@ import { JoinGuildModal } from './modals/join-guild-modal';
 
 const ROW_ICON_SIZE = 19;
 
-// Line-art Lucide equivalents for each guild icon — the design drops the
-// colored SVG-in-circle `GuildIcon` in favor of a neutral rounded-square
-// tile (ListItem's own leading container) with a sandy line-art icon.
-// `typeof Flag` stands in for lucide-react-native's internal (unexported)
-// `LucideIcon` type — every icon in the package shares that same signature.
-const GUILD_ROW_ICONS: Record<GuildIcon, typeof Flag> = {
-  axe: Axe,
-  hammer: Hammer,
-  camping: Tent,
-  mug: Coffee,
-  flame: Flame,
-  explorer: Compass,
-  magic: Wand,
-  banner: Flag,
-  scroll: Scroll,
-  diamond: Gem,
-};
-
+// Neutral rounded-square tile (ListItem's own leading container) with a
+// sandy line-art icon, resolved from the shared guild icon mapping.
 function GuildRowIcon({ icon }: { icon: GuildIcon }) {
-  const IconComponent = GUILD_ROW_ICONS[icon] ?? Flag;
+  const IconComponent = getGuildIconComponent(icon);
   return <IconComponent size={ROW_ICON_SIZE} color={colors.text.accent} />;
 }
 
