@@ -105,9 +105,6 @@ describe('CooperativeQuestMenu', () => {
   });
 
   it('should navigate to scheduled quest screen when Public Events is pressed', () => {
-    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
-      selector({ user: { featureFlags: ['coop_mode', 'scheduled_events'] } })
-    );
     render(<CooperativeQuestMenu />);
 
     const eventsButton = screen.getByText('Public Events');
@@ -116,10 +113,13 @@ describe('CooperativeQuestMenu', () => {
     expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
   });
 
-  it('should hide Public Events option when user lacks the scheduled_events feature flag', () => {
+  it('should show Public Events option regardless of feature flags', () => {
+    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
+      selector({ user: { featureFlags: [] } })
+    );
     render(<CooperativeQuestMenu />);
 
-    expect(screen.queryByText('Public Events')).toBeNull();
+    expect(screen.getByText('Public Events')).toBeTruthy();
   });
 
   it('should open contacts modal when Add Friends is pressed', () => {
