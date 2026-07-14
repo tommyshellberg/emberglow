@@ -11,7 +11,7 @@
       "autoIncrement": true,
       "pnpm": "9.12.3",
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "android": {
         "buildType": "app-bundle",
@@ -29,7 +29,7 @@
         "image": "latest"
       },
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "distribution": "internal",
       "pnpm": "9.12.3",
@@ -46,7 +46,7 @@
       "distribution": "internal",
       "pnpm": "9.12.3",
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "android": {
         "buildType": "apk",
@@ -63,7 +63,7 @@
       "distribution": "internal",
       "pnpm": "9.12.3",
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "android": {
         "image": "latest"
@@ -78,7 +78,7 @@
       "pnpm": "9.12.3",
       "ios": {
         "simulator": true,
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "android": {
         "image": "latest",
