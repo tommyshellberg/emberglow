@@ -9,18 +9,31 @@ import { translate } from '@/lib/i18n';
 interface Props extends TextProps {
   className?: string;
   tx?: TxKeyPath;
+  /** Contrast-safe color presets. Defaults to the primary (white) text color. */
+  variant?: 'default' | 'secondary';
 }
+
+const VARIANT_CLASSES: Record<NonNullable<Props['variant']>, string> = {
+  default: '',
+  secondary: 'text-neutral-200',
+};
 
 export const Text = ({
   className = '',
   style,
   tx,
+  variant = 'default',
   children,
   ...props
 }: Props) => {
   const textStyle = React.useMemo(
-    () => twMerge('text-base font-inter-regular text-white', className),
-    [className]
+    () =>
+      twMerge(
+        'text-base font-inter-regular text-white',
+        VARIANT_CLASSES[variant],
+        className
+      ),
+    [className, variant]
   );
 
   const nStyle = React.useMemo(

@@ -20,7 +20,7 @@ import QuestTimer from '@/lib/services/quest-timer';
 import type { LobbyReadyStatusPayload } from '@/lib/services/websocket-events.types';
 import { useCooperativeLobbyStore } from '@/store/cooperative-lobby-store';
 import { useQuestStore } from '@/store/quest-store';
-import type { CustomQuestTemplate } from '@/store/types';
+import type { CooperativeQuestTemplate } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
 interface ParticipantReadyRowProps {
@@ -91,6 +91,101 @@ export default function CooperativeQuestReady() {
   const { emit, on, off } = useWebSocket();
   const [isLoading, setIsLoading] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+
+  // Define the quest created handler. Declared here (rather than after the
+  // `if (!currentLobby...) return` below) because the effect below lists it
+  // as a dependency, and that reference is evaluated before this component
+  // reaches any code after the early return — declaring it later threw
+  // "used before its declaration" (a real TDZ crash, not just a type gap).
+  const handleQuestCreatedResponse = useCallback(
+    async (questRun: any) => {
+      if (!currentLobby) {
+        return;
+      }
+
+      if (__DEV__) {
+        console.log('Quest created, preparing quest:', questRun);
+      }
+
+      // Transform questRun data to match CooperativeQuestTemplate format
+      const questId =
+        questRun.questId || questRun._id || questRun.id || `coop-${Date.now()}`;
+      if (__DEV__) {
+        console.log(
+          'Creating quest template with ID:',
+          questId,
+          'from questRun:',
+          questRun
+        );
+      }
+
+      const questTemplate: CooperativeQuestTemplate = {
+        id: questId,
+        title:
+          questRun.title || questRun.quest?.title || currentLobby.questTitle,
+        durationMinutes:
+          questRun.durationMinutes ||
+          questRun.quest?.durationMinutes ||
+          currentLobby.questDuration,
+        reward: questRun.reward ||
+          questRun.quest?.reward || { xp: currentLobby.questDuration * 10 },
+        mode: 'cooperative',
+        category: 'cooperative',
+        // Don't include inviteeIds in the template - the server already created the quest
+        // with all participants. Including inviteeIds would trigger a new quest creation
+      };
+
+      // Get the quest run ID from the server response
+      const questRunId = questRun.id || questRun._id;
+      if (!questRunId) {
+        console.error(
+          '[CooperativeQuestReady] No quest run ID in server response:',
+          questRun
+        );
+        throw new Error('Server did not provide quest run ID');
+      }
+
+      // Store the full questRun data in the quest store for cooperative features
+      const questStore = useQuestStore.getState();
+
+      // Ensure the cooperative quest run is set with the server-created quest run
+      const cooperativeQuestRunData = {
+        id: questRunId,
+        questId: questId,
+        hostId: questRun.hostId || questRun.creatorId,
+        status: questRun.status || 'pending',
+        participants: questRun.participants || [],
+        invitationId: questRun.invitationId,
+        actualStartTime: questRun.actualStartTime,
+        scheduledEndTime: questRun.scheduledEndTime,
+        createdAt: questRun.createdAt || Date.now(),
+        updatedAt: questRun.updatedAt || Date.now(),
+      };
+
+      if (__DEV__) {
+        console.log(
+          '[CooperativeQuestReady] Raw questRun.participants:',
+          JSON.stringify(questRun.participants, null, 2)
+        );
+        console.log(
+          '[CooperativeQuestReady] Setting cooperative quest run:',
+          cooperativeQuestRunData
+        );
+      }
+      questStore.setCooperativeQuestRun(cooperativeQuestRunData);
+
+      // Prepare quest with transformed data
+      prepareQuest(questTemplate);
+
+      // For cooperative quests, pass the quest run ID directly to avoid race conditions
+      await QuestTimer.prepareQuest(questTemplate, questRunId);
+
+      // Navigate to cooperative pending quest which will show the countdown
+      // Use push so cancel button can navigate back
+      router.push('/cooperative-pending-quest');
+    },
+    [currentLobby, prepareQuest, router]
+  );
 
   useEffect(() => {
     if (!currentLobby) {
@@ -211,93 +306,6 @@ export default function CooperativeQuestReady() {
   );
   const allReady = acceptedParticipants.every((p) => p.isReady);
   const isCreator = currentParticipant?.isCreator || false;
-
-  // Define the quest created handler
-  const handleQuestCreatedResponse = useCallback(
-    async (questRun: any) => {
-      if (__DEV__) {
-        console.log('Quest created, preparing quest:', questRun);
-      }
-
-      // Transform questRun data to match CustomQuestTemplate format
-      const questId =
-        questRun.questId || questRun._id || questRun.id || `coop-${Date.now()}`;
-      if (__DEV__) {
-        console.log(
-          'Creating quest template with ID:',
-          questId,
-          'from questRun:',
-          questRun
-        );
-      }
-
-      const questTemplate: CustomQuestTemplate = {
-        id: questId,
-        title:
-          questRun.title || questRun.quest?.title || currentLobby.questTitle,
-        durationMinutes:
-          questRun.durationMinutes ||
-          questRun.quest?.durationMinutes ||
-          currentLobby.questDuration,
-        reward: questRun.reward ||
-          questRun.quest?.reward || { xp: currentLobby.questDuration * 10 },
-        mode: 'cooperative',
-        category: 'cooperative',
-        // Don't include inviteeIds in the template - the server already created the quest
-        // with all participants. Including inviteeIds would trigger a new quest creation
-      };
-
-      // Get the quest run ID from the server response
-      const questRunId = questRun.id || questRun._id;
-      if (!questRunId) {
-        console.error(
-          '[CooperativeQuestReady] No quest run ID in server response:',
-          questRun
-        );
-        throw new Error('Server did not provide quest run ID');
-      }
-
-      // Store the full questRun data in the quest store for cooperative features
-      const questStore = useQuestStore.getState();
-
-      // Ensure the cooperative quest run is set with the server-created quest run
-      const cooperativeQuestRunData = {
-        id: questRunId,
-        questId: questId,
-        hostId: questRun.hostId || questRun.creatorId,
-        status: questRun.status || 'pending',
-        participants: questRun.participants || [],
-        invitationId: questRun.invitationId,
-        actualStartTime: questRun.actualStartTime,
-        scheduledEndTime: questRun.scheduledEndTime,
-        createdAt: questRun.createdAt || Date.now(),
-        updatedAt: questRun.updatedAt || Date.now(),
-      };
-
-      if (__DEV__) {
-        console.log(
-          '[CooperativeQuestReady] Raw questRun.participants:',
-          JSON.stringify(questRun.participants, null, 2)
-        );
-        console.log(
-          '[CooperativeQuestReady] Setting cooperative quest run:',
-          cooperativeQuestRunData
-        );
-      }
-      questStore.setCooperativeQuestRun(cooperativeQuestRunData);
-
-      // Prepare quest with transformed data
-      prepareQuest(questTemplate);
-
-      // For cooperative quests, pass the quest run ID directly to avoid race conditions
-      await QuestTimer.prepareQuest(questTemplate, questRunId);
-
-      // Navigate to cooperative pending quest which will show the countdown
-      // Use push so cancel button can navigate back
-      router.push('/cooperative-pending-quest');
-    },
-    [currentLobby, prepareQuest, router]
-  );
 
   // When all are ready, creator should create the quest
   useEffect(() => {

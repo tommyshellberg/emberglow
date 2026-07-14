@@ -67,7 +67,27 @@ export function QuestCompleteStory({
   }, [storyOpacity, disableAnimations]);
 
   const isStory = isStoryQuest(quest);
+  const isCooperative = quest.mode === 'cooperative';
   const displayStory = story || 'Congratulations on completing your quest!';
+
+  // Cooperative quests have no narrative to fill a story card with, so skip
+  // the card entirely and show the congrats message directly on the screen.
+  if (isCooperative) {
+    return (
+      <Animated.View
+        className="my-2 w-full items-center px-4"
+        style={storyStyle}
+        accessibilityLabel="Quest completion story"
+      >
+        <Text
+          className="text-center text-base leading-6 text-white"
+          accessibilityRole="text"
+        >
+          {displayStory}
+        </Text>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View

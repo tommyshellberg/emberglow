@@ -13,7 +13,10 @@ import {
 import { removeItem, setItem } from '@/lib/storage';
 // Import the store for assertions
 // Import types
-import type { StoryQuestTemplate } from '@/store/types';
+import type {
+  CooperativeQuestTemplate,
+  StoryQuestTemplate,
+} from '@/store/types';
 
 import QuestTimer from './quest-timer';
 
@@ -137,6 +140,11 @@ jest.mock('react-native-bg-actions', () => ({
 describe('QuestTimer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks only clears call records, not implementations. Re-establish
+    // createQuestRun's default resolved value so a prior test's mockRejectedValue
+    // can't leak forward. (Previously masked by the static questRunId never being
+    // reset between tests; M1's prepare-time reset removes that masking.)
+    (createQuestRun as jest.Mock).mockResolvedValue({ id: 'mock-quest-run-id' });
     // Clear the mock storage
     Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
     // Reset Platform.OS to ios for most tests
@@ -198,6 +206,86 @@ describe('QuestTimer', () => {
         'QUEST_TIMER_TEMPLATE',
         JSON.stringify(mockQuestTemplate)
       );
+    });
+
+    it('mints a fresh Live Activity id on every prepare (H1)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const firstId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[0][0];
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const secondId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[1][0];
+
+      // Assert
+      expect(firstId).toBeTruthy();
+      expect(secondId).not.toBe(firstId);
+    });
+
+    it('registers the new activity id with the server at prepare (H2)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+      const activityId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[0][0];
+
+      // Assert
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'mock-quest-run-id',
+        false,
+        activityId
+      );
+    });
+
+    it('does not register a stale prior run id when createQuestRun fails (M1)', async () => {
+      // Arrange
+      const mockQuestTemplate: StoryQuestTemplate = {
+        id: 'test-quest-id',
+        title: 'Test Quest',
+        durationMinutes: 15,
+        mode: 'story',
+        recap: 'Test quest recap',
+        poiSlug: 'test-poi',
+        story: 'Test story content',
+        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+        reward: { xp: 100 },
+      };
+
+      // Simulate a leftover questRunId from a prior quest
+      // @ts-ignore - private static
+      QuestTimer.questRunId = 'stale-prior-run-id';
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('server down'));
+
+      // Act
+      await QuestTimer.prepareQuest(mockQuestTemplate);
+
+      // Assert - H2 must NOT register the current card's id onto the stale prior run
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
     });
   });
 
@@ -346,16 +434,12 @@ describe('QuestTimer', () => {
   describe('prepareQuest with cooperative quest', () => {
     it('should throw error if cooperative quest has no questRunId', async () => {
       // Arrange
-      const cooperativeQuest: StoryQuestTemplate = {
+      const cooperativeQuest: CooperativeQuestTemplate = {
         id: 'coop-quest-1',
         title: 'Cooperative Quest',
         durationMinutes: 10,
-        mode: 'story',
+        mode: 'cooperative',
         category: 'cooperative',
-        recap: 'Test cooperative quest',
-        poiSlug: 'test-poi',
-        story: 'Test story',
-        options: [],
         reward: { xp: 200 },
       };
 
@@ -367,16 +451,12 @@ describe('QuestTimer', () => {
 
     it('should use provided cooperativeQuestRunId for cooperative quests', async () => {
       // Arrange
-      const cooperativeQuest: StoryQuestTemplate = {
+      const cooperativeQuest: CooperativeQuestTemplate = {
         id: 'coop-quest-1',
         title: 'Cooperative Quest',
         durationMinutes: 10,
-        mode: 'story',
+        mode: 'cooperative',
         category: 'cooperative',
-        recap: 'Test cooperative quest',
-        poiSlug: 'test-poi',
-        story: 'Test story',
-        options: [],
         reward: { xp: 200 },
       };
 

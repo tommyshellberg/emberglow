@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
+import { useUserStore } from '@/store/user-store';
 
 // Import the component
 import CooperativeQuestMenu from './cooperative-quest-menu';
@@ -73,6 +74,9 @@ jest.mock('@/components/providers/lazy-websocket-provider', () => ({
 describe('CooperativeQuestMenu', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
+      selector({ user: { featureFlags: ['coop_mode'] } })
+    );
   });
 
   it('should render the cooperative quest screen', async () => {
@@ -98,6 +102,24 @@ describe('CooperativeQuestMenu', () => {
     fireEvent.press(joinButton);
 
     expect(mockPush).toHaveBeenCalledWith('/join-cooperative-quest');
+  });
+
+  it('should navigate to scheduled quest screen when Public Events is pressed', () => {
+    render(<CooperativeQuestMenu />);
+
+    const eventsButton = screen.getByText('Public Events');
+    fireEvent.press(eventsButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
+  });
+
+  it('should show Public Events option regardless of feature flags', () => {
+    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
+      selector({ user: { featureFlags: [] } })
+    );
+    render(<CooperativeQuestMenu />);
+
+    expect(screen.getByText('Public Events')).toBeTruthy();
   });
 
   it('should open contacts modal when Add Friends is pressed', () => {

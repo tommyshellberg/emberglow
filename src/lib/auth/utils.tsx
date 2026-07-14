@@ -1,5 +1,5 @@
 import { getItem, removeItem, setItem } from '@/lib/storage';
-import type { User } from '@/store/user-store';
+import type { User } from '@/store/types';
 
 const TOKEN = 'token';
 

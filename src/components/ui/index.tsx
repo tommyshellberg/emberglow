@@ -6,6 +6,7 @@ export * from './button';
 export * from './card';
 export * from './checkbox';
 export { default as colors } from './colors';
+export * from './date-time-field';
 export * from './duration-badge';
 export * from './eyebrow';
 export * from './focus-aware-status-bar';
@@ -18,6 +19,7 @@ export { default as BottomSheetKeyboardAwareScrollView } from './modal-keyboard-
 export * from './progress-bar';
 export * from './screen-container';
 export * from './screen-header';
+export * from './segmented-control';
 export * from './select';
 export * from './text';
 export * from './title';

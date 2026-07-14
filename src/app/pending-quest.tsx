@@ -192,7 +192,7 @@ export default function PendingQuestScreen() {
           <Lock
             size={LOCK_ICON_SIZE}
             color={palette.sandy}
-            accessibilityHidden
+            accessibilityElementsHidden
           />
           <Text
             style={styles.lockText}

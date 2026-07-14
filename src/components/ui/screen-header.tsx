@@ -16,6 +16,7 @@ interface ScreenHeaderProps {
   showBackButton?: boolean;
   onBackPress?: () => void;
   animate?: boolean;
+  rightComponent?: React.ReactNode;
 }
 
 // Mockup spec: TabHeader (shared.jsx) uses 34, SubHeader (social.jsx,
@@ -48,6 +49,7 @@ export function ScreenHeader({
   showBackButton = false,
   onBackPress,
   animate = true,
+  rightComponent,
 }: ScreenHeaderProps) {
   const router = useRouter();
   const headerOpacity = useSharedValue(animate ? 0 : 1);
@@ -90,14 +92,17 @@ export function ScreenHeader({
             <ArrowLeft size={22} color={colors.text.secondary} />
           </TouchableOpacity>
         )}
-        <Text
-          style={[
-            styles.title,
-            { fontSize: titleSize, lineHeight: titleSize * TITLE_LEADING },
-          ]}
-        >
-          {title}
-        </Text>
+        <View className="flex-1">
+          <Text
+            style={[
+              styles.title,
+              { fontSize: titleSize, lineHeight: titleSize * TITLE_LEADING },
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
+        {rightComponent}
       </View>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </HeaderWrapper>

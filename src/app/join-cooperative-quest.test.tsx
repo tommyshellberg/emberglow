@@ -9,11 +9,13 @@ import JoinCooperativeQuest from './join-cooperative-quest';
 // Mock the router
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
     replace: mockReplace,
     back: mockBack,
+    push: mockPush,
   }),
 }));
 
@@ -78,8 +80,7 @@ describe('JoinCooperativeQuest', () => {
       expect(
         screen.getByText("You don't have any pending quest invitations.")
       ).toBeTruthy();
-      expect(screen.getByText('Public Quests')).toBeTruthy();
-      expect(screen.getByText('Coming Soon')).toBeTruthy();
+      expect(screen.getByText('Public Events')).toBeTruthy();
     });
   });
 
@@ -242,26 +243,27 @@ describe('JoinCooperativeQuest', () => {
     });
   });
 
-  it('should show public quests preview section with mock data', async () => {
-    // Test with no invitations to see the public quests section
+  it('should render a live public events section that routes to /scheduled-quest', async () => {
+    // Test with no invitations to see the public events section
     (invitationApi.getPendingInvitations as jest.Mock).mockResolvedValue([]);
 
     render(<JoinCooperativeQuest />);
 
     await waitFor(() => {
       expect(screen.getByText('No Invitations')).toBeTruthy();
-      expect(screen.getByText('Public Quests')).toBeTruthy();
-      expect(screen.getByText('Coming Soon')).toBeTruthy();
-
-      // Check for mock public quest
-      expect(screen.getByText('Morning Productivity Challenge')).toBeTruthy();
-
-      // Check for disabled join button
-      expect(screen.getByText('Join (Coming Soon)')).toBeTruthy();
-
-      // Check for info message
-      expect(screen.getByText('Public Quests are coming soon!')).toBeTruthy();
+      expect(screen.getByText('Public Events')).toBeTruthy();
     });
+
+    // No "Coming Soon" mock content should remain anywhere on screen
+    expect(screen.queryByText('Coming Soon')).toBeNull();
+    expect(screen.queryByText('Morning Productivity Challenge')).toBeNull();
+    expect(screen.queryByText('Join (Coming Soon)')).toBeNull();
+    expect(screen.queryByText('Public Quests are coming soon!')).toBeNull();
+
+    const browseButton = screen.getByTestId('browse-public-events');
+    fireEvent.press(browseButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
   });
 
   it('should handle back navigation', async () => {

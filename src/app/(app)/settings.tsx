@@ -445,9 +445,11 @@ function DebugSection({ user }: { user: User | null }) {
                 [{ text: 'OK' }]
               );
             } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : 'Unknown error';
               Alert.alert(
                 'Error',
-                'Failed to get OneSignal info: ' + error.message
+                'Failed to get OneSignal info: ' + errorMessage
               );
             }
           }}
@@ -490,9 +492,11 @@ function DebugSection({ user }: { user: User | null }) {
                 [{ text: 'OK' }]
               );
             } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : 'Unknown error';
               Alert.alert(
                 'Error',
-                'Failed to get notification status: ' + error.message
+                'Failed to get notification status: ' + errorMessage
               );
             }
           }}

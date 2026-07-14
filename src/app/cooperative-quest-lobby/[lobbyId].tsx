@@ -230,17 +230,14 @@ export default function CooperativeQuestLobby() {
         if (__DEV__) {
           console.log('Participant joined:', data);
         }
-        // Update local state with the new participant
-        if (data.participant && data.lobbyId === lobbyId) {
-          updateParticipant(data.participant.userId || data.userId, {
-            username:
-              data.participant.characterName ||
-              data.participant.username ||
-              data.participant.userId,
-            invitationStatus: 'accepted',
-            joinedAt: new Date(),
-          });
-        }
+        // Update local state with the new participant. This event is
+        // already room-scoped server-side (socket.to(roomId).emit(...)), so
+        // there's no lobbyId on the payload to check against.
+        updateParticipant(data.userId, {
+          username: data.characterName || data.username || data.userId,
+          invitationStatus: 'accepted',
+          joinedAt: new Date(),
+        });
       };
 
       const handleParticipantUpdated = (

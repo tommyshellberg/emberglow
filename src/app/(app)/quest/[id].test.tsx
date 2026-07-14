@@ -450,6 +450,19 @@ describe('AppQuestDetailsScreen', () => {
       expect(screen.getByText('Add reflection')).toBeOnTheScreen();
     });
 
+    it('renders the "Add reflection" button below the quest-complete content, not above it', () => {
+      render(<AppQuestDetailsScreen />);
+
+      // The Emberglow redesign nests the reflection affordance inside
+      // QuestComplete's actions (below the header/story content) rather than
+      // as an external button above it. Anchor on the quest title, which the
+      // QuestCompleteHeader renders at the top of the quest-complete content.
+      const tree = JSON.stringify(screen.toJSON());
+      expect(tree.indexOf('Morning Meditation')).toBeLessThan(
+        tree.indexOf('Add reflection')
+      );
+    });
+
     it('shows different action button when not from journal', () => {
       mockUseLocalSearchParams.mockReturnValue({
         id: 'quest-123',

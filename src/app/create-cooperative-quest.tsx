@@ -138,7 +138,11 @@ export default function CreateCooperativeQuestScreen() {
         participants: [
           {
             id: currentUser.id,
-            username: currentUser.character?.name || 'You',
+            // Server may return the legacy nested character.name format
+            // (see hasNestedCharacter handling in lib/auth/index.tsx);
+            // `User` only models the flat `name` field.
+            username:
+              (currentUser as any).character?.name || currentUser.name || 'You',
             invitationStatus: 'accepted' as const,
             isReady: false,
             isCreator: true,

@@ -45,7 +45,7 @@ const PremiumCTATracker = ({
         upsell_type: 'storyline_quest',
         trigger_location: 'home_storyline',
         quest_type: 'story',
-        quest_id: questId,
+        quest_id: questId ?? null,
       });
     }
   }, [questId, type, posthog]);

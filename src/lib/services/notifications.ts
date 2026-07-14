@@ -320,7 +320,7 @@ export const scheduleStreakWarningNotification = async (
     };
 
     // Use different trigger strategies based on whether it's for today or tomorrow
-    let trigger;
+    let trigger: ExpoNotifications.NotificationTriggerInput;
     if (forTomorrow || targetDate.getDate() !== now.getDate()) {
       // For tomorrow, use DAILY trigger type which works on both platforms
       trigger = {

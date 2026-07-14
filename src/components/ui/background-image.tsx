@@ -12,6 +12,8 @@ export type BackgroundImageProps = {
   children?: React.ReactNode;
   /** Optional className for the container View */
   className?: string;
+  /** Optional testID for the container View */
+  testID?: string;
 };
 
 /**
@@ -41,9 +43,10 @@ export function BackgroundImage({
   tintClassName = 'bg-white/10',
   children,
   className = 'absolute inset-0',
+  testID,
 }: BackgroundImageProps) {
   return (
-    <View className={className}>
+    <View className={className} testID={testID}>
       <Image source={source} className="size-full" resizeMode="cover" />
       <View className={`absolute inset-0 ${tintClassName}`} />
       {children}

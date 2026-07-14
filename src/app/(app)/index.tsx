@@ -384,7 +384,7 @@ export default function Home() {
           upsell_type: 'storyline_quest',
           trigger_location: 'home_storyline',
           quest_type: 'story',
-          quest_id: questId,
+          quest_id: questId ?? null,
         });
       } else {
         posthog.capture('premium_upsell_cta_viewed', {

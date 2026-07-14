@@ -9,13 +9,14 @@ export interface LobbyLeavePayload {
   lobbyId: string;
 }
 
+// Matches the server's actual emit shape (unquest-server
+// src/websocket/handlers/lobby.js) — a flat userId/username/characterName
+// for the joining participant, plus the lobby's full participant list.
 export interface LobbyParticipantJoinedPayload {
   userId: string;
   username: string;
-  characterType?: CharacterType;
-  invitationStatus: 'pending' | 'accepted' | 'declined';
-  isReady: boolean;
-  isCreator: boolean;
+  characterName?: string;
+  participants: any[];
 }
 
 export interface LobbyParticipantUpdatedPayload {
@@ -181,6 +182,44 @@ export interface InvitationExpiredPayload {
   expiredAt: number;
 }
 
+// Scheduled quest ("Event") room payloads - server: scheduled-quest.controller.js / scheduled-quest.service.js
+export interface ScheduledParticipantJoinedPayload {
+  questRunId: string;
+  userId: string;
+  participantCount: number;
+}
+
+export interface ScheduledParticipantLeftPayload {
+  questRunId: string;
+  userId: string;
+  participantCount: number;
+  kicked?: boolean;
+}
+
+export interface ScheduledParticipantFailedPayload {
+  questRunId: string;
+  userId: string;
+  reason: string;
+}
+
+export interface QuestSettledParticipant {
+  userId: string;
+  status: 'completed' | 'failed' | 'no_show';
+  xpAwarded: number;
+  creditFailed?: boolean;
+}
+
+export interface QuestSettledPayload {
+  questRunId: string;
+  completedAt: string;
+  participants: QuestSettledParticipant[];
+}
+
+export interface QuestCancelledPayload {
+  questRunId: string;
+  reason: 'empty' | 'creator_cancelled';
+}
+
 // Complete WebSocket Events Interface
 export interface TypedWebSocketEvents {
   // Lobby events
@@ -205,6 +244,13 @@ export interface TypedWebSocketEvents {
   participantLeft: (data: ParticipantLeftPayload) => void;
   participantReady: (data: ParticipantReadyPayload) => void;
   participantProgress: (data: ParticipantProgressPayload) => void;
+
+  // Scheduled quest (Event) room events
+  'quest:participant-joined': (data: ScheduledParticipantJoinedPayload) => void;
+  'quest:participant-left': (data: ScheduledParticipantLeftPayload) => void;
+  'quest:participant-failed': (data: ScheduledParticipantFailedPayload) => void;
+  'quest:settled': (data: QuestSettledPayload) => void;
+  'quest:cancelled': (data: QuestCancelledPayload) => void;
 
   // Invitation events
   invitationAccepted: (data: InvitationAcceptedPayload) => void;

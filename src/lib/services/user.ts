@@ -37,7 +37,12 @@ export interface FriendCharacter {
 
 export interface FriendDetails {
   _id: string;
+  // Friend lookups can come back keyed by `userId`/`id` instead of `_id`
+  // depending on the endpoint; callers fall back across all three.
+  userId?: string;
+  id?: string;
   email: string;
+  displayName?: string;
   isEmailVerified: boolean;
   friends: string[];
   pendingFriends: string[];

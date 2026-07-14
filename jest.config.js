@@ -2,10 +2,10 @@ module.exports = {
   preset: 'jest-expo',
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
-  // .worktrees/ holds other sessions' checkouts — without this, bare
-  // `pnpm test` collects hundreds of duplicate test files that fail on
-  // mixed-tree module resolution.
-  testPathIgnorePatterns: ['/node_modules/', '/.worktrees/'],
+  // Ignore nested git worktrees (created under .worktrees/) so jest doesn't
+  // scan their duplicate test files or collide on their haste module names.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/'],
+  modulePathIgnorePatterns: ['<rootDir>/.worktrees/'],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
@@ -23,12 +23,7 @@ module.exports = {
   coverageReporters: ['json-summary', ['text', { file: 'coverage.txt' }]],
   reporters: [
     'default',
-    [
-      'tdd-guard-jest',
-      {
-        projectRoot: '/Users/thomasshellberg/Projects/unquest/unquest/',
-      },
-    ],
+    'tdd-guard-jest',
     ['github-actions', { silent: false }],
     'summary',
     [

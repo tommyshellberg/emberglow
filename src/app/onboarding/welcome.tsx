@@ -15,7 +15,7 @@ const LOGO_SIZE = 92;
 // (onboarding-screens.jsx:74) — not on the 4pt spacing scale, kept literal
 // per the "pixel-perfect beats scale purity" convention (Phase 2 ground
 // rule 2), same precedent as login-form.tsx's CARD_PADDING_* constants.
-const CONTENT_PADDING_TOP = 64;
+const CONTENT_PADDING_TOP = 36;
 const CONTENT_PADDING_HORIZONTAL = 28;
 const CONTENT_PADDING_BOTTOM = 36;
 
@@ -119,6 +119,13 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject,
+    // Explicit 100%/100% is required on the New Architecture (Fabric): an
+    // absolutely-positioned <Image> whose size comes only from the
+    // absoluteFill insets falls back to the require()'d asset's intrinsic
+    // pixel size (1632×2912) anchored top-left, ignoring resizeMode. Giving
+    // it a definite frame makes resizeMode="cover" apply. Do not remove.
+    width: '100%',
+    height: '100%',
   },
   scrimTop: {
     position: 'absolute',

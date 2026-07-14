@@ -169,4 +169,28 @@ describe('QuestCompleteStory', () => {
       expect(queryByTestId('story-narration-mock')).toBeNull();
     });
   });
+
+  describe('Cooperative Quest Card', () => {
+    it('should not wrap cooperative quest text in a Card', () => {
+      const { UNSAFE_queryByType } = render(
+        <QuestCompleteStory
+          story="Cooperative quest text"
+          quest={mockCooperativeQuest}
+        />
+      );
+      const Card = require('@/components/ui/card').Card;
+      expect(UNSAFE_queryByType(Card)).toBeNull();
+    });
+
+    it('should wrap story quest content in the story card, not the bare cooperative layout', () => {
+      const { queryByTestId } = render(
+        <QuestCompleteStory story="Story quest text" quest={mockStoryQuest} />
+      );
+      // The Emberglow redesign renders story quests inside the bespoke story
+      // card (`styles.card`, a two-layer shadow View) with the in-card
+      // StoryNarration player — unlike the cooperative branch, which shows a
+      // bare centered congrats message with no narration.
+      expect(queryByTestId('story-narration-mock')).toBeTruthy();
+    });
+  });
 });

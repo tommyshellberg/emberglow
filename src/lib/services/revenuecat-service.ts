@@ -101,7 +101,11 @@ export class RevenueCatService {
           'No active RevenueCat account found - returning default customer info'
         );
         return {
-          entitlements: { active: {} },
+          entitlements: {
+            active: {},
+            all: {},
+            verification: Purchases.VERIFICATION_RESULT.NOT_REQUESTED,
+          },
           activeSubscriptions: [],
           allPurchasedProductIdentifiers: [],
           latestExpirationDate: null,
@@ -114,6 +118,7 @@ export class RevenueCatService {
           originalPurchaseDate: null,
           managementURL: null,
           nonSubscriptionTransactions: [],
+          subscriptionsByProductIdentifier: {},
         } as CustomerInfo;
       }
       throw error;

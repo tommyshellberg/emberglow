@@ -43,7 +43,7 @@ export const handleDeleteAccount = (
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'View Terms',
-        onPress: () => Linking.openURL('https://unquestapp.com/terms'),
+        onPress: () => Linking.openURL('https://emberglowapp.com/terms'),
       },
       {
         text: 'Delete Account',
