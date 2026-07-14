@@ -1,22 +1,36 @@
 import { router } from 'expo-router';
 import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
-  FadeInDown,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
 
-import { View } from '@/components/ui';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/emberglow';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { easing, spacing } from '@/theme';
 
 import { ANIMATION_TIMING, ONBOARDING_QUEST_ID } from './constants';
 import type { QuestCompleteActionsProps } from './types';
 
+const EMBER_OUT = Easing.bezier(...easing.emberOut);
+/** Rise distance for the fade+translateY entrance, matching FailedQuest's convergence. */
+const RISE_DISTANCE = 16;
+
+/**
+ * Bottom action stack (quest-flow.jsx:178-181): a full-width primary "Add
+ * reflection" button, with a secondary full-width "Continue" underneath it
+ * only in the quest-flow context (`fromJournal === false`) — the journal
+ * context never shows Continue.
+ */
 export function QuestCompleteActions({
   quest,
+  fromJournal = false,
+  hasReflection = false,
   onContinue,
   continueText,
   disableAnimations = false,
@@ -24,18 +38,25 @@ export function QuestCompleteActions({
   const clearRecentCompletedQuest = useQuestStore(
     (state) => state.clearRecentCompletedQuest
   );
+  const isOnboardingComplete = useOnboardingStore((s) =>
+    s.isOnboardingComplete()
+  );
 
   const actionsOpacity = useSharedValue(0);
 
   const actionsStyle = useAnimatedStyle(() => ({
     opacity: actionsOpacity.value,
+    transform: [{ translateY: RISE_DISTANCE * (1 - actionsOpacity.value) }],
   }));
 
   useEffect(() => {
     if (!disableAnimations) {
       actionsOpacity.value = withDelay(
         ANIMATION_TIMING.ACTIONS_DELAY,
-        withTiming(1, { duration: ANIMATION_TIMING.ACTIONS_DURATION })
+        withTiming(1, {
+          duration: ANIMATION_TIMING.ACTIONS_DURATION,
+          easing: EMBER_OUT,
+        })
       );
     } else {
       actionsOpacity.value = 1;
@@ -63,43 +84,66 @@ export function QuestCompleteActions({
         questId: quest.id,
         questRunId,
         duration: quest.durationMinutes,
+        // Preserves the pre-existing journal-vs-direct navigation targets
+        // (ground rule 1) — only the journal context tags the reflection
+        // screen with where to return to.
+        ...(fromJournal ? { from: 'quest-detail' } : {}),
       },
     });
   };
 
   // Show reflection button if:
   // 1. Quest has a questRunId (server-tracked quest)
-  // 2. Quest is not the onboarding quest (quest-1)
+  // 2. Onboarding is finished — the first quest's id is server-driven
+  //    (quest-1, quest-1a, ...), so the id check alone can't identify it
+  // 3. Quest is not the onboarding quest (quest-1)
+  // 4. It doesn't already have a reflection attached
   const showReflectionButton =
-    (quest as any).questRunId && quest.id !== ONBOARDING_QUEST_ID;
+    (quest as any).questRunId &&
+    isOnboardingComplete &&
+    quest.id !== ONBOARDING_QUEST_ID &&
+    !hasReflection;
 
   return (
     <Animated.View
-      entering={
-        disableAnimations
-          ? undefined
-          : FadeInDown.delay(ANIMATION_TIMING.ENTERING_DELAY_2).duration(600)
-      }
-      className="mb-4 w-full"
-      style={actionsStyle}
+      style={[styles.container, actionsStyle]}
       testID="quest-actions-container"
     >
-      <View className="w-full flex-row justify-center gap-4 px-4">
-        <Button
-          label={continueText}
-          onPress={handleContinue}
-          accessibilityLabel={continueText}
-          className="flex-1 bg-secondary-400"
-        />
-        {showReflectionButton && (
+      {showReflectionButton && (
+        <View accessibilityLabel="Reflect on quest">
           <Button
-            className="flex-1 bg-primary-400"
-            label="Add Reflection"
+            label="Add reflection"
             onPress={handleAddReflection}
-            accessibilityLabel="Reflect on quest"
+            variant="primary"
+            size="lg"
+            fullWidth
           />
-        )}
-      </View>
+        </View>
+      )}
+      {/* Continue is secondary and quest-flow-only — the journal context
+          never shows it (mockup quest-flow.jsx:180). */}
+      {!fromJournal && (
+        <View
+          style={showReflectionButton ? styles.continueSlot : undefined}
+          accessibilityLabel={continueText}
+        >
+          <Button
+            label={continueText}
+            onPress={handleContinue}
+            variant="secondary"
+            fullWidth
+          />
+        </View>
+      )}
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+  },
+  continueSlot: {
+    marginTop: spacing[3],
+  },
+});

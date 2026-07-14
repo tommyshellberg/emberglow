@@ -4,6 +4,7 @@ import { fireEvent, render } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 
+import { generateStreakVisualization } from './streak-visualization.util';
 import StreakCelebrationScreen from './streak-celebration';
 
 // Create a shared router mock
@@ -26,19 +27,17 @@ jest.mock('expo-router', () => ({
   }),
 }));
 
-// Simple test without mocking react-native internals
-
-jest.mock('lottie-react-native', () => 'LottieView');
-
-jest.mock('@/components/StreakCounter', () => ({
-  StreakCounter: ({ animate, size }: { animate: boolean; size: string }) => {
-    const MockStreakCounter = require('react-native').Text;
-    return (
-      <MockStreakCounter testID="streak-counter">
-        {`StreakCounter-${animate ? 'animated' : 'static'}-${size}`}
-      </MockStreakCounter>
-    );
-  },
+// expo-haptics is not a native module the jest environment can load; mock it
+// so importing the animation hook (which references its enums) doesn't
+// throw. The actual haptic *calls* happen inside Reanimated animation
+// callbacks, which the global `react-native-reanimated` jest mock
+// (jest-setup.ts) never invokes — so haptic-firing itself isn't observable
+// from this test file.
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
+  NotificationFeedbackType: { Success: 'success' },
 }));
 
 // Mock stores
@@ -89,6 +88,141 @@ const mockCurrentDay = (dayOfWeek: number) => {
   return mockDate;
 };
 
+describe('generateStreakVisualization (7-day model)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('0-day streak on Tuesday: shows the current week with nothing lit', () => {
+    mockCurrentDay(2); // Tuesday
+
+    const days = generateStreakVisualization(0);
+
+    expect(days.map((d) => d.name)).toEqual([
+      'We',
+      'Th',
+      'Fr',
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+    ]);
+    expect(days.map((d) => d.isCompleted)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(days.map((d) => d.isToday)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it('1-day streak on Thursday: only today is lit', () => {
+    mockCurrentDay(4); // Thursday
+
+    const days = generateStreakVisualization(1);
+
+    expect(days.map((d) => d.name)).toEqual([
+      'Fr',
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+      'We',
+      'Th',
+    ]);
+    expect(days.map((d) => d.isCompleted)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it('2-day streak on Wednesday: the last two days (Tu, We) are lit', () => {
+    mockCurrentDay(3); // Wednesday
+
+    const days = generateStreakVisualization(2);
+
+    expect(days.map((d) => d.name)).toEqual([
+      'Th',
+      'Fr',
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+      'We',
+    ]);
+    expect(days.map((d) => d.isCompleted)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+    ]);
+  });
+
+  it('7-day streak on Friday: the full week is lit', () => {
+    mockCurrentDay(5); // Friday
+
+    const days = generateStreakVisualization(7);
+
+    expect(days.map((d) => d.name)).toEqual([
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+      'We',
+      'Th',
+      'Fr',
+    ]);
+    expect(days.every((d) => d.isCompleted)).toBe(true);
+  });
+
+  it('streak longer than 7 days on Sunday: clamps to a fully lit week (no overflow)', () => {
+    mockCurrentDay(0); // Sunday
+
+    const days = generateStreakVisualization(30);
+
+    expect(days.map((d) => d.name)).toEqual([
+      'Mo',
+      'Tu',
+      'We',
+      'Th',
+      'Fr',
+      'Sa',
+      'Su',
+    ]);
+    expect(days.every((d) => d.isCompleted)).toBe(true);
+    expect(days).toHaveLength(7);
+  });
+
+  it('always returns exactly 7 days with today last', () => {
+    mockCurrentDay(6); // Saturday
+
+    const days = generateStreakVisualization(3);
+
+    expect(days).toHaveLength(7);
+    expect(days[6].isToday).toBe(true);
+    expect(days.filter((d) => d.isToday)).toHaveLength(1);
+  });
+});
+
 describe('StreakCelebrationScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,6 +230,7 @@ describe('StreakCelebrationScreen', () => {
     mockCharacterStore.markStreakCelebrationShown.mockClear();
     mockRouterBack.mockClear();
     mockRouterPush.mockClear();
+    mockCharacterStore.dailyQuestStreak = 1;
 
     mockUseCharacterStore.mockImplementation((selector) =>
       selector(mockCharacterStore as any)
@@ -109,145 +244,44 @@ describe('StreakCelebrationScreen', () => {
     jest.restoreAllMocks();
   });
 
-  describe('StreakCounter Integration', () => {
-    it('should render StreakCounter with correct props', () => {
-      const { getByTestId } = render(<StreakCelebrationScreen />);
-
-      const streakCounter = getByTestId('streak-counter');
-      expect(streakCounter).toBeTruthy();
-      expect(streakCounter.props.children).toBe('StreakCounter-animated-large');
-    });
-
-    it('should display "day streak!" text', () => {
-      const { getByText } = render(<StreakCelebrationScreen />);
-
-      const streakText = getByText('day streak!');
-      expect(streakText).toBeTruthy();
-    });
-
+  describe('UI Elements', () => {
     it('should display the QUEST STREAK eyebrow', () => {
       const { getByText } = render(<StreakCelebrationScreen />);
 
-      expect(getByText('QUEST STREAK')).toBeTruthy();
-    });
-  });
-
-  describe('1-Day Streak (Thursday)', () => {
-    beforeEach(() => {
-      // Mock Thursday (day 4 of week)
-      mockCurrentDay(4);
-      mockCharacterStore.dailyQuestStreak = 1;
+      expect(getByText('Quest streak')).toBeTruthy();
     });
 
-    it('should show Thursday as completed and 4 empty days after', () => {
-      const { getByText, getAllByTestId } = render(<StreakCelebrationScreen />);
+    it('should display "day streak" title and subtitle', () => {
+      const { getByText } = render(<StreakCelebrationScreen />);
 
-      // Check day names are displayed correctly
-      expect(getByText('Th')).toBeTruthy(); // Thursday - first day
-      expect(getByText('Fr')).toBeTruthy(); // Friday
-      expect(getByText('Sa')).toBeTruthy(); // Saturday
-      expect(getByText('Su')).toBeTruthy(); // Sunday
-      expect(getByText('Mo')).toBeTruthy(); // Monday
-
-      // Check that we have 5 day containers
-      const flameContainers = getAllByTestId('flame-container');
-      expect(flameContainers).toHaveLength(5);
-    });
-  });
-
-  describe('2-Day Streak (Wednesday)', () => {
-    beforeEach(() => {
-      // Mock Wednesday (day 3 of week)
-      mockCurrentDay(3);
-      mockCharacterStore.dailyQuestStreak = 2;
+      expect(getByText('day streak')).toBeTruthy();
+      expect(getByText('You kept the fire burning.')).toBeTruthy();
     });
 
-    it('should show Tuesday and Wednesday as completed, 3 empty days after', () => {
-      const { getByText, getAllByTestId } = render(<StreakCelebrationScreen />);
-
-      // Check day names - should start with Tuesday (streak start)
-      expect(getByText('Tu')).toBeTruthy(); // Tuesday - streak start
-      expect(getByText('We')).toBeTruthy(); // Wednesday - today
-      expect(getByText('Th')).toBeTruthy(); // Thursday - empty
-      expect(getByText('Fr')).toBeTruthy(); // Friday - empty
-      expect(getByText('Sa')).toBeTruthy(); // Saturday - empty
+    it('should render a full 7-day week visualization', () => {
+      const { getAllByTestId, getAllByText } = render(
+        <StreakCelebrationScreen />
+      );
 
       const flameContainers = getAllByTestId('flame-container');
-      expect(flameContainers).toHaveLength(5);
-    });
-  });
+      expect(flameContainers).toHaveLength(7);
 
-  describe('5-Day Streak (Friday)', () => {
-    beforeEach(() => {
-      // Mock Friday (day 5 of week)
-      mockCurrentDay(5);
-      mockCharacterStore.dailyQuestStreak = 5;
-    });
-
-    it('should show all 5 days as completed ending with today', () => {
-      const { getByText, getAllByTestId } = render(<StreakCelebrationScreen />);
-
-      // Should show Monday through Friday (5 consecutive days ending today)
-      expect(getByText('Mo')).toBeTruthy(); // Monday
-      expect(getByText('Tu')).toBeTruthy(); // Tuesday
-      expect(getByText('We')).toBeTruthy(); // Wednesday
-      expect(getByText('Th')).toBeTruthy(); // Thursday
-      expect(getByText('Fr')).toBeTruthy(); // Friday - today
-
-      const flameContainers = getAllByTestId('flame-container');
-      expect(flameContainers).toHaveLength(5);
-    });
-  });
-
-  describe('6+ Day Streak (Sunday)', () => {
-    beforeEach(() => {
-      // Mock Sunday (day 0 of week)
-      mockCurrentDay(0);
-      mockCharacterStore.dailyQuestStreak = 7;
+      const expectedDays = generateStreakVisualization(
+        mockCharacterStore.dailyQuestStreak
+      );
+      const uniqueDayNames = Array.from(
+        new Set(expectedDays.map((d) => d.name))
+      );
+      uniqueDayNames.forEach((name) => {
+        expect(getAllByText(name).length).toBeGreaterThan(0);
+      });
     });
 
-    it('should show 5 most recent completed days ending with today', () => {
-      const { getByText, getAllByTestId } = render(<StreakCelebrationScreen />);
-
-      // Should show Wednesday through Sunday (5 days ending with today)
-      expect(getByText('We')).toBeTruthy(); // Wednesday
-      expect(getByText('Th')).toBeTruthy(); // Thursday
-      expect(getByText('Fr')).toBeTruthy(); // Friday
-      expect(getByText('Sa')).toBeTruthy(); // Saturday
-      expect(getByText('Su')).toBeTruthy(); // Sunday - today
-
-      const flameContainers = getAllByTestId('flame-container');
-      expect(flameContainers).toHaveLength(5);
-    });
-  });
-
-  describe('0-Day Streak', () => {
-    beforeEach(() => {
-      mockCurrentDay(2); // Tuesday
-      mockCharacterStore.dailyQuestStreak = 0;
-    });
-
-    it('should show today and 4 empty days after', () => {
-      const { getByText, getAllByTestId } = render(<StreakCelebrationScreen />);
-
-      // Should show Tuesday through Saturday
-      expect(getByText('Tu')).toBeTruthy(); // Tuesday - today
-      expect(getByText('We')).toBeTruthy(); // Wednesday
-      expect(getByText('Th')).toBeTruthy(); // Thursday
-      expect(getByText('Fr')).toBeTruthy(); // Friday
-      expect(getByText('Sa')).toBeTruthy(); // Saturday
-
-      const flameContainers = getAllByTestId('flame-container');
-      expect(flameContainers).toHaveLength(5);
-    });
-  });
-
-  describe('UI Elements', () => {
     it('should display the streak reminder text', () => {
       const { getByText } = render(<StreakCelebrationScreen />);
 
       expect(
-        getByText("Complete a quest each day so your streak won't reset!")
+        getByText('Complete a quest each day to keep the fire burning.')
       ).toBeTruthy();
     });
 
@@ -255,16 +289,15 @@ describe('StreakCelebrationScreen', () => {
       const { getByText } = render(<StreakCelebrationScreen />);
 
       expect(getByText('Share')).toBeTruthy();
-      expect(getByText('CONTINUE')).toBeTruthy();
+      expect(getByText('Continue')).toBeTruthy();
     });
   });
 
   describe('Button Interactions', () => {
     it('should navigate back when Continue button is pressed', () => {
-      const { getByText } = render(<StreakCelebrationScreen />);
+      const { getByTestId } = render(<StreakCelebrationScreen />);
 
-      const continueButton = getByText('CONTINUE');
-      fireEvent.press(continueButton);
+      fireEvent.press(getByTestId('streak-continue-button'));
 
       expect(mockRouterBack).toHaveBeenCalled();
     });
@@ -278,12 +311,29 @@ describe('StreakCelebrationScreen', () => {
         selector(mockQuestStore as any)
       );
 
-      const { getByText } = render(<StreakCelebrationScreen />);
+      const { getByTestId } = render(<StreakCelebrationScreen />);
 
-      const continueButton = getByText('CONTINUE');
-      fireEvent.press(continueButton);
+      fireEvent.press(getByTestId('streak-continue-button'));
 
       expect(mockSetShouldShowStreakCelebration).toHaveBeenCalledWith(false);
+    });
+
+    it('should share the streak when Share button is pressed', async () => {
+      const { getByTestId } = render(<StreakCelebrationScreen />);
+
+      const RNShare = require('react-native').Share;
+      const shareSpy = jest
+        .spyOn(RNShare, 'share')
+        .mockResolvedValue({ action: 'sharedAction' } as any);
+
+      await fireEvent.press(getByTestId('streak-share-button'));
+
+      expect(shareSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'My emberglow Streak',
+          message: expect.stringContaining('1 day quest streak'),
+        })
+      );
     });
   });
 
@@ -296,13 +346,29 @@ describe('StreakCelebrationScreen', () => {
     });
   });
 
-  describe('Confetti Animation', () => {
-    it('should render LottieView for confetti animation', () => {
-      const { UNSAFE_getByType } = render(<StreakCelebrationScreen />);
+  describe('Focus effect stability (regression: re-focus loop)', () => {
+    // The real @react-navigation useFocusEffect re-runs its effect whenever
+    // the callback identity changes (its internal useEffect depends on the
+    // callback). If the screen recreates that callback on every render — which
+    // happened when `generateStreakVisualization` was called inline and
+    // produced a fresh array each render — the effect re-fires continuously,
+    // resetting/replaying the count-up animation forever so the screen never
+    // settles (visible as the counter looping 1 -> 2 -> 1). The animation +
+    // useFocusEffect jest mocks hide the runtime loop, so we instead pin the
+    // root cause: with an unchanged streak, the focus callback must be stable.
+    it('does not recreate the focus effect callback on re-render when the streak is unchanged', () => {
+      const { useFocusEffect } = require('expo-router');
+      (useFocusEffect as jest.Mock).mockClear();
 
-      // LottieView should be rendered
-      const lottieView = UNSAFE_getByType('LottieView' as any);
-      expect(lottieView).toBeTruthy();
+      const { rerender } = render(<StreakCelebrationScreen />);
+      rerender(<StreakCelebrationScreen />);
+
+      const calls = (useFocusEffect as jest.Mock).mock.calls;
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+
+      const firstCallback = calls[0][0];
+      const lastCallback = calls[calls.length - 1][0];
+      expect(lastCallback).toBe(firstCallback);
     });
   });
 

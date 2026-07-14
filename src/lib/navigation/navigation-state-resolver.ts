@@ -144,6 +144,16 @@ export function useNavigationTarget(): NavigationTarget {
     return { type: 'loading' };
   }
 
+  // Provisional users hydrate with status 'signIn' (see auth hydrate()), so
+  // authStatus alone can't identify the onboarding first-quest flow after an
+  // app restart — check for a provisional session as well.
+  const hasProvisionalSession = !!(
+    getItem('provisionalUserId') || getItem('provisionalAccessToken')
+  );
+  const isInOnboardingFlow =
+    !isOnboardingComplete &&
+    (authStatus === 'signOut' || hasProvisionalSession);
+
   // Priority 1: Streak celebration (highest priority to show before quest complete)
   if (shouldShowStreakCelebration) {
     console.log('🧭 Should show streak celebration');
@@ -178,8 +188,8 @@ export function useNavigationTarget(): NavigationTarget {
       return { type: 'app' };
     }
 
-    // During onboarding (not authenticated), any failed quest should go to first-quest-result
-    if (!isOnboardingComplete && authStatus === 'signOut') {
+    // During onboarding (signed out or provisional), any failed quest should go to first-quest-result
+    if (isInOnboardingFlow) {
       console.log(
         '🧭 Quest failed during onboarding, showing first-quest-result'
       );
@@ -199,8 +209,8 @@ export function useNavigationTarget(): NavigationTarget {
       return { type: 'app' };
     }
 
-    // During onboarding (not authenticated), any completed quest should go to first-quest-result
-    if (!isOnboardingComplete && authStatus === 'signOut') {
+    // During onboarding (signed out or provisional), any completed quest should go to first-quest-result
+    if (isInOnboardingFlow) {
       console.log(
         '🧭 Quest completed during onboarding, showing first-quest-result'
       );

@@ -10,6 +10,7 @@ export const handleManageSubscription = async (
   setIsLoading: (isLoading: boolean) => void
 ) => {
   try {
+    setIsLoading(true);
     const managementUrl = await revenueCatService.getManagementURL();
     if (managementUrl) {
       Linking.openURL(managementUrl);
@@ -27,6 +28,8 @@ export const handleManageSubscription = async (
       'Error',
       'Unable to open subscription management. Please try again later.'
     );
+  } finally {
+    setIsLoading(false);
   }
 };
 
@@ -79,7 +82,7 @@ export const handleDeleteAccount = (
 
             Alert.alert(
               'Account Deletion Failed',
-              `We couldn't process your deletion request automatically. Please contact hello@emberglowapp.com or visit emberglowapp.com/contact for assistance with manual account deletion.`,
+              `${errorMessage} We couldn't process your deletion request automatically. Please contact hello@emberglowapp.com or visit emberglowapp.com/contact for assistance with manual account deletion.`,
               [
                 { text: 'Cancel', style: 'cancel' },
                 {

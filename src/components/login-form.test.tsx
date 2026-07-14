@@ -38,9 +38,6 @@ describe('LoginForm Form ', () => {
   beforeEach(() => {
     mockedRequestMagicLink.mockResolvedValue({ success: true });
   });
-  beforeEach(() => {
-    mockedRequestMagicLink.mockResolvedValue({ success: true });
-  });
 
   it('renders correctly', async () => {
     setup(<LoginForm />);
@@ -121,18 +118,16 @@ describe('LoginForm Form ', () => {
     // Wait for all success elements in a single waitFor
     await waitFor(
       () => {
-        const successMessages = screen.queryAllByText(/Email sent|sent/i);
+        const successMessages = screen.queryAllByText(/Check your inbox/i);
         expect(successMessages.length).toBeGreaterThan(0);
         expect(screen.getByText(testEmail)).toBeOnTheScreen();
-        expect(
-          screen.getByText(/Enter a different email address/i)
-        ).toBeOnTheScreen();
+        expect(screen.getByText(/Change email/i)).toBeOnTheScreen();
       },
       { timeout: 3000 }
     );
   });
 
-  it('should return to email form when "Enter a different email address" is clicked', async () => {
+  it('should return to email form when "Change email" is clicked', async () => {
     const { user } = setup(<LoginForm />);
 
     // First submit the form
@@ -152,22 +147,20 @@ describe('LoginForm Form ', () => {
     // Wait for the success screen
     await waitFor(
       () => {
-        expect(screen.getByText(/Email sent/i)).toBeOnTheScreen();
+        expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
       },
       { timeout: 3000 }
     );
 
-    // Click "Enter a different email address"
-    const changeEmailLink = screen.getByText(
-      /Enter a different email address/i
-    );
+    // Click "Change email"
+    const changeEmailLink = screen.getByText(/Change email/i);
     await user.press(changeEmailLink);
 
     // Check for both elements in a single waitFor
     await waitFor(
       () => {
         expect(screen.getByTestId('email-input')).toBeOnTheScreen();
-        expect(screen.getByText(/Send Link/i)).toBeOnTheScreen();
+        expect(screen.getByText(/Send sign-in link/i)).toBeOnTheScreen();
       },
       { timeout: 3000 }
     );
@@ -218,7 +211,7 @@ describe('LoginForm Form ', () => {
     expect(screen.getByTestId('email-input')).toBeOnTheScreen();
 
     // Verify the success message is NOT shown
-    expect(screen.queryByText(/Email sent/i)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Check your inbox/i)).not.toBeOnTheScreen();
   });
 
   it('should show timeout error message', async () => {
@@ -372,17 +365,66 @@ describe('LoginForm Form ', () => {
 
     // Wait for success screen
     await waitFor(() => {
-      expect(screen.getByText(/Email sent/i)).toBeOnTheScreen();
+      expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
     });
 
-    // Click "Send Again" button
-    const sendAgainButton = screen.getByText(/Send Again/i);
+    // Click "Resend link" button
+    const sendAgainButton = screen.getByText(/Resend link/i);
     await user.press(sendAgainButton);
 
     // Verify requestMagicLink was called twice
     await waitFor(() => {
       expect(mockedRequestMagicLink).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('should surface a resend error in the sent view without leaving it', async () => {
+    const { user } = setup(<LoginForm />);
+
+    // Reach the sent view via a successful first send
+    const emailInput = screen.getByTestId('email-input');
+    await user.type(emailInput, 'test@example.com');
+
+    const button = screen.getByTestId('login-button');
+    await waitFor(
+      () => {
+        expect(button.props.accessibilityState?.disabled).not.toBe(true);
+      },
+      { timeout: 3000 }
+    );
+    await user.press(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
+    });
+
+    // Resend fails
+    const axiosError = new Error('Request failed with status code 500');
+    Object.assign(axiosError, {
+      response: {
+        status: 500,
+        data: { message: 'Internal server error' },
+      },
+      config: {},
+      isAxiosError: true,
+    });
+    mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
+
+    await user.press(screen.getByText(/Resend link/i));
+
+    // The error is rendered in the sent view's footnote slot (previously a
+    // silent failure: the hook set `error` but the sent view never showed it)
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Login link failed to send. Please try again./i)
+      ).toBeOnTheScreen();
+    });
+
+    // ...while the sent view is still shown (no bounce back to the form)
+    expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
+
+    // The default spam hint yields the footnote slot to the error
+    expect(screen.queryByText(/Check your spam folder/i)).not.toBeOnTheScreen();
   });
 
   it('should show contact support link after 3 failed attempts', async () => {
@@ -402,17 +444,17 @@ describe('LoginForm Form ', () => {
     await user.press(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Email sent/i)).toBeOnTheScreen();
+      expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
     });
 
     // Send again (attempt 2)
-    await user.press(screen.getByText(/Send Again/i));
+    await user.press(screen.getByText(/Resend link/i));
     await waitFor(() => {
       expect(mockedRequestMagicLink).toHaveBeenCalledTimes(2);
     });
 
     // Send again (attempt 3) - should show support link
-    await user.press(screen.getByText(/Send Again/i));
+    await user.press(screen.getByText(/Resend link/i));
     await waitFor(() => {
       expect(screen.getByText(/hello@emberglowapp.com/i)).toBeOnTheScreen();
     });
@@ -447,9 +489,4 @@ describe('LoginForm Form ', () => {
     // Should not have called the API
     expect(mockedRequestMagicLink).not.toHaveBeenCalled();
   });
-});
-
-// Restore real timers after all tests
-afterAll(() => {
-  jest.useRealTimers();
 });

@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { Audio, type AVPlaybackStatus } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
@@ -7,13 +8,20 @@ import {
   type AppStateStatus,
   Platform,
   Pressable,
+  StyleSheet,
+  Text,
   View,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { Text } from '@/components/ui';
-import { ProgressBar, type ProgressBarRef } from '@/components/ui/progress-bar';
 import { audioCacheService } from '@/lib/services/audio-cache.service';
 import { type StoryQuestTemplate } from '@/store/types';
+import { colors, fontFamily, palette, radii, shadows, spacing } from '@/theme';
 import { getQuestAudioPath } from '@/utils/audio-utils';
 
 type Props = {
@@ -21,7 +29,6 @@ type Props = {
 };
 
 export function StoryNarration({ quest }: Props) {
-  const progressBarRef = useRef<ProgressBarRef>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef(AppState.currentState);
@@ -36,6 +43,13 @@ export function StoryNarration({ quest }: Props) {
   // Derived state - no useEffect needed (React best practice)
   const progress = duration > 0 ? position / duration : 0;
   const isCompleted = duration > 0 && position >= duration && !isPlaying;
+
+  // Cinnabar->Sandy fill width, animated (XPBar's recipe) rather than driven
+  // imperatively — position updates ~10x/sec via the polling interval below.
+  const fillWidthPct = useSharedValue(progress * 100);
+  const animatedFillStyle = useAnimatedStyle(() => ({
+    width: `${fillWidthPct.value}%`,
+  }));
 
   // Initialize audio - only runs once when component mounts
   React.useEffect(() => {
@@ -120,7 +134,6 @@ export function StoryNarration({ quest }: Props) {
       setIsPlaying(false);
       setPosition(0);
       stopProgressTracking();
-      progressBarRef.current?.setProgress(0);
     }
   };
 
@@ -167,7 +180,6 @@ export function StoryNarration({ quest }: Props) {
       await soundRef.current.stopAsync();
       await soundRef.current.playFromPositionAsync(0);
       setPosition(0);
-      progressBarRef.current?.setProgress(0);
       startProgressTracking();
     } catch (error) {
       console.error('Error replaying:', error);
@@ -208,10 +220,13 @@ export function StoryNarration({ quest }: Props) {
     }, [isPlaying])
   );
 
-  // Update progress bar when progress changes
+  // Animate the fill toward the latest progress fraction whenever it changes.
   React.useEffect(() => {
-    progressBarRef.current?.setProgress(progress * 100);
-  }, [progress]);
+    fillWidthPct.value = withTiming(progress * 100, {
+      duration: 150,
+      easing: Easing.linear,
+    });
+  }, [progress, fillWidthPct]);
 
   // Format time helper
   const formatTime = (milliseconds: number) => {
@@ -224,67 +239,188 @@ export function StoryNarration({ quest }: Props) {
   // Early returns for error and loading states
   if (loadError) {
     return (
-      <View className="mt-4 w-full items-center rounded-lg bg-cardBackground p-4">
-        <Text className="text-red-500">{loadError}</Text>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{loadError}</Text>
       </View>
     );
   }
 
+  const controlsDisabled = isLoading || !audioInitialized;
+
   return (
-    <View className="mt-4 w-full p-4">
+    <View style={styles.container}>
       {isLoading && (
-        <View className="absolute inset-0 z-10 items-center justify-center rounded-lg bg-cardBackground">
-          <Text className="text-sm text-neutral-200">Loading audio...</Text>
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading audio...</Text>
         </View>
       )}
-      <View className="mb-2 w-full">
-        <ProgressBar
-          ref={progressBarRef}
-          initialProgress={progress * 100}
-          className="h-1.5 rounded"
-          backgroundColor="#2A4754"
-        />
-        <View className="mt-1 flex-row justify-between">
-          <Text className="text-xs text-neutral-200">
-            {formatTime(position)}
-          </Text>
-          <Text className="text-xs text-neutral-200">
-            {formatTime(duration)}
-          </Text>
-        </View>
-      </View>
 
-      <View className="mt-2 flex-row items-center justify-center">
-        <Pressable
-          className="mx-4 p-2"
-          onPress={handleReplay}
-          disabled={isLoading || !audioInitialized}
-          style={{ opacity: isLoading || !audioInitialized ? 0.3 : 1 }}
-        >
-          <Feather name="rotate-ccw" size={24} color="#36B6D3" />
-        </Pressable>
-
+      <View style={styles.row}>
         {!isCompleted ? (
           <Pressable
             onPress={togglePlayback}
-            disabled={isLoading || !audioInitialized}
+            disabled={controlsDisabled}
+            style={[
+              styles.playDisc,
+              Platform.OS === 'ios' && styles.playDiscGlow,
+              controlsDisabled && styles.controlDisabled,
+            ]}
           >
             <Feather
-              name={isPlaying ? 'pause-circle' : 'play-circle'}
-              size={32}
-              color="#36B6D3"
-              style={{ opacity: isLoading || !audioInitialized ? 0.3 : 1 }}
+              name={isPlaying ? 'pause' : 'play'}
+              size={20}
+              color={colors.text.onAccent}
             />
           </Pressable>
         ) : (
-          <Feather
-            name="play-circle"
-            size={32}
-            color="#36B6D3"
-            style={{ opacity: 0.3 }}
-          />
+          <View
+            style={[
+              styles.playDisc,
+              Platform.OS === 'ios' && styles.playDiscGlow,
+              styles.controlDisabled,
+            ]}
+          >
+            <Feather name="play" size={20} color={colors.text.onAccent} />
+          </View>
         )}
+
+        <View style={styles.middle}>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Listen to this chapter</Text>
+            <Text style={[styles.label, styles.timeLabel]}>
+              {formatTime(position)} / {formatTime(duration)}
+            </Text>
+          </View>
+          <View style={styles.track}>
+            {progress > 0 && (
+              <Animated.View style={[styles.fill, animatedFillStyle]}>
+                <LinearGradient
+                  colors={[palette.cinnabar, palette.sandy]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.fillGradient}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </View>
+
+        <Pressable
+          onPress={handleReplay}
+          disabled={controlsDisabled}
+          style={[
+            styles.replayDisc,
+            controlsDisabled && styles.controlDisabled,
+          ]}
+        >
+          <Feather name="rotate-ccw" size={16} color={colors.text.secondary} />
+        </Pressable>
       </View>
     </View>
   );
 }
+
+/** Mockup spec: 5px track (quest-flow.jsx:162). */
+const TRACK_HEIGHT = 5;
+
+const styles = StyleSheet.create({
+  // In-card inset treatment (quest-flow.jsx:153): drops the old standalone
+  // `mt-4` placement — this now renders as the story card's bottom section,
+  // clipped to the card's rounded corners by the parent's `overflow: hidden`.
+  container: {
+    backgroundColor: colors.surface.inset,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[4],
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.inset,
+  },
+  loadingText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+  errorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.inset,
+    padding: spacing[4],
+  },
+  errorText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.status.danger,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  playDisc: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Colored shadows only render on iOS; Android would just paint a grey box
+  // via `elevation` (ground rule 5) — see button.tsx for the same gate.
+  playDiscGlow: {
+    shadowColor: shadows.glowEmber.shadowColor,
+    shadowOffset: shadows.glowEmber.shadowOffset,
+    shadowRadius: shadows.glowEmber.shadowRadius,
+    shadowOpacity: shadows.glowEmber.shadowOpacity,
+    elevation: 0,
+  },
+  replayDisc: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlDisabled: {
+    opacity: 0.3,
+  },
+  middle: {
+    flex: 1,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  label: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11.5,
+    color: colors.text.muted,
+  },
+  timeLabel: {
+    fontVariant: ['tabular-nums'],
+  },
+  track: {
+    height: TRACK_HEIGHT,
+    borderRadius: radii.pill,
+    backgroundColor: colors.track,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: radii.pill,
+  },
+  fillGradient: {
+    flex: 1,
+    borderRadius: radii.pill,
+  },
+});

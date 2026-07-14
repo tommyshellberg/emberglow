@@ -5,13 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 
 import { useQuestReflection } from '@/api/quest-reflection';
-import {
-  cleanup,
-  render,
-  screen,
-  setup,
-  waitFor,
-} from '@/lib/test-utils';
+import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 
 import AppQuestDetailsScreen from './[id]';
@@ -105,9 +100,12 @@ const mockCustomQuest = {
 };
 
 jest.mock('@/store/quest-store');
+jest.mock('@/store/onboarding-store');
 
 describe('AppQuestDetailsScreen', () => {
-  let mockUseLocalSearchParams: jest.MockedFunction<typeof useLocalSearchParams>;
+  let mockUseLocalSearchParams: jest.MockedFunction<
+    typeof useLocalSearchParams
+  >;
   let mockUseQuestReflection: jest.MockedFunction<typeof useQuestReflection>;
   let mockUseQuestStore: jest.MockedFunction<typeof useQuestStore>;
 
@@ -147,11 +145,44 @@ describe('AppQuestDetailsScreen', () => {
     });
 
     mockUseQuestStore.getState = jest.fn().mockReturnValue(mockStoreState);
+
+    // These screen tests represent a post-onboarding user (journal viewing)
+    (useOnboardingStore as unknown as jest.Mock).mockImplementation(
+      (selector: any) => selector({ isOnboardingComplete: () => true })
+    );
   });
 
   afterEach(() => {
     cleanup();
     jest.clearAllMocks();
+  });
+
+  describe('Reflection fetching', () => {
+    it('does NOT fetch the reflection outside the journal context', () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+
+      render(<AppQuestDetailsScreen />);
+
+      // The query hook receives no questRunId, so `enabled` stays false and
+      // no request is made (e.g. during the post-quest completion flow).
+      expect(mockUseQuestReflection).toHaveBeenCalledWith(undefined);
+      expect(mockUseQuestReflection).not.toHaveBeenCalledWith('run-123');
+    });
+
+    it('fetches the reflection when viewing a journal entry', () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        from: 'journal',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+
+      render(<AppQuestDetailsScreen />);
+
+      expect(mockUseQuestReflection).toHaveBeenCalledWith('run-123');
+    });
   });
 
   describe('Quest Resolution (Priority Order)', () => {
@@ -301,16 +332,17 @@ describe('AppQuestDetailsScreen', () => {
     it('renders completed quest with all elements', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
+      // ScreenHeader (and its "Quest Details" title) is removed by the
+      // recomposition spec — the art header's floating back disc replaces it.
+      expect(screen.queryByText('Quest Details')).not.toBeOnTheScreen();
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
       // Quest completion screen is rendered
     });
 
-    it('shows header with quest title', () => {
+    it('shows the floating back disc instead of a ScreenHeader', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
-      // Back button exists in header (will be replaced with ScreenHeader)
+      expect(screen.getByLabelText('Go back')).toBeOnTheScreen();
     });
 
     it('renders quest story text for story mode quest', () => {
@@ -412,18 +444,22 @@ describe('AppQuestDetailsScreen', () => {
       });
     });
 
-    it('shows "Add Reflection" button when no reflection exists', () => {
+    it('shows "Add reflection" button when no reflection exists', () => {
       render(<AppQuestDetailsScreen />);
 
-      expect(screen.getByText('Add Reflection')).toBeOnTheScreen();
+      expect(screen.getByText('Add reflection')).toBeOnTheScreen();
     });
 
-    it('renders the "Add Reflection" button below the quest-complete content, not above it', () => {
+    it('renders the "Add reflection" button below the quest-complete content, not above it', () => {
       render(<AppQuestDetailsScreen />);
 
+      // The Emberglow redesign nests the reflection affordance inside
+      // QuestComplete's actions (below the header/story content) rather than
+      // as an external button above it. Anchor on the quest title, which the
+      // QuestCompleteHeader renders at the top of the quest-complete content.
       const tree = JSON.stringify(screen.toJSON());
-      expect(tree.indexOf('Quest Complete!')).toBeLessThan(
-        tree.indexOf('Add Reflection')
+      expect(tree.indexOf('Morning Meditation')).toBeLessThan(
+        tree.indexOf('Add reflection')
       );
     });
 
@@ -545,10 +581,10 @@ describe('AppQuestDetailsScreen', () => {
       expect(screen.getByText('Reflection')).toBeOnTheScreen();
     });
 
-    it('navigates to reflection screen when Add Reflection is pressed', async () => {
+    it('navigates to reflection screen when Add reflection is pressed', async () => {
       const { user } = setup(<AppQuestDetailsScreen />);
 
-      const addButton = screen.getByText('Add Reflection');
+      const addButton = screen.getByText('Add reflection');
       await user.press(addButton);
 
       expect(router.push).toHaveBeenCalledWith({
@@ -767,10 +803,10 @@ describe('AppQuestDetailsScreen', () => {
 
       render(<AppQuestDetailsScreen />);
 
-      // Verify accessible content is rendered
-      expect(screen.getByText('Quest Details')).toBeOnTheScreen();
+      // Verify accessible content is rendered — the floating back disc
+      // (art header) replaces the old ScreenHeader's back button.
+      expect(screen.getByLabelText('Go back')).toBeOnTheScreen();
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
-      // Back button exists (has Feather icon which will be replaced with accessible ScreenHeader)
     });
 
     it('not found screen has accessible go back button', () => {
@@ -827,8 +863,8 @@ describe('AppQuestDetailsScreen', () => {
 
       render(<AppQuestDetailsScreen />);
 
-      // Should not show Add Reflection button if no questRunId
-      expect(screen.queryByText('Add Reflection')).not.toBeOnTheScreen();
+      // Should not show Add reflection button if no questRunId
+      expect(screen.queryByText('Add reflection')).not.toBeOnTheScreen();
     });
 
     it('handles quest without story or category', () => {

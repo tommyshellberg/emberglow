@@ -2,26 +2,36 @@ import { Dimensions } from 'react-native';
 
 import Colors from '@/components/ui/colors';
 
-// Screen dimensions for the carousel
+// Screen dimensions for the deck
 const screenWidth = Dimensions.get('window').width;
 
-export const CARD_WIDTH_RATIO = 0.75;
-export const CARD_SPACING = 16;
-export const CARD_ASPECT_RATIO = 4 / 3;
+// Play-screen handoff: 20pt side padding on the deck's content (see
+// .claude/skills/emberglow-design/screens/play-screen/README.md "Layout").
+// Centering a CARD_WIDTH box inside ScreenContainer's own 16px padding
+// lands its edges exactly 20pt from the true screen edge (16 + 4 leftover
+// each side) without any extra padding math at the call site.
+const DECK_SIDE_PADDING = 20;
 
-export const CARD_WIDTH = screenWidth * CARD_WIDTH_RATIO;
-export const SNAP_INTERVAL = CARD_WIDTH + CARD_SPACING;
-export const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
+export const CARD_WIDTH = screenWidth - DECK_SIDE_PADDING * 2;
+// The deck's cards are fixed-height full-bleed art cards per the
+// play-screen handoff (design 380/350 ≈ 1.086), not content-sized — the
+// deck container itself is taller (DECK_HEIGHT) so the two back cards can
+// peek 16/32pt above the front card's top edge ("The deck mechanic").
+export const CARD_HEIGHT = 380;
+export const DECK_HEIGHT = 412;
 
-// Quest modes configuration
+// Deck peek/scale/opacity mechanics ("The deck mechanic" in the handoff).
+export const DECK_PEEK_OFFSET = 16; // px each back card peeks above the one in front of it
+export const DECK_SCALE_STEP = 0.05; // scale reduction per step back
+export const DECK_REARMOST_OPACITY = 0.55;
+export const DECK_SWIPE_THRESHOLD = 40; // px horizontal drag to advance
+
+// Quest modes configuration — background vignette tint per mode, crossfaded
+// as the deck's active card changes (handoff "Per-mode background vignette").
 export const QUEST_MODES = [
-  { id: 'story', name: 'Story Mode', color: 'rgba(194, 199, 171, 0.9)' },
-  { id: 'custom', name: 'Free Play Mode', color: 'rgba(146, 185, 191, 0.9)' },
-  {
-    id: 'cooperative',
-    name: 'Cooperative Quest',
-    color: 'rgba(106, 177, 185, 0.9)',
-  },
+  { id: 'story', name: 'Story', color: 'rgba(217, 73, 40, 0.20)' },
+  { id: 'custom', name: 'Custom', color: 'rgba(247, 164, 75, 0.16)' },
+  { id: 'cooperative', name: 'Co-op', color: 'rgba(44, 69, 107, 0.38)' },
 ] as const;
 
 // Animation timings (milliseconds)
@@ -31,6 +41,8 @@ export const ANIMATION_TIMINGS = {
   CONTENT_DELAY: 1000,
   CONTENT_DURATION: 1000,
   CAROUSEL_TRANSITION: 300,
+  // Deck card peek/scale/opacity transition (handoff: 420ms).
+  DECK_TRANSITION: 420,
   FADE_IN_DELAY: 200,
   FADE_IN_DOWN_BASE: 400,
   FADE_IN_DOWN_INCREMENT: 100,
@@ -41,13 +53,16 @@ export const ANIMATION_TIMINGS = {
 export const STORYLINE_COMPLETE_THRESHOLD = 0.999;
 
 // Layout constants
-export const FOOTER_MIN_HEIGHT = 140;
+// The DecisionSlider's two-choice block (the tallest of the footer's three
+// modes) runs ~150pt (eyebrow + 14pt stack gaps + 44pt choice row + 60pt
+// track zone; the decisionSlider README estimates ~160pt). At the old 140
+// the story footer would have outgrown the floor (minHeight yields to
+// taller content) while custom/co-op stayed pinned at 140 — a visible
+// height jump when paging between modes. 176 keeps one shared floor taller
+// than every mode's content, so all three footers render identically tall
+// and the shorter Button blocks (54pt) simply center within it.
+export const FOOTER_MIN_HEIGHT = 176;
 export const BACKGROUND_OPACITY = 0.6;
-
-// Carousel layout
-export const CAROUSEL_CONTENT_PADDING =
-  (screenWidth - CARD_WIDTH) / 2 - CARD_SPACING;
-export const CAROUSEL_VERTICAL_PADDING = 10;
 
 // Shadow styles (reusable)
 export const BUTTON_SHADOW = {

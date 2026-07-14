@@ -9,16 +9,15 @@
 
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 
 import { useLeaderboardStats } from '@/api/stats';
+import { Button } from '@/components/emberglow';
 import {
   ContactsImportModal,
   type ContactsImportModalRef,
 } from '@/components/profile/contact-import';
 import {
-  Button,
-  Card,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
@@ -26,12 +25,6 @@ import {
   Text,
   View,
 } from '@/components/ui';
-import { useFriendManagement } from '@/lib/hooks/use-friend-management';
-import { useProfileData } from '@/lib/hooks/use-profile-data';
-import { useCharacterStore } from '@/store/character-store';
-import { useQuestStore } from '@/store/quest-store';
-import { useUserStore } from '@/store/user-store';
-
 import { EmptyStates } from '@/features/leaderboard/components/empty-states';
 import { LeaderboardHeader } from '@/features/leaderboard/components/leaderboard-header';
 import { LeaderboardItem } from '@/features/leaderboard/components/leaderboard-item';
@@ -39,12 +32,17 @@ import { LeaderboardTabs } from '@/features/leaderboard/components/leaderboard-t
 import { ScopeToggle } from '@/features/leaderboard/components/scope-toggle';
 import {
   A11Y,
-  COLORS,
   type LeaderboardType,
   type ScopeType,
   STRINGS,
 } from '@/features/leaderboard/constants/leaderboard-constants';
 import { useLeaderboardData } from '@/features/leaderboard/hooks/use-leaderboard-data';
+import { useFriendManagement } from '@/lib/hooks/use-friend-management';
+import { useProfileData } from '@/lib/hooks/use-profile-data';
+import { useCharacterStore } from '@/store/character-store';
+import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
+import { colors, radii, shadows, spacing } from '@/theme';
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -123,8 +121,8 @@ export default function LeaderboardScreen() {
             onBackPress={() => router.push('/profile' as any)}
           />
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color={COLORS.secondaryAccent} />
-            <Text className="mt-2" style={{ color: COLORS.textSecondary }}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text className="mt-2" style={{ color: colors.text.secondary }}>
               {STRINGS.loadingMessage}
             </Text>
           </View>
@@ -148,17 +146,22 @@ export default function LeaderboardScreen() {
           <View className="flex-1 items-center justify-center px-4">
             <Text
               className="text-center"
-              style={{ color: COLORS.textSecondary }}
+              style={{ color: colors.text.secondary }}
             >
               {STRINGS.errorTitle}
             </Text>
-            <Button
-              label={STRINGS.errorRetryButton}
-              variant="ghost"
-              onPress={handleRetry}
-              className="mt-4"
+            <View
+              accessible
+              accessibilityRole="button"
               accessibilityLabel={A11Y.labelRetry}
-            />
+            >
+              <Button
+                label={STRINGS.errorRetryButton}
+                variant="ghost"
+                onPress={handleRetry}
+                style={styles.retryButton}
+              />
+            </View>
           </View>
         </ScreenContainer>
       </View>
@@ -215,16 +218,13 @@ export default function LeaderboardScreen() {
 
               {/* Leaderboard List */}
               {restOfUsers.length > 0 && (
-                <Card className="mb-4">
+                <View style={styles.listCard}>
                   {restOfUsers.map((entry, index) => (
                     <React.Fragment key={entry.userId}>
                       {/* Separator for current user when not in top 10 */}
                       {entry.isSeparated && index > 0 && (
-                        <View className="my-2 px-4">
-                          <Text
-                            className="text-center text-sm"
-                            style={{ color: COLORS.textSecondary }}
-                          >
+                        <View style={styles.separatorRow}>
+                          <Text style={styles.separatorText}>
                             {STRINGS.separator}
                           </Text>
                         </View>
@@ -236,11 +236,11 @@ export default function LeaderboardScreen() {
                       {/* Divider (skip if next entry is separated) */}
                       {index < restOfUsers.length - 1 &&
                         !restOfUsers[index + 1]?.isSeparated && (
-                          <View className="ml-16 h-px bg-gray-200" />
+                          <View style={styles.divider} />
                         )}
                     </React.Fragment>
                   ))}
-                </Card>
+                </View>
               )}
 
               {/* Invite Friends Button (Friends scope only) */}
@@ -268,3 +268,32 @@ export default function LeaderboardScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  retryButton: {
+    marginTop: spacing[4],
+  },
+  listCard: {
+    marginBottom: spacing[4],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  separatorRow: {
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[4],
+  },
+  separatorText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  divider: {
+    marginLeft: spacing[16],
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border.hairline,
+  },
+});

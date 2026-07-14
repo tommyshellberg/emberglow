@@ -1,15 +1,14 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 
-import { Text, View } from './index';
-import { Title } from './title';
+import { colors, fontFamily, leading, spacing } from '@/theme';
 
 interface ScreenHeaderProps {
   title: string;
@@ -20,10 +19,29 @@ interface ScreenHeaderProps {
   rightComponent?: React.ReactNode;
 }
 
+// Mockup spec: TabHeader (shared.jsx) uses 34, SubHeader (social.jsx,
+// back-button variant) uses 30.
+const TITLE_SIZE_WITH_BACK = 30;
+const TITLE_SIZE_STANDALONE = 34;
+// Brand rule is size × 1.12 (leading.display), but Erstoria's ascenders clip
+// against that tight a box in RN — bump slightly, matching the established
+// fix in quest-card.tsx (TITLE_FONT_SIZE * 1.15).
+const TITLE_LEADING = 1.15;
+
+const BACK_BUTTON_SIZE = 40;
+
 /**
- * Standard header component for screens with consistent spacing
- * - Top margin: mt-6 (24px) for consistent spacing from safe area
- * - Bottom margin: mb-4 (16px) for spacing to content
+ * Standard header component for screens with consistent spacing, recomposed
+ * to the Emberglow mockup spec (shared.jsx TabHeader / social.jsx
+ * SubHeader):
+ * - Title: Erstoria (`fontFamily.display`), never bold, sized 30 when a
+ *   back button is shown (sub-screen header) or 34 standalone (tab header).
+ * - Back button: 40×40 circular touch target, ArrowLeft at `colors.text.secondary`.
+ * - Subtitle: Source Sans 3, `colors.text.muted`.
+ *
+ * Outer spacing is kept close to the pre-Emberglow layout so the ~15
+ * consuming screens don't shift: 16px top margin on the title row, 16px
+ * bottom margin on the wrapper.
  */
 export function ScreenHeader({
   title,
@@ -55,21 +73,70 @@ export function ScreenHeader({
   };
 
   const HeaderWrapper = animate ? Animated.View : View;
+  const titleSize = showBackButton
+    ? TITLE_SIZE_WITH_BACK
+    : TITLE_SIZE_STANDALONE;
 
   return (
-    <HeaderWrapper style={animate ? animatedStyle : undefined} className="mb-4">
-      <View className="mb-2 mt-4 flex-row items-center">
+    <HeaderWrapper
+      style={[styles.wrapper, animate ? animatedStyle : undefined]}
+    >
+      <View style={styles.titleRow}>
         {showBackButton && (
-          <TouchableOpacity onPress={handleBackPress} className="mr-3 p-1">
-            <ArrowLeft size={24} color="#F2E5DD" />
+          <TouchableOpacity
+            onPress={handleBackPress}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={22} color={colors.text.secondary} />
           </TouchableOpacity>
         )}
         <View className="flex-1">
-          <Title text={title} />
+          <Text
+            style={[
+              styles.title,
+              { fontSize: titleSize, lineHeight: titleSize * TITLE_LEADING },
+            ]}
+          >
+            {title}
+          </Text>
         </View>
         {rightComponent}
       </View>
-      {subtitle && <Text className="text-md text-neutral-200">{subtitle}</Text>}
+      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </HeaderWrapper>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    marginBottom: spacing[4],
+  },
+  titleRow: {
+    marginTop: spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14, // mockup row gap (social.jsx SubHeader)
+  },
+  backButton: {
+    width: BACK_BUTTON_SIZE,
+    height: BACK_BUTTON_SIZE,
+    marginLeft: -spacing[2],
+    borderRadius: BACK_BUTTON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontFamily: fontFamily.display,
+    fontWeight: 'normal',
+    color: colors.text.primary,
+  },
+  subtitle: {
+    marginTop: 6, // mockup spacing (shared.jsx TabHeader / social.jsx SubHeader)
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    lineHeight: 15 * leading.body,
+    color: colors.text.muted,
+  },
+});

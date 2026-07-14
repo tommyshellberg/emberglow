@@ -2,7 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 
 import { Image } from '@/components/ui';
-import colors from '@/components/ui/colors';
+import { colors, withAlpha } from '@/theme';
 
 interface PerkIconProps {
   perkId: string;
@@ -63,8 +63,8 @@ export function PerkIcon({ perkId, isUnlocked, size = 32 }: PerkIconProps) {
 
   const circleSize = size + 16; // Add padding around the icon
   const backgroundColor = isUnlocked
-    ? colors.red[500] // Cyan with 30% opacity for unlocked
-    : colors.neutral[300] + '50'; // Neutral with 40% opacity for locked/available
+    ? colors.accent.primary
+    : withAlpha(colors.palette.bone, 0.12); // colors.fill.subtle
 
   return (
     <View
@@ -85,7 +85,7 @@ export function PerkIcon({ perkId, isUnlocked, size = 32 }: PerkIconProps) {
           opacity: isUnlocked ? 1 : 0.6,
         }}
         contentFit="contain"
-        tintColor={isUnlocked ? colors.white : colors.neutral[200]}
+        tintColor={isUnlocked ? colors.text.onAccent : colors.text.muted}
       />
     </View>
   );

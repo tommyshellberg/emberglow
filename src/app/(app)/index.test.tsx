@@ -36,6 +36,15 @@ jest.mock('react-native-reanimated', () =>
   require('react-native-reanimated/mock')
 );
 
+// expo-haptics is a native module the jest environment can't load; the
+// DecisionSlider component this screen now renders references its enums at
+// call sites, so stub the surface.
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn(),
+  impactAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+}));
+
 // Mock QuestTimer
 jest.mock('@/lib/services/quest-timer', () => ({
   __esModule: true,

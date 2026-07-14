@@ -1,11 +1,9 @@
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect } from 'react';
+import { StyleSheet, Text } from 'react-native';
 
 import {
   A11Y_FORM_LABEL,
-  A11Y_START_BUTTON_DISABLED,
-  A11Y_START_BUTTON_ENABLED,
-  A11Y_START_BUTTON_HINT,
   ANALYTICS_EVENTS,
   SCREEN_SUBTITLE,
   SCREEN_TITLE,
@@ -14,37 +12,28 @@ import {
   useCustomQuestForm,
   useQuestCreation,
 } from '@/components/custom-quest';
+import { Button } from '@/components/emberglow';
 import { CategorySlider } from '@/components/QuestForm/category-slider';
 import { CombinedQuestInput } from '@/components/QuestForm/combined-quest-input';
 import {
-  Button,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
   ScrollView,
-  Text,
   View,
 } from '@/components/ui';
+import { colors, fontFamily, radii, spacing, withAlpha } from '@/theme';
 
 /**
- * Custom Quest Screen
- *
- * Allows users to create personalized quests with custom names and durations.
- * Refactored to senior developer standards with:
- * - Extracted hooks for form state and quest creation
- * - Proper error handling with Sentry logging
- * - Full accessibility support
- * - Emberglow branding
- * - No magic numbers or debug code
+ * Custom Quest Screen — lets users create a personalized quest by naming it,
+ * setting a duration, and picking a category.
  */
 export default function CustomQuestScreen() {
   const posthog = usePostHog();
 
-  // Form state management hook
   const {
     questName,
     questDuration,
-    questCategory,
     canContinue,
     control,
     handleSubmit,
@@ -53,22 +42,19 @@ export default function CustomQuestScreen() {
     getFormData,
   } = useCustomQuestForm();
 
-  // Quest creation hook with error handling
   const { createQuest, isCreating, error } = useQuestCreation();
 
-  // Track screen open
   useEffect(() => {
     posthog.capture(ANALYTICS_EVENTS.OPEN_SCREEN);
   }, [posthog]);
 
-  // Submit handler
   const onSubmit = async () => {
     const formData = getFormData();
     await createQuest(formData);
   };
 
   return (
-    <View className="flex-1">
+    <View style={styles.root}>
       <FocusAwareStatusBar />
 
       <ScreenContainer>
@@ -79,20 +65,18 @@ export default function CustomQuestScreen() {
         />
 
         <ScrollView
-          className="flex-1"
+          style={styles.scroll}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: SCROLL_VIEW_BOTTOM_PADDING }}
           keyboardShouldPersistTaps="handled"
           accessibilityLabel={A11Y_FORM_LABEL}
         >
-          {/* Error Message */}
           {error && (
-            <View className="mb-4 rounded-lg border border-red-500 bg-red-500/20 p-4">
-              <Text className="text-center text-red-100">{error}</Text>
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
-          {/* Quest Input */}
           <CombinedQuestInput
             initialQuestName={questName}
             initialDuration={questDuration}
@@ -100,31 +84,40 @@ export default function CustomQuestScreen() {
             onDurationChange={handleDurationChange}
           />
 
-          {/* Category Slider */}
-          <CategorySlider control={control} questCategory={questCategory} />
+          <CategorySlider control={control} />
 
-          {/* Start Quest Button */}
           <Button
             label={START_BUTTON_LABEL}
-            variant="default"
+            variant="primary"
             size="lg"
+            fullWidth
             disabled={!canContinue || isCreating}
             onPress={handleSubmit(onSubmit)}
-            accessibilityLabel={
-              canContinue
-                ? A11Y_START_BUTTON_ENABLED
-                : A11Y_START_BUTTON_DISABLED
-            }
-            accessibilityRole="button"
-            accessibilityHint={A11Y_START_BUTTON_HINT}
-            accessibilityState={{ disabled: !canContinue || isCreating }}
-            className={`rounded-md bg-primary-400 py-3 ${
-              canContinue && !isCreating ? 'opacity-100' : 'opacity-50'
-            }`}
-            textClassName="text-lg font-semibold text-white"
           />
         </ScrollView>
       </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  errorBanner: {
+    marginBottom: spacing[4],
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.status.danger,
+    backgroundColor: withAlpha(colors.status.danger, 0.15),
+    padding: spacing[4],
+  },
+  errorText: {
+    textAlign: 'center',
+    fontFamily: fontFamily.regular,
+    color: colors.text.primary,
+  },
+});

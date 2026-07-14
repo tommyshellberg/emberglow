@@ -1,8 +1,16 @@
-import { Mail } from 'lucide-react-native';
+import { ChevronLeft, Mail } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Text } from '@/components/ui';
+import { Button, IconButton, Input } from '@/components/emberglow';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 interface ManualEmailViewProps {
   email: string;
@@ -32,53 +40,87 @@ export const ManualEmailView: React.FC<ManualEmailViewProps> = ({
     onEmailChange(localEmail);
     onSubmit(localEmail);
   };
+
   return (
-    <View className="flex-1 bg-background p-4">
-      <View className="mb-8 flex-row items-center">
-        <View className="mr-4 size-12 items-center justify-center rounded-full bg-secondary-100">
-          <Mail size={24} color="#36B6D3" />
-        </View>
-        <View className="flex-1">
-          <Text className="text-base text-neutral-200">
-            Enter a friend's email to invite them to emberglow.
-          </Text>
-        </View>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <IconButton label="Back" size={36} onPress={onBack}>
+          <ChevronLeft />
+        </IconButton>
       </View>
 
-      <Text className="mb-2 text-sm font-medium text-neutral-200">
-        Email Address
-      </Text>
+      <View style={styles.intro}>
+        <View style={styles.iconTile}>
+          <Mail size={22} color={colors.text.accent} />
+        </View>
+        <Text style={styles.introText}>
+          Enter a friend's email to invite them to emberglow.
+        </Text>
+      </View>
 
-      <TextInput
+      <Input
+        label="Email Address"
         value={localEmail}
         onChangeText={setLocalEmail}
         placeholder="friend@example.com"
-        placeholderTextColor="#8FA5B2"
         keyboardType="email-address"
         autoCapitalize="none"
         autoComplete="off"
         autoCorrect={false}
-        autoFocus={true}
-        style={{
-          marginBottom: 24,
-          height: 48,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: '#5C7380',
-          backgroundColor: '#2c456b',
-          paddingHorizontal: 16,
-          fontSize: 16,
-          color: '#e8dcc7',
-        }}
+        autoFocus
+        containerStyle={styles.inputContainer}
       />
 
+      {isSubmitting && (
+        <ActivityIndicator
+          size="small"
+          color={colors.accent.primary}
+          style={styles.spinner}
+        />
+      )}
+
       <Button
-        label="SEND INVITE"
+        label={isSubmitting ? 'Sending…' : 'Send Invite'}
         onPress={handleSubmit}
         disabled={!localEmail.trim() || isSubmitting}
-        loading={isSubmitting}
-        className="w-full"
+        fullWidth
       />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    alignItems: 'flex-start',
+    marginBottom: spacing[2],
+  },
+  intro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+    marginBottom: spacing[6],
+  },
+  iconTile: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(palette.sandy, 0.15),
+  },
+  introText: {
+    flex: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    color: colors.text.secondary,
+  },
+  inputContainer: {
+    marginBottom: spacing[6],
+  },
+  spinner: {
+    marginBottom: spacing[2],
+  },
+});

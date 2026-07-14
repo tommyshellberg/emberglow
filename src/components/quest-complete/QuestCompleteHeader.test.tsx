@@ -1,21 +1,8 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 
 import { QuestCompleteHeader } from './QuestCompleteHeader';
 import type { QuestWithMode } from './types';
-
-// Mock the QuestImage component
-jest.mock('./QuestImage', () => ({
-  QuestImage: ({ quest }: any) => {
-    const { View, Text } = require('react-native');
-    return (
-      <View testID="quest-image-mock">
-        <Text>Mock Quest Image</Text>
-        <Text>{quest.title}</Text>
-      </View>
-    );
-  },
-}));
 
 describe('QuestCompleteHeader', () => {
   const mockQuestWithTitle: QuestWithMode = {
@@ -37,71 +24,106 @@ describe('QuestCompleteHeader', () => {
   };
 
   describe('Rendering', () => {
-    it('should render "Quest Complete!" title', () => {
+    it('should render the quest title', () => {
       const { getByText } = render(
-        <QuestCompleteHeader quest={mockQuestWithTitle} />
+        <QuestCompleteHeader quest={mockQuestWithTitle} onBack={jest.fn()} />
       );
-      expect(getByText('Quest Complete!')).toBeTruthy();
+      expect(getByText('The Great Adventure')).toBeTruthy();
     });
 
-    it('should render quest title when provided', () => {
-      const { getAllByText } = render(
-        <QuestCompleteHeader quest={mockQuestWithTitle} />
+    // The celebration heading is dropped entirely per the recomposed art
+    // header (quest-flow.jsx:119-132 never renders a "Quest Complete!"
+    // string in either context) — replaces the old medallion + heading.
+    it('should not render a "Quest Complete!" heading', () => {
+      const { queryByText } = render(
+        <QuestCompleteHeader quest={mockQuestWithTitle} onBack={jest.fn()} />
       );
-      const titles = getAllByText('The Great Adventure');
-      expect(titles.length).toBeGreaterThan(0);
+      expect(queryByText('Quest Complete!')).toBeNull();
     });
 
-    it('should not render quest title when not provided', () => {
-      const { queryByText, getByText } = render(
-        <QuestCompleteHeader quest={mockQuestWithoutTitle} />
-      );
-      // Should still render "Quest Complete!" but no subtitle
-      expect(getByText('Quest Complete!')).toBeTruthy();
-    });
-
-    it('should render QuestImage component', () => {
+    it('should render the quest artwork as the header background', () => {
       const { getByTestId } = render(
-        <QuestCompleteHeader quest={mockQuestWithTitle} />
+        <QuestCompleteHeader quest={mockQuestWithTitle} onBack={jest.fn()} />
       );
-      expect(getByTestId('quest-image-mock')).toBeTruthy();
+      expect(getByTestId('quest-art-image')).toBeTruthy();
     });
 
     it('should render the eyebrow with the story quest mode label', () => {
       const { getByText } = render(
-        <QuestCompleteHeader quest={mockQuestWithTitle} />
+        <QuestCompleteHeader
+          quest={mockQuestWithTitle}
+          onBack={jest.fn()}
+          fromJournal
+        />
       );
       expect(getByText('STORY QUEST')).toBeTruthy();
     });
 
     it('should render the eyebrow with the custom quest mode label', () => {
       const { getByText } = render(
-        <QuestCompleteHeader quest={mockQuestWithoutTitle} />
+        <QuestCompleteHeader
+          quest={mockQuestWithoutTitle}
+          onBack={jest.fn()}
+          fromJournal
+        />
       );
       expect(getByText('CUSTOM QUEST')).toBeTruthy();
     });
   });
 
-  describe('Accessibility', () => {
-    it('should have accessible header', () => {
-      const { getByLabelText } = render(
-        <QuestCompleteHeader quest={mockQuestWithTitle} />
+  describe('fromJournal eyebrow suffix', () => {
+    it('appends " · COMPLETE" in the quest-flow context (not from journal)', () => {
+      const { getByText } = render(
+        <QuestCompleteHeader
+          quest={mockQuestWithTitle}
+          onBack={jest.fn()}
+          fromJournal={false}
+        />
       );
-      // Check for accessible elements instead of role
-      expect(getByLabelText).toBeDefined();
+      expect(getByText('STORY QUEST · COMPLETE')).toBeTruthy();
+    });
+
+    it('omits the suffix in the journal context', () => {
+      const { getByText, queryByText } = render(
+        <QuestCompleteHeader
+          quest={mockQuestWithTitle}
+          onBack={jest.fn()}
+          fromJournal={true}
+        />
+      );
+      expect(getByText('STORY QUEST')).toBeTruthy();
+      expect(queryByText('STORY QUEST · COMPLETE')).toBeNull();
+    });
+  });
+
+  describe('Back navigation', () => {
+    it('renders an accessible "Go back" button', () => {
+      const { getByLabelText } = render(
+        <QuestCompleteHeader quest={mockQuestWithTitle} onBack={jest.fn()} />
+      );
+      expect(getByLabelText('Go back')).toBeTruthy();
+    });
+
+    it('calls onBack when the back button is pressed', () => {
+      const onBack = jest.fn();
+      const { getByLabelText } = render(
+        <QuestCompleteHeader quest={mockQuestWithTitle} onBack={onBack} />
+      );
+      fireEvent.press(getByLabelText('Go back'));
+      expect(onBack).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('Animation Props', () => {
-    it('should pass disableAnimations prop to QuestImage', () => {
-      const { getByTestId } = render(
+    it('accepts disableAnimations and still renders the title', () => {
+      const { getByText } = render(
         <QuestCompleteHeader
           quest={mockQuestWithTitle}
+          onBack={jest.fn()}
           disableAnimations={true}
         />
       );
-      // QuestImage should be rendered (we can't easily test props with mock)
-      expect(getByTestId('quest-image-mock')).toBeTruthy();
+      expect(getByText('The Great Adventure')).toBeTruthy();
     });
   });
 
@@ -116,12 +138,10 @@ describe('QuestCompleteHeader', () => {
         status: 'completed',
       };
 
-      const { getByText, getAllByText } = render(
-        <QuestCompleteHeader quest={storyQuest} />
+      const { getAllByText } = render(
+        <QuestCompleteHeader quest={storyQuest} onBack={jest.fn()} />
       );
-      expect(getByText('Quest Complete!')).toBeTruthy();
-      const titles = getAllByText('Story Quest');
-      expect(titles.length).toBeGreaterThan(0);
+      expect(getAllByText('Story Quest').length).toBeGreaterThan(0);
     });
 
     it('should render for custom quest', () => {
@@ -135,12 +155,10 @@ describe('QuestCompleteHeader', () => {
         status: 'completed',
       };
 
-      const { getByText, getAllByText } = render(
-        <QuestCompleteHeader quest={customQuest} />
+      const { getAllByText } = render(
+        <QuestCompleteHeader quest={customQuest} onBack={jest.fn()} />
       );
-      expect(getByText('Quest Complete!')).toBeTruthy();
-      const titles = getAllByText('Morning Workout');
-      expect(titles.length).toBeGreaterThan(0);
+      expect(getAllByText('Morning Workout').length).toBeGreaterThan(0);
     });
 
     it('should render for cooperative quest', () => {
@@ -154,12 +172,10 @@ describe('QuestCompleteHeader', () => {
         status: 'completed',
       };
 
-      const { getByText, getAllByText } = render(
-        <QuestCompleteHeader quest={coopQuest} />
+      const { getAllByText } = render(
+        <QuestCompleteHeader quest={coopQuest} onBack={jest.fn()} />
       );
-      expect(getByText('Quest Complete!')).toBeTruthy();
-      const titles = getAllByText('Team Challenge');
-      expect(titles.length).toBeGreaterThan(0);
+      expect(getAllByText('Team Challenge').length).toBeGreaterThan(0);
     });
   });
 });

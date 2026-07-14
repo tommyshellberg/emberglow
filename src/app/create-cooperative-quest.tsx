@@ -2,14 +2,14 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Info, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
+import { StyleSheet } from 'react-native';
 
 import { cooperativeQuestApi } from '@/api/cooperative-quest';
+import { Button } from '@/components/emberglow';
 import { CombinedQuestInput } from '@/components/QuestForm/combined-quest-input';
 import { FriendSelector } from '@/components/QuestForm/friend-selector';
 import { GuildSelector } from '@/components/QuestForm/guild-selector';
-import type { Guild } from '@/features/guilds';
 import {
-  Button,
   FocusAwareStatusBar,
   ScrollView,
   showErrorMessage,
@@ -17,9 +17,10 @@ import {
   TouchableOpacity,
   View,
 } from '@/components/ui';
-import colors from '@/components/ui/colors';
+import type { Guild } from '@/features/guilds';
 import { useCooperativeLobbyStore } from '@/store/cooperative-lobby-store';
 import { useUserStore } from '@/store/user-store';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 type InviteMode = 'friends' | 'guild';
 
@@ -173,40 +174,37 @@ export default function CreateCooperativeQuestScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.root}>
       <FocusAwareStatusBar />
 
       {/* Header */}
-      <View className="mb-4 mt-2 px-4">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="mb-4 flex-row items-center"
-        >
-          <ArrowLeft size={24} color={colors.white} />
-          <Text className="ml-2 text-lg text-white">Back</Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backRow}>
+          <ArrowLeft size={24} color={colors.text.primary} />
+          <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
 
-        <Text className="mb-2 text-3xl font-bold text-white">Create Quest</Text>
-        <Text style={{ color: colors.neutral[200] }}>
+        <Text style={styles.title}>Create Quest</Text>
+        <Text style={styles.subtitle}>
           Start a cooperative quest and invite friends or your guild
         </Text>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-5">
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.body}>
           {/* Info Card */}
-          <View className="mb-6 rounded-lg bg-primary-100 p-4">
-            <View className="flex-row items-start">
-              <Info size={20} color="#7C3AED" style={{ marginTop: 2 }} />
-              <View className="ml-3 flex-1">
-                <Text className="text-primary-600 mb-1 font-semibold">
-                  Team Challenge
-                </Text>
-                <Text className="text-primary-600 text-sm">
-                  All participants must keep their phones locked for the entire
-                  duration. If anyone unlocks early, everyone fails together!
-                </Text>
-              </View>
+          <View style={styles.infoCard}>
+            <Info
+              size={20}
+              color={colors.text.accent}
+              style={styles.infoCardIcon}
+            />
+            <View style={styles.infoCardBody}>
+              <Text style={styles.infoCardTitle}>Team Challenge</Text>
+              <Text style={styles.infoCardText}>
+                All participants must keep their phones locked for the entire
+                duration. If anyone unlocks early, everyone fails together!
+              </Text>
             </View>
           </View>
 
@@ -219,56 +217,40 @@ export default function CreateCooperativeQuestScreen() {
           />
 
           {/* Invite Mode Toggle */}
-          <View className="mt-6">
-            <Text className="mb-3 text-lg font-semibold text-white">
-              Invite Participants
-            </Text>
+          <View style={styles.inviteSection}>
+            <Text style={styles.sectionTitle}>Invite Participants</Text>
 
-            {/* Toggle Tabs */}
-            <View
-              className="mb-4 flex-row rounded-lg p-1"
-              style={{ backgroundColor: colors.neutral[500] }}
-            >
+            {/* Toggle Tabs — no Emberglow segmented-control equivalent
+                (ground rule 4); hand-rolled tabs retinted from theme tokens. */}
+            <View style={styles.toggleTrack}>
               <TouchableOpacity
                 onPress={() => handleModeChange('friends')}
-                className="flex-1 rounded-md py-2"
-                style={{
-                  backgroundColor:
-                    inviteMode === 'friends'
-                      ? colors.primary[400]
-                      : 'transparent',
-                }}
+                style={[
+                  styles.toggleTab,
+                  inviteMode === 'friends' && styles.toggleTabActive,
+                ]}
               >
                 <Text
-                  className="text-center font-semibold"
-                  style={{
-                    color:
-                      inviteMode === 'friends'
-                        ? colors.white
-                        : colors.neutral[200],
-                  }}
+                  style={[
+                    styles.toggleText,
+                    inviteMode === 'friends' && styles.toggleTextActive,
+                  ]}
                 >
                   Friends
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => handleModeChange('guild')}
-                className="flex-1 rounded-md py-2"
-                style={{
-                  backgroundColor:
-                    inviteMode === 'guild'
-                      ? colors.primary[400]
-                      : 'transparent',
-                }}
+                style={[
+                  styles.toggleTab,
+                  inviteMode === 'guild' && styles.toggleTabActive,
+                ]}
               >
                 <Text
-                  className="text-center font-semibold"
-                  style={{
-                    color:
-                      inviteMode === 'guild'
-                        ? colors.white
-                        : colors.neutral[200],
-                  }}
+                  style={[
+                    styles.toggleText,
+                    inviteMode === 'guild' && styles.toggleTextActive,
+                  ]}
                 >
                   Guild
                 </Text>
@@ -278,10 +260,7 @@ export default function CreateCooperativeQuestScreen() {
             {/* Mode-specific selector */}
             {inviteMode === 'friends' ? (
               <View>
-                <Text
-                  className="mb-4 text-sm"
-                  style={{ color: colors.neutral[200] }}
-                >
+                <Text style={styles.selectorHint}>
                   Select friends to join your quest.
                 </Text>
                 <FriendSelector
@@ -293,10 +272,7 @@ export default function CreateCooperativeQuestScreen() {
               </View>
             ) : (
               <View>
-                <Text
-                  className="mb-4 text-sm"
-                  style={{ color: colors.neutral[200] }}
-                >
+                <Text style={styles.selectorHint}>
                   Select a guild to invite all members.
                 </Text>
                 <GuildSelector
@@ -313,12 +289,9 @@ export default function CreateCooperativeQuestScreen() {
 
           {/* Invitees Count */}
           {inviteeIds.length > 0 && (
-            <View className="mt-4 flex-row items-center">
-              <Users size={20} color={colors.neutral[200]} />
-              <Text
-                className="ml-2 text-sm"
-                style={{ color: colors.neutral[200] }}
-              >
+            <View style={styles.countRow}>
+              <Users size={20} color={colors.text.muted} />
+              <Text style={styles.countText}>
                 {inviteeIds.length} participant
                 {inviteeIds.length !== 1 ? 's' : ''} will be invited
               </Text>
@@ -328,15 +301,145 @@ export default function CreateCooperativeQuestScreen() {
       </ScrollView>
 
       {/* Create Button */}
-      <View className="border-t border-neutral-200 p-5">
+      <View style={styles.footer}>
         <Button
           label={isCreating ? 'Creating...' : 'Create Quest'}
           onPress={handleCreate}
           disabled={!canCreate || isCreating}
-          className={`rounded-lg ${canCreate && !isCreating ? 'bg-primary-400' : 'bg-neutral-300'}`}
-          textClassName="text-white font-bold text-lg"
+          variant="primary"
+          size="lg"
+          fullWidth
         />
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
+  header: {
+    marginTop: spacing[2],
+    marginBottom: spacing[4],
+    paddingHorizontal: spacing[4],
+  },
+  backRow: {
+    marginBottom: spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backText: {
+    marginLeft: spacing[2],
+    fontFamily: fontFamily.regular,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+  title: {
+    marginBottom: spacing[2],
+    fontFamily: fontFamily.display,
+    fontSize: 30,
+    // Erstoria's default 1.12 leading still clips this display face's tall
+    // ascenders in RN; other recomposed screens' Erstoria headings bump to
+    // 1.15 to give them room (see emberglow/quest/quest-card.tsx's `title`).
+    lineHeight: 30 * 1.15,
+    color: colors.text.primary,
+  },
+  subtitle: {
+    fontFamily: fontFamily.regular,
+    color: colors.text.secondary,
+  },
+  scroll: {
+    flex: 1,
+  },
+  body: {
+    padding: spacing[5],
+  },
+  infoCard: {
+    marginBottom: spacing[6],
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[4],
+  },
+  infoCardIcon: {
+    marginTop: 2,
+  },
+  infoCardBody: {
+    marginLeft: spacing[3],
+    flex: 1,
+  },
+  infoCardTitle: {
+    marginBottom: spacing[1],
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.accent,
+  },
+  infoCardText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    lineHeight: 13 * 1.5,
+    color: colors.text.secondary,
+  },
+  inviteSection: {
+    marginTop: spacing[6],
+  },
+  sectionTitle: {
+    marginBottom: spacing[3],
+    fontFamily: fontFamily.semibold,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+  toggleTrack: {
+    marginBottom: spacing[4],
+    flexDirection: 'row',
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface.inset,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 3,
+  },
+  toggleTab: {
+    flex: 1,
+    borderRadius: radii.pill,
+    paddingVertical: spacing[2],
+  },
+  toggleTabActive: {
+    backgroundColor: colors.accent.primary,
+  },
+  toggleText: {
+    textAlign: 'center',
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.secondary,
+  },
+  toggleTextActive: {
+    color: colors.text.onAccent,
+  },
+  selectorHint: {
+    marginBottom: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  countRow: {
+    marginTop: spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  countText: {
+    marginLeft: spacing[2],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+    padding: spacing[5],
+  },
+});

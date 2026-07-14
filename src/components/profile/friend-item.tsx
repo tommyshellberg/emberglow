@@ -1,8 +1,10 @@
 import React from 'react';
-import { Image, Pressable } from 'react-native';
+import { Image, Pressable, StyleSheet } from 'react-native';
 
 import { getCharacterAvatar } from '@/app/utils/character-utils';
-import { Card, Text, View } from '@/components/ui';
+import { ListItem } from '@/components/emberglow';
+import { Text } from '@/components/ui';
+import { colors } from '@/theme';
 
 type Friend = {
   _id: string;
@@ -19,40 +21,52 @@ type FriendItemProps = {
   onDelete: (friend: Friend) => void;
 };
 
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export function FriendItem({ friend, onDelete }: FriendItemProps) {
+  const classLabel = friend.character?.type
+    ? capitalize(friend.character.type)
+    : 'Character';
+
   return (
-    <Card className="mb-2 flex-row items-center p-3">
-      <View className="relative">
+    <ListItem
+      title={friend.character?.name || 'Unknown'}
+      subtitle={classLabel}
+      leading={
         <Image
           source={getCharacterAvatar(friend.character?.type)}
-          className="size-10 rounded-full"
+          style={styles.avatar}
         />
-        <View className="absolute -right-1 -top-1 rounded-full bg-amber-500 px-1.5 py-0.5">
-          <Text className="text-xs font-bold text-white">New</Text>
-        </View>
-      </View>
-
-      <View className="ml-3 flex-1">
-        <Text className="text-base font-bold text-white">
-          {friend.character?.name || 'Unknown'}
-        </Text>
-        <Text className="text-sm text-neutral-200">
-          {friend.character?.type || 'Character'}
-        </Text>
-      </View>
-
-      <View className="flex-row items-center space-x-2">
+      }
+      trailing={
         <Pressable
-          className="items-center justify-center rounded-full"
           onPress={() => onDelete(friend)}
           accessible={true}
           accessibilityRole="button"
           accessibilityLabel={`Remove ${friend.character?.name || 'friend'}`}
           accessibilityHint="Tap to remove this friend from your list"
+          style={styles.removeButton}
         >
-          <Text className="text-base text-red-500">Remove</Text>
+          <Text style={styles.removeLabel}>Remove</Text>
         </Pressable>
-      </View>
-    </Card>
+      }
+    />
   );
 }
+
+const styles = StyleSheet.create({
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  removeButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  removeLabel: {
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+});

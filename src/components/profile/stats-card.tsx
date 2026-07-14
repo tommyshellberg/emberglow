@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import {
   Easing,
   runOnJS,
@@ -9,8 +9,16 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
+import { Text, View } from '@/components/ui';
 import { STATS_ANIMATION } from '@/features/profile/constants/profile-constants';
-import { Card, Text, View } from '@/components/ui';
+import {
+  colors,
+  fontFamily,
+  fontSize,
+  radii,
+  spacing,
+  tracking,
+} from '@/theme';
 
 type StatsCardProps = {
   questCount: number;
@@ -23,14 +31,10 @@ function AnimatedNumber({
   value,
   duration = 1500,
   delay = 0,
-  style,
-  className,
 }: {
   value: number;
   duration?: number;
   delay?: number;
-  style?: any;
-  className?: string;
 }) {
   const [displayValue, setDisplayValue] = useState(0);
   const animatedValue = useSharedValue(0);
@@ -53,11 +57,7 @@ function AnimatedNumber({
     }
   );
 
-  return (
-    <Text className={className} style={style}>
-      {displayValue}
-    </Text>
-  );
+  return <Text style={styles.tileNumber}>{displayValue}</Text>;
 }
 
 export function StatsCard({
@@ -66,76 +66,88 @@ export function StatsCard({
   streakCount,
 }: StatsCardProps) {
   return (
-    <Card className="mx-4 mt-4 p-5">
-      <View className="flex-row justify-around">
-        <View
-          className="items-center"
-          accessible={true}
-          accessibilityLabel={`${questCount} quests completed`}
-          accessibilityRole="text"
-        >
-          <AnimatedNumber
-            value={questCount}
-            duration={STATS_ANIMATION.quests.duration}
-            delay={STATS_ANIMATION.quests.delay}
-            className="text-3xl font-bold text-secondary-100"
-            style={{
-              fontSize: 30,
-              fontWeight: '700',
-              textAlign: 'center',
-            }}
-          />
-          <Text className="text-base text-neutral-200">Quests</Text>
-        </View>
-
-        <View className="h-4/5 w-px bg-neutral-300" />
-
-        <View
-          className="items-center"
-          accessible={true}
-          accessibilityLabel={`${minutesSaved} minutes saved`}
-          accessibilityRole="text"
-        >
-          <AnimatedNumber
-            value={minutesSaved}
-            duration={STATS_ANIMATION.minutes.duration}
-            delay={STATS_ANIMATION.minutes.delay}
-            className="text-3xl font-bold text-secondary-100"
-            style={{
-              fontSize: 30,
-              fontWeight: '700',
-              textAlign: 'center',
-            }}
-          />
-          <Text className="text-base text-neutral-200">Minutes Saved</Text>
-        </View>
-
-        <View className="h-4/5 w-px bg-neutral-300" />
-
-        <Pressable
-          className="items-center"
-          onPress={() => router.push('/streak-celebration')}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel={`${streakCount} day streak`}
-          accessibilityHint="Tap to view streak celebration"
-        >
-          <View className="flex-row items-center">
-            <AnimatedNumber
-              value={streakCount}
-              duration={STATS_ANIMATION.streak.duration}
-              delay={STATS_ANIMATION.streak.delay}
-              className="text-3xl font-bold text-secondary-100"
-              style={{
-                fontSize: 30,
-                fontWeight: '700',
-                textAlign: 'center',
-              }}
-            />
-          </View>
-          <Text className="text-base text-neutral-200">Day Streak</Text>
-        </Pressable>
+    <View style={styles.grid}>
+      <View
+        style={styles.tile}
+        accessible={true}
+        accessibilityLabel={`${questCount} quests completed`}
+        accessibilityRole="text"
+      >
+        <AnimatedNumber
+          value={questCount}
+          duration={STATS_ANIMATION.quests.duration}
+          delay={STATS_ANIMATION.quests.delay}
+        />
+        <Text style={styles.tileLabel}>Quests</Text>
       </View>
-    </Card>
+
+      <View
+        style={styles.tile}
+        accessible={true}
+        accessibilityLabel={`${minutesSaved} minutes saved`}
+        accessibilityRole="text"
+      >
+        <AnimatedNumber
+          value={minutesSaved}
+          duration={STATS_ANIMATION.minutes.duration}
+          delay={STATS_ANIMATION.minutes.delay}
+        />
+        <Text style={styles.tileLabel}>Minutes Saved</Text>
+      </View>
+
+      <Pressable
+        style={styles.tile}
+        onPress={() => router.push('/streak-celebration')}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`${streakCount} day streak`}
+        accessibilityHint="Tap to view streak celebration"
+      >
+        <AnimatedNumber
+          value={streakCount}
+          duration={STATS_ANIMATION.streak.duration}
+          delay={STATS_ANIMATION.streak.delay}
+        />
+        <Text style={styles.tileLabel}>Day Streak</Text>
+      </Pressable>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginHorizontal: spacing[4],
+    marginTop: spacing[4],
+  },
+  tile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    borderRadius: radii.md,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[2],
+  },
+  tileNumber: {
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.h2,
+    // Erstoria clips vertically without an explicit line-height — codebase
+    // convention is fontSize * 1.15 (not the documented 1.12).
+    lineHeight: fontSize.h2 * 1.15,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  tileLabel: {
+    marginTop: spacing[1],
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.caption,
+    letterSpacing: fontSize.caption * tracking.wide,
+    textTransform: 'uppercase',
+    color: colors.text.muted,
+    textAlign: 'center',
+  },
+});

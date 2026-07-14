@@ -1,11 +1,11 @@
+import { Env } from '@env';
 import Slider from '@react-native-community/slider';
 import { format } from 'date-fns';
 import React, { useEffect, useState } from 'react';
-import { TextInput } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-// Import UI components
-import { Text, View } from '@/components/ui';
-import { Env } from '@env';
+import { Input } from '@/components/emberglow';
+import { colors, fontFamily, radii, shadows, spacing } from '@/theme';
 
 // Simplified props without react-hook-form dependency
 type CombinedQuestInputProps = {
@@ -68,73 +68,43 @@ export const CombinedQuestInput = ({
   };
 
   return (
-    <View className="mb-4 rounded-xl bg-cardBackground p-5">
-      <View className="mb-2.5">
-        <View className="flex-row items-center">
-          <Text className="text-2xl font-medium text-white">I want to</Text>
-          <TextInput
-            value={questName}
-            onChangeText={handleQuestNameChange}
-            placeholder="go for a run"
-            placeholderTextColor="#5C7380"
-            autoCapitalize="none"
-            autoComplete="off"
-            autoFocus={true}
-            style={{
-              flex: 1,
-              marginLeft: 8,
-              height: 40,
-              borderBottomWidth: 1,
-              borderBottomColor: '#36B6D3', // secondary-200 (Emberglow teal)
-              backgroundColor: 'transparent',
-              paddingHorizontal: 8,
-              paddingVertical: 0,
-              fontSize: 24,
-              color: '#e8dcc7', // white/cream
-              includeFontPadding: false,
-              textAlignVertical: 'center',
-            }}
-          />
-        </View>
-      </View>
+    <View style={styles.card}>
+      <Input
+        label="I want to"
+        value={questName}
+        onChangeText={handleQuestNameChange}
+        placeholder="go for a run"
+        autoCapitalize="none"
+        autoComplete="off"
+        autoFocus={true}
+      />
 
-      <View className="mb-2.5 flex-row items-center">
-        <Text className="text-2xl font-medium text-white">
-          for {sliderValue} minutes
-        </Text>
-      </View>
+      <Text style={styles.durationText}>for {sliderValue} minutes</Text>
 
       {/* Slider with separate handlers for value change and sliding complete */}
-      <View className="mt-5">
-        <View style={{ height: 40 }}>
-          <Slider
-            testID="duration-slider"
-            style={{ width: '100%', height: 40 }}
-            minimumValue={Env.APP_ENV === 'development' ? 1 : 5}
-            maximumValue={240}
-            step={Env.APP_ENV === 'development' ? 1 : 5}
-            value={duration}
-            onValueChange={handleSliderValueChange}
-            onSlidingComplete={handleSlidingComplete}
-            minimumTrackTintColor="#36B6D3" // secondary-200 (Emberglow teal)
-            maximumTrackTintColor="#5C7380" // neutral-300 (muted gray)
-            thumbTintColor="#36B6D3" // secondary-200 (Emberglow teal)
-          />
-        </View>
+      <View style={styles.sliderSection}>
+        <Slider
+          testID="duration-slider"
+          style={styles.slider}
+          minimumValue={Env.APP_ENV === 'development' ? 1 : 5}
+          maximumValue={240}
+          step={Env.APP_ENV === 'development' ? 1 : 5}
+          value={duration}
+          onValueChange={handleSliderValueChange}
+          onSlidingComplete={handleSlidingComplete}
+          minimumTrackTintColor={colors.accent.primary}
+          maximumTrackTintColor={colors.track}
+          thumbTintColor={colors.text.accent}
+        />
 
-        <View className="mt-4 flex-row justify-between">
-          <View className="w-[48%] items-center rounded-lg bg-lightBlue-500 p-3">
-            <Text className="mb-1 text-sm text-neutral-200">FROM</Text>
-            <Text className="text-2xl font-semibold text-white">
-              {format(now, 'h:mm a')}
-            </Text>
+        <View style={styles.timeRow}>
+          <View style={styles.timeChip}>
+            <Text style={styles.timeLabel}>FROM</Text>
+            <Text style={styles.timeValue}>{format(now, 'h:mm a')}</Text>
           </View>
-          <View className="w-[48%] items-center rounded-lg bg-lightBlue-500 p-3">
-            <Text className="mb-1 text-sm text-neutral-200">TO</Text>
-            <Text
-              testID="end-time"
-              className="text-2xl font-semibold text-white"
-            >
+          <View style={styles.timeChip}>
+            <Text style={styles.timeLabel}>TO</Text>
+            <Text testID="end-time" style={styles.timeValueAccent}>
               {format(endTime, 'h:mm a')}
             </Text>
           </View>
@@ -143,3 +113,54 @@ export const CombinedQuestInput = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  card: {
+    marginBottom: spacing[4],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    padding: spacing[5],
+    ...shadows.raised,
+  },
+  durationText: {
+    marginTop: spacing[3],
+    fontFamily: fontFamily.display,
+    fontSize: 20,
+    color: colors.text.primary,
+  },
+  sliderSection: {
+    marginTop: spacing[5],
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  timeRow: {
+    marginTop: spacing[4],
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeChip: {
+    width: '48%',
+    alignItems: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.inset,
+    padding: spacing[3],
+  },
+  timeLabel: {
+    marginBottom: spacing[1],
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: colors.text.muted,
+  },
+  timeValue: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 20,
+    color: colors.text.primary,
+  },
+  timeValueAccent: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 20,
+    color: colors.text.accent,
+  },
+});

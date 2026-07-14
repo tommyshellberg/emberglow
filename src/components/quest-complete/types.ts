@@ -8,6 +8,18 @@ export type QuestWithMode = Quest & {
 export type QuestCompleteProps = {
   quest: QuestWithMode;
   story: string;
+  /**
+   * Maps to the mockup's `fromJournal` flag (quest-flow.jsx:105) — true when
+   * viewing a completed quest from the Journal, false for the celebratory
+   * post-quest-completion flow. Drives the eyebrow suffix, the success
+   * "Complete" pill, and whether the secondary Continue button renders.
+   * @default false
+   */
+  fromJournal?: boolean;
+  /** Whether this quest already has a reflection attached (server or local) — hides the Add reflection button when true. */
+  hasReflection?: boolean;
+  /** Back-button handler for the art header's floating disc. Falls back to `onContinue`, then a no-op. */
+  onBack?: () => void;
   onContinue?: () => void;
   continueText?: string;
   showActionButton?: boolean;
@@ -21,6 +33,8 @@ export type QuestImageProps = {
 
 export type QuestCompleteHeaderProps = {
   quest: QuestWithMode;
+  fromJournal?: boolean;
+  onBack: () => void;
   disableAnimations?: boolean;
 };
 
@@ -32,6 +46,8 @@ export type QuestCompleteStoryProps = {
 
 export type QuestCompleteActionsProps = {
   quest: QuestWithMode;
+  fromJournal?: boolean;
+  hasReflection?: boolean;
   onContinue?: () => void;
   continueText: string;
   disableAnimations?: boolean;

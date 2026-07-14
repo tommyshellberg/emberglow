@@ -1,43 +1,13 @@
-import colors from '@/components/ui/colors';
-
 /**
  * Leaderboard Constants
  *
- * All magic numbers, strings, colors, and configuration for the Leaderboard screen.
- * Following Emberglow design system.
+ * All magic numbers, strings, and configuration for the Leaderboard screen.
+ *
+ * Colors used to live here as a parallel, redundant re-derivation of
+ * `@/components/ui/colors`. That's retired now that the Leaderboard screen
+ * pulls its palette directly from `@/theme` (Emberglow design tokens) —
+ * see the individual components under `../components/`.
  */
-
-// ============================================================================
-// COLORS (Emberglow Design System)
-// ============================================================================
-
-export const COLORS = {
-  // Primary brand colors
-  primaryAccent: colors.primary[400], // #E55838 - Sunset Orange
-  secondaryAccent: colors.secondary[300], // #36B6D3 - Teal
-
-  // Trophy/Crown accent (gold - brand appropriate)
-  gold: '#FFD700',
-
-  // Text colors (WCAG AA compliant)
-  textPrimary: colors.white, // #e8dcc7 - Warm cream
-  textSecondary: colors.neutral[200], // #8FA5B2 - 5.2:1 contrast
-  textMuted: colors.neutral[300], // Better contrast
-
-  // Background colors
-  background: colors.background, // #162034
-  cardBackground: colors.cardBackground, // #2c456b
-
-  // State colors
-  selectedTab: colors.lightBlue[500], // #2c456b - subtle blue highlight
-  selectedToggle: colors.secondary[100], // #68C8DE - light teal
-  currentUserHighlight: 'rgba(54, 182, 211, 0.15)', // Teal with 15% opacity
-
-  // Icon colors (WCAG AA compliant)
-  iconDefault: colors.neutral[200], // #8FA5B2
-  iconSelected: colors.secondary[300], // #36B6D3
-  iconEmpty: colors.neutral[300], // Better than #C9BFAF
-} as const;
 
 // ============================================================================
 // STRINGS
