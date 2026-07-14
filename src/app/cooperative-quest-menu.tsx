@@ -98,11 +98,6 @@ export default function CooperativeQuestMenu() {
   const user = useUserStore((state) => state.user);
   const userEmail = user?.email || '';
   const { connect: connectWebSocket } = useLazyWebSocket();
-  const hasScheduledEventsAccess =
-    user?.featureFlags?.includes('scheduled_events') ?? false;
-  const visibleMenuOptions = menuOptions.filter(
-    (option) => option.id !== 'events' || hasScheduledEventsAccess
-  );
 
   // Connect WebSocket when entering cooperative quest flow
   React.useEffect(() => {
@@ -166,7 +161,7 @@ export default function CooperativeQuestMenu() {
           <>
             {/* Menu Options */}
             <View style={styles.menuList}>
-              {visibleMenuOptions.map((option) => (
+              {menuOptions.map((option) => (
                 <View key={option.id} style={styles.rowCard}>
                   <ListItem
                     title={option.title}
