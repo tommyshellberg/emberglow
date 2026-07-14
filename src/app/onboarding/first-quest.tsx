@@ -228,11 +228,6 @@ export default function FirstQuestScreen() {
     transform: [{ translateY: textTranslateY.value }],
   }));
 
-  const instructionStyle = useAnimatedStyle(() => ({
-    opacity: instructionOpacity.value,
-    transform: [{ translateY: instructionTranslateY.value }],
-  }));
-
   const buttonStyle = useAnimatedStyle(() => ({
     opacity: buttonOpacity.value,
     transform: [{ translateY: buttonTranslateY.value }],
