@@ -47,9 +47,12 @@ import { useServerQuests } from '@/hooks/use-server-quests';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import QuestTimer from '@/lib/services/quest-timer';
 import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/user';
+import {
+  getAnnouncementToShow,
+  useAnnouncementStore,
+} from '@/store/announcement-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
-import { useSettingsStore } from '@/store/settings-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
 import { shadows } from '@/theme';
@@ -78,30 +81,35 @@ export default function Home() {
     },
   });
 
-  // Branching story announcement modal
+  // Home-screen feature announcements. Gating + the once-per-day throttle live
+  // in the announcement store (see getAnnouncementToShow); these three refs are
+  // the sheets this screen presents.
   const branchingModal = useModal();
-  const hasSeenBranchingAnnouncement = useSettingsStore(
+  const skillTreeModal = useModal();
+  const guildsModal = useModal();
+
+  const hasSeenBranchingAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenBranchingAnnouncement
   );
-  const completedQuests = useQuestStore((state) => state.completedQuests);
+  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenSkillTreeAnnouncement
+  );
+  const hasSeenGuildsAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenGuildsAnnouncement
+  );
+  const lastAnnouncementShownAt = useAnnouncementStore(
+    (state) => state.lastAnnouncementShownAt
+  );
+  const markAnnouncementShown = useAnnouncementStore(
+    (state) => state.markAnnouncementShown
+  );
 
-  // Check if user has completed first branching quest (quest-1a or quest-1b)
+  const completedQuests = useQuestStore((state) => state.completedQuests);
+  // First branching quest (quest-1a or quest-1b) unlocks the restart offer.
   const hasCompletedFirstBranch = completedQuests.some(
     (quest) => quest.id === 'quest-1a' || quest.id === 'quest-1b'
   );
-
-  // Skill tree announcement modal
-  const skillTreeModal = useModal();
-  const hasSeenSkillTreeAnnouncement = useSettingsStore(
-    (state) => state.hasSeenSkillTreeAnnouncement
-  );
   const user = useUserStore((state) => state.user);
-
-  // Guilds announcement modal
-  const guildsModal = useModal();
-  const hasSeenGuildsAnnouncement = useSettingsStore(
-    (state) => state.hasSeenGuildsAnnouncement
-  );
   const availablePerks = useSkillTreeStore((state) =>
     state.getAvailablePerksToUnlock()
   );
@@ -235,55 +243,55 @@ export default function Home() {
     }
   }, [activeQuest]);
 
-  // Check if branching story announcement should be shown
+  // Decide which feature announcement (if any) to surface, honoring the
+  // once-per-day cap. Previously three independent effects that could stack all
+  // three sheets in one session; now a single selector-driven effect.
   useEffect(() => {
-    // Only show if user hasn't seen it and has completed first branching quest (quest-1a or quest-1b)
-    // This means they've made their first story choice and can benefit from restart option
-    if (!hasSeenBranchingAnnouncement && hasCompletedFirstBranch) {
-      // Delay showing the modal slightly to let the screen load
-      const timer = setTimeout(() => {
-        branchingModal.present();
-      }, 1500);
+    const which = getAnnouncementToShow(
+      {
+        hasSeenBranchingAnnouncement,
+        hasSeenSkillTreeAnnouncement,
+        hasSeenGuildsAnnouncement,
+        lastAnnouncementShownAt,
+      },
+      {
+        hasCompletedFirstBranch,
+        isRegistered: !!user && !user.isProvisional,
+        completedQuestCount: completedQuests.length,
+        availablePerksCount: availablePerks.length,
+      }
+    );
 
-      return () => clearTimeout(timer);
-    }
-  }, [hasSeenBranchingAnnouncement, hasCompletedFirstBranch, branchingModal]);
+    if (!which) return;
 
-  // Check if skill tree announcement should be shown
-  useEffect(() => {
-    const isRegistered = user && !user.isProvisional;
-    const hasAvailablePerks = availablePerks.length > 0;
-    const shouldShow =
-      isRegistered && !hasSeenSkillTreeAnnouncement && hasAvailablePerks;
+    const modalByKey = {
+      branching: branchingModal,
+      skillTree: skillTreeModal,
+      guilds: guildsModal,
+    };
 
-    if (shouldShow) {
-      const timer = setTimeout(() => {
-        skillTreeModal.present();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
+    // Delay slightly to let the screen settle, then present and stamp the
+    // throttle so nothing else shows today.
+    const timer = setTimeout(() => {
+      modalByKey[which].present();
+      markAnnouncementShown();
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [
+    hasSeenBranchingAnnouncement,
     hasSeenSkillTreeAnnouncement,
+    hasSeenGuildsAnnouncement,
+    lastAnnouncementShownAt,
+    hasCompletedFirstBranch,
     user,
+    completedQuests.length,
     availablePerks.length,
+    branchingModal,
     skillTreeModal,
+    guildsModal,
+    markAnnouncementShown,
   ]);
-
-  // Check if guilds announcement should be shown
-  useEffect(() => {
-    const isRegistered = user && !user.isProvisional;
-    // Show after user has completed at least 3 quests (engaged user)
-    const hasCompletedEnoughQuests = completedQuests.length >= 3;
-    const shouldShow =
-      isRegistered && !hasSeenGuildsAnnouncement && hasCompletedEnoughQuests;
-
-    if (shouldShow) {
-      const timer = setTimeout(() => {
-        guildsModal.present();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasSeenGuildsAnnouncement, user, completedQuests.length, guildsModal]);
 
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
@@ -413,10 +421,7 @@ export default function Home() {
 
       <ScreenContainer className="flex-col">
         {/* Header */}
-        <ScreenHeader
-          title="Choose Your Adventure"
-          subtitle="Continue your epic story, create a quest of your own design, or play a cooperative quest with a friend."
-        />
+        <ScreenHeader title="Choose Your Adventure" />
 
         {/* Main content area — the mode deck (story / custom / cooperative) */}
         <View style={styles.deckWrapper}>

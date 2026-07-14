@@ -21,7 +21,7 @@ const BENEFITS = [
   {
     icon: Users,
     title: 'Play cooperative quests together',
-    lines: ['Motivate each other to stay focused', '(coming soon)'],
+    lines: ['Motivate each other to stay focused'],
   },
   {
     icon: TrendingUp,

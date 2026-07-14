@@ -1,26 +1,25 @@
 /**
  * GuildIcon Component
  *
- * Renders a guild icon from SVG with optional background circle.
- * Similar pattern to PerkIcon component.
+ * Renders a guild's line-art Lucide icon with an optional circular
+ * background, tinted to the Emberglow accent by default.
  */
 
 import React from 'react';
 import { View } from 'react-native';
 
-import { Image } from '@/components/ui';
-import colors from '@/components/ui/colors';
+import { colors, palette, withAlpha } from '@/theme';
 
-import { getGuildIconSource } from '../constants/guild-icons';
+import { getGuildIconComponent } from '../constants/guild-icons';
 import type { GuildIcon as GuildIconType } from '../types/guild-types';
 
 interface GuildIconProps {
   icon: GuildIconType;
   size?: number;
   /**
-   * Color to tint the icon. Defaults to undefined (no tint, shows original SVG colors).
+   * Icon stroke color. Defaults to the Emberglow accent (Sandy).
    */
-  tintColor?: string;
+  color?: string;
   /**
    * Whether to show a circular background behind the icon.
    */
@@ -34,11 +33,12 @@ interface GuildIconProps {
 export function GuildIcon({
   icon,
   size = 24,
-  tintColor,
+  color = colors.text.accent,
   showBackground = false,
-  backgroundColor = colors.guild[400] + '30', // 30% opacity
+  backgroundColor = withAlpha(palette.sandy, 0.12),
 }: GuildIconProps) {
-  const iconSource = getGuildIconSource(icon);
+  const IconComponent = getGuildIconComponent(icon);
+  const glyph = <IconComponent size={size} color={color} strokeWidth={1.75} />;
 
   if (showBackground) {
     const circleSize = size + 24; // 12px padding on each side
@@ -53,28 +53,10 @@ export function GuildIcon({
           alignItems: 'center',
         }}
       >
-        <Image
-          source={iconSource}
-          style={{
-            width: size,
-            height: size,
-          }}
-          contentFit="contain"
-          tintColor={tintColor}
-        />
+        {glyph}
       </View>
     );
   }
 
-  return (
-    <Image
-      source={iconSource}
-      style={{
-        width: size,
-        height: size,
-      }}
-      contentFit="contain"
-      tintColor={tintColor}
-    />
-  );
+  return glyph;
 }

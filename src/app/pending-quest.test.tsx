@@ -2,6 +2,7 @@ import { fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 
+import { ONBOARDING_QUEST_ID } from '@/components/quest-complete/constants';
 import { render } from '@/lib/test-utils';
 import { useQuestStore } from '@/store/quest-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
@@ -49,8 +50,11 @@ jest.mock('@/components/ui', () => {
 });
 
 describe('PendingQuestScreen', () => {
+  // A normal, mid-storyline quest (NOT the onboarding quest 'quest-1'): the
+  // Active-perks card is suppressed on the onboarding quest, so the default
+  // mock uses a later quest to represent the common case where the card shows.
   const mockStoryQuest = {
-    id: 'quest-1',
+    id: 'quest-2',
     title: 'The Beginning',
     durationMinutes: 5,
     mode: 'story' as const,
@@ -260,6 +264,28 @@ describe('PendingQuestScreen', () => {
 
       expect(getByText('Quick Break')).toBeTruthy();
       expect(getByTestId('perk-icon-quick_break')).toBeTruthy();
+    });
+
+    it('hides the card entirely on the first (onboarding) story quest — perks cannot exist yet and the mechanic is not introduced this early', () => {
+      useQuestStore.setState({
+        pendingQuest: { ...mockStoryQuest, id: ONBOARDING_QUEST_ID },
+        cancelQuest: jest.fn(),
+      });
+
+      const { queryByText } = render(<PendingQuestScreen />);
+
+      expect(queryByText('Active perks')).toBeNull();
+      expect(
+        queryByText('No active perks yet. Unlock perks in the skill tree.')
+      ).toBeNull();
+    });
+
+    it('keeps showing the card for a later story quest', () => {
+      // Guards the inverse of the onboarding gate: a non-onboarding story
+      // quest (the default mock's 'quest-2') must still render the card.
+      const { getByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('Active perks')).toBeTruthy();
     });
   });
 

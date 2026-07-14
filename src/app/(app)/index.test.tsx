@@ -19,6 +19,7 @@
 import React from 'react';
 
 import { render, screen } from '@/lib/test-utils';
+import type { AnnouncementKey } from '@/store/announcement-store';
 
 // Mock the router
 const mockPush = jest.fn();
@@ -77,17 +78,27 @@ jest.mock('@/lib/hooks/use-premium-access', () => ({
   })),
 }));
 
-// Mock settings store
-jest.mock('@/store/settings-store', () => ({
-  useSettingsStore: jest.fn((selector) =>
-    selector
-      ? selector({
-          hasSeenBranchingAnnouncement: true, // Don't show modal in tests
-        })
-      : {
-          hasSeenBranchingAnnouncement: true,
-        }
+// Mock announcement store. getAnnouncementToShow drives whether an announcement
+// surfaces; default null so no sheet is presented in unrelated tests. The
+// hasSeen* setters are read by the real modal components rendered inside Home.
+const mockGetAnnouncementToShow = jest.fn((): AnnouncementKey | null => null);
+const mockAnnouncementState = {
+  hasSeenBranchingAnnouncement: false,
+  hasSeenSkillTreeAnnouncement: false,
+  hasSeenGuildsAnnouncement: false,
+  lastAnnouncementShownAt: null,
+  setHasSeenBranchingAnnouncement: jest.fn(),
+  setHasSeenSkillTreeAnnouncement: jest.fn(),
+  setHasSeenGuildsAnnouncement: jest.fn(),
+  markAnnouncementShown: jest.fn(),
+  getAnnouncementToShow: mockGetAnnouncementToShow,
+};
+jest.mock('@/store/announcement-store', () => ({
+  useAnnouncementStore: jest.fn((selector) =>
+    selector ? selector(mockAnnouncementState) : mockAnnouncementState
   ),
+  getAnnouncementToShow: (...args: unknown[]) =>
+    mockGetAnnouncementToShow(...(args as [])),
 }));
 
 // Mock user store
@@ -185,11 +196,6 @@ describe('Home Component - Integration Tests', () => {
 
       // User sees the main header
       expect(screen.getByText('Choose Your Adventure')).toBeTruthy();
-
-      // User sees description
-      expect(
-        screen.getByText(/Continue your epic story, create a quest/)
-      ).toBeTruthy();
 
       unmount();
     });
@@ -341,83 +347,38 @@ describe('Home Component - Integration Tests', () => {
     });
   });
 
-  describe('Branching story announcement modal', () => {
-    beforeEach(() => {
-      // Reset mock to not show modal by default
-      const { useSettingsStore } = require('@/store/settings-store');
-      useSettingsStore.mockImplementation((selector: any) =>
-        selector
-          ? selector({ hasSeenBranchingAnnouncement: true })
-          : { hasSeenBranchingAnnouncement: true }
-      );
-    });
-
-    it('does not trigger modal presentation when user has only completed quest-1', () => {
-      mockQuestStoreState.completedQuests = [
-        { id: 'quest-1', mode: 'story', status: 'completed' },
-      ];
+  describe('Feature announcements', () => {
+    // The which-announcement decision now lives in the announcement store's
+    // getAnnouncementToShow selector (unit-tested in announcement-store.test.ts).
+    // Here we assert Home wires that decision to the once-per-day throttle.
+    it('does not present or stamp the throttle when no announcement is due', () => {
+      mockGetAnnouncementToShow.mockReturnValue(null);
 
       const { unmount } = render(<Home />);
-
-      // Fast-forward timers - modal should not be presented
       jest.advanceTimersByTime(1500);
 
-      // Note: Bottom sheet modals are always rendered in the DOM but hidden
-      // We can't easily test if present() was called without mocking @gorhom/bottom-sheet
-      // The important logic (hasCompletedFirstBranch check) is tested via the condition
+      expect(
+        mockAnnouncementState.markAnnouncementShown
+      ).not.toHaveBeenCalled();
 
       unmount();
     });
 
-    it('renders without crashing when user has completed quest-1a and has not seen announcement', () => {
-      // User has completed first branching quest
+    it('presents the due announcement and stamps the throttle exactly once', () => {
+      mockGetAnnouncementToShow.mockReturnValue('branching');
       mockQuestStoreState.completedQuests = [
         { id: 'quest-1', mode: 'story', status: 'completed' },
         { id: 'quest-1a', mode: 'story', status: 'completed' },
       ];
 
-      // User hasn't seen the announcement
-      const { useSettingsStore } = require('@/store/settings-store');
-      useSettingsStore.mockImplementation((selector: any) =>
-        selector
-          ? selector({ hasSeenBranchingAnnouncement: false })
-          : { hasSeenBranchingAnnouncement: false }
-      );
-
       const { unmount } = render(<Home />);
-
-      // Fast-forward timers to trigger modal presentation (1500ms delay)
       jest.advanceTimersByTime(1500);
 
-      // Verify component renders without errors
-      // The modal content is always rendered (bottom sheet pattern)
-      expect(screen.getByText('Your Story Just Got Deadlier')).toBeTruthy();
-      expect(screen.getByText('Restart at Branching Point')).toBeTruthy();
-
-      unmount();
-    });
-
-    it('renders without crashing when user has completed quest-1b and has not seen announcement', () => {
-      // User has completed alternate branching quest
-      mockQuestStoreState.completedQuests = [
-        { id: 'quest-1', mode: 'story', status: 'completed' },
-        { id: 'quest-1b', mode: 'story', status: 'completed' },
-      ];
-
-      // User hasn't seen the announcement
-      const { useSettingsStore } = require('@/store/settings-store');
-      useSettingsStore.mockImplementation((selector: any) =>
-        selector
-          ? selector({ hasSeenBranchingAnnouncement: false })
-          : { hasSeenBranchingAnnouncement: false }
+      // The throttle fires when the sheet is presented, capping the day at one.
+      expect(mockAnnouncementState.markAnnouncementShown).toHaveBeenCalledTimes(
+        1
       );
-
-      const { unmount } = render(<Home />);
-
-      // Fast-forward timers to trigger modal presentation
-      jest.advanceTimersByTime(1500);
-
-      // Verify component renders without errors
+      // The branching sheet content is mounted (bottom-sheet pattern).
       expect(screen.getByText('Your Story Just Got Deadlier')).toBeTruthy();
       expect(screen.getByText('Restart at Branching Point')).toBeTruthy();
 

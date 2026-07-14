@@ -262,8 +262,8 @@ export default function AppIntroductionScreen() {
                 </View>
               </Animated.View>
               <Animated.Text entering={riseIn(3)} style={styles.caption}>
-                Progress lives on your lock screen — so checking on your hero
-                never means unlocking your phone.
+                Progress lives on your lock screen. Checking on your hero never
+                means unlocking your phone.
               </Animated.Text>
             </View>
           </View>

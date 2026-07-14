@@ -98,7 +98,12 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
 
         {/* Button Section */}
         <Animated.View style={[styles.buttonRow, buttonAnimatedStyle]}>
-          <Button label="Try Again" onPress={onRetry} variant="primary" />
+          <Button
+            label="Try Again"
+            onPress={onRetry}
+            variant="primary"
+            fullWidth
+          />
         </Animated.View>
       </ScreenContainer>
     </View>
@@ -154,6 +159,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing[4],
   },
   buttonRow: {
-    alignItems: 'center',
+    // Full-width CTA pinned at the bottom, matching screenPadding's side
+    // margins (welcome.tsx's canonical full-width primary CTA pattern).
+    paddingHorizontal: spacing[6],
   },
 });

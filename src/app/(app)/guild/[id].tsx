@@ -1,14 +1,15 @@
 /**
  * Guild Detail Screen
  *
- * Displays detailed information about a specific guild including
- * members, stats, and management options for owners.
+ * Displays detailed information about a specific guild — crest, stats,
+ * members, and invite/edit management for owners. Recomposed onto the
+ * Emberglow design system (see
+ * `.claude/skills/emberglow-design/missing-screens/guild-screens.jsx`).
  */
 
-import { Feather } from '@expo/vector-icons';
-import { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { CloudOff, Pencil, Share2, UserPlus } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,28 +18,31 @@ import {
   RefreshControl,
   ScrollView,
   Share,
-  TextInput,
+  StyleSheet,
 } from 'react-native';
 
 import { getCharacterAvatar } from '@/app/utils/character-utils';
 import {
+  Badge,
+  BottomSheet,
   Button,
-  Card,
+  EyebrowLabel,
+  Input,
+  useEmberglowBottomSheet,
+} from '@/components/emberglow';
+import {
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
   Text,
   View,
 } from '@/components/ui';
-import colors from '@/components/ui/colors';
-import { Modal, useModal } from '@/components/ui/modal';
 import { GuildIcon } from '@/features/guilds/components/guild-icon';
 import { GuildIconSelector } from '@/features/guilds/components/guild-icon-selector';
 import { DEFAULT_GUILD_ICON } from '@/features/guilds/constants/guild-icons';
 import {
   GUILD_BUTTONS,
   GUILD_LIMITS,
-  GUILD_STATS_LABELS,
   GUILD_TITLES,
 } from '@/features/guilds/constants/guild-strings';
 import {
@@ -48,6 +52,22 @@ import {
 } from '@/features/guilds/hooks';
 import type { GuildIcon as GuildIconType } from '@/features/guilds/types/guild-types';
 import { useUserStore } from '@/store/user-store';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  tracking,
+  withAlpha,
+} from '@/theme';
+
+const CREST_SIZE = 76;
+
+// Erstoria's ascenders clip against the brand's tight 1.12 display leading in
+// RN — bump to 1.15, matching the established fix in screen-header/quest-card.
+const ERSTORIA_LEADING = 1.15;
 
 export default function GuildDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,7 +81,7 @@ export default function GuildDetailScreen() {
     refetch,
   } = useGuild(id ?? '', { enabled: !!id });
 
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showInviteCode, setShowInviteCode] = useState(false);
 
   // Edit mode state
@@ -71,15 +91,15 @@ export default function GuildDetailScreen() {
   const [editIcon, setEditIcon] = useState<GuildIconType>(DEFAULT_GUILD_ICON);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Icon selector modal
-  const iconModal = useModal();
+  // Icon picker bottom sheet
+  const iconSheet = useEmberglowBottomSheet();
 
   const generateInviteCodeMutation = useGenerateInviteCode();
   const updateGuildMutation = useUpdateGuild();
 
   const isOwner = guild?.owner.id === currentUser?.id;
 
-  const onRefresh = React.useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
@@ -89,11 +109,6 @@ export default function GuildDetailScreen() {
     // Navigate explicitly to profile since router.back() can behave
     // unexpectedly with tab navigation
     router.navigate('/profile');
-  };
-
-  const handleSettingsPress = () => {
-    // Will be implemented in future task
-    // router.push(`/guild/${id}/settings`);
   };
 
   // Enter edit mode with current values
@@ -118,7 +133,7 @@ export default function GuildDetailScreen() {
 
     // Validate name
     if (!editName.trim()) {
-      setValidationError('Guild name is required');
+      setValidationError('A guild needs a name.');
       return;
     }
 
@@ -138,13 +153,13 @@ export default function GuildDetailScreen() {
     }
   }, [id, guild, editName, editTagline, editIcon, updateGuildMutation]);
 
-  // Handle icon selection from modal
+  // Handle icon selection from the bottom sheet
   const handleIconSelect = useCallback(
     (icon: GuildIconType) => {
       setEditIcon(icon);
-      iconModal.dismiss();
+      iconSheet.dismiss();
     },
-    [iconModal]
+    [iconSheet]
   );
 
   const handleInvitePress = async () => {
@@ -169,7 +184,7 @@ export default function GuildDetailScreen() {
     if (guild?.inviteCode) {
       try {
         await Share.share({
-          message: `Join my guild "${guild.name}" on UnQuest! Use invite code: ${guild.inviteCode}`,
+          message: `Join my guild "${guild.name}" on Emberglow! Use invite code: ${guild.inviteCode}`,
         });
       } catch (error) {
         // User cancelled or share failed
@@ -180,15 +195,12 @@ export default function GuildDetailScreen() {
   // Loading state
   if (isLoading) {
     return (
-      <View className="flex-1 bg-background">
+      <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
-        <ScreenHeader title="" showBackButton onBackPress={handleBack} />
-        <View
-          testID="guild-loading"
-          className="flex-1 items-center justify-center"
-        >
-          <ActivityIndicator size="large" color={colors.guild[300]} />
-          <Text className="mt-4 text-neutral-200">Loading guild...</Text>
+        <ScreenHeader title="Guild" showBackButton onBackPress={handleBack} />
+        <View testID="guild-loading" style={styles.centerFill}>
+          <ActivityIndicator size="large" color={colors.text.accent} />
+          <Text style={styles.centerMutedText}>Gathering the guild…</Text>
         </View>
       </View>
     );
@@ -197,309 +209,235 @@ export default function GuildDetailScreen() {
   // Error state
   if (error || !guild) {
     return (
-      <View className="flex-1 bg-background">
+      <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
-        <ScreenHeader title="" showBackButton onBackPress={handleBack} />
-        <View className="flex-1 items-center justify-center px-8">
-          <Feather name="alert-circle" size={48} color={colors.neutral[300]} />
-          <Text className="mt-4 text-center text-neutral-200">
-            Unable to load guild. Please try again.
-          </Text>
-          <Pressable
+        <ScreenHeader title="Guild" showBackButton onBackPress={handleBack} />
+        <View style={styles.errorFill}>
+          <View style={styles.errorIconCircle}>
+            <CloudOff size={32} color={colors.tints.aegean60} />
+          </View>
+          <View style={styles.errorTextGroup}>
+            <Text style={styles.errorTitle}>
+              The guild hall is out of reach
+            </Text>
+            <Text style={styles.errorBody}>
+              We couldn't load this guild. Check your connection and try again.
+            </Text>
+          </View>
+          <Button
+            variant="secondary"
+            label="Try again"
             onPress={() => refetch()}
-            className="mt-6 rounded-lg bg-guild-300 px-6 py-3"
-          >
-            <Text className="font-semibold text-richBlack-500">Try Again</Text>
-          </Pressable>
+          />
         </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.screenRoot}>
       <FocusAwareStatusBar />
       <ScreenHeader
-        title="Guild"
+        title={isEditing ? 'Edit guild' : 'Guild'}
         showBackButton
-        onBackPress={handleBack}
-        rightComponent={
-          isOwner ? (
-            <Pressable
-              testID="guild-settings-button"
-              onPress={handleSettingsPress}
-              className="p-2"
-              accessibilityLabel="Guild settings"
-              accessibilityRole="button"
-            >
-              <Feather name="settings" size={22} color={colors.cream[500]} />
-            </Pressable>
-          ) : undefined
-        }
+        onBackPress={isEditing ? handleCancelEdit : handleBack}
       />
 
-      <ScreenContainer>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.guild[300]]}
-              tintColor={colors.guild[300]}
-            />
-          }
-        >
-          {/* Guild Header Card */}
-          <Card className="mx-4 mt-4 p-4">
-            {/* Edit button for owner */}
-            {isOwner && !isEditing && (
-              <Pressable
-                testID="edit-guild-button"
-                onPress={handleEditPress}
-                className="absolute right-3 top-3 z-10 p-2"
-                accessibilityLabel="Edit guild"
-                accessibilityRole="button"
-              >
-                <Feather name="edit-2" size={18} color={colors.guild[300]} />
-              </Pressable>
-            )}
-
-            {isEditing ? (
-              // Edit mode
-              <View>
-                {/* Tappable Guild Icon - centered */}
-                <View className="items-center mb-4">
-                  <Pressable
-                    testID="edit-icon-button"
-                    onPress={() => iconModal.present()}
-                    accessibilityLabel="Change guild icon"
-                    accessibilityRole="button"
-                  >
-                    <GuildIcon icon={editIcon} size={48} showBackground />
-                    <View className="absolute -bottom-1 -right-1 rounded-full bg-guild-300 p-1.5">
-                      <Feather
-                        name="edit-2"
-                        size={10}
-                        color={colors.richBlack[500]}
-                      />
-                    </View>
-                  </Pressable>
-                  <Text className="mt-2 text-xs text-guild-300">
-                    Tap to change
-                  </Text>
-                </View>
-
-                {/* Name Row */}
-                <View className="flex-row items-center border-b border-neutral-400/20 py-3">
-                  <Feather
-                    name="edit-3"
-                    size={18}
-                    color={colors.neutral[300]}
-                  />
-                  <View className="ml-3 flex-1">
-                    <TextInput
-                      testID="edit-name-input"
-                      value={editName}
-                      onChangeText={(text) => {
-                        setEditName(text);
-                        if (validationError) setValidationError(null);
-                      }}
-                      placeholder="Guild name"
-                      placeholderTextColor={colors.neutral[300]}
-                      maxLength={50}
-                      autoCapitalize="words"
-                      className="text-lg font-semibold text-cream-500"
-                      style={{ padding: 0 }}
-                    />
-                    <Text className="text-xs text-neutral-300">Name</Text>
-                  </View>
-                </View>
-
-                {/* Validation Error */}
-                {validationError && (
-                  <Text className="mt-1 text-sm text-red-400">
-                    {validationError}
-                  </Text>
-                )}
-
-                {/* Tagline Row */}
-                <View className="flex-row items-center py-3">
-                  <Feather name="type" size={18} color={colors.neutral[300]} />
-                  <View className="ml-3 flex-1">
-                    <TextInput
-                      testID="edit-tagline-input"
-                      value={editTagline}
-                      onChangeText={setEditTagline}
-                      placeholder="Add a tagline..."
-                      placeholderTextColor={colors.neutral[300]}
-                      maxLength={100}
-                      autoCapitalize="sentences"
-                      className="text-base text-cream-500"
-                      style={{ padding: 0 }}
-                    />
-                    <Text className="text-xs text-neutral-300">Tagline</Text>
-                  </View>
-                </View>
-
-                {/* Save/Cancel Buttons */}
-                <View className="mt-4 flex-row gap-3">
-                  <Pressable
-                    testID="cancel-edit-button"
-                    onPress={handleCancelEdit}
-                    className="flex-1 items-center rounded-lg bg-neutral-400/20 py-3"
-                    accessibilityLabel="Cancel editing"
-                    accessibilityRole="button"
-                  >
-                    <Text className="font-medium text-cream-500">Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="save-edit-button"
-                    onPress={handleSaveEdit}
-                    disabled={updateGuildMutation.isPending}
-                    className="flex-1 flex-row items-center justify-center rounded-lg bg-guild-300 py-3"
-                    accessibilityLabel="Save changes"
-                    accessibilityRole="button"
-                  >
-                    {updateGuildMutation.isPending ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.richBlack[500]}
-                      />
-                    ) : (
-                      <Text className="font-semibold text-richBlack-500">
-                        Save
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              // View mode
-              <View className="items-center">
-                {/* Guild Icon */}
-                <View className="mb-3">
-                  <GuildIcon icon={guild.icon} size={48} showBackground />
-                </View>
-
-                {/* Guild Name */}
-                <Text className="text-center text-2xl font-bold text-cream-500">
-                  {guild.name}
-                </Text>
-
-                {/* Tagline */}
-                {guild.tagline && (
-                  <Text className="mt-1 text-center text-base text-neutral-200">
-                    {guild.tagline}
-                  </Text>
-                )}
-
-                {/* Owner Badge */}
-                {isOwner && (
-                  <View className="mt-2 rounded-full bg-guild-300/20 px-3 py-1">
-                    <Text className="text-xs font-medium text-guild-300">
-                      Owner
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </Card>
-
-          {/* Stats Card */}
-          <Card className="mx-4 mt-4 p-4">
-            <Text className="mb-3 text-lg font-bold text-cream-500">
-              {GUILD_TITLES.STATS_TITLE}
-            </Text>
-            <View className="flex-row justify-around">
-              <View className="items-center">
-                <Text className="text-3xl font-bold text-guild-300">
-                  {guild.stats.questCount}
-                </Text>
-                <Text className="text-sm text-neutral-200">
-                  {GUILD_STATS_LABELS.QUESTS}
-                </Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-3xl font-bold text-guild-300">
-                  {guild.stats.totalMinutes}
-                </Text>
-                <Text className="text-sm text-neutral-200">
-                  {GUILD_STATS_LABELS.MINUTES}
-                </Text>
-              </View>
+      {isEditing ? (
+        <ScreenContainer>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.editScroll}
+          >
+            {/* Tappable crest */}
+            <View style={styles.editCrestRow}>
+              <GuildCrest
+                icon={editIcon}
+                editable
+                onPress={() => iconSheet.present()}
+              />
             </View>
-          </Card>
 
-          {/* Members Card */}
-          <Card className="mx-4 mt-4 p-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <Text className="text-lg font-bold text-cream-500">
-                  {GUILD_TITLES.MEMBERS_TITLE}
+            {/* Name */}
+            <View style={styles.editField}>
+              <Input
+                testID="edit-name-input"
+                label="Guild name"
+                value={editName}
+                onChangeText={(text) => {
+                  setEditName(text);
+                  if (validationError) setValidationError(null);
+                }}
+                placeholder="Name your guild"
+                autoCapitalize="words"
+                maxLength={GUILD_LIMITS.MAX_NAME_LENGTH}
+              />
+              {validationError && (
+                <Text style={styles.validationErrorText}>
+                  {validationError}
                 </Text>
-                <Text className="ml-2 text-sm text-neutral-200">
-                  ({guild.members.length}/{GUILD_LIMITS.MAX_MEMBERS_PER_GUILD})
-                </Text>
-              </View>
-              {isOwner && (
-                <Pressable
-                  testID="invite-members-button"
-                  onPress={handleInvitePress}
-                  disabled={generateInviteCodeMutation.isPending}
-                  className="flex-row items-center rounded-lg bg-guild-300/20 px-3 py-1.5"
-                  accessibilityLabel="Invite members to guild"
-                  accessibilityRole="button"
-                >
-                  {generateInviteCodeMutation.isPending ? (
-                    <ActivityIndicator size="small" color={colors.guild[300]} />
-                  ) : (
-                    <>
-                      <Feather
-                        name="user-plus"
-                        size={14}
-                        color={colors.guild[300]}
-                      />
-                      <Text className="ml-1.5 text-sm font-medium text-guild-300">
-                        {GUILD_BUTTONS.INVITE}
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
               )}
             </View>
 
-            {/* Invite Code Section */}
+            {/* Tagline */}
+            <Input
+              testID="edit-tagline-input"
+              label="Tagline"
+              hint="Optional · shown to invited friends"
+              value={editTagline}
+              onChangeText={setEditTagline}
+              placeholder="What do you stand for?"
+              autoCapitalize="sentences"
+              maxLength={GUILD_LIMITS.MAX_TAGLINE_LENGTH}
+            />
+          </ScrollView>
+
+          {/* Pinned actions */}
+          <View style={styles.editActions}>
+            <Button
+              testID="save-edit-button"
+              variant="primary"
+              size="lg"
+              fullWidth
+              label="Save changes"
+              onPress={handleSaveEdit}
+              disabled={updateGuildMutation.isPending}
+            >
+              {updateGuildMutation.isPending ? (
+                <ActivityIndicator color={colors.text.onAccent} />
+              ) : undefined}
+            </Button>
+            <Button
+              testID="cancel-edit-button"
+              variant="ghost"
+              size="lg"
+              fullWidth
+              label="Cancel"
+              onPress={handleCancelEdit}
+            />
+          </View>
+        </ScreenContainer>
+      ) : (
+        <ScreenContainer>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.viewScroll}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.text.accent]}
+                tintColor={colors.text.accent}
+              />
+            }
+          >
+            {/* Header: crest + name/tagline */}
+            <View style={styles.identityRow}>
+              <GuildCrest icon={guild.icon} />
+              <View style={styles.identityText}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.guildName}>{guild.name}</Text>
+                  {isOwner && <Badge tone="warm">Owner</Badge>}
+                </View>
+                {guild.tagline ? (
+                  <Text style={styles.tagline}>{guild.tagline}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            {/* Edit guild (owner) */}
+            {isOwner && (
+              <Button
+                testID="edit-guild-button"
+                variant="outline"
+                fullWidth
+                onPress={handleEditPress}
+                accessibilityLabel="Edit guild"
+              >
+                <Pencil size={15} color={colors.text.primary} />
+                <Text style={styles.outlineButtonLabel}>Edit guild</Text>
+              </Button>
+            )}
+
+            {/* Invite code */}
             {showInviteCode && guild.inviteCode && (
-              <View className="mb-4 rounded-lg bg-guild-300/10 p-3">
-                <Text className="mb-2 text-center text-sm text-neutral-200">
-                  Share this code with friends:
+              <View style={styles.inviteBlock}>
+                <EyebrowLabel tone="warm" style={styles.inviteEyebrow}>
+                  Invite code
+                </EyebrowLabel>
+                <View style={styles.inviteCodeRow}>
+                  <Text style={styles.inviteCode}>{guild.inviteCode}</Text>
+                  <Button
+                    testID="share-invite-code"
+                    variant="secondary"
+                    size="sm"
+                    onPress={handleShareCode}
+                    accessibilityLabel="Share invite code"
+                  >
+                    <Share2 size={14} color={colors.text.primary} />
+                    <Text style={styles.secondaryButtonLabel}>Share</Text>
+                  </Button>
+                </View>
+                <Text style={styles.inviteHint}>
+                  Anyone with this code can join while seats remain.
                 </Text>
-                <Text className="mb-3 text-center font-mono text-2xl font-bold tracking-widest text-guild-300">
-                  {guild.inviteCode}
-                </Text>
-                <Pressable
-                  testID="share-invite-code"
-                  onPress={handleShareCode}
-                  className="flex-row items-center justify-center rounded-lg bg-guild-300 px-4 py-2.5"
-                  accessibilityLabel="Share invite code"
-                  accessibilityRole="button"
-                >
-                  <Feather
-                    name="share"
-                    size={16}
-                    color={colors.richBlack[500]}
-                  />
-                  <Text className="ml-2 text-sm font-medium text-richBlack-500">
-                    Share Code
-                  </Text>
-                </Pressable>
               </View>
             )}
 
-            {/* Member List */}
-            <View className="gap-2">
-              {guild.members.map((member) => {
+            {/* Stats */}
+            <View style={styles.statsGrid}>
+              <View style={styles.statTile}>
+                <Text style={styles.statNumber}>{guild.stats.questCount}</Text>
+                <Text style={styles.statLabel}>Quests</Text>
+              </View>
+              <View style={styles.statTile}>
+                <Text style={styles.statNumber}>
+                  {guild.stats.totalMinutes}
+                </Text>
+                <Text style={styles.statLabel}>Minutes offline</Text>
+              </View>
+            </View>
+
+            {/* Members */}
+            <View style={styles.membersCard}>
+              <View style={styles.membersHeader}>
+                <View style={styles.membersHeaderTitle}>
+                  <Text style={styles.membersTitle}>
+                    {GUILD_TITLES.MEMBERS_TITLE}
+                  </Text>
+                  <Text style={styles.membersCount}>
+                    {' · '}
+                    {guild.members.length}/{GUILD_LIMITS.MAX_MEMBERS_PER_GUILD}
+                  </Text>
+                </View>
+                {isOwner && (
+                  <Pressable
+                    testID="invite-members-button"
+                    onPress={handleInvitePress}
+                    disabled={generateInviteCodeMutation.isPending}
+                    style={styles.inviteLink}
+                    accessibilityLabel="Invite members to guild"
+                    accessibilityRole="button"
+                  >
+                    {generateInviteCodeMutation.isPending ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.text.accent}
+                      />
+                    ) : (
+                      <>
+                        <UserPlus size={15} color={colors.text.accent} />
+                        <Text style={styles.inviteLinkText}>
+                          {GUILD_BUTTONS.INVITE}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
+              </View>
+
+              {guild.members.map((member, index) => {
                 const isCurrentUser = member.id === currentUser?.id;
                 const isMemberOwner = member.id === guild.owner.id;
                 const displayName = member.character?.name ?? 'Adventurer';
@@ -507,47 +445,357 @@ export default function GuildDetailScreen() {
                 return (
                   <View
                     key={member.id}
-                    className="flex-row items-center justify-between rounded-lg bg-neutral-400/20 p-3"
+                    style={[
+                      styles.memberRow,
+                      index > 0 && styles.memberDivider,
+                    ]}
                   >
-                    <View className="flex-row items-center">
-                      <Image
-                        source={getCharacterAvatar(member.character?.type)}
-                        className="mr-3 size-10 rounded-full"
-                      />
-                      <View>
-                        <Text className="font-medium text-cream-500">
-                          {displayName}
-                          {isCurrentUser && (
-                            <Text className="text-neutral-200"> (You)</Text>
-                          )}
-                        </Text>
-                        {isMemberOwner && (
-                          <Text className="text-xs text-guild-300">Owner</Text>
-                        )}
-                      </View>
-                    </View>
+                    <Image
+                      source={getCharacterAvatar(member.character?.type)}
+                      style={styles.memberAvatar}
+                    />
+                    <Text style={styles.memberName}>
+                      {displayName}
+                      {isCurrentUser && (
+                        <Text style={styles.memberYou}> (You)</Text>
+                      )}
+                    </Text>
+                    {isMemberOwner && <Badge tone="warm">Owner</Badge>}
                   </View>
                 );
               })}
             </View>
-          </Card>
+          </ScrollView>
+        </ScreenContainer>
+      )}
 
-          {/* Spacer at bottom */}
-          <View className="h-8" />
-        </ScrollView>
-      </ScreenContainer>
-
-      {/* Icon Selection Modal */}
-      <Modal
-        ref={iconModal.ref}
-        snapPoints={['40%']}
-        title="Choose Icon"
-        backgroundStyle={{ backgroundColor: colors.background }}
-      >
-        <BottomSheetView className="flex-1 px-4 pb-8">
-          <GuildIconSelector selected={editIcon} onSelect={handleIconSelect} />
-        </BottomSheetView>
-      </Modal>
+      {/* Icon picker bottom sheet */}
+      <BottomSheet ref={iconSheet.ref} title="Choose a crest">
+        <GuildIconSelector selected={editIcon} onSelect={handleIconSelect} />
+      </BottomSheet>
     </View>
   );
 }
+
+/**
+ * Ember-ringed circular guild crest. Editable variant is pressable and
+ * shows a pencil badge for the edit flow's icon picker.
+ */
+function GuildCrest({
+  icon,
+  editable = false,
+  onPress,
+}: {
+  icon: GuildIconType;
+  editable?: boolean;
+  onPress?: () => void;
+}) {
+  const circle = (
+    <View style={styles.crestCircle}>
+      <GuildIcon
+        icon={icon}
+        size={Math.round(CREST_SIZE * 0.42)}
+        color={colors.text.accent}
+      />
+      {editable && (
+        <View style={styles.crestPencil}>
+          <Pencil size={13} color={colors.text.primary} />
+        </View>
+      )}
+    </View>
+  );
+
+  if (!editable) return circle;
+
+  return (
+    <Pressable
+      testID="edit-icon-button"
+      onPress={onPress}
+      accessibilityLabel="Change guild icon"
+      accessibilityRole="button"
+    >
+      {circle}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  // Flat canvas behind the ScreenHeader band, matching ScreenContainer below.
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
+
+  // --- Loading ---
+  centerFill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[4],
+  },
+  centerMutedText: {
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+
+  // --- Error ---
+  errorFill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing[10],
+    gap: spacing[5],
+  },
+  errorIconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  errorTextGroup: {
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  errorTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 24,
+    lineHeight: 24 * ERSTORIA_LEADING,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  errorBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+
+  // --- View mode ---
+  viewScroll: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[3],
+    paddingBottom: spacing[8],
+    gap: spacing[4],
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+  },
+  identityText: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    flexWrap: 'wrap',
+  },
+  guildName: {
+    fontFamily: fontFamily.display,
+    fontSize: 26,
+    lineHeight: 26 * ERSTORIA_LEADING,
+    color: colors.text.primary,
+  },
+  tagline: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text.secondary,
+    marginTop: spacing[1],
+  },
+
+  // Crest
+  crestCircle: {
+    width: CREST_SIZE,
+    height: CREST_SIZE,
+    borderRadius: CREST_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(palette.cinnabar, 0.14),
+    borderWidth: 1,
+    borderColor: withAlpha(palette.cinnabar, 0.45),
+    ...shadows.glowEmber,
+  },
+  crestPencil: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+
+  // Button custom-child labels
+  outlineButtonLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+  secondaryButtonLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+
+  // Invite code
+  inviteBlock: {
+    backgroundColor: withAlpha(palette.cinnabar, 0.1),
+    borderWidth: 1,
+    borderColor: withAlpha(palette.cinnabar, 0.4),
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    gap: spacing[2],
+  },
+  inviteEyebrow: {
+    marginBottom: spacing[1],
+  },
+  inviteCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  inviteCode: {
+    flex: 1,
+    fontFamily: fontFamily.display,
+    fontSize: 26,
+    lineHeight: 26 * ERSTORIA_LEADING,
+    letterSpacing: 26 * tracking.wide,
+    color: colors.text.primary,
+  },
+  inviteHint: {
+    fontSize: 13,
+    color: colors.text.muted,
+  },
+
+  // Stats
+  statsGrid: {
+    flexDirection: 'row',
+    gap: spacing[3],
+  },
+  statTile: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    borderRadius: radii.md,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[2],
+  },
+  statNumber: {
+    fontFamily: fontFamily.display,
+    fontSize: 24,
+    lineHeight: 24 * ERSTORIA_LEADING,
+    color: colors.text.primary,
+  },
+  statLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 11.5,
+    letterSpacing: 11.5 * tracking.wide,
+    textTransform: 'uppercase',
+    color: colors.text.muted,
+    marginTop: spacing[1],
+  },
+
+  // Members
+  membersCard: {
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+  },
+  membersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.hairline,
+  },
+  membersHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  membersTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.primary,
+  },
+  membersCount: {
+    fontSize: 15,
+    color: colors.text.muted,
+  },
+  inviteLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  inviteLinkText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 14,
+    color: colors.text.accent,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+  },
+  memberDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+  },
+  memberAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+  },
+  memberName: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.primary,
+  },
+  memberYou: {
+    color: colors.text.muted,
+  },
+
+  // --- Edit mode ---
+  editScroll: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    gap: spacing[5],
+  },
+  editCrestRow: {
+    alignItems: 'center',
+    paddingTop: spacing[2],
+    paddingBottom: spacing[1],
+  },
+  editField: {
+    gap: 0,
+  },
+  validationErrorText: {
+    marginTop: spacing[2],
+    fontSize: 13,
+    color: colors.tints.cinnabar80,
+  },
+  editActions: {
+    paddingHorizontal: spacing[5],
+    paddingBottom: spacing[8],
+    paddingTop: spacing[2],
+    gap: spacing[2],
+  },
+});

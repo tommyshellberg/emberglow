@@ -43,13 +43,23 @@ jest.mock('@/features/guilds', () => ({
     data: mockGuilds,
     isLoading: false,
   })),
-  getGuildIconSource: jest.fn(() => null),
 }));
 
-// Mock lucide-react-native icons
+// Mock lucide-react-native icons — includes the guild crest icons that
+// GuildIcon resolves through getGuildIconComponent.
 jest.mock('lucide-react-native', () => ({
   Check: () => null,
   Users: () => null,
+  Axe: () => null,
+  Coffee: () => null,
+  Compass: () => null,
+  Flag: () => null,
+  Flame: () => null,
+  Gem: () => null,
+  Hammer: () => null,
+  Scroll: () => null,
+  Tent: () => null,
+  Wand: () => null,
 }));
 
 describe('GuildSelector', () => {

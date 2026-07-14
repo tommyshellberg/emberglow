@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import React from 'react';
 
 import { render } from '@/lib/test-utils';
-import { useSettingsStore } from '@/store/settings-store';
+import { useAnnouncementStore } from '@/store/announcement-store';
 
 import { SkillTreeAnnouncementModal } from './skill-tree-announcement-modal';
 
@@ -22,9 +22,9 @@ jest.mock('posthog-react-native', () => ({
   }),
 }));
 
-// Mock settings store
-jest.mock('@/store/settings-store', () => ({
-  useSettingsStore: jest.fn(),
+// Mock announcement store
+jest.mock('@/store/announcement-store', () => ({
+  useAnnouncementStore: jest.fn(),
 }));
 
 describe('SkillTreeAnnouncementModal', () => {
@@ -34,17 +34,20 @@ describe('SkillTreeAnnouncementModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (useSettingsStore as unknown as jest.Mock).mockImplementation((selector) => {
-      const store = {
-        setHasSeenSkillTreeAnnouncement: mockSetHasSeenSkillTreeAnnouncement,
-      };
-      return selector(store);
-    });
+    (useAnnouncementStore as unknown as jest.Mock).mockImplementation(
+      (selector) => {
+        const store = {
+          setHasSeenSkillTreeAnnouncement: mockSetHasSeenSkillTreeAnnouncement,
+        };
+        return selector(store);
+      }
+    );
   });
 
   it('renders modal with correct content', () => {
     render(<SkillTreeAnnouncementModal ref={mockRef} />);
 
+    expect(screen.getByText('New: Skill Trees')).toBeTruthy();
     expect(screen.getByText('Unlock Your First Perk')).toBeTruthy();
     expect(screen.getByText(/You've leveled up enough/)).toBeTruthy();
     expect(screen.getByText('What are Perks?')).toBeTruthy();

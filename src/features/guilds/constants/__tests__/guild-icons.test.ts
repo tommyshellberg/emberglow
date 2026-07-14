@@ -1,8 +1,8 @@
 import {
   GUILD_ICONS,
-  GUILD_ICON_MAP,
+  GUILD_ICON_COMPONENTS,
   getGuildIconConfig,
-  getGuildIconSource,
+  getGuildIconComponent,
   DEFAULT_GUILD_ICON,
 } from '../guild-icons';
 
@@ -43,10 +43,10 @@ describe('Guild Icons', () => {
     });
   });
 
-  describe('GUILD_ICON_MAP', () => {
-    it('should have an SVG source for every icon type', () => {
+  describe('GUILD_ICON_COMPONENTS', () => {
+    it('should have a Lucide icon component for every icon type', () => {
       iconIds.forEach((iconType) => {
-        expect(GUILD_ICON_MAP[iconType]).toBeDefined();
+        expect(GUILD_ICON_COMPONENTS[iconType]).toBeDefined();
       });
     });
   });
@@ -78,17 +78,18 @@ describe('Guild Icons', () => {
     });
   });
 
-  describe('getGuildIconSource', () => {
-    it('should return an SVG source for a known icon', () => {
-      const source = getGuildIconSource('camping');
-      expect(source).toBeDefined();
+  describe('getGuildIconComponent', () => {
+    it('should return a Lucide icon component for a known icon', () => {
+      const component = getGuildIconComponent('camping');
+      expect(component).toBeDefined();
+      expect(component).toBe(GUILD_ICON_COMPONENTS.camping);
     });
 
-    it('should return the fallback source for an unknown icon', () => {
-      const source = getGuildIconSource('unknown' as never);
-      expect(source).toBeDefined();
-      // Fallback is the banner icon (see getGuildIconSource implementation).
-      expect(source).toBe(GUILD_ICON_MAP.banner);
+    it('should return the fallback component for an unknown icon', () => {
+      const component = getGuildIconComponent('unknown' as never);
+      expect(component).toBeDefined();
+      // Fallback is the banner icon (see getGuildIconComponent implementation).
+      expect(component).toBe(GUILD_ICON_COMPONENTS.banner);
     });
   });
 

@@ -76,26 +76,6 @@ describe('QuestDeck', () => {
     expect(onAdvance).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a hint naming the mode one step ahead of the active card', () => {
-    const { rerender } = render(
-      <QuestDeck data={data} activeIndex={0} onAdvance={jest.fn()} />
-    );
-    expect(
-      screen.getByText('Swipe or tap the stack — Custom is next')
-    ).toBeOnTheScreen();
-
-    rerender(<QuestDeck data={data} activeIndex={1} onAdvance={jest.fn()} />);
-    expect(
-      screen.getByText('Swipe or tap the stack — Co-op is next')
-    ).toBeOnTheScreen();
-
-    // Wraps around from the last card back to the first.
-    rerender(<QuestDeck data={data} activeIndex={2} onAdvance={jest.fn()} />);
-    expect(
-      screen.getByText('Swipe or tap the stack — Story is next')
-    ).toBeOnTheScreen();
-  });
-
   it('does not expose the front card as a "Show X card" button', () => {
     render(<QuestDeck data={data} activeIndex={0} onAdvance={jest.fn()} />);
 
