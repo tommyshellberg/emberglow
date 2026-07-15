@@ -5,9 +5,6 @@ PODS:
     - ExpoModulesCore
   - EXApplication (6.1.5):
     - ExpoModulesCore
-  - EXAV (15.1.7):
-    - ExpoModulesCore
-    - ReactCommon/turbomodule/core
   - EXConstants (17.1.8):
     - ExpoModulesCore
   - EXJSONUtils (0.15.0)
@@ -278,6 +275,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - Yoga
   - ExpoAsset (11.1.7):
+    - ExpoModulesCore
+  - ExpoAudio (0.4.9):
     - ExpoModulesCore
   - ExpoBlur (14.1.5):
     - ExpoModulesCore
@@ -1802,7 +1801,32 @@ PODS:
     - React-Core
   - react-native-get-random-values (1.11.0):
     - React-Core
-  - react-native-keyboard-controller (1.12.7):
+  - react-native-keyboard-controller (1.17.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-hermes
+    - React-ImageManager
+    - React-jsi
+    - react-native-keyboard-controller/common (= 1.17.1)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - react-native-keyboard-controller/common (1.17.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2723,7 +2747,6 @@ DEPENDENCIES:
   - DoubleConversion (from `../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec`)
   - EASClient (from `../node_modules/expo-eas-client/ios`)
   - EXApplication (from `../node_modules/expo-application/ios`)
-  - EXAV (from `../node_modules/expo-av/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../node_modules/expo-manifests/ios`)
@@ -2734,6 +2757,7 @@ DEPENDENCIES:
   - expo-dev-menu (from `../node_modules/expo-dev-menu`)
   - expo-dev-menu-interface (from `../node_modules/expo-dev-menu-interface/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoAudio (from `../node_modules/expo-audio/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoContacts (from `../node_modules/expo-contacts/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
@@ -2875,8 +2899,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-eas-client/ios"
   EXApplication:
     :path: "../node_modules/expo-application/ios"
-  EXAV:
-    :path: "../node_modules/expo-av/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXJSONUtils:
@@ -2897,6 +2919,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoAudio:
+    :path: "../node_modules/expo-audio/ios"
   ExpoBlur:
     :path: "../node_modules/expo-blur/ios"
   ExpoContacts:
@@ -3120,7 +3144,6 @@ SPEC CHECKSUMS:
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   EASClient: fe396f88189ce51edd819abe12df16c99e98bcd2
   EXApplication: 1e06972201838375ca1ec1ba34d586a98a5dc718
-  EXAV: ae28256069c4cdde93d185c007d8f68d92902c2e
   EXConstants: d3d551cb154718f5161c4247304e96aa59f6cca7
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 691a779b04e4f2c96da46fb9bef4f86174fefcb5
@@ -3131,6 +3154,7 @@ SPEC CHECKSUMS:
   expo-dev-menu: 0771fa9c5c405e07aa15e55a699b8a4a984ea77a
   expo-dev-menu-interface: 609c35ae8b97479cdd4c9e23c8cf6adc44beea0e
   ExpoAsset: ef06e880126c375f580d4923fdd1cdf4ee6ee7d6
+  ExpoAudio: d98f922b17a945cd33f8462d086278dbd810c537
   ExpoBlur: 3c8885b9bf9eef4309041ec87adec48b5f1986a9
   ExpoContacts: f3802d6135e6b0ebaf6694af237128e985596f03
   ExpoDevice: 7082f03af1c588333ef1417d5aa8287081d94b24
@@ -3197,7 +3221,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: ff05e894231c44c21135d1d23a82b87656d98eeb
   react-native-bg-actions: df114b96b3bec0d97403769fefdbd3b752e32821
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
-  react-native-keyboard-controller: 5c79e20764e488552899983e6f7afb4a65d26836
+  react-native-keyboard-controller: a1ae8c626dd4accd352e32b980af9c5d9c4ca82b
   react-native-mmkv: e653f0100f078487aad95be73f08a644e2cefdee
   react-native-onesignal: b68c981956150f288c1585889871affcef3c0b8b
   react-native-restart: 0bc732f4461709022a742bb29bcccf6bbc5b4863

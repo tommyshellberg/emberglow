@@ -1,5 +1,10 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio, type AVPlaybackStatus } from 'expo-av';
+import {
+  type AudioSource,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
@@ -28,168 +33,131 @@ type Props = {
   quest: StoryQuestTemplate;
 };
 
+/**
+ * Resolves the quest's audio source, then hands off to <NarrationPlayer/>.
+ *
+ * The split exists because `useAudioPlayer` needs its source at hook-call time
+ * and the source arrives asynchronously (S3 download + cache fallback). Rather
+ * than construct a player with no source and guard every read of it, the outer
+ * component owns the async lookup plus the loading/error UI, and the inner one
+ * only ever runs with a source that already exists.
+ */
 export function StoryNarration({ quest }: Props) {
-  const soundRef = useRef<Audio.Sound | null>(null);
-  // ReturnType<typeof setInterval> instead of NodeJS.Timeout: under RN 0.79
-  // setInterval here resolves to the overload returning number, which isn't
-  // assignable to NodeJS.Timeout.
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null
-  );
+  const [source, setSource] = useState<AudioSource | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const resolveSource = async () => {
+      try {
+        // playsInSilentMode: narration is the point of the screen — a muted
+        // phone shouldn't silently produce nothing. shouldPlayInBackground is
+        // false because quests pause on blur (see NarrationPlayer).
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+          interruptionModeAndroid: 'duckOthers',
+        });
+
+        // customId (from the server) wins over id (local quests).
+        const questId = (quest as any).customId || quest.id;
+        const resolved = await audioCacheService.getAudioSource(
+          getQuestAudioPath(questId)
+        );
+        if (!resolved) {
+          throw new Error('No audio source found for quest');
+        }
+
+        if (isMounted) {
+          setSource(resolved);
+        }
+      } catch (error) {
+        console.error('Failed to load audio:', error);
+        if (isMounted) {
+          setLoadError('Failed to load audio narration');
+        }
+      }
+    };
+
+    resolveSource();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [quest.id]);
+
+  if (loadError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{loadError}</Text>
+      </View>
+    );
+  }
+
+  if (!source) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading audio...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // key: a new quest must build a new player, not mutate the running one.
+  return <NarrationPlayer key={quest.id} source={source} />;
+}
+
+/** How often expo-audio pushes a status update, in ms. Matches the cadence of
+ *  the old expo-av polling loop so the progress bar keeps its former smoothness
+ *  (expo-audio's own default is 500ms, which reads as visibly steppy against
+ *  the 150ms fill easing below). */
+const STATUS_INTERVAL_MS = 100;
+
+function NarrationPlayer({ source }: { source: AudioSource }) {
+  const player = useAudioPlayer(source, STATUS_INTERVAL_MS);
+  const status = useAudioPlayerStatus(player);
   const appStateRef = useRef(AppState.currentState);
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [audioInitialized, setAudioInitialized] = useState(false);
+  // expo-audio reports SECONDS (expo-av used milliseconds).
+  const position = status.currentTime ?? 0;
+  const duration = status.duration ?? 0;
+  const isPlaying = status.playing ?? false;
 
   // Derived state - no useEffect needed (React best practice)
   const progress = duration > 0 ? position / duration : 0;
   const isCompleted = duration > 0 && position >= duration && !isPlaying;
 
   // Cinnabar->Sandy fill width, animated (XPBar's recipe) rather than driven
-  // imperatively — position updates ~10x/sec via the polling interval below.
+  // imperatively — status updates arrive every STATUS_INTERVAL_MS.
   const fillWidthPct = useSharedValue(progress * 100);
   const animatedFillStyle = useAnimatedStyle(() => ({
     width: `${fillWidthPct.value}%`,
   }));
 
-  // Initialize audio - only runs once when component mounts
+  const togglePlayback = () => {
+    if (isPlaying) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  };
+
+  const handleReplay = () => {
+    // Seek explicitly: at the tail, play() alone would be a no-op.
+    player.seekTo(0).catch(console.error);
+    player.play();
+  };
+
+  // expo-av reset the position itself on finish; expo-audio parks the player at
+  // the end instead. Without this the bar would stay full and `isCompleted`
+  // would latch true, greying out the play button after every chapter.
   React.useEffect(() => {
-    let isMounted = true;
-
-    const initializeAudio = async () => {
-      try {
-        // Set audio mode
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
-
-        // Get the audio path dynamically based on quest custom ID
-        // Use customId if available (from server), otherwise fall back to id (for local quests)
-        const questId = (quest as any).customId || quest.id;
-        const audioPath = getQuestAudioPath(questId);
-        console.log('quest audio path:', audioPath);
-
-        // Get the audio source from cache service (handles S3 download and fallback)
-        const audioSource = await audioCacheService.getAudioSource(audioPath);
-        if (!audioSource) {
-          throw new Error('No audio source found for quest');
-        }
-
-        const { sound, status } = await Audio.Sound.createAsync(
-          audioSource,
-          { shouldPlay: false },
-          onPlaybackStatusUpdate
-        );
-
-        if (!isMounted) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        soundRef.current = sound;
-
-        if (status.isLoaded) {
-          setDuration(status.durationMillis || 0);
-          setAudioInitialized(true);
-        }
-
-        // Add a small delay on Android to ensure the audio system is fully ready
-        if (Platform.OS === 'android') {
-          setTimeout(() => {
-            setIsLoading(false);
-          }, 500);
-        } else {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Failed to load audio:', error);
-        if (isMounted) {
-          setLoadError('Failed to load audio narration');
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeAudio();
-
-    return () => {
-      isMounted = false;
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(console.error);
-        soundRef.current = null;
-      }
-      stopProgressTracking();
-    };
-  }, [quest.id]); // Only depend on quest.id, not the entire audioFile object
-
-  // Status update callback - handles all playback state
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-
-    setIsPlaying(status.isPlaying);
-    setPosition(status.positionMillis || 0);
-
     if (status.didJustFinish) {
-      setIsPlaying(false);
-      setPosition(0);
-      stopProgressTracking();
+      player.seekTo(0).catch(console.error);
     }
-  };
-
-  // Progress tracking functions
-  const startProgressTracking = () => {
-    stopProgressTracking();
-    progressIntervalRef.current = setInterval(() => {
-      if (soundRef.current) {
-        soundRef.current.getStatusAsync().catch(() => {
-          stopProgressTracking();
-        });
-      }
-    }, 100);
-  };
-
-  const stopProgressTracking = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-  };
-
-  // Event handlers
-  const togglePlayback = async () => {
-    if (!soundRef.current) return;
-
-    try {
-      if (isPlaying) {
-        await soundRef.current.pauseAsync();
-        stopProgressTracking();
-      } else {
-        await soundRef.current.playAsync();
-        startProgressTracking();
-      }
-    } catch (error) {
-      console.error('Error toggling playback:', error);
-    }
-  };
-
-  const handleReplay = async () => {
-    if (!soundRef.current) return;
-
-    try {
-      await soundRef.current.stopAsync();
-      await soundRef.current.playFromPositionAsync(0);
-      setPosition(0);
-      startProgressTracking();
-    } catch (error) {
-      console.error('Error replaying:', error);
-    }
-  };
+  }, [status.didJustFinish, player]);
 
   // Handle app state changes
   React.useEffect(() => {
@@ -197,11 +165,9 @@ export function StoryNarration({ quest }: Props) {
       if (
         appStateRef.current === 'active' &&
         nextAppState.match(/inactive|background/) &&
-        soundRef.current &&
         isPlaying
       ) {
-        soundRef.current.pauseAsync().catch(console.error);
-        stopProgressTracking();
+        player.pause();
       }
       appStateRef.current = nextAppState;
     };
@@ -211,18 +177,17 @@ export function StoryNarration({ quest }: Props) {
       handleAppStateChange
     );
     return () => subscription.remove();
-  }, [isPlaying]);
+  }, [isPlaying, player]);
 
   // Handle navigation focus
   useFocusEffect(
     useCallback(() => {
       return () => {
-        if (soundRef.current && isPlaying) {
-          soundRef.current.pauseAsync().catch(console.error);
-          stopProgressTracking();
+        if (isPlaying) {
+          player.pause();
         }
       };
-    }, [isPlaying])
+    }, [isPlaying, player])
   );
 
   // Animate the fill toward the latest progress fraction whenever it changes.
@@ -233,36 +198,22 @@ export function StoryNarration({ quest }: Props) {
     });
   }, [progress, fillWidthPct]);
 
-  // Format time helper
-  const formatTime = (milliseconds: number) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+  /** seconds -> m:ss */
+  const formatTime = (totalSecondsRaw: number) => {
+    const totalSeconds = Math.floor(totalSecondsRaw);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Early returns for error and loading states
-  if (loadError) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{loadError}</Text>
-      </View>
-    );
-  }
-
-  const controlsDisabled = isLoading || !audioInitialized;
+  const controlsDisabled = !status.isLoaded;
 
   return (
     <View style={styles.container}>
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <Text style={styles.loadingText}>Loading audio...</Text>
-        </View>
-      )}
-
       <View style={styles.row}>
         {!isCompleted ? (
           <Pressable
+            testID="narration-play-toggle"
             onPress={togglePlayback}
             disabled={controlsDisabled}
             style={[
