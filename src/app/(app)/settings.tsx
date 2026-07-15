@@ -626,20 +626,18 @@ export default function Settings() {
   // Send update to server when streak settings change
   useEffect(() => {
     const currentSettings = JSON.stringify(streakWarning);
+    // Destructured so `time` narrows to non-null; the server requires it.
+    const { time } = streakWarning;
 
     // Only send if settings actually changed and we have valid settings
-    if (
-      currentSettings !== lastSentStreakSettings.current &&
-      streakWarning.time?.hour !== undefined &&
-      streakWarning.time?.minute !== undefined
-    ) {
+    if (currentSettings !== lastSentStreakSettings.current && time) {
       lastSentStreakSettings.current = currentSettings;
 
       // Cancel local notifications
       cancelStreakWarningNotification();
 
       // Send to server
-      updateSettings({ streakWarning });
+      updateSettings({ streakWarning: { ...streakWarning, time } });
     }
   }, [streakWarning, updateSettings]);
 
