@@ -30,7 +30,12 @@ type Props = {
 
 export function StoryNarration({ quest }: Props) {
   const soundRef = useRef<Audio.Sound | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // ReturnType<typeof setInterval> instead of NodeJS.Timeout: under RN 0.79
+  // setInterval here resolves to the overload returning number, which isn't
+  // assignable to NodeJS.Timeout.
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
   const appStateRef = useRef(AppState.currentState);
 
   const [isPlaying, setIsPlaying] = useState(false);
