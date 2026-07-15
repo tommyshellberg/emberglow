@@ -245,8 +245,8 @@ importers:
         specifier: ^19.2.2
         version: 19.8.1
       '@dev-plugins/react-query':
-        specifier: ^0.2.0
-        version: 0.2.0(@tanstack/react-query@5.90.10(react@19.0.0))(expo@53.0.27(@babel/core@7.28.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))
+        specifier: ^0.4.0
+        version: 0.4.0(@tanstack/react-query@5.90.10(react@19.0.0))(expo@53.0.27(@babel/core@7.28.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@expo/config':
         specifier: ~11.0.13
         version: 11.0.13
@@ -1016,11 +1016,12 @@ packages:
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
 
-  '@dev-plugins/react-query@0.2.0':
-    resolution: {integrity: sha512-tbGfXiR4/Pd9V6oJGDqx/YFtNpHJ0jrfLhDnY6k9yZu2e5niuIStDVKDimZ3m+HYXQDw62Ydk5NFa6fcRq4soA==}
+  '@dev-plugins/react-query@0.4.0':
+    resolution: {integrity: sha512-/8M2a7DlVTjcdhb4D/E+aHUCOqSS6s53y3fFrOoCyLPxhhhkMujS91pARH6XbF/GRr6p6RBNBJQpWasI6uj7GA==}
     peerDependencies:
       '@tanstack/react-query': '*'
-      expo: ^52.0.41
+      expo: '>=53.0.5'
+      react: 19.0.0
 
   '@egjs/hammerjs@2.0.17':
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
@@ -8249,11 +8250,12 @@ snapshots:
 
   '@date-fns/tz@1.4.1': {}
 
-  '@dev-plugins/react-query@0.2.0(@tanstack/react-query@5.90.10(react@19.0.0))(expo@53.0.27(@babel/core@7.28.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))':
+  '@dev-plugins/react-query@0.4.0(@tanstack/react-query@5.90.10(react@19.0.0))(expo@53.0.27(@babel/core@7.28.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@tanstack/react-query': 5.90.10(react@19.0.0)
       expo: 53.0.27(@babel/core@7.28.5)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)))(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)
       flatted: 3.3.3
+      react: 19.0.0
 
   '@egjs/hammerjs@2.0.17':
     dependencies:
