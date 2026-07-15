@@ -178,13 +178,11 @@ export default function CooperativeQuestReady() {
       prepareQuest(questTemplate);
 
       // For cooperative quests, pass the quest run ID directly to avoid race conditions
+      // No navigation here: prepareQuest above arms NavigationGate, which owns
+      // the push to /cooperative-pending-quest.
       await QuestTimer.prepareQuest(questTemplate, questRunId);
-
-      // Navigate to cooperative pending quest which will show the countdown
-      // Use push so cancel button can navigate back
-      router.push('/cooperative-pending-quest');
     },
-    [currentLobby, prepareQuest, router]
+    [currentLobby, prepareQuest]
   );
 
   useEffect(() => {

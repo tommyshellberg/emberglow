@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import QuestTimer from '@/lib/services/quest-timer';
@@ -34,7 +33,6 @@ interface UseTakePartResult {
 export function useTakePart(
   run: ScheduledQuestRun | undefined
 ): UseTakePartResult {
-  const router = useRouter();
   const [isArming, setIsArming] = useState(false);
 
   const takePart = useCallback(async () => {
@@ -72,13 +70,15 @@ export function useTakePart(
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+      // Arming the store with mode 'cooperative' IS the navigation: the
+      // resolver turns it into target 'cooperative-pending-quest' and
+      // NavigationGate pushes it.
       questStore.prepareQuest(questTemplate);
       await QuestTimer.prepareQuest(questTemplate, run.id);
-      router.push('/cooperative-pending-quest');
     } finally {
       setIsArming(false);
     }
-  }, [run, isArming, router]);
+  }, [run, isArming]);
 
   return { takePart, isArming };
 }

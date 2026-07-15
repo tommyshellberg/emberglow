@@ -2,10 +2,11 @@
  * Quest Creation Hook
  *
  * Handles the business logic for creating and starting custom quests.
- * Includes XP calculation, API calls, error handling with Sentry, analytics, and navigation.
+ * Includes XP calculation, API calls, error handling with Sentry, and analytics.
+ * Navigation is NOT handled here: arming the quest store makes NavigationGate
+ * push /pending-quest.
  */
 
-import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import { useState } from 'react';
 
@@ -22,7 +23,6 @@ import type { CustomQuestFormData, QuestCreationState } from '../types';
 import { calculateQuestXP } from '../utils';
 
 export function useQuestCreation() {
-  const router = useRouter();
   const posthog = usePostHog();
   const [creationState, setCreationState] = useState<QuestCreationState>({
     isCreating: false,
@@ -58,14 +58,12 @@ export function useQuestCreation() {
       // Update quest store
       useQuestStore.getState().prepareQuest(customQuest);
 
-      // Prepare quest with background timer
+      // Prepare quest with background timer. No navigation here: prepareQuest
+      // above arms NavigationGate, which owns the push to /pending-quest.
       await QuestTimer.prepareQuest(customQuest);
 
       // Track success
       posthog.capture(ANALYTICS_EVENTS.START_QUEST_SUCCESS);
-
-      // Navigate to pending quest screen
-      router.push('/pending-quest');
 
       // Update state
       setCreationState({ isCreating: false, error: null });

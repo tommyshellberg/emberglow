@@ -1,5 +1,4 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -83,9 +82,7 @@ function isCompleteStoryQuest(
 }
 
 export default function FirstQuestScreen() {
-  const router = useRouter();
   const prepareQuest = useQuestStore((state) => state.prepareQuest);
-  const pendingQuest = useQuestStore((state) => state.pendingQuest);
   const setServerAvailableQuests = useQuestStore(
     (state) => state.setServerAvailableQuests
   );
@@ -137,14 +134,6 @@ export default function FirstQuestScreen() {
 
     preloadFirstQuestAudio();
   }, [posthog]);
-
-  // Check if we already have a pending quest - if so, navigate to pending-quest screen
-  useEffect(() => {
-    if (pendingQuest) {
-      // Use push instead of replace so that canceling the quest can navigate back
-      router.push('/pending-quest');
-    }
-  }, [pendingQuest, router]);
 
   // Start the staged entrance animation on mount.
   useEffect(() => {
