@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { invitationApi } from '@/api/invitation';
-import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
+import { act, fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 
 // Import the component
 import JoinCooperativeQuest from './join-cooperative-quest';
@@ -229,7 +229,16 @@ describe('JoinCooperativeQuest', () => {
     });
 
     const declineButtons = screen.getAllByText('Decline');
-    fireEvent.press(declineButtons[0]); // Decline first invitation
+    // handleDecline in the component awaits respondToInvitation before
+    // calling setInvitations to drop the declined item - that update lands
+    // after fireEvent.press's own (synchronous) act() scope has already
+    // closed. Under React 19 that occasionally meant the list update never
+    // got flushed before the assertions below ran, making this test flaky.
+    // Wrapping the press in an async act() keeps the scope open until the
+    // whole handler (including its post-await setState) settles.
+    await act(async () => {
+      fireEvent.press(declineButtons[0]); // Decline first invitation
+    });
 
     await waitFor(() => {
       expect(invitationApi.respondToInvitation).toHaveBeenCalledWith(
