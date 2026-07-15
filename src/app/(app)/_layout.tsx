@@ -3,6 +3,7 @@ import { Book, Compass, Map, Settings, User } from 'lucide-react-native';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
@@ -18,6 +19,16 @@ import {
 
 /** Default hit size for side tab icons (Journal, Map, Profile, Settings). */
 const TAB_ICON_SIZE = 22;
+
+/**
+ * Height of the tab bar's visible content zone, measured above the bottom
+ * safe-area inset. react-navigation returns a numeric `tabBarStyle.height`
+ * verbatim and skips its own `+ insets.bottom` (see `getTabBarHeight` in
+ * BottomTabBar), so a flat height silently swallows the inset — the bar's top
+ * edge then rides ~1 nav-bar higher on every Android device, squeezing the
+ * scene above it. Add the inset explicitly instead.
+ */
+const TAB_BAR_CONTENT_HEIGHT = 56;
 
 /** Raised center-orb geometry. */
 const ORB_SIZE = 56;
@@ -85,6 +96,7 @@ function CenterButton({
 
 export default function TabLayout() {
   const navigationState = useRootNavigationState();
+  const insets = useSafeAreaInsets();
 
   // Activate lock detection for the whole main app.
   useLockStateDetection();
@@ -115,8 +127,8 @@ export default function TabLayout() {
           backgroundColor: colors.surface.overlay,
           borderTopWidth: 1,
           borderTopColor: colors.border.hairline,
-          height: 120,
-          paddingBottom: 20,
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
           // Hide tab bar for quest screens and pending-quest
           display:
             ['pending-quest', 'quest-discovery', 'invitation-waiting'].includes(
