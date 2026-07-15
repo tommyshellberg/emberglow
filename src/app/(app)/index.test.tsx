@@ -195,7 +195,7 @@ describe('Home Component - Integration Tests', () => {
       const { unmount } = render(<Home />);
 
       // User sees the main header
-      expect(screen.getByText('Choose Your Adventure')).toBeTruthy();
+      expect(screen.getByText('Choose an Adventure')).toBeTruthy();
 
       unmount();
     });
