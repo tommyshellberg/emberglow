@@ -405,7 +405,6 @@ export default function Home() {
       <BackgroundImage
         source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
       >
-        <StreakCounter size="small" position="topRight" />
         <Animated.View
           style={[
             backgroundStyle,
@@ -420,8 +419,13 @@ export default function Home() {
       </BackgroundImage>
 
       <ScreenContainer className="flex-col">
-        {/* Header */}
-        <ScreenHeader title="Choose Your Adventure" />
+        {/* Header — the streak rides in the header's right slot rather than
+            floating over the background, so the title's flex-1 box shrinks to
+            meet it instead of growing underneath it. */}
+        <ScreenHeader
+          title="Choose an Adventure"
+          rightComponent={<StreakCounter size="small" />}
+        />
 
         {/* Main content area — the mode deck (story / custom / cooperative) */}
         <View style={styles.deckWrapper}>
