@@ -542,6 +542,45 @@ describe('QuestStore - refreshAvailableQuests', () => {
   });
 
   describe('completeQuest', () => {
+    test('arms recentCompletedQuest synchronously, before any reward fetching', () => {
+      // Captured on device 2026-07-16: the background task completes a quest
+      // while the phone is locked, and the rewards fetch goes out on a network
+      // the OS has already suspended — with no client timeout the promise
+      // never settles, and the store write behind it never ran. The store
+      // write IS the navigation instruction (NavigationGate routes on
+      // recentCompletedQuest), so it must happen before completeQuest's first
+      // await. Asserting synchronously (no flush) is what pins that down; the
+      // enrichment fetch itself can't run under Jest (dynamic import needs
+      // --experimental-vm-modules) and is device-verified instead.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-123');
+
+      const startTime = Date.now() - 600000; // 10 minutes ago
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime,
+        status: 'active' as const,
+      };
+      useQuestStore.setState({
+        activeQuest,
+        completedQuests: [],
+        lastCompletedQuestTimestamp: null,
+      });
+
+      // Fire-and-forget, exactly like the background task's call site.
+      useQuestStore.getState().completeQuest(true);
+
+      const state = useQuestStore.getState();
+      expect(state.recentCompletedQuest?.id).toBe('quest-1');
+      expect(state.recentCompletedQuest?.questRunId).toBe('run-123');
+      expect(state.activeQuest).toBeNull();
+      expect(state.completedQuests).toHaveLength(1);
+      expect(mockAddXP).toHaveBeenCalledWith(100);
+    });
+
     test('should complete quest successfully when duration is met', async () => {
       // Arrange
       const startTime = Date.now() - 600000; // 10 minutes ago
@@ -1170,7 +1209,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Complete the quest
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(cancelStreakWarningNotification).toHaveBeenCalled();
@@ -1198,7 +1239,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(completedQuest?.status).toBe('completed');
@@ -1264,7 +1307,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         lastCompletedQuestTimestamp: null,
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockAddXP).toHaveBeenCalledWith(150);
@@ -1288,7 +1333,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockRevealLocation).toHaveBeenCalledWith('test-poi');
