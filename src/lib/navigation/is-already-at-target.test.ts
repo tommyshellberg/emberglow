@@ -108,6 +108,26 @@ describe('isAlreadyAtTarget', () => {
     });
   });
 
+  describe('the failed-quest redirect loop regression', () => {
+    // Captured from a real Android SDK 53 session (2026-07-16): with
+    // failedQuest armed, usePathname() read bare '/quest' while segments read
+    // ['(app)', 'quest', '[id]'] — the [id] param had not yet materialized
+    // into the resolved pathname during a root remount transient. The
+    // exact-match check saw '/quest' !== '/quest/quest-7' and re-fired the
+    // replace, which could only land above the unsettled child state
+    // (expo-router's getNavigateAction diverges on !childState), remounting
+    // the root and re-creating the same transient every ~320ms, forever.
+    it('stays put while the quest id has not materialized into the pathname', () => {
+      expect(
+        isAlreadyAtTarget(
+          { type: 'quest-result', questId: 'quest-7', outcome: 'failed' },
+          ['(app)', 'quest', '[id]'],
+          '/quest'
+        )
+      ).toBe(true);
+    });
+  });
+
   describe('quest-result targets carry an id that must match', () => {
     it('reports a match only for the quest we are actually showing', () => {
       expect(

@@ -80,8 +80,21 @@ export function isAlreadyAtTarget(
 
     // The quest id is part of the destination, and useSegments() flattens it to
     // the literal '[id]', so identity has to come from the resolved pathname.
-    case 'quest-result':
-      return pathname === `/quest/${target.questId}`;
+    case 'quest-result': {
+      if (pathname === `/quest/${target.questId}`) {
+        return true;
+      }
+
+      // Mid-remount transient (captured on device 2026-07-16): the router is
+      // already on (app)/quest/[id] but the id param has not materialized into
+      // the resolved pathname, which reads bare '/quest'. Navigating now is
+      // what arms the redirect loop — the replace can only land above the
+      // unsettled child state, remounting the root and re-creating this same
+      // transient. Like empty segments in the 'app' case, this is "no location
+      // yet", not a wrong location; pathname is a dependency of the gate's
+      // effect, so the decision is only deferred until the id resolves.
+      return pathname === '/quest' && segments[segments.length - 1] === '[id]';
+    }
 
     case 'login':
       return segments[0] === 'login';
