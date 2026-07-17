@@ -1,6 +1,4 @@
-// TODO(SDK54 Task 8): migrate to the new File/Directory API — /legacy is a
-// bridge, not the end state.
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
 
 import { apiClient } from '@/api/common/client';
 import { provisionalApiClient } from '@/api/common/provisional-client';
@@ -26,7 +24,7 @@ interface AudioCacheEntry {
 
 class AudioCacheService {
   private cache: Map<string, AudioCacheEntry> = new Map();
-  private cacheDir: string;
+  private cacheDir: Directory;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   // Signed URLs returned by GET /v1/audio/file are S3-presigned with a 3600s
   // (1h) TTL — see unquest-server/src/services/audio.service.js:122 (default
@@ -37,14 +35,14 @@ class AudioCacheService {
   private readonly CACHE_INDEX_KEY = 'audio-cache-index';
 
   constructor() {
-    this.cacheDir = `${FileSystem.cacheDirectory}audio/`;
+    this.cacheDir = new Directory(Paths.cache, 'audio');
     this.initializeCache();
   }
 
   private async initializeCache() {
     try {
       // Ensure cache directory exists
-      await this.ensureCacheDirExists();
+      this.ensureCacheDirExists();
 
       // Load cache index from storage
       await this.loadCacheIndex();
@@ -58,14 +56,11 @@ class AudioCacheService {
 
   // Ensures the cache directory exists. Android can purge app cache dirs under
   // storage pressure, so this must run immediately before each download rather
-  // than only once at construction.
-  private async ensureCacheDirExists() {
-    const dirInfo = await FileSystem.getInfoAsync(this.cacheDir);
-    if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(this.cacheDir, {
-        intermediates: true,
-      });
-    }
+  // than only once at construction. `idempotent: true` makes this safe to
+  // call unconditionally — it succeeds silently if the directory is already
+  // there and recreates it if the OS purged it.
+  private ensureCacheDirExists() {
+    this.cacheDir.create({ intermediates: true, idempotent: true });
   }
 
   private async loadCacheIndex() {
@@ -92,8 +87,7 @@ class AudioCacheService {
         // Verify local file still exists
         if (entry.localUri) {
           try {
-            const fileInfo = await FileSystem.getInfoAsync(entry.localUri);
-            if (fileInfo.exists) {
+            if (new File(entry.localUri).exists) {
               this.cache.set(key, entry);
             }
           } catch (error) {
@@ -122,18 +116,24 @@ class AudioCacheService {
 
   private async cleanupExpiredFiles() {
     try {
-      const files = await FileSystem.readDirectoryAsync(this.cacheDir);
+      const entries = this.cacheDir.list();
       const now = Date.now();
       let filesDeleted = 0;
 
-      for (const file of files) {
-        const filePath = `${this.cacheDir}${file}`;
-        const fileInfo = await FileSystem.getInfoAsync(filePath);
+      for (const entry of entries) {
+        // Only files carry a modificationTime; the audio dir shouldn't hold
+        // subdirectories, but skip them defensively rather than crash.
+        if (!(entry instanceof File)) {
+          continue;
+        }
 
-        if (fileInfo.exists && fileInfo.modificationTime) {
-          const fileAge = now - fileInfo.modificationTime * 1000;
+        // modificationTime is milliseconds since epoch on this API (the
+        // legacy API returned seconds).
+        const { modificationTime } = entry;
+        if (entry.exists && modificationTime !== null) {
+          const fileAge = now - modificationTime;
           if (fileAge > this.CACHE_DURATION) {
-            await FileSystem.deleteAsync(filePath);
+            entry.delete();
             filesDeleted++;
           }
         }
@@ -186,21 +186,45 @@ class AudioCacheService {
 
       const { audioUrl } = response.data;
       const fileName = this.getCacheKey(audioPath) + '.mp3';
-      const localUri = `${this.cacheDir}${fileName}`;
 
       // Ensure the cache dir exists right before downloading: the OS may have
-      // purged it since construction, and downloadAsync throws if the
+      // purged it since construction, and downloadFileAsync throws if the
       // destination's parent directory is missing.
-      await this.ensureCacheDirExists();
+      this.ensureCacheDirExists();
 
-      // Download the file
-      const downloadResult = await FileSystem.downloadAsync(audioUrl, localUri);
+      const destination = new File(this.cacheDir, fileName);
 
-      if (downloadResult.status !== 200) {
-        throw new Error(`Download failed with status ${downloadResult.status}`);
+      try {
+        // idempotent: true avoids a DestinationAlreadyExists error on
+        // re-download. A non-2xx response rejects with UnableToDownload
+        // instead of resolving with a status code.
+        const downloadedFile = await File.downloadFileAsync(
+          audioUrl,
+          destination,
+          { idempotent: true }
+        );
+        return downloadedFile.uri;
+      } catch (downloadError) {
+        // Android caveat: the response body streams directly into the
+        // destination, so a failed download can still leave a partial file
+        // behind. Clean it up so a retry doesn't collide with it. delete()
+        // itself throws if the file vanishes between the exists check and
+        // the call (e.g. the same OS cache purge this service guards
+        // against elsewhere) — swallow only that cleanup error so the
+        // original download failure keeps propagating to the outer catch
+        // and its diagnostics/fallback path.
+        try {
+          if (destination.exists) {
+            destination.delete();
+          }
+        } catch (cleanupError) {
+          console.warn(
+            `Failed to clean up partial download for ${audioPath}:`,
+            cleanupError
+          );
+        }
+        throw downloadError;
       }
-
-      return localUri;
     } catch (error) {
       console.warn(`Failed to download audio file ${audioPath}:`, error);
       return null;
@@ -267,8 +291,7 @@ class AudioCacheService {
       // Prefer a locally cached file if it still exists
       if (cachedEntry.localUri) {
         try {
-          const fileInfo = await FileSystem.getInfoAsync(cachedEntry.localUri);
-          if (fileInfo.exists) {
+          if (new File(cachedEntry.localUri).exists) {
             console.log(`Using cached audio file for ${actualPath}`);
             return { uri: cachedEntry.localUri };
           }
@@ -344,7 +367,10 @@ class AudioCacheService {
     for (const [key, entry] of toRemove) {
       if (entry.localUri) {
         try {
-          await FileSystem.deleteAsync(entry.localUri);
+          const file = new File(entry.localUri);
+          if (file.exists) {
+            file.delete();
+          }
         } catch (error) {
           console.warn(
             `Failed to delete cached file: ${entry.localUri}`,
@@ -384,12 +410,12 @@ class AudioCacheService {
       this.saveCacheIndex();
 
       // Remove all cached files
-      const files = await FileSystem.readDirectoryAsync(this.cacheDir);
-      const deletePromises = files.map((file) =>
-        FileSystem.deleteAsync(`${this.cacheDir}${file}`)
-      );
-
-      await Promise.all(deletePromises);
+      const entries = this.cacheDir.list();
+      for (const entry of entries) {
+        if (entry.exists) {
+          entry.delete();
+        }
+      }
 
       console.log('Audio cache cleared successfully');
     } catch (error) {

@@ -133,6 +133,70 @@ jest.mock('expo-notifications', () => ({
   },
 }));
 
+// Mock expo-file-system with the SDK 54 File/Directory/Paths class API.
+// jest-expo's bundled default mock (jest-expo/src/preset/setup.js) still
+// targets the pre-54 legacy function API and doesn't export `Paths`, so any
+// module-scope `new Directory(Paths.cache, ...)` (e.g. the audio-cache
+// singleton, constructed at import time) crashes under the stock mock with
+// "Cannot read properties of undefined (reading 'cache')". Tests that need
+// to control File/Directory behavior in detail provide their own more
+// specific `jest.mock('expo-file-system', ...)` (see
+// audio-cache.service.test.ts), which overrides this default.
+jest.mock('expo-file-system', () => {
+  function uriOf(part: unknown): string {
+    return typeof part === 'string' ? part : (part as { uri: string }).uri;
+  }
+  function withTrailingSlash(uri: string): string {
+    return uri.endsWith('/') ? uri : `${uri}/`;
+  }
+  function joinUris(parts: unknown[]): string {
+    return parts.reduce((acc: string, part) => {
+      const next = uriOf(part);
+      return acc ? `${withTrailingSlash(acc)}${next}` : next;
+    }, '');
+  }
+
+  class MockDirectory {
+    uri: string;
+    constructor(...uris: unknown[]) {
+      this.uri = withTrailingSlash(joinUris(uris));
+    }
+    create() {}
+    delete() {}
+    list() {
+      return [];
+    }
+    get exists() {
+      return false;
+    }
+  }
+
+  class MockFile {
+    uri: string;
+    name: string;
+    constructor(...uris: unknown[]) {
+      this.uri = joinUris(uris);
+      this.name = this.uri.split('/').filter(Boolean).pop() ?? '';
+    }
+    delete() {}
+    get exists() {
+      return false;
+    }
+    get modificationTime() {
+      return null;
+    }
+    static downloadFileAsync(_url: string, destination: MockFile) {
+      return Promise.resolve(destination);
+    }
+  }
+
+  return {
+    File: MockFile,
+    Directory: MockDirectory,
+    Paths: { cache: new MockDirectory('file:///mock-cache/') },
+  };
+});
+
 jest.mock('react-native-background-actions', () => ({
   start: jest.fn().mockResolvedValue(undefined),
   stop: jest.fn().mockResolvedValue(undefined),
