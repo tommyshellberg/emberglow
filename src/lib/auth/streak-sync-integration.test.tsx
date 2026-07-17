@@ -34,8 +34,25 @@ describe('Streak Sync Integration Tests', () => {
     typeof getUserDetails
   >;
 
+  // Fix Date to a safe mid-day instant so the "N hours/days ago" arithmetic
+  // below can't straddle a local calendar-day boundary depending on when the
+  // suite happens to run (it was flipping the wrong side of the boundary
+  // during the last hour of the local day). Real timers stay real so
+  // Testing Library's act()/scheduling is unaffected.
+  const FIXED_NOW = new Date(2026, 6, 15, 12, 0, 0);
+
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers({
+      doNotFake: [
+        'nextTick',
+        'setImmediate',
+        'setInterval',
+        'setTimeout',
+        'queueMicrotask',
+      ],
+    });
+    jest.setSystemTime(FIXED_NOW);
 
     // Reset stores
     useCharacterStore.setState({
@@ -59,6 +76,10 @@ describe('Streak Sync Integration Tests', () => {
       completedQuests: [],
       lastCompletedQuestTimestamp: null,
     });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('Optimistic updates with server reconciliation', () => {
