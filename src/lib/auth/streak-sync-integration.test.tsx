@@ -44,12 +44,24 @@ describe('Streak Sync Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers({
+      // Fake ONLY Date: every other fakeable API stays real, including the
+      // clear* counterparts of the set* timers — faking a clear* while its
+      // set* is real would silently fail to cancel real timers.
       doNotFake: [
+        'hrtime',
         'nextTick',
-        'setImmediate',
-        'setInterval',
-        'setTimeout',
+        'performance',
         'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
       ],
     });
     jest.setSystemTime(FIXED_NOW);
