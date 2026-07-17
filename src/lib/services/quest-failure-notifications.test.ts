@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { Platform } from 'react-native';
-import BackgroundService from 'react-native-bg-actions';
+import BackgroundService from 'react-native-background-actions';
 
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 // Mock imports
@@ -8,7 +8,7 @@ import { useQuestStore } from '@/store/quest-store';
 
 // Mock all dependencies
 jest.mock('react-native-onesignal');
-jest.mock('react-native-bg-actions');
+jest.mock('react-native-background-actions');
 jest.mock('@/store/quest-store');
 jest.mock('@/lib/services/quest-run-service');
 jest.mock('expo-router', () => ({

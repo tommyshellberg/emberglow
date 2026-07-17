@@ -162,9 +162,9 @@ importers:
       react-native:
         specifier: 0.79.6
         version: 0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)
-      react-native-bg-actions:
-        specifier: ^1.0.17
-        version: 1.0.17(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))
+      react-native-background-actions:
+        specifier: 4.1.0
+        version: 4.1.0(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))
       react-native-edge-to-edge:
         specifier: ^1.6.0
         version: 1.6.0(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0))(react@19.0.0)
@@ -6001,8 +6001,8 @@ packages:
   react-is@19.2.7:
     resolution: {integrity: sha512-kZFnouyVv7eP/Phmrlo9FK+zcAdriZJvzxXHF1Sl1P377WSGe2G/JxVolhTrB/jeV47lKImhNUsijjHAAbcl/A==}
 
-  react-native-bg-actions@1.0.17:
-    resolution: {integrity: sha512-zNLIiZbiTpwX+RHU08UohxE6B6qOUaDHIafLlEvSbgNNkZHiytZ3lfBi/S6jEmBEOW4xH8NXA5t3BrnAtjHiEg==}
+  react-native-background-actions@4.1.0:
+    resolution: {integrity: sha512-7dyTZOqX+CsskwAxTXj7zLMOSg/JP9Wf+smX7EoFTlqfChzDBlhGr+8Qc35ExXdoM+nUezb3DoHexNbDid2A9g==}
     peerDependencies:
       react-native: '>=0.47.0'
 
@@ -14232,7 +14232,7 @@ snapshots:
 
   react-is@19.2.7: {}
 
-  react-native-bg-actions@1.0.17(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)):
+  react-native-background-actions@4.1.0(react-native@0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)):
     dependencies:
       eventemitter3: 4.0.7
       react-native: 0.79.6(@babel/core@7.28.5)(@types/react@19.0.14)(react@19.0.0)

@@ -122,8 +122,8 @@ jest.mock('uuid', () => ({
   v4: jest.fn(() => 'test-uuid-' + Math.random()),
 }));
 
-// Mock react-native-bg-actions
-jest.mock('react-native-bg-actions', () => ({
+// Mock react-native-background-actions
+jest.mock('react-native-background-actions', () => ({
   start: jest.fn(),
   stop: jest.fn(),
   isRunning: jest.fn().mockReturnValue(false),
@@ -144,7 +144,9 @@ describe('QuestTimer', () => {
     // createQuestRun's default resolved value so a prior test's mockRejectedValue
     // can't leak forward. (Previously masked by the static questRunId never being
     // reset between tests; M1's prepare-time reset removes that masking.)
-    (createQuestRun as jest.Mock).mockResolvedValue({ id: 'mock-quest-run-id' });
+    (createQuestRun as jest.Mock).mockResolvedValue({
+      id: 'mock-quest-run-id',
+    });
     // Clear the mock storage
     Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
     // Reset Platform.OS to ios for most tests
@@ -224,11 +226,11 @@ describe('QuestTimer', () => {
 
       // Act
       await QuestTimer.prepareQuest(mockQuestTemplate);
-      const firstId = (OneSignal.LiveActivities.startDefault as jest.Mock)
-        .mock.calls[0][0];
+      const firstId = (OneSignal.LiveActivities.startDefault as jest.Mock).mock
+        .calls[0][0];
       await QuestTimer.prepareQuest(mockQuestTemplate);
-      const secondId = (OneSignal.LiveActivities.startDefault as jest.Mock)
-        .mock.calls[1][0];
+      const secondId = (OneSignal.LiveActivities.startDefault as jest.Mock).mock
+        .calls[1][0];
 
       // Assert
       expect(firstId).toBeTruthy();
@@ -362,7 +364,7 @@ describe('QuestTimer', () => {
     it('should handle Android platform', async () => {
       // Arrange
       Platform.OS = 'android';
-      const BackgroundService = require('react-native-bg-actions');
+      const BackgroundService = require('react-native-background-actions');
       BackgroundService.isRunning.mockReturnValue(true);
 
       // Act
@@ -479,7 +481,7 @@ describe('QuestTimer', () => {
 
     it('should use BackgroundService for Android', async () => {
       // Arrange
-      const BackgroundService = require('react-native-bg-actions');
+      const BackgroundService = require('react-native-background-actions');
       const mockQuestTemplate: StoryQuestTemplate = {
         id: 'test-quest-id',
         title: 'Test Quest',

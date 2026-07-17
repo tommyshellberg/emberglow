@@ -55,7 +55,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: Env.PACKAGE,
     permissions: [
       'android.permission.FOREGROUND_SERVICE',
-      'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+      'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
       'android.permission.WAKE_LOCK',
       'com.android.vending.BILLING',
     ],

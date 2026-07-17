@@ -18,7 +18,7 @@ import { Stack, useNavigationContainerRef, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect } from 'react';
 import { AppState, type AppStateStatus, Platform, View } from 'react-native';
-import BackgroundService from 'react-native-bg-actions';
+import BackgroundService from 'react-native-background-actions';
 import FlashMessage from 'react-native-flash-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';

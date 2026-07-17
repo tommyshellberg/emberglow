@@ -1,6 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.READ_CONTACTS"/>
@@ -41,5 +41,13 @@
         <data android:scheme="exp+unquest-app"/>
       </intent-filter>
     </activity>
+    <service
+      android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask"
+      android:foregroundServiceType="specialUse"
+      tools:replace="android:foregroundServiceType">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="User-initiated focus-session countdown timer with live progress notification" />
+    </service>
   </application>
 </manifest>

@@ -29,7 +29,12 @@ jest.mock('react-native-purchases-ui', () => ({
 jest.mock('react-native-localize', () => ({
   getTimeZone: jest.fn(() => 'America/New_York'),
   getLocales: jest.fn(() => [
-    { countryCode: 'US', languageTag: 'en-US', languageCode: 'en', isRTL: false },
+    {
+      countryCode: 'US',
+      languageTag: 'en-US',
+      languageCode: 'en',
+      isRTL: false,
+    },
   ]),
   getNumberFormatSettings: jest.fn(() => ({
     decimalSeparator: '.',
@@ -128,7 +133,7 @@ jest.mock('expo-notifications', () => ({
   },
 }));
 
-jest.mock('react-native-bg-actions', () => ({
+jest.mock('react-native-background-actions', () => ({
   start: jest.fn().mockResolvedValue(undefined),
   stop: jest.fn().mockResolvedValue(undefined),
   isRunning: jest.fn().mockReturnValue(false),
