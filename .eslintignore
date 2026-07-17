@@ -8,6 +8,8 @@ ios/
 .expo-shared
 docs/
 cli/
+# Design-skill assets (generated bundles + UI-kit scaffolding, not app source)
+emberglow-design/
 # Test files
 **/*.test.ts
 **/*.test.tsx
