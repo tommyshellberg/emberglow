@@ -183,6 +183,9 @@
     "overrides": {
       "react": "19.1.0",
       "react-dom": "19.1.0"
+    },
+    "patchedDependencies": {
+      "react-native-background-actions@4.1.0": "patches/react-native-background-actions@4.1.0.patch"
     }
   },
   "expo": {
