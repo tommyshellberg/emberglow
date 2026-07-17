@@ -91,7 +91,6 @@
     "lodash.memoize": "^4.1.2",
     "lottie-react-native": "7.2.2",
     "lucide-react-native": "^0.510.0",
-    "moti": "^0.29.0",
     "nativewind": "4.1.23",
     "onesignal-expo-plugin": "^2.7.0",
     "posthog-react-native": "^4.1.4",
