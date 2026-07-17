@@ -1,8 +1,8 @@
 import * as React from 'react';
 import type {
-  NativeSyntheticEvent,
+  BlurEvent,
+  FocusEvent,
   StyleProp,
-  TextInputFocusEventData,
   TextInputProps,
   ViewStyle,
 } from 'react-native';
@@ -36,14 +36,12 @@ export function Input({
   // tracking below — see the sibling `ui/input.tsx`, where spreading
   // `{...inputProps}` after its own onFocus/onBlur lets a caller's handler
   // silently override them, permanently breaking the focus ring.
-  const handleFocus = (
-    event: NativeSyntheticEvent<TextInputFocusEventData>
-  ) => {
+  const handleFocus = (event: FocusEvent) => {
     setFocused(true);
     onFocus?.(event);
   };
 
-  const handleBlur = (event: NativeSyntheticEvent<TextInputFocusEventData>) => {
+  const handleBlur = (event: BlurEvent) => {
     setFocused(false);
     onBlur?.(event);
   };

@@ -5,7 +5,8 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getSentryExpoConfig(__dirname);
 
 // Get exclusionList helper from metro-config
-const exclusionList = require('metro-config/src/defaults/exclusionList');
+const exclusionList =
+  require('metro-config/private/defaults/exclusionList').default;
 
 // Add test file patterns to exclude from the bundle
 config.resolver.blockList = exclusionList([

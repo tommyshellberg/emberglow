@@ -1,4 +1,6 @@
-import * as FileSystem from 'expo-file-system';
+// TODO(SDK54 Task 8): migrate to the new File/Directory API — /legacy is a
+// bridge, not the end state.
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { apiClient } from '@/api/common/client';
 import { provisionalApiClient } from '@/api/common/provisional-client';

@@ -1,6 +1,7 @@
 // Mocks are hoisted above imports by babel-jest, so they are in place before
-// the singleton's constructor runs on import.
-jest.mock('expo-file-system', () => ({
+// the singleton's constructor runs on import. Mocked at the /legacy subpath
+// to match the service's SDK-54 bridge import (expo-file-system/legacy).
+jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   getInfoAsync: jest.fn(),
   makeDirectoryAsync: jest.fn(),
@@ -20,7 +21,7 @@ jest.mock('@/lib/storage', () => ({
 
 import { audioCacheService } from './audio-cache.service';
 
-const fs = jest.requireMock('expo-file-system') as {
+const fs = jest.requireMock('expo-file-system/legacy') as {
   cacheDirectory: string;
   getInfoAsync: jest.Mock;
   makeDirectoryAsync: jest.Mock;
@@ -68,7 +69,9 @@ beforeEach(() => {
   apiClient.get.mockResolvedValue({ data: { audioUrl: SIGNED_URL } });
 
   // Reset the singleton's in-memory cache between tests.
-  (audioCacheService as unknown as { cache: Map<string, unknown> }).cache.clear();
+  (
+    audioCacheService as unknown as { cache: Map<string, unknown> }
+  ).cache.clear();
 });
 
 describe('audio-cache.service', () => {

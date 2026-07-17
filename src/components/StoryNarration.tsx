@@ -116,7 +116,7 @@ export function StoryNarration({ quest }: Props) {
 const STATUS_INTERVAL_MS = 100;
 
 function NarrationPlayer({ source }: { source: AudioSource }) {
-  const player = useAudioPlayer(source, STATUS_INTERVAL_MS);
+  const player = useAudioPlayer(source, { updateInterval: STATUS_INTERVAL_MS });
   const status = useAudioPlayerStatus(player);
   const appStateRef = useRef(AppState.currentState);
 
