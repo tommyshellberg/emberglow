@@ -5,7 +5,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 
 import { useQuestReflection } from '@/api/quest-reflection';
-import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
+import {
+  cleanup,
+  render,
+  renderAsync,
+  screen,
+  userEvent,
+  waitFor,
+} from '@/lib/test-utils';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 
@@ -426,7 +433,17 @@ describe('AppQuestDetailsScreen', () => {
     });
 
     it('calls handleBackNavigation when go back is pressed', async () => {
-      const { user } = setup(<AppQuestDetailsScreen />);
+      // `renderAsync` (see test-utils.tsx) rather than the old `setup()`
+      // helper: `setup()`'s render is a synchronous act() whose scope isn't
+      // guaranteed to have finished closing by the time control returns,
+      // and this file interleaves many render+press+waitFor tests in
+      // sequence. Chaining straight into `user.press` without awaiting the
+      // render was enough, under React 19, to eventually desync
+      // react-test-renderer's shared act() bookkeeping ("overlapping act()
+      // calls"), corrupting every later render() in this file ("Can't
+      // access .root on unmounted test renderer").
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
 
       const goBackButton = screen.getByText('Go Back');
       await user.press(goBackButton);
@@ -514,7 +531,10 @@ describe('AppQuestDetailsScreen', () => {
         questData: JSON.stringify(questWithReflection),
       });
 
-      const { user } = setup(<AppQuestDetailsScreen />);
+      // renderAsync + userEvent.setup() rather than the old `setup()`
+      // helper - see the "calls handleBackNavigation" test above for why.
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
 
       // Initially collapsed - reflection text not visible
       expect(screen.queryByText('Great experience!')).not.toBeOnTheScreen();
@@ -548,7 +568,10 @@ describe('AppQuestDetailsScreen', () => {
         questData: JSON.stringify(questWithReflection),
       });
 
-      const { user } = setup(<AppQuestDetailsScreen />);
+      // renderAsync + userEvent.setup() rather than the old `setup()`
+      // helper - see the "calls handleBackNavigation" test above for why.
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
 
       const reflectionHeader = screen.getByText('Reflection');
 
@@ -582,7 +605,10 @@ describe('AppQuestDetailsScreen', () => {
     });
 
     it('navigates to reflection screen when Add reflection is pressed', async () => {
-      const { user } = setup(<AppQuestDetailsScreen />);
+      // renderAsync + userEvent.setup() rather than the old `setup()`
+      // helper - see the "calls handleBackNavigation" test above for why.
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
 
       const addButton = screen.getByText('Add reflection');
       await user.press(addButton);
@@ -599,7 +625,7 @@ describe('AppQuestDetailsScreen', () => {
     });
 
     it('displays all mood emojis correctly', async () => {
-      const { user } = setup(<AppQuestDetailsScreen />);
+      const user = userEvent.setup();
 
       const moods = [
         { value: 1, emoji: '😡' },
@@ -609,19 +635,39 @@ describe('AppQuestDetailsScreen', () => {
         { value: 5, emoji: '😄' },
       ];
 
-      for (const { value, emoji } of moods) {
+      const paramsForMood = (value: number) => {
         const questWithMood = {
           ...mockCompletedQuest,
           reflection: { mood: value, activities: [], text: `Mood ${value}` },
         };
-
-        mockUseLocalSearchParams.mockReturnValue({
+        return {
           id: 'quest-123',
           from: 'journal',
           questData: JSON.stringify(questWithMood),
-        });
+        };
+      };
 
-        const { unmount } = render(<AppQuestDetailsScreen />);
+      mockUseLocalSearchParams.mockReturnValue(paramsForMood(moods[0].value));
+
+      // One persistent renderer, updated per mood via rerenderAsync with a
+      // changed `key` (forces React to unmount/remount the screen so each
+      // iteration starts with the reflection collapsed again), rather than
+      // a fresh render()/unmount() per iteration. The mount/unmount-per-
+      // iteration version repeatedly created and tore down whole
+      // react-test-renderer instances in a tight loop; that reliably
+      // passed in isolation but, once ~25+ renders had already happened
+      // earlier in this file, desynced react-test-renderer's shared act()
+      // bookkeeping under React 19 ("overlapping act() calls"), which then
+      // corrupted every later render() in this file ("Can't access .root
+      // on unmounted test renderer"). Driving the same states through one
+      // renderer avoids the repeated create/destroy churn entirely.
+      const { rerenderAsync } = await renderAsync(
+        <AppQuestDetailsScreen key={moods[0].value} />
+      );
+
+      for (const { value, emoji } of moods) {
+        mockUseLocalSearchParams.mockReturnValue(paramsForMood(value));
+        await rerenderAsync(<AppQuestDetailsScreen key={value} />);
 
         const reflectionHeader = screen.getByText('Reflection');
         await user.press(reflectionHeader);
@@ -629,8 +675,6 @@ describe('AppQuestDetailsScreen', () => {
         await waitFor(() => {
           expect(screen.getByText(emoji)).toBeOnTheScreen();
         });
-
-        unmount();
       }
     });
   });
@@ -712,7 +756,10 @@ describe('AppQuestDetailsScreen', () => {
         return typeof selector === 'function' ? selector(state) : state;
       });
 
-      const { user } = setup(<AppQuestDetailsScreen />);
+      // renderAsync + userEvent.setup() rather than the old `setup()`
+      // helper - see the "calls handleBackNavigation" test above for why.
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
 
       const goBackButton = screen.getByText('Go Back');
       await user.press(goBackButton);
@@ -724,13 +771,18 @@ describe('AppQuestDetailsScreen', () => {
 
   describe('Different Quest Modes', () => {
     it('renders story quest with custom story text', () => {
-      render(<AppQuestDetailsScreen />);
-
       mockUseLocalSearchParams.mockReturnValue({
         id: 'quest-123',
         questData: JSON.stringify(mockCompletedQuest),
       });
 
+      // Only this render is asserted against below; a leftover render()
+      // call used to precede it (with searchParams unset), left mounted for
+      // the rest of the test since nothing ever unmounted it. That
+      // dead/dangling first renderer corrupted react-test-renderer's
+      // shared act() bookkeeping under React 19 ("overlapping act() calls"
+      // / "Can't access .root on unmounted test renderer" on unrelated
+      // later tests in this file).
       render(<AppQuestDetailsScreen />);
 
       expect(

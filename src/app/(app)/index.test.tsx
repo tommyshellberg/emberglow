@@ -211,6 +211,30 @@ describe('Home Component - Integration Tests', () => {
       unmount();
     });
 
+    it('keeps the footer mounted but inert while a quest is pending', () => {
+      // Fabric crash mitigation (device-captured 2026-07-16, upstream
+      // reanimated#7594): committing the DecisionSlider arms pendingQuest
+      // while the slider's settle worklet is still animating the footer's
+      // views. Unmounting them at that instant lets the worklet deliver
+      // props to dead views — host-fatal on the New Architecture ("Unable
+      // to find viewState for tag"). The footer must stay MOUNTED (live
+      // views for the worklet) but INERT (invisible, untouchable) until
+      // the pending-quest screen covers it.
+      mockQuestStoreState.pendingQuest = {
+        id: 'quest-1',
+        title: 'Pending Quest',
+      };
+
+      const { unmount } = render(<Home />);
+
+      const footer = screen.getByTestId('home-footer');
+      expect(footer.props.style).toEqual(
+        expect.objectContaining({ opacity: 0, pointerEvents: 'none' })
+      );
+
+      unmount();
+    });
+
     it('hides action buttons when user has an active quest', () => {
       mockQuestStoreState.activeQuest = {
         id: 'quest-1',

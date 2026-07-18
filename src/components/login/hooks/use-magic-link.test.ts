@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { requestMagicLink } from '@/api/auth';
 
@@ -139,7 +139,12 @@ describe('useMagicLink', () => {
     await waitFor(() => expect(result.current.emailSent).toBe(true));
 
     // Reset
-    result.current.resetForm();
+    // Called directly on the hook result (not via a fireEvent-driven
+    // interaction), so React 19 needs an explicit act() to flush the
+    // resulting setState calls before result.current reflects them.
+    act(() => {
+      result.current.resetForm();
+    });
 
     expect(result.current.emailSent).toBe(false);
     expect(result.current.error).toBe('');

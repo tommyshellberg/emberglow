@@ -87,10 +87,7 @@ export default function CreateScheduledQuest() {
           onQuestNameChange={setTitle}
           onDurationChange={setDurationMinutes}
         />
-        <CategorySlider
-          control={control}
-          questCategory={watch('questCategory')}
-        />
+        <CategorySlider control={control} />
 
         <Text className="mt-4 font-semibold">Starts at</Text>
         <View className="mt-1 flex-row">

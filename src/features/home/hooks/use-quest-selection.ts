@@ -62,11 +62,10 @@ export function useQuestSelection({
         prepareQuest(clientQuest as LocalQuestTemplate);
 
         try {
+          // No navigation here: prepareQuest above arms NavigationGate, which
+          // has already pushed /pending-quest by the time this await resolves.
           await QuestTimer.prepareQuest(clientQuest as LocalQuestTemplate);
           posthog.capture('success_start_quest');
-
-          // Navigate to pending-quest screen with push (not replace) so back button works
-          router.push('/pending-quest');
         } catch (error) {
           console.error(
             '[useQuestSelection] QuestTimer.prepareQuest failed:',
@@ -82,16 +81,14 @@ export function useQuestSelection({
 
         if (localQuest) {
           posthog.capture('trigger_start_quest');
+          // As above: prepareQuest arms NavigationGate, which owns the push.
           prepareQuest(localQuest);
           await QuestTimer.prepareQuest(localQuest);
           posthog.capture('success_start_quest');
-
-          // Navigate to pending-quest screen with push (not replace) so back button works
-          router.push('/pending-quest');
         }
       }
     },
-    [serverQuests, serverOptions, prepareQuest, posthog, router]
+    [serverQuests, serverOptions, prepareQuest, posthog]
   );
 
   const handleStartCustomQuest = useCallback(() => {

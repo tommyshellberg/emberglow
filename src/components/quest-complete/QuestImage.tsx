@@ -25,7 +25,10 @@ export function QuestImage({
   const displayXP = getCurrentUserAdjustedXP(quest, currentUserId);
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    // ReturnType<typeof setTimeout> instead of NodeJS.Timeout: under RN 0.79
+    // setTimeout here resolves to the overload returning number, which isn't
+    // assignable to NodeJS.Timeout.
+    let timeout: ReturnType<typeof setTimeout>;
     if (!disableAnimations && lottieRef.current) {
       timeout = setTimeout(() => {
         lottieRef.current?.play();

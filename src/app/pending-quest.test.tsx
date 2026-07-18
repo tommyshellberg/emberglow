@@ -318,7 +318,7 @@ describe('PendingQuestScreen', () => {
   });
 
   describe('Back button', () => {
-    it('renders a back button that cancels the quest and navigates back on press', () => {
+    it('renders a back button that cancels the quest on press', () => {
       const mockCancelQuest = jest.fn();
       useQuestStore.setState({
         pendingQuest: mockStoryQuest,
@@ -330,7 +330,26 @@ describe('PendingQuestScreen', () => {
       fireEvent.press(getByTestId('pending-quest-back-button'));
 
       expect(mockCancelQuest).toHaveBeenCalledTimes(1);
-      expect(router.back).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the navigation to NavigationGate', () => {
+      // cancelQuest() clears pendingQuest, which flips the resolver to target
+      // 'app' and makes NavigationGate leave this screen. Navigating here as
+      // well fired a second, competing navigation: the gate REPLACEd this
+      // pushed screen with a fresh (app) tab tree while router.back() tore it
+      // down in the same frame, which is what Fabric reported as "Unable to
+      // find viewState for tag N".
+      const mockCancelQuest = jest.fn();
+      useQuestStore.setState({
+        pendingQuest: mockStoryQuest,
+        cancelQuest: mockCancelQuest,
+      });
+
+      const { getByTestId } = render(<PendingQuestScreen />);
+
+      fireEvent.press(getByTestId('pending-quest-back-button'));
+
+      expect(router.back).not.toHaveBeenCalled();
     });
   });
 
@@ -341,7 +360,7 @@ describe('PendingQuestScreen', () => {
       expect(getByText('Cancel quest')).toBeTruthy();
     });
 
-    it('calls cancelQuest and navigates back on press', () => {
+    it('calls cancelQuest on press, leaving navigation to NavigationGate', () => {
       const mockCancelQuest = jest.fn();
       useQuestStore.setState({
         pendingQuest: mockStoryQuest,
@@ -353,7 +372,7 @@ describe('PendingQuestScreen', () => {
       fireEvent.press(getByText('Cancel quest'));
 
       expect(mockCancelQuest).toHaveBeenCalledTimes(1);
-      expect(router.back).toHaveBeenCalledTimes(1);
+      expect(router.back).not.toHaveBeenCalled();
     });
   });
 

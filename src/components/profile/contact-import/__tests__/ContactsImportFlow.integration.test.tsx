@@ -15,8 +15,13 @@ import { Alert } from 'react-native';
 
 // Mock dependencies
 jest.mock('expo-contacts');
+// react-native's index re-exports Alert as `require('.../Alert').default`
+// (Alert.js is `export default Alert`), so the mock needs a `default` key -
+// a bare `{ alert: jest.fn() }` resolves to `Alert === undefined` under RN 0.79.
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
-  alert: jest.fn(),
+  default: {
+    alert: jest.fn(),
+  },
 }));
 
 describe('ContactsImportModal Integration Tests', () => {

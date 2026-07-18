@@ -437,10 +437,19 @@ export default function Home() {
         </View>
 
         {/* Footer area with buttons */}
-        {!activeQuest && !pendingQuest && (
+        {!activeQuest && (
           <View
+            testID="home-footer"
             className="items-center justify-center"
-            style={{ minHeight: FOOTER_MIN_HEIGHT }}
+            style={{
+              minHeight: FOOTER_MIN_HEIGHT,
+              // Committing the DecisionSlider arms pendingQuest while its
+              // settle worklet still animates these views; unmounting them at
+              // that instant is host-fatal on New Arch (reanimated#7594). Go
+              // inert instead — pending-quest covers this a beat later.
+              opacity: pendingQuest ? 0 : 1,
+              pointerEvents: pendingQuest ? 'none' : 'auto',
+            }}
           >
             {activeIndex === 0 ? (
               <StoryOptionButtons

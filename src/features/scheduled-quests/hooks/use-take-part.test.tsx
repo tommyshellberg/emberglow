@@ -61,7 +61,7 @@ describe('useTakePart', () => {
     } as any);
   });
 
-  it('mirrors the coop handoff: store run, prepare template, arm QuestTimer with the run id, navigate', async () => {
+  it('mirrors the coop handoff: store run, prepare template, arm QuestTimer with the run id', async () => {
     const { result } = renderHook(() => useTakePart(run));
     await act(() => result.current.takePart());
 
@@ -82,7 +82,17 @@ describe('useTakePart', () => {
       }),
       'r1'
     );
+  });
+
+  it('leaves cooperative-pending-quest navigation to NavigationGate', async () => {
+    // The mode assertion above is the whole navigation contract: arming the
+    // store with mode 'cooperative' is what makes the resolver return target
+    // 'cooperative-pending-quest', and the root NavigationGate acts on it.
+    // Pushing here as well stacked a second identical screen.
+    const { result } = renderHook(() => useTakePart(run));
+    await act(() => result.current.takePart());
+
     const { __push } = jest.requireMock('expo-router');
-    expect(__push).toHaveBeenCalledWith('/cooperative-pending-quest');
+    expect(__push).not.toHaveBeenCalledWith('/cooperative-pending-quest');
   });
 });

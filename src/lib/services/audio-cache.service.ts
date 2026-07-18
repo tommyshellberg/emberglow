@@ -18,6 +18,7 @@ interface CachedAudio {
 interface AudioCacheEntry {
   audioPath: string;
   localUri?: string;
+  signedUrl?: string;
   expiresAt: number;
 }
 
@@ -25,6 +26,11 @@ class AudioCacheService {
   private cache: Map<string, AudioCacheEntry> = new Map();
   private cacheDir: string;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+  // Signed URLs returned by GET /v1/audio/file are S3-presigned with a 3600s
+  // (1h) TTL — see unquest-server/src/services/audio.service.js:122 (default
+  // expiresIn) applied at :167. Cache them well below that so a reused URL can
+  // never outlive its signature and reintroduce playback failures.
+  private readonly SIGNED_URL_CACHE_DURATION = 50 * 60 * 1000; // 50 min (10 min margin)
   private readonly MAX_CACHE_SIZE = 50; // Maximum number of cached files
   private readonly CACHE_INDEX_KEY = 'audio-cache-index';
 
@@ -36,12 +42,7 @@ class AudioCacheService {
   private async initializeCache() {
     try {
       // Ensure cache directory exists
-      const dirInfo = await FileSystem.getInfoAsync(this.cacheDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(this.cacheDir, {
-          intermediates: true,
-        });
-      }
+      await this.ensureCacheDirExists();
 
       // Load cache index from storage
       await this.loadCacheIndex();
@@ -50,6 +51,18 @@ class AudioCacheService {
       await this.cleanupExpiredFiles();
     } catch (error) {
       console.warn('Failed to initialize audio cache:', error);
+    }
+  }
+
+  // Ensures the cache directory exists. Android can purge app cache dirs under
+  // storage pressure, so this must run immediately before each download rather
+  // than only once at construction.
+  private async ensureCacheDirExists() {
+    const dirInfo = await FileSystem.getInfoAsync(this.cacheDir);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(this.cacheDir, {
+        intermediates: true,
+      });
     }
   }
 
@@ -173,6 +186,11 @@ class AudioCacheService {
       const fileName = this.getCacheKey(audioPath) + '.mp3';
       const localUri = `${this.cacheDir}${fileName}`;
 
+      // Ensure the cache dir exists right before downloading: the OS may have
+      // purged it since construction, and downloadAsync throws if the
+      // destination's parent directory is missing.
+      await this.ensureCacheDirExists();
+
       // Download the file
       const downloadResult = await FileSystem.downloadAsync(audioUrl, localUri);
 
@@ -244,7 +262,7 @@ class AudioCacheService {
     // Check if we have a cached entry
     const cachedEntry = this.cache.get(cacheKey);
     if (cachedEntry && cachedEntry.expiresAt > now) {
-      // If we have a local file, verify it still exists
+      // Prefer a locally cached file if it still exists
       if (cachedEntry.localUri) {
         try {
           const fileInfo = await FileSystem.getInfoAsync(cachedEntry.localUri);
@@ -255,6 +273,12 @@ class AudioCacheService {
         } catch (error) {
           console.warn(`Cached file no longer exists: ${cachedEntry.localUri}`);
         }
+      }
+
+      // Otherwise reuse a still-valid signed URL without hitting the network
+      if (cachedEntry.signedUrl) {
+        console.log(`Using cached signed URL for ${actualPath}`);
+        return { uri: cachedEntry.signedUrl };
       }
     }
 
@@ -284,10 +308,13 @@ class AudioCacheService {
     const memoryUri = await this.downloadToMemory(actualPath);
 
     if (memoryUri) {
-      // Cache the URL (without local file) for short-term reuse
-      const expiresAt = now + 60 * 60 * 1000; // 1 hour for signed URLs
+      // Cache the signed URL (without local file) for short-term reuse. The
+      // duration must stay below the server's S3 presign TTL (see
+      // SIGNED_URL_CACHE_DURATION) so we never hand back an expired signature.
+      const expiresAt = now + this.SIGNED_URL_CACHE_DURATION;
       this.cache.set(cacheKey, {
         audioPath: actualPath,
+        signedUrl: memoryUri,
         expiresAt,
       });
 

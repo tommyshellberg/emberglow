@@ -1,5 +1,3 @@
-import '@testing-library/react-native/extend-expect';
-
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { AccessibilityInfo } from 'react-native';

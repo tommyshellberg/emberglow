@@ -1,5 +1,4 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { ArrowLeft, Lock } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -82,8 +81,11 @@ export default function PendingQuestScreen() {
     usePendingQuestAnimations(!!pendingQuest);
 
   const handleCancelQuest = () => {
+    // No navigation here: clearing pendingQuest flips the resolver to target
+    // 'app', and NavigationGate owns the move off this screen. Navigating as
+    // well raced the gate — it replaced this screen with a fresh (app) tab tree
+    // while router.back() tore that down in the same frame.
     cancelQuest();
-    router.back();
   };
 
   if (!pendingQuest) {

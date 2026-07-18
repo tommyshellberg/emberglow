@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { fireEvent, render, screen } from '@/lib/test-utils';
+import { act, fireEvent, render, screen } from '@/lib/test-utils';
 
 import { DateTimeField } from './date-time-field';
 
@@ -42,7 +42,11 @@ describe('DateTimeField', () => {
     expect(picker.props.mode).toBe('time');
 
     const picked = new Date('2026-07-07T10:45:00');
-    picker.props.onChange({}, picked);
+    // Called directly on the prop (not via fireEvent), so React 19 needs an
+    // explicit act() to flush the resulting setState synchronously.
+    act(() => {
+      picker.props.onChange({}, picked);
+    });
 
     expect(onChange).toHaveBeenCalledWith(picked);
     // the picker hides again and the trigger button reappears

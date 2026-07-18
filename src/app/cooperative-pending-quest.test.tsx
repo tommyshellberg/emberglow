@@ -423,8 +423,11 @@ describe('CooperativePendingQuestScreen', () => {
 
     fireEvent.press(getByText('Cancel Quest'));
 
+    // cancelQuest() alone: clearing pendingQuest flips the resolver to target
+    // 'app' and NavigationGate owns the move off this screen. Navigating here
+    // as well raced the gate and churned the (app) tab tree mid-mount.
     expect(mockCancelQuest).toHaveBeenCalled();
-    expect(router.back).toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });

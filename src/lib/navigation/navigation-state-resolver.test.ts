@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook } from '@testing-library/react-native';
 
 import { useAuth } from '@/lib/auth';
 import { useNavigationTarget } from '@/lib/navigation/navigation-state-resolver';
