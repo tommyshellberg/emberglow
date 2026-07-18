@@ -9,11 +9,11 @@ import { ContactItem } from './ContactItem';
 import { ContactSearchBar } from './ContactSearchBar';
 
 interface ContactsListProps {
-  contacts: (Contacts.Contact & { isFriend?: boolean })[];
+  contacts: (Contacts.ExistingContact & { isFriend?: boolean })[];
   selectedContacts: { [email: string]: { name: string; selected: boolean } };
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onContactSelect: (contact: Contacts.Contact) => void;
+  onContactSelect: (contact: Contacts.ExistingContact) => void;
   onInvite: () => void;
   onManualAdd: () => void;
   selectedCount: number;
@@ -21,7 +21,7 @@ interface ContactsListProps {
 
 interface ContactSection {
   title: string;
-  data: (Contacts.Contact & { isFriend?: boolean })[];
+  data: (Contacts.ExistingContact & { isFriend?: boolean })[];
 }
 
 // The list sits inside Emberglow's BottomSheet, which already provides the
@@ -57,7 +57,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
 
     // Group by first letter
     const grouped: {
-      [key: string]: (Contacts.Contact & { isFriend?: boolean })[];
+      [key: string]: (Contacts.ExistingContact & { isFriend?: boolean })[];
     } = {};
 
     sorted.forEach((contact) => {
@@ -81,7 +81,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
     return sections;
   }, [contacts, searchQuery]);
 
-  const isContactSelected = (contact: Contacts.Contact) => {
+  const isContactSelected = (contact: Contacts.ExistingContact) => {
     if (!contact.emails || contact.emails.length === 0) return false;
     const email = contact.emails[0].email!;
     return selectedContacts[email]?.selected || false;

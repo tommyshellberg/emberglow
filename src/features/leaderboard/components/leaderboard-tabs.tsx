@@ -70,9 +70,12 @@ export function LeaderboardTabs({
             accessibilityState={{ selected: isSelected }}
           >
             {/* Clone icon with correct color */}
-            {React.cloneElement(tab.icon as React.ReactElement, {
-              color: isSelected ? colors.text.accent : colors.text.muted,
-            })}
+            {React.cloneElement(
+              tab.icon as React.ReactElement<{ color?: string }>,
+              {
+                color: isSelected ? colors.text.accent : colors.text.muted,
+              }
+            )}
 
             {/* Tab Label */}
             <Text style={[styles.label, isSelected && styles.labelSelected]}>

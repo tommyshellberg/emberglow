@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
   interpolateColor,
+  type SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
@@ -15,9 +16,9 @@ import { type StreakDay } from './streak-visualization.util';
 interface AnimatedStreakDayProps {
   day: StreakDay;
   /** 0 -> 1 ignition progress, drives the lit background/border/glow. */
-  litProgress: Animated.SharedValue<number>;
+  litProgress: SharedValue<number>;
   /** 1 -> BOUNCE_SCALE -> 1 punch on ignite. */
-  scale: Animated.SharedValue<number>;
+  scale: SharedValue<number>;
 }
 
 /**

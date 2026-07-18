@@ -18,6 +18,7 @@ import React, { useRef } from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
+  type SharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -188,7 +189,7 @@ const AchievementCarouselDot = ({
   scrollX,
 }: {
   index: number;
-  scrollX: Animated.SharedValue<number>;
+  scrollX: SharedValue<number>;
 }) => {
   const inputRange = [
     (index - 1) * (CARD_WIDTH + CARD_SPACING),

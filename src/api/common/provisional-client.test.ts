@@ -82,6 +82,9 @@ describe('Provisional API Client', () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        // No-timeout requests can pend forever once the OS drops the socket
+        // (observed wedging completeQuest's reward fetch on a locked phone).
+        timeout: 30000,
       });
     });
 

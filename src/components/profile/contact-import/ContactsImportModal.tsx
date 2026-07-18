@@ -64,7 +64,7 @@ export const ContactsImportModal = forwardRef<
 >(({ sendBulkInvites, friends, userEmail }, ref) => {
   const sheet = useEmberglowBottomSheet();
   const [viewState, setViewState] = useState<ViewState>('empty');
-  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [contacts, setContacts] = useState<Contacts.ExistingContact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<SelectedContacts>(
     {}
   );
@@ -194,7 +194,7 @@ export const ContactsImportModal = forwardRef<
     }
   };
 
-  const handleContactSelect = (contact: Contacts.Contact) => {
+  const handleContactSelect = (contact: Contacts.ExistingContact) => {
     if (contact.emails && contact.emails[0]) {
       const email = contact.emails[0].email!;
       const name = contact.name || email;

@@ -59,7 +59,11 @@ type ForwardedBottomSheetRef = React.ForwardedRef<BottomSheetModal>;
 export const useEmberglowBottomSheet = () => {
   const ref = React.useRef<BottomSheetModal>(null);
   const present = React.useCallback((data?: unknown) => {
-    ref.current?.present(data);
+    // `BottomSheetModal`'s data-payload generic now defaults to `never`
+    // (was `any`) as of @gorhom/bottom-sheet v5.2, but this hook is a
+    // generic passthrough — the cast is compile-time only and does not
+    // change what's forwarded to the underlying `present` call.
+    ref.current?.present(data as never);
   }, []);
   const dismiss = React.useCallback(() => {
     ref.current?.dismiss();

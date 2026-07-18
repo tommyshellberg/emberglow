@@ -10,6 +10,10 @@ const provisionalApiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Same rationale as apiClient: axios defaults to no timeout, and a request
+  // issued while the phone is locked can stay pending forever once the OS
+  // drops the socket. 30s clears a Render cold start.
+  timeout: 30000,
 });
 
 // Simple request interceptor that attaches the provisional token

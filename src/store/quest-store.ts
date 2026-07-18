@@ -145,63 +145,12 @@ export const useQuestStore = create<QuestState>()(
             const questRunId = QuestTimer.getQuestRunId();
 
             // Create base completed quest
-            let completedQuest: Quest = {
+            const completedQuest: Quest = {
               ...activeQuest,
               stopTime: completionTime,
               status: 'completed' as const,
               questRunId: questRunId || undefined,
             };
-
-            // Fetch quest run data from server to get participant rewards
-            if (questRunId) {
-              try {
-                console.log(
-                  '[QuestStore] Fetching quest run data to get rewards:',
-                  questRunId
-                );
-                const { getQuestRunStatus } = await import(
-                  '@/lib/services/quest-run-service'
-                );
-                const questRunData = await getQuestRunStatus(questRunId);
-
-                console.log('[QuestStore] Quest run data received:', {
-                  questRunId,
-                  status: questRunData.status,
-                  hasParticipants: !!questRunData.participants,
-                  participantCount: questRunData.participants?.length,
-                });
-
-                // Add participants with rewards to the completed quest
-                if (questRunData.participants) {
-                  completedQuest.participants = questRunData.participants.map(
-                    (p: any) => ({
-                      userId: typeof p === 'string' ? p : p.userId,
-                      ready: typeof p === 'object' ? p.ready : true,
-                      status: typeof p === 'object' ? p.status : 'completed',
-                      phoneLocked:
-                        typeof p === 'object' ? p.phoneLocked : undefined,
-                      rewards: typeof p === 'object' ? p.rewards : undefined,
-                    })
-                  );
-
-                  console.log(
-                    '[QuestStore] Added participant rewards to completed quest:',
-                    {
-                      questId: completedQuest.id,
-                      participantCount: completedQuest.participants.length,
-                      firstParticipantRewards:
-                        completedQuest.participants[0]?.rewards,
-                    }
-                  );
-                }
-              } catch (error) {
-                console.error(
-                  '[QuestStore] Failed to fetch quest run data for rewards:',
-                  error
-                );
-                // Continue with base completed quest if fetch fails
-              }
-            }
 
             // Track cooperative quest success
             const cooperativeQuestRun = get().cooperativeQuestRun;
@@ -321,6 +270,71 @@ export const useQuestStore = create<QuestState>()(
                 .catch((err) =>
                   console.error('Error scheduling streak notifications:', err)
                 );
+            }
+
+            // Reward enrichment is best-effort and must stay BELOW the set()
+            // above: NavigationGate routes on recentCompletedQuest, and this
+            // fetch goes out while the phone may still be locked — it can
+            // stall long past the point the background service is torn down.
+            if (questRunId) {
+              try {
+                console.log(
+                  '[QuestStore] Fetching quest run data to get rewards:',
+                  questRunId
+                );
+                // Dynamic import is load-bearing: a static import would close
+                // the cycle quest-store → quest-run-service → api client →
+                // lib/auth → stores (import/no-cycle). It also cannot resolve
+                // under Jest (no --experimental-vm-modules), which the catch
+                // below absorbs — this branch is device-verified only.
+                const { getQuestRunStatus } = await import(
+                  '@/lib/services/quest-run-service'
+                );
+                const questRunData = await getQuestRunStatus(questRunId);
+
+                console.log('[QuestStore] Quest run data received:', {
+                  questRunId,
+                  status: questRunData.status,
+                  hasParticipants: !!questRunData.participants,
+                  participantCount: questRunData.participants?.length,
+                });
+
+                if (questRunData.participants) {
+                  const participants = questRunData.participants.map(
+                    (p: any) => ({
+                      userId: typeof p === 'string' ? p : p.userId,
+                      ready: typeof p === 'object' ? p.ready : true,
+                      status: typeof p === 'object' ? p.status : 'completed',
+                      phoneLocked:
+                        typeof p === 'object' ? p.phoneLocked : undefined,
+                      rewards: typeof p === 'object' ? p.rewards : undefined,
+                    })
+                  );
+
+                  set((state) => {
+                    // Another quest may have completed while this fetch was
+                    // in flight — only enrich the run it belongs to.
+                    if (state.recentCompletedQuest?.questRunId !== questRunId) {
+                      return {};
+                    }
+                    const enriched = {
+                      ...state.recentCompletedQuest,
+                      participants,
+                    };
+                    return {
+                      recentCompletedQuest: enriched,
+                      completedQuests: state.completedQuests.map((quest) =>
+                        quest.questRunId === questRunId ? enriched : quest
+                      ),
+                    };
+                  });
+                }
+              } catch (error) {
+                console.error(
+                  '[QuestStore] Failed to fetch quest run data for rewards:',
+                  error
+                );
+              }
             }
 
             return completedQuest;

@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { Clock, Lock, Users } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Image, type ImageStyle } from 'react-native';
@@ -152,8 +151,9 @@ export default function CooperativePendingQuestScreen() {
   }, [showCountdown]);
 
   const handleCancelQuest = () => {
+    // As in pending-quest.tsx: clearing pendingQuest flips the resolver to
+    // target 'app' and NavigationGate owns the move off this screen.
     cancelQuest();
-    router.back();
   };
 
   // Loading state

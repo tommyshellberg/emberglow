@@ -24,10 +24,12 @@ import { type KeyboardAwareScrollViewProps } from 'react-native-keyboard-control
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Reanimated from 'react-native-reanimated';
 
-const AnimatedScrollView =
-  Reanimated.createAnimatedComponent<KeyboardAwareScrollViewProps>(
-    KeyboardAwareScrollView
-  );
+// No explicit generic here: Reanimated 4's `createAnimatedComponent` infers
+// props from the component's own type; passing `KeyboardAwareScrollViewProps`
+// explicitly matches the deprecated FlatList-only overload instead.
+const AnimatedScrollView = Reanimated.createAnimatedComponent(
+  KeyboardAwareScrollView
+);
 const BottomSheetScrollViewComponent = createBottomSheetScrollableComponent<
   BottomSheetScrollViewMethods,
   BottomSheetScrollViewProps

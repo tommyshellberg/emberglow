@@ -13,6 +13,11 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Axios defaults to no timeout. A request issued while the phone is locked
+  // can outlive its socket (Doze kills it silently) and stay pending forever —
+  // observed 2026-07-16 wedging completeQuest's reward fetch. 30s clears a
+  // Render cold start while still guaranteeing every request settles.
+  timeout: 30000,
 });
 
 // Track if we're currently refreshing the token
@@ -173,7 +178,9 @@ apiClient.interceptors.response.use(
           // Reset refresh attempts on success
           refreshAttempts = 0;
           if (__DEV__) {
-            console.log('[API Client] Token refresh successful, attempts reset');
+            console.log(
+              '[API Client] Token refresh successful, attempts reset'
+            );
           }
 
           return apiClient(originalRequest);

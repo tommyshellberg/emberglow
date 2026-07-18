@@ -393,7 +393,7 @@ export default function CooperativeQuestLobby() {
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     if (hasTransitioned && currentLobby) {
       // Navigate after the flag is set

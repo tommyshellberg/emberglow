@@ -86,46 +86,51 @@ describe('CooperativeQuestMenu', () => {
     });
   });
 
-  it('should navigate to create quest screen when Create Quest is pressed', () => {
+  // These options only render once the `friends` query (mocked with a real
+  // Promise) resolves and the component leaves its `isLoading` state - a
+  // plain `screen.getByText` right after `render` races that resolution.
+  // `findByText` awaits it the same way the first test's `waitFor` does.
+
+  it('should navigate to create quest screen when Create Quest is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const createButton = screen.getByText('Create Quest');
+    const createButton = await screen.findByText('Create Quest');
     fireEvent.press(createButton);
 
     expect(mockPush).toHaveBeenCalledWith('/create-cooperative-quest');
   });
 
-  it('should navigate to join quest screen when Join Quest is pressed', () => {
+  it('should navigate to join quest screen when Join Quest is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const joinButton = screen.getByText('Join Quest');
+    const joinButton = await screen.findByText('Join Quest');
     fireEvent.press(joinButton);
 
     expect(mockPush).toHaveBeenCalledWith('/join-cooperative-quest');
   });
 
-  it('should navigate to scheduled quest screen when Public Events is pressed', () => {
+  it('should navigate to scheduled quest screen when Public Events is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const eventsButton = screen.getByText('Public Events');
+    const eventsButton = await screen.findByText('Public Events');
     fireEvent.press(eventsButton);
 
     expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
   });
 
-  it('should show Public Events option regardless of feature flags', () => {
+  it('should show Public Events option regardless of feature flags', async () => {
     (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
       selector({ user: { featureFlags: [] } })
     );
     render(<CooperativeQuestMenu />);
 
-    expect(screen.getByText('Public Events')).toBeTruthy();
+    expect(await screen.findByText('Public Events')).toBeTruthy();
   });
 
-  it('should open contacts modal when Add Friends is pressed', () => {
+  it('should open contacts modal when Add Friends is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const friendsButton = screen.getByText('Add Friends');
+    const friendsButton = await screen.findByText('Add Friends');
     fireEvent.press(friendsButton);
 
     // The Add Friends button opens a modal, not a navigation
