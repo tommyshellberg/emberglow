@@ -81,7 +81,7 @@ jest.mock('react-native-onesignal', () => ({
   },
 }));
 
-jest.mock('react-native-bg-actions', () => ({
+jest.mock('react-native-background-actions', () => ({
   isRunning: jest.fn().mockReturnValue(false),
   stop: jest.fn(),
 }));
@@ -376,9 +376,10 @@ describe('RootLayout', () => {
 
     // Safety check: if somehow this is >= 24 hours ago, use exactly 20 hours ago
     const hoursSince = (Date.now() - yesterday.getTime()) / (1000 * 60 * 60);
-    const lastCompletedTimestamp = hoursSince >= 24
-      ? Date.now() - (20 * 60 * 60 * 1000) // 20 hours ago
-      : yesterday.getTime();
+    const lastCompletedTimestamp =
+      hoursSince >= 24
+        ? Date.now() - 20 * 60 * 60 * 1000 // 20 hours ago
+        : yesterday.getTime();
 
     useQuestStore.getState.mockReturnValue({
       lastCompletedQuestTimestamp: lastCompletedTimestamp,

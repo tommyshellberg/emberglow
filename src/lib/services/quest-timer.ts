@@ -1,7 +1,7 @@
 import 'react-native-get-random-values'; // Import for crypto.randomUUID
 
 import { Platform } from 'react-native';
-import BackgroundService from 'react-native-bg-actions';
+import BackgroundService from 'react-native-background-actions';
 import { OneSignal } from 'react-native-onesignal';
 import { v4 as uuidv4 } from 'uuid'; // Use uuid for unique IDs
 
@@ -318,6 +318,7 @@ export default class QuestTimer {
         type: 'mipmap',
       },
       color: '#77c5bf',
+      foregroundServiceType: ['specialUse' as const],
       progressBar: {
         max: 100,
         value: 0,

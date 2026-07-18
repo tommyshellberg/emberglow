@@ -1,4 +1,12 @@
 import { type ViewStyle } from 'react-native';
+import { type useAnimatedStyle } from 'react-native-reanimated';
+
+/**
+ * Return type of `useAnimatedStyle`, which in Reanimated 4 is an opaque
+ * handle (not a plain style object) meant only to be passed to a component's
+ * `style` prop — see https://docs.swmansion.com/react-native-reanimated/docs/core/useAnimatedStyle.
+ */
+type AnimatedStyle = ReturnType<typeof useAnimatedStyle<ViewStyle>>;
 
 /**
  * Animation styles returned from the animation hook.
@@ -8,8 +16,8 @@ import { type ViewStyle } from 'react-native';
  * shape.
  */
 export interface AnimationStyles {
-  headerStyle: ViewStyle;
-  cardStyle: ViewStyle;
-  buttonStyle: ViewStyle;
-  shimmerStyle: ViewStyle;
+  headerStyle: AnimatedStyle;
+  cardStyle: AnimatedStyle;
+  buttonStyle: AnimatedStyle;
+  shimmerStyle: AnimatedStyle;
 }

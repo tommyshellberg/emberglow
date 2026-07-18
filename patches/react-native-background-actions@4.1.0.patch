@@ -1,0 +1,52 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index a5edbb79734e1c42f3c95da467838802c743e7b2..6a9da2c4ddab581608ac998632fa843a765c81fe 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -21,4 +21,15 @@ android {
+ dependencies {
+     //noinspection GradleDynamicVersion
+     implementation 'com.facebook.react:react-native:+'  // From node_modules
++    // react-android's dependency constraints pin androidx.core to 1.13.1 for this module's
++    // own compile classpath (independent of the app's resolved runtime classpath, which is
++    // already >= 1.17.0 via other dependencies). NotificationCompat.ProgressStyle and
++    // Builder#setRequestPromotedOngoing require 1.17.0+, so force it here too.
++    implementation 'androidx.core:core:1.17.0'
++}
++
++configurations.all {
++    resolutionStrategy {
++        force 'androidx.core:core:1.17.0'
++    }
+ }
+diff --git a/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java b/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
+index 963b7889356454d12c150398631a3d493f53b5b2..b2ef56c772e7f1a399537864c3f6daaa3574b88c 100644
+--- a/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
++++ b/android/src/main/java/com/asterinet/react/bgactions/RNBackgroundActionsTask.java
+@@ -20,6 +20,8 @@ import com.facebook.react.HeadlessJsTaskService;
+ import com.facebook.react.bridge.Arguments;
+ import com.facebook.react.jstasks.HeadlessJsTaskConfig;
+ 
++import java.util.Collections;
++
+ final public class RNBackgroundActionsTask extends HeadlessJsTaskService {
+ 
+     public static final int SERVICE_NOTIFICATION_ID = 92901;
+@@ -68,6 +70,18 @@ final public class RNBackgroundActionsTask extends HeadlessJsTaskService {
+             final int progressCurrent = (int) Math.floor(progressBarBundle.getDouble("value"));
+             final boolean progressIndeterminate = progressBarBundle.getBoolean("indeterminate");
+             builder.setProgress(progressMax, progressCurrent, progressIndeterminate);
++            // Android 16 Live Update surface: mirrors the classic progress values above via
++            // NotificationCompat.ProgressStyle. androidx.core no-ops both calls below API 36
++            // (ProgressStyle#apply falls back to the classic Notification.Builder#setProgress
++            // path; setRequestPromotedOngoing just writes an ignored Bundle extra), so this is
++            // safe on all supported API levels without a Build.VERSION.SDK_INT guard.
++            final NotificationCompat.ProgressStyle progressStyle = new NotificationCompat.ProgressStyle()
++                    .setProgressSegments(Collections.singletonList(
++                            new NotificationCompat.ProgressStyle.Segment(progressMax)))
++                    .setProgress(progressCurrent)
++                    .setProgressIndeterminate(progressIndeterminate);
++            builder.setStyle(progressStyle);
++            builder.setRequestPromotedOngoing(true);
+         }
+         return builder.build();
+     }

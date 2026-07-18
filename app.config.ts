@@ -18,7 +18,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/images/icon.png',
   userInterfaceStyle: 'automatic',
   backgroundColor: colors.black,
-  newArchEnabled: true,
   runtimeVersion: Env.VERSION.toString(),
   updates: {
     fallbackToCacheTimeout: 0,
@@ -55,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: Env.PACKAGE,
     permissions: [
       'android.permission.FOREGROUND_SERVICE',
-      'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+      'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
       'android.permission.WAKE_LOCK',
       'com.android.vending.BILLING',
     ],
@@ -65,6 +64,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       usesCleartextTraffic: true,
     }),
   },
+  // Bare workflow: ios/ and android/ are committed and prebuild never runs,
+  // so this plugins list has zero effect on the actual build — it's kept only
+  // for parity if we ever return to Continuous Native Generation (CNG).
+  // Do not chase `expo install --fix` advisories asking to add plugin entries
+  // here (e.g. @react-native-community/datetimepicker, @sentry/react-native,
+  // expo-audio) — they only matter under CNG.
   plugins: [
     [
       'expo-splash-screen',

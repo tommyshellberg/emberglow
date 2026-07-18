@@ -7,7 +7,7 @@ import { Badge, ListItem } from '@/components/emberglow';
 import { colors, palette, radii } from '@/theme';
 
 interface ContactItemProps {
-  contact: Contacts.Contact & { isFriend?: boolean };
+  contact: Contacts.ExistingContact & { isFriend?: boolean };
   isSelected: boolean;
   isFriend: boolean;
   onPress: () => void;
