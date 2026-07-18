@@ -8,6 +8,8 @@ import Purchases, {
 } from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 
+import { posthogClient } from '@/lib/posthog';
+
 export class RevenueCatService {
   private static instance: RevenueCatService;
   private isInitialized = false;
@@ -208,28 +210,50 @@ export class RevenueCatService {
   }
 
   async purchasePackage(pkg: PurchasesPackage): Promise<CustomerInfo> {
+    const purchaseProps = {
+      package_id: pkg.identifier,
+      product_id: pkg.product.identifier,
+      price: pkg.product.price,
+      currency: pkg.product.currencyCode,
+    };
+    posthogClient.capture('purchase_initiated', purchaseProps);
+
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       this.customerInfo = customerInfo;
+      posthogClient.capture('purchase_completed', purchaseProps);
       return customerInfo;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.userCancelled) {
+        posthogClient.capture('purchase_cancelled', {
+          package_id: pkg.identifier,
+        });
+      } else {
+        posthogClient.capture('purchase_failed', {
+          package_id: pkg.identifier,
+          error_code: error?.code ?? error?.message,
+        });
+      }
       console.error('Failed to purchase package:', error);
       throw error;
     }
   }
 
   async restorePurchases(): Promise<CustomerInfo> {
+    posthogClient.capture('restore_purchases_attempted');
     try {
       const customerInfo = await Purchases.restorePurchases();
       this.customerInfo = customerInfo;
+      posthogClient.capture('restore_purchases_succeeded');
       return customerInfo;
     } catch (error) {
+      posthogClient.capture('restore_purchases_failed');
       console.error('Failed to restore purchases:', error);
       throw error;
     }
   }
 
-  async presentPaywall(): Promise<boolean> {
+  async presentPaywall(source: string = 'unknown'): Promise<boolean> {
     // Ensure SDK is initialized
     if (!this.isInitialized) {
       console.error('RevenueCat not initialized. Cannot present paywall.');
@@ -245,19 +269,39 @@ export class RevenueCatService {
     }
 
     try {
+      posthogClient.capture('paywall_viewed', { source });
+
       const paywallResult = await RevenueCatUI.presentPaywall();
       console.log('Paywall result:', paywallResult);
 
       switch (paywallResult) {
         case RevenueCatUI.PAYWALL_RESULT.PURCHASED:
-        case RevenueCatUI.PAYWALL_RESULT.RESTORED:
+          posthogClient.capture('purchase_completed', {
+            source,
+            method: 'paywall',
+          });
           // Refresh customer info after successful purchase/restore
           await this.refreshCustomerInfo();
           return true;
+        case RevenueCatUI.PAYWALL_RESULT.RESTORED:
+          posthogClient.capture('restore_purchases_succeeded', {
+            source,
+            method: 'paywall',
+          });
+          await this.refreshCustomerInfo();
+          return true;
         case RevenueCatUI.PAYWALL_RESULT.CANCELLED:
+          posthogClient.capture('purchase_cancelled', {
+            source,
+            method: 'paywall',
+          });
           console.log('User cancelled paywall');
           return false;
         case RevenueCatUI.PAYWALL_RESULT.ERROR:
+          posthogClient.capture('purchase_failed', {
+            source,
+            method: 'paywall',
+          });
           console.error('Error presenting paywall');
           return false;
         case RevenueCatUI.PAYWALL_RESULT.NOT_PRESENTED:
@@ -280,10 +324,15 @@ export class RevenueCatService {
             'Development mode: Configuration issue detected, enabling test mode'
           );
           this.testModeEnabled = true;
-          return this.presentPaywall(); // Retry with test mode
+          return this.presentPaywall(source); // Retry with test mode
         }
       }
 
+      posthogClient.capture('purchase_failed', {
+        source,
+        method: 'paywall',
+        error_code: error?.code ?? error?.message ?? 'unknown',
+      });
       throw error;
     }
   }

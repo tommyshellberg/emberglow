@@ -239,6 +239,23 @@ jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({
     capture: jest.fn(),
   }),
+  PostHogProvider: ({ children }: { children: React.ReactNode }) => children,
+  default: jest.fn().mockImplementation(() => ({
+    capture: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  })),
+}));
+
+// Shared module-level client (src/lib/posthog.ts) — mocked globally so
+// services and stores that import it can run under test; suites assert on
+// these fns directly.
+jest.mock('@/lib/posthog', () => ({
+  posthogClient: {
+    capture: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
 }));
 
 // Mock BlurView from expo-blur

@@ -1,27 +1,20 @@
 import { PostHogProvider } from 'posthog-react-native';
 import React from 'react';
 
+import { posthogClient } from '@/lib/posthog';
+
 interface PostHogProviderWrapperProps {
-  apiKey: string;
-  options: {
-    host: string;
-  };
   children: React.ReactNode;
 }
 
 export function PostHogProviderWrapper({
-  apiKey,
-  options,
   children,
 }: PostHogProviderWrapperProps) {
   return (
     <PostHogProvider
-      apiKey={apiKey}
-      options={{
-        ...options,
-        // Disable PostHog in development to prevent annoying error messages
-        disabled: __DEV__,
-      }}
+      // Shared module-level client so non-React code (services, stores) can
+      // capture through the same instance — see src/lib/posthog.ts.
+      client={posthogClient}
       // Disable autocapture to prevent navigation errors
       autocapture={false}
     >

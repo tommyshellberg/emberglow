@@ -508,12 +508,7 @@ function Providers({
         >
           <KeyboardProvider>
             <ThemeProvider value={theme}>
-              <PostHogProviderWrapper
-                apiKey={Env.POSTHOG_API_KEY}
-                options={{
-                  host: 'https://us.i.posthog.com',
-                }}
-              >
+              <PostHogProviderWrapper>
                 <APIProvider>
                   <LazyWebSocketProvider>
                     <BottomSheetModalProvider>

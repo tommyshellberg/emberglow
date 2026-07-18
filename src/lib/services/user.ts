@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 import type { Character } from '@/store/types';
 
@@ -371,6 +372,10 @@ export async function createProvisionalUser(
     // Store the user ID and tokens
     console.log('setting provisional user id', response.data.user.id);
     setItem('provisionalUserId', response.data.user.id);
+
+    // Identify as early as possible so all onboarding events attach to the
+    // server-side user id (same id given to OneSignal and RevenueCat).
+    posthogClient.identify(response.data.user.id);
 
     // Store the access token separately from regular auth tokens
     if (response.data.tokens?.access?.token) {

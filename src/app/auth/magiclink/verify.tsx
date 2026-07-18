@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FlameKindling } from 'lucide-react-native';
+import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -52,6 +53,7 @@ const ERROR_BODY_MAX_WIDTH = 240;
 
 export default function VerifyMagicLinkScreen() {
   const router = useRouter();
+  const posthog = usePostHog();
   const params = useLocalSearchParams();
   const token = params.token as string;
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,10 @@ export default function VerifyMagicLinkScreen() {
         // Call the comprehensive verification function
         const navigationTarget = await verifyMagicLinkAndSignIn(token);
 
+        // The magic link is the final signup step — this closes the
+        // onboarding funnel (magic_link_sent_success → signup_completed).
+        posthog.capture('signup_completed');
+
         // Navigate based on the returned target
         if (navigationTarget === 'app') {
           router.replace('/(app)/');
@@ -136,7 +142,7 @@ export default function VerifyMagicLinkScreen() {
     // `params` stays in the deps despite being unread in the body now:
     // removing it would change when verification re-runs (a behavior change
     // beyond this presentation pass); the ref guard above absorbs the churn.
-  }, [token, router, params]);
+  }, [token, router, params, posthog]);
 
   if (error) {
     return (

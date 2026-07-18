@@ -528,6 +528,7 @@ export default function Home() {
       {/* Premium Paywall Modal */}
       <PremiumPaywall
         isVisible={showPaywallModal}
+        source="home"
         onClose={() => {
           setShowPaywallModal(false);
         }}

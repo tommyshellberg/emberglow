@@ -30,6 +30,13 @@ jest.mock('@/lib/auth', () => ({
 // Mock axios
 jest.mock('axios');
 
+// Stable capture fn so assertions can see calls (the global jest-setup mock
+// returns a fresh object per usePostHog call).
+const mockPosthogCapture = jest.fn();
+jest.mock('posthog-react-native', () => ({
+  usePostHog: () => ({ capture: mockPosthogCapture }),
+}));
+
 describe('MagicLinkVerifyScreen', () => {
   let mockReplace: jest.Mock;
 
@@ -104,6 +111,35 @@ describe('MagicLinkVerifyScreen', () => {
 
     // Verify that verifyMagicLinkAndSignIn was called with the correct token
     expect(verifyMagicLinkAndSignIn).toHaveBeenCalledWith('valid-token');
+  });
+
+  it('should capture signup_completed after successful verification', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      token: 'valid-token',
+    });
+    (verifyMagicLinkAndSignIn as jest.Mock).mockResolvedValue('app');
+
+    render(<MagicLinkVerifyScreen />);
+
+    await waitFor(() => {
+      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed');
+    });
+  });
+
+  it('should not capture signup_completed when verification fails', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      token: 'bad-token',
+    });
+    (verifyMagicLinkAndSignIn as jest.Mock).mockRejectedValue(
+      new Error('expired')
+    );
+
+    render(<MagicLinkVerifyScreen />);
+
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalled();
+    });
+    expect(mockPosthogCapture).not.toHaveBeenCalledWith('signup_completed');
   });
 
   it('should redirect to onboarding when verification returns onboarding target', async () => {
