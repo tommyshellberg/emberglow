@@ -2,7 +2,9 @@
  * Quest Creation Hook
  *
  * Handles the business logic for creating and starting custom quests.
- * Includes XP calculation, API calls, error handling with Sentry, analytics, and navigation.
+ * Includes XP calculation, API calls, error handling with Sentry, and
+ * analytics. Navigation is not handled here: `startPresenceQuest` activates
+ * the quest and the resolver/NavigationGate routes to `/active-quest`.
  */
 
 import { usePostHog } from 'posthog-react-native';
