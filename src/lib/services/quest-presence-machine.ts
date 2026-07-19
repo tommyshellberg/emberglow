@@ -7,8 +7,9 @@
  * Spec: docs/superpowers/specs/2026-07-03-unified-quest-presence-design.md
  */
 
-export const GRACE_MS = 30_000;
-export const WARNING_DELAY_MS = 3_000; // warning fires ~3s after leaving so instant switch-backs never see it
+export const VISIBLE_GRACE_MS = 30_000; // tile-visible countdown length only — never a judgment
+export const PRESENCE_FAIL_GRACE_MS = 40_000; // offline-fallback fail judgment; mirrors the server's dead-man's-switch delay (the ~10s gap absorbs the "back" PATCH round-trip + clock skew)
+export const WARNING_DELAY_MS = 3_000; // away debounce: warning + away-report fire ~3s after leaving so instant switch-backs and lock races never see them
 
 export type PresenceState =
   | 'IN_APP'
@@ -166,10 +167,10 @@ const toAway = (ctx: PresenceContext, now: number): Reduction => ({
   context: enter(ctx, {
     state: 'AWAY',
     enteredAt: now,
-    graceDeadline: now + GRACE_MS,
+    graceDeadline: now + PRESENCE_FAIL_GRACE_MS,
   }),
   effects: [
-    { type: 'ARM_GRACE_DEADLINE', at: now + GRACE_MS },
+    { type: 'ARM_GRACE_DEADLINE', at: now + PRESENCE_FAIL_GRACE_MS },
     { type: 'SCHEDULE_WARNING_NOTIFICATION', delayMs: WARNING_DELAY_MS },
     { type: 'PERSIST_SNAPSHOT' },
   ],
@@ -181,11 +182,11 @@ const toAwayFromLock = (ctx: PresenceContext, now: number): Reduction => ({
     enteredAt: now,
     lockedMs: closeSegment(ctx, now),
     lockedSegmentStart: null,
-    graceDeadline: now + GRACE_MS,
+    graceDeadline: now + PRESENCE_FAIL_GRACE_MS,
   }),
   effects: [
     { type: 'PATCH_LOCK', locked: false },
-    { type: 'ARM_GRACE_DEADLINE', at: now + GRACE_MS },
+    { type: 'ARM_GRACE_DEADLINE', at: now + PRESENCE_FAIL_GRACE_MS },
     { type: 'SCHEDULE_WARNING_NOTIFICATION', delayMs: WARNING_DELAY_MS },
     { type: 'PERSIST_SNAPSHOT' },
   ],
@@ -260,7 +261,7 @@ export interface PresenceSnapshot {
  *    locked span → COMPLETED (server auto-completed), else resume IN_APP with an
  *    unlock PATCH (relaunch means the phone is now unlocked/foregrounded).
  *  - IN_APP/AWAY snapshot: effective grace deadline = max(enteredAt, lastAliveAt)
- *    + GRACE_MS. For an IN_APP crash, lastAliveAt is within a tick of the crash,
+ *    + PRESENCE_FAIL_GRACE_MS. For an IN_APP crash, lastAliveAt is within a tick of the crash,
  *    so the clock starts at the crash, not at state entry.
  */
 export const rehydratePresence = (
@@ -276,7 +277,8 @@ export const rehydratePresence = (
     lockedSegmentStart: snapshot.state === 'LOCKED' ? snapshot.enteredAt : null,
     graceDeadline:
       snapshot.state === 'IN_APP' || snapshot.state === 'AWAY'
-        ? Math.max(snapshot.enteredAt, snapshot.lastAliveAt) + GRACE_MS
+        ? Math.max(snapshot.enteredAt, snapshot.lastAliveAt) +
+          PRESENCE_FAIL_GRACE_MS
         : null,
     lastAliveAt: snapshot.lastAliveAt,
   };

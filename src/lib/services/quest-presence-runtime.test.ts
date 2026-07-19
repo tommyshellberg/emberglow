@@ -195,12 +195,12 @@ describe('quest-presence-runtime', () => {
     );
   });
 
-  it('APP_BACKGROUND arms a 30s grace timer and, on expiry, reports left_app', async () => {
+  it('APP_BACKGROUND arms a 40s grace timer and, on expiry, reports left_app', async () => {
     startRuntimeForActivePresenceRun();
 
     fireAppState('background');
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(40_000);
     });
     await flush();
 
@@ -222,7 +222,7 @@ describe('quest-presence-runtime', () => {
     });
     fireAppState('active');
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(40_000);
     });
     await flush();
 
@@ -309,7 +309,7 @@ describe('quest-presence-runtime', () => {
 
     fireAppState('background');
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(40_000);
     });
     await flush();
 
@@ -349,7 +349,7 @@ describe('quest-presence-runtime', () => {
 
     // Grace timer was cleared: advancing past it must NOT report a failure.
     act(() => {
-      jest.advanceTimersByTime(30_000);
+      jest.advanceTimersByTime(40_000);
     });
     await flush();
     expect(updateQuestRunStatus).not.toHaveBeenCalled();

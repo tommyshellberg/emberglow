@@ -45,7 +45,7 @@ describe('IN_APP transitions', () => {
       t
     );
     expect(context.state).toBe('AWAY');
-    expect(context.graceDeadline).toBe(t + 30_000);
+    expect(context.graceDeadline).toBe(t + 40_000);
     expect(has(effects, 'ARM_GRACE_DEADLINE')).toBe(true);
     expect(has(effects, 'SCHEDULE_WARNING_NOTIFICATION')).toBe(true);
     expect(has(effects, 'PERSIST_SNAPSHOT')).toBe(true);
@@ -93,7 +93,7 @@ describe('LOCKED transitions & accounting', () => {
     expect(context.state).toBe('AWAY');
     expect(context.lockedMs).toBe(5 * 60_000);
     expect(context.lockedSegmentStart).toBeNull();
-    expect(context.graceDeadline).toBe(t + 30_000);
+    expect(context.graceDeadline).toBe(t + 40_000);
     expect(effects).toContainEqual({ type: 'PATCH_LOCK', locked: false });
     expect(has(effects, 'ARM_GRACE_DEADLINE')).toBe(true);
   });
@@ -125,7 +125,7 @@ describe('LOCKED transitions & accounting', () => {
 
 describe('AWAY transitions', () => {
   const away = (enteredAt: number) =>
-    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 30_000 });
+    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 40_000 });
 
   it('APP_ACTIVE within grace → IN_APP (rescue), cancels grace + warning', () => {
     const enteredAt = START + 60_000;
@@ -210,7 +210,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 30_000,
+      graceDeadline: enteredAt + 40_000,
     });
     const { context, effects } = presenceReducer(
       ctx,
@@ -227,23 +227,23 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 30_000,
+      graceDeadline: enteredAt + 40_000,
     });
     const { context } = presenceReducer(
       ctx,
       { type: 'APP_ACTIVE' },
       END + 60_000
     );
-    expect(context.state).toBe('FAILED'); // grace (00:02:30) came before end (00:30:00)
+    expect(context.state).toBe('FAILED'); // grace (00:02:40) came before end (00:30:00)
   });
 
   it('chronological: quest end before grace → COMPLETED (crash 10s before a long quest finished)', () => {
-    // AWAY entered 10s before END; grace would expire 20s AFTER END
+    // AWAY entered 10s before END; grace would expire 30s AFTER END
     const enteredAt = END - 10_000;
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 30_000,
+      graceDeadline: enteredAt + 40_000,
     });
     const { context } = presenceReducer(
       ctx,
@@ -258,7 +258,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 30_000,
+      graceDeadline: enteredAt + 40_000,
     });
     const { context } = presenceReducer(
       ctx,
@@ -310,7 +310,7 @@ describe('rehydratePresence (cold start)', () => {
   });
 
   it('IN_APP snapshot crash just before completion → COMPLETED (end beat the grace deadline)', () => {
-    // crashed IN_APP with lastAliveAt 5s before END; effective deadline = lastAliveAt + 30s > END
+    // crashed IN_APP with lastAliveAt 5s before END; effective deadline = lastAliveAt + 40s > END
     const lastAliveAt = END - 5_000;
     const { context } = rehydratePresence(
       snap({ state: 'IN_APP', enteredAt: START, lastAliveAt }),
@@ -342,7 +342,7 @@ describe('rehydratePresence (cold start)', () => {
   });
 
   it('AWAY snapshot uses enteredAt for the grace anchor', () => {
-    const enteredAt = START + 60_000; // left at 1:00, grace would expire 1:30
+    const enteredAt = START + 60_000; // left at 1:00, grace would expire 1:40
     const { context } = rehydratePresence(
       snap({ state: 'AWAY', enteredAt, lastAliveAt: START }),
       config,
