@@ -88,7 +88,7 @@ struct QuestActivityModel {
 
     init(context: ActivityViewContext<DefaultLiveActivityAttributes>) {
         let parsedStatus = QuestActivityStatus(rawString: context.state.data["status"]?.asString())
-        let minutes = context.state.data["durationMinutes"]?.asInt() ?? 0
+        let minutes = readInt(context.state.data, "durationMinutes")
         status = parsedStatus
         durationMinutes = minutes
         questTitle = context.attributes.data["title"]?.asString() ?? "Quest"
@@ -186,6 +186,16 @@ struct QuestLockScreenView: View {
 }
 
 // MARK: - Widget
+
+// Reads an integer from a Live Activity ContentState dictionary, tolerating
+// OneSignal's AnyCodable round-tripping the value back as a Double. asInt()
+// alone returns nil for a Double-encoded number, which the call sites used to
+// silently render as "Focus for 0 minutes" via `?? 0`.
+private func readInt(_ data: [String: AnyCodable], _ key: String) -> Int {
+    if let intValue = data[key]?.asInt() { return intValue }
+    if let doubleValue = data[key]?.asDouble() { return Int(doubleValue) }
+    return 0
+}
 
 struct liveactivitiesLiveActivity: Widget {
     var body: some WidgetConfiguration {
