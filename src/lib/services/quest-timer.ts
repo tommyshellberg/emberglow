@@ -19,7 +19,12 @@ import {
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
-import { type LocalQuestTemplate, type Quest } from '@/store/types';
+import {
+  type CustomQuestTemplate,
+  type LocalQuestTemplate,
+  type Quest,
+  type StoryQuestTemplate,
+} from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
 // --- Linter Fix for Type Errors ---

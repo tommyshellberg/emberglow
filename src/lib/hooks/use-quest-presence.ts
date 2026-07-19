@@ -100,6 +100,9 @@ export function useQuestPresence(): QuestPresenceView {
     forecast: forecastPresenceXP({ baseXP, multiplier }),
     isMuted: !!getItem(MUTED_KEY),
     questTitle: activeQuest?.title,
-    mode: activeQuest?.mode,
+    // SDK-54 main widened template mode to include 'cooperative', but this
+    // hook only ever views solo presence runs (the resolver's enforcement
+    // gate excludes coop). Narrow rather than widen the view type.
+    mode: activeQuest?.mode === 'cooperative' ? undefined : activeQuest?.mode,
   };
 }

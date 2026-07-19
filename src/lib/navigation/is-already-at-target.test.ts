@@ -74,6 +74,7 @@ describe('isAlreadyAtTarget', () => {
       'onboarding',
       'pending-quest',
       'cooperative-pending-quest',
+      'active-quest',
       'quest-completed-signup',
       'streak-celebration',
       'first-quest-result',
@@ -98,6 +99,19 @@ describe('isAlreadyAtTarget', () => {
     it('reports we are already at onboarding when sitting on /onboarding', () => {
       expect(
         isAlreadyAtTarget({ type: 'onboarding' }, ['onboarding'], '/onboarding')
+      ).toBe(true);
+    });
+
+    it('reports we are already at the active presence run when sitting on /active-quest', () => {
+      // Load-bearing loop guard: the resolver keeps emitting 'active-quest'
+      // for the entire run, so without this match the gate would re-replace
+      // the screen (and remount the root) on every effect run.
+      expect(
+        isAlreadyAtTarget(
+          { type: 'active-quest', questId: 'quest-1' },
+          ['active-quest'],
+          '/active-quest'
+        )
       ).toBe(true);
     });
 

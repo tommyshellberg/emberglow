@@ -5,7 +5,10 @@ import { useCallback } from 'react';
 import { type QuestOption, type QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import QuestTimer from '@/lib/services/quest-timer';
-import { type LocalQuestTemplate } from '@/store/types';
+import {
+  type CustomQuestTemplate,
+  type StoryQuestTemplate,
+} from '@/store/types';
 
 // The server-provided quest shape (matches the API's QuestTemplate, which
 // already carries the story-specific fields like poiSlug/story/recap/options
@@ -62,8 +65,10 @@ export function useQuestSelection({
           // Presence runs start immediately on tap - no more waiting for phone
           // lock. Navigation to the active-quest screen is wired by the
           // resolver in a later task.
+          // Solo runs only: mode is forced to 'story' | 'custom' above, so the
+          // cooperative arm of LocalQuestTemplate is excluded by construction.
           await QuestTimer.startPresenceQuest(
-            clientQuest as LocalQuestTemplate
+            clientQuest as StoryQuestTemplate | CustomQuestTemplate
           );
           posthog.capture('success_start_quest');
         } catch (error) {
