@@ -1,3 +1,4 @@
+import { usePostHog } from 'posthog-react-native';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { showMessage } from 'react-native-flash-message';
@@ -10,13 +11,18 @@ interface PremiumPaywallProps {
   isVisible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /** Where the paywall was opened from — becomes the `source` property on
+   * paywall/purchase events so conversion can be compared per placement. */
+  source?: string;
 }
 
 export function PremiumPaywall({
   isVisible,
   onClose,
   onSuccess,
+  source = 'unknown',
 }: PremiumPaywallProps) {
+  const posthog = usePostHog();
   console.log('[PremiumPaywall] Component rendered with isVisible:', isVisible);
   const [hasPresented, setHasPresented] = useState(false);
 
@@ -38,6 +44,8 @@ export function PremiumPaywall({
       // Present the paywall immediately when visible
       const presentPaywall = async () => {
         try {
+          posthog.capture('paywall_viewed', { source });
+
           const paywallResult = await RevenueCatUI.presentPaywall();
           console.log(
             '[PremiumPaywall] Paywall presentation result:',
@@ -46,6 +54,7 @@ export function PremiumPaywall({
 
           // Handle any immediate presentation errors
           if (paywallResult === RevenueCatUI.PAYWALL_RESULT.ERROR) {
+            posthog.capture('purchase_failed', { source, method: 'paywall' });
             Alert.alert(
               'Error',
               'Unable to show subscription options. Please try again later.',
@@ -60,12 +69,22 @@ export function PremiumPaywall({
               [{ text: 'OK', onPress: onClose }]
             );
           } else if (paywallResult === RevenueCatUI.PAYWALL_RESULT.CANCELLED) {
+            posthog.capture('purchase_cancelled', {
+              source,
+              method: 'paywall',
+            });
             console.log('[PremiumPaywall] User cancelled the paywall');
             onClose();
           } else if (
             paywallResult === RevenueCatUI.PAYWALL_RESULT.PURCHASED ||
             paywallResult === RevenueCatUI.PAYWALL_RESULT.RESTORED
           ) {
+            posthog.capture(
+              paywallResult === RevenueCatUI.PAYWALL_RESULT.RESTORED
+                ? 'restore_purchases_succeeded'
+                : 'purchase_completed',
+              { source, method: 'paywall' }
+            );
             console.log(
               '[PremiumPaywall] Purchase/Restore successful:',
               paywallResult
@@ -127,6 +146,11 @@ export function PremiumPaywall({
             onClose();
           }
         } catch (error: any) {
+          posthog.capture('purchase_failed', {
+            source,
+            method: 'paywall',
+            error_code: error?.code ?? error?.message,
+          });
           console.error('[PremiumPaywall] Error presenting paywall:', error);
 
           // In development, check for common issues
@@ -175,7 +199,7 @@ export function PremiumPaywall({
 
       presentPaywall();
     }
-  }, [isVisible, hasPresented, onClose, onSuccess]);
+  }, [isVisible, hasPresented, onClose, onSuccess, posthog, source]);
 
   // This component doesn't render anything visible
   return null;

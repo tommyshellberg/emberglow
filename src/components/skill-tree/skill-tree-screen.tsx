@@ -350,6 +350,7 @@ export function SkillTreeScreen() {
         isVisible={showPaywall}
         onClose={handlePaywallClose}
         onSuccess={handlePaywallSuccess}
+        source="skill_tree"
       />
     </View>
   );

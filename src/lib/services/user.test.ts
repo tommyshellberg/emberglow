@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 
 import {
@@ -110,6 +111,25 @@ describe('User Service', () => {
       expect(result.type).toBe('druid');
       expect(result.level).toBe(3);
       expect(result.xp).toBe(150);
+    });
+  });
+
+  describe('createProvisionalUser', () => {
+    it('identifies the user in PostHog with the server user id', async () => {
+      mockUuidv4.mockReturnValue('test-uuid' as any);
+      mockApiClient.post.mockResolvedValue({
+        data: {
+          user: { id: 'user-123' },
+          tokens: {},
+        },
+      });
+
+      await createProvisionalUser({
+        type: 'alchemist',
+        name: 'Tester',
+      } as any);
+
+      expect(posthogClient.identify).toHaveBeenCalledWith('user-123');
     });
   });
 

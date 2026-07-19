@@ -2,6 +2,7 @@ import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
 import { signIn } from '@/lib/auth';
+import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
@@ -132,6 +133,10 @@ export const verifyMagicLinkAndSignIn = async (
       // Store user data in user store
       if (userResponse && userResponse.id && userResponse.email) {
         useUserStore.getState().setUser(userResponse);
+
+        // Same id as OneSignal/RevenueCat — merges the anonymous history
+        // into the server-side user in PostHog.
+        posthogClient.identify(userResponse.id);
 
         // Link OneSignal with the user's MongoDB ID
         if ((global as any).isOneSignalInitialized) {
