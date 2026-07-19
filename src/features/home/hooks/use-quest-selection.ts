@@ -62,7 +62,9 @@ export function useQuestSelection({
           // Presence runs start immediately on tap - no more waiting for phone
           // lock. Navigation to the active-quest screen is wired by the
           // resolver in a later task.
-          await QuestTimer.startPresenceQuest(clientQuest as LocalQuestTemplate);
+          await QuestTimer.startPresenceQuest(
+            clientQuest as LocalQuestTemplate
+          );
           posthog.capture('success_start_quest');
         } catch (error) {
           console.error(
