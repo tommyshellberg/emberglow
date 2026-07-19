@@ -1,7 +1,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import React, { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { View } from '@/components/ui';
+import { colors, FocusAwareStatusBar, View } from '@/components/ui';
 import { useQuestPresence } from '@/lib/hooks/use-quest-presence';
 import { questAudio } from '@/lib/services/quest-audio.service';
 import { useQuestStore } from '@/store/quest-store';
@@ -13,8 +14,6 @@ import { JourneyProgressBar } from './active-quest/components/journey-progress-b
 import { PresenceFooter } from './active-quest/components/presence-footer';
 import { PresenceInfoStrip } from './active-quest/components/presence-info-strip';
 
-const BACKGROUND_COLOR = '#0a0712';
-
 /**
  * The active-quest screen: renders `useQuestPresence()` (read-only, Task 10)
  * and holds the screen awake for the duration of a solo PRESENCE run. It
@@ -25,6 +24,7 @@ const BACKGROUND_COLOR = '#0a0712';
  */
 export default function ActiveQuestScreen() {
   useKeepAwake();
+  const insets = useSafeAreaInsets();
 
   const {
     state,
@@ -70,7 +70,7 @@ export default function ActiveQuestScreen() {
     return (
       <View
         testID="active-quest-empty"
-        style={{ flex: 1, backgroundColor: BACKGROUND_COLOR }}
+        style={{ flex: 1, backgroundColor: colors.black }}
       />
     );
   }
@@ -86,35 +86,55 @@ export default function ActiveQuestScreen() {
   const fill = totalMs > 0 ? travelledMs / totalMs : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BACKGROUND_COLOR }}>
+    <View style={{ flex: 1, backgroundColor: colors.black }}>
+      {/* Force light status-bar icons: the app is `userInterfaceStyle:
+          'automatic'`, and without the (now-removed) native header a
+          light-mode device would render dark icons, invisible on this dark
+          screen. Matches every other full-bleed dark screen in the app. */}
+      <FocusAwareStatusBar />
       <CampfireAmbience />
 
-      <View style={{ paddingTop: 22, paddingHorizontal: 18 }}>
-        <PresenceInfoStrip
-          mode={mode}
-          questTitle={questTitle}
-          forecast={forecast}
-        />
-      </View>
+      {/* Own the safe area ourselves now that the native header is gone, so
+          the title clears the notch and the footer clears the home
+          indicator. */}
+      <View
+        style={{
+          flex: 1,
+          paddingTop: insets.top + 14,
+          paddingBottom: insets.bottom + 14,
+        }}
+      >
+        <View style={{ paddingHorizontal: 20 }}>
+          <PresenceInfoStrip
+            mode={mode}
+            questTitle={questTitle}
+            forecast={forecast}
+          />
+        </View>
 
-      <View style={{ marginTop: 60 }}>
-        <CountdownDisplay remainingMs={remainingMs} />
-      </View>
+        {/* Firelit hero, optically centred between the header and the
+            reassurance so the screen reads as one calm column instead of a
+            top-loaded list with a void beneath it. */}
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <CountdownDisplay remainingMs={remainingMs} />
 
-      <JourneyProgressBar
-        fill={fill}
-        travelledMs={travelledMs}
-        liveMultiplier={liveMultiplier}
-      />
+          <JourneyProgressBar
+            fill={fill}
+            travelledMs={travelledMs}
+            liveMultiplier={liveMultiplier}
+          />
 
-      <View style={{ marginTop: 24 }}>
-        <AmbientMusicPill
-          isMuted={localMuted}
-          onToggleMute={handleToggleMute}
-        />
-      </View>
+          <View style={{ marginTop: 24 }}>
+            <AmbientMusicPill
+              isMuted={localMuted}
+              onToggleMute={handleToggleMute}
+            />
+          </View>
+        </View>
 
-      <View style={{ position: 'absolute', bottom: 16, left: 0, right: 0 }}>
+        {/* Sits at the base of the column, right where the campfire glow
+            rises — so the "you can lock your phone" reassurance meets the
+            fire instead of floating in dead space. */}
         <PresenceFooter />
       </View>
     </View>

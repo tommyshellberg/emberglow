@@ -1,7 +1,7 @@
 import { Flag, User } from 'lucide-react-native';
 import React from 'react';
 
-import { Text, View } from '@/components/ui';
+import { colors, Text, View } from '@/components/ui';
 
 interface JourneyProgressBarProps {
   /** 0..1 fraction of the quest travelled so far; clamped defensively. */
@@ -34,12 +34,14 @@ export function JourneyProgressBar({
   const clampedFill = Math.max(0, Math.min(1, fill));
 
   return (
-    <View style={{ marginTop: 34, marginHorizontal: 30 }}>
+    <View style={{ marginTop: 30, marginHorizontal: 30 }}>
       <View
         style={{
           height: 6,
           borderRadius: 6,
-          backgroundColor: 'rgba(255,255,255,0.09)',
+          // Neutral translucent hairline for the untravelled path; the warm
+          // fill below is the ember token that carries the colour.
+          backgroundColor: 'rgba(255,255,255,0.08)',
         }}
       >
         <View
@@ -50,7 +52,7 @@ export function JourneyProgressBar({
             bottom: 0,
             width: `${clampedFill * 100}%`,
             borderRadius: 6,
-            backgroundColor: '#ffc46b',
+            backgroundColor: colors.brown,
           }}
         />
         <View
@@ -64,13 +66,13 @@ export function JourneyProgressBar({
             marginTop: -HERO_TOKEN_SIZE / 2,
             borderRadius: HERO_TOKEN_SIZE / 2,
             borderWidth: 2,
-            borderColor: '#ffc46b',
-            backgroundColor: '#2b2140',
+            borderColor: colors.brown,
+            backgroundColor: colors.background,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <User size={13} color="#ffd9a8" />
+          <User size={13} color={colors.lightBrown[300]} />
         </View>
         <View
           style={{
@@ -84,7 +86,7 @@ export function JourneyProgressBar({
             justifyContent: 'center',
           }}
         >
-          <Flag size={13} color="#9c8fa8" />
+          <Flag size={13} color={colors.neutral[200]} />
         </View>
       </View>
       <View
@@ -94,10 +96,10 @@ export function JourneyProgressBar({
           marginTop: 10,
         }}
       >
-        <Text style={{ fontSize: 10, color: '#9c8fa8' }}>
+        <Text style={{ fontSize: 11, color: colors.neutral[200] }}>
           {formatTravelled(travelledMs)} travelled
         </Text>
-        <Text style={{ fontSize: 10, fontWeight: '700', color: '#ffca7a' }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brown }}>
           {liveMultiplier.toFixed(2)}× XP
         </Text>
       </View>

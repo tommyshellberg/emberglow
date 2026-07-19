@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import Animated, {
@@ -116,32 +115,18 @@ export function CampfireAmbience() {
         ]}
       >
         <LinearGradient
+          // Dimmed to an ambient ember glow: it now sits behind the
+          // reassurance copy without washing out its contrast. The bright
+          // flame-core BlurView was removed — expo-blur wasn't softening it,
+          // so it read as a hard capsule rather than fire.
           colors={[
-            'rgba(255,150,60,0.55)',
-            'rgba(255,90,40,0.2)',
+            'rgba(255,150,60,0.3)',
+            'rgba(255,90,40,0.11)',
             'rgba(255,90,40,0)',
           ]}
           style={{ flex: 1 }}
         />
       </Animated.View>
-
-      <BlurView
-        intensity={16}
-        style={{
-          position: 'absolute',
-          bottom: 42,
-          alignSelf: 'center',
-          width: 20,
-          height: 30,
-          borderRadius: 12,
-          overflow: 'hidden',
-        }}
-      >
-        <LinearGradient
-          colors={['#ffe9b8', '#ffb35c', '#ff6a2b']}
-          style={{ flex: 1 }}
-        />
-      </BlurView>
 
       {EMBERS.map((ember) => (
         <Ember key={`${ember.left}-${ember.delay}`} {...ember} />

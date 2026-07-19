@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Pressable, Text } from '@/components/ui';
+import { colors, Pressable, Text } from '@/components/ui';
 
 interface AmbientMusicPillProps {
   isMuted: boolean;
@@ -34,16 +34,16 @@ export function AmbientMusicPill({
         alignSelf: 'center',
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: 999,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.18)',
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
+        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
         opacity: isMuted ? 0.55 : 1,
       }}
     >
-      <Text style={{ fontSize: 10, color: '#d8c9b0' }}>
+      <Text style={{ fontSize: 11, color: colors.white }}>
         {isMuted
           ? `Muted — Ambient: ${TRACK_NAME}`
           : `♪ Ambient: ${TRACK_NAME}`}

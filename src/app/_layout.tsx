@@ -430,7 +430,10 @@ function RootLayout() {
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="pending-quest" options={{ headerShown: false }} />
-        <Stack.Screen name="active-quest" options={{ gestureEnabled: false }} />
+        <Stack.Screen
+          name="active-quest"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
         <Stack.Screen
           name="cooperative-pending-quest"
           options={{ headerShown: false }}

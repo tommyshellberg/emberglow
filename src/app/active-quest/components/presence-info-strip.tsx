@@ -1,7 +1,13 @@
 import React from 'react';
 
-import { Text, View } from '@/components/ui';
+import { colors, Text, View } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
+
+// Ember-tinted chip built from the `brown` token (247,164,75). Translucency
+// needs rgba, so the fill/stroke are that token at low alpha rather than a
+// second hardcoded hue.
+const CHIP_BORDER = 'rgba(247,164,75,0.4)';
+const CHIP_FILL = 'rgba(247,164,75,0.14)';
 
 interface PresenceInfoStripProps {
   mode: 'story' | 'custom' | undefined;
@@ -31,20 +37,22 @@ export function PresenceInfoStrip({
       <View
         style={{
           alignSelf: 'flex-start',
-          borderRadius: 10,
+          borderRadius: 999,
           borderWidth: 1,
-          borderColor: 'rgba(255,140,60,0.35)',
-          backgroundColor: 'rgba(255,140,60,0.15)',
-          paddingHorizontal: 8,
-          paddingVertical: 2,
+          borderColor: CHIP_BORDER,
+          backgroundColor: CHIP_FILL,
+          paddingHorizontal: 10,
+          paddingVertical: 3,
         }}
       >
+        {/* Uppercased via CSS (not `.toUpperCase()`) so the underlying text
+            node stays "Story Quest" for the mode-label assertions. */}
         <Text
           style={{
-            fontSize: 9,
-            fontWeight: '500',
-            letterSpacing: 1,
-            color: '#ff9d5c',
+            fontSize: 10,
+            fontWeight: '700',
+            letterSpacing: 1.5,
+            color: colors.brown,
             textTransform: 'uppercase',
           }}
         >
@@ -53,25 +61,26 @@ export function PresenceInfoStrip({
       </View>
 
       {questTitle ? (
+        // The brand's Erstoria serif — the display face this screen never used
+        // before — gives the story title the weight of a chapter heading.
+        // `text-3xl` carries a matching lineHeight so the serif never clips.
         <Text
-          style={{
-            marginTop: 8,
-            fontSize: 17,
-            fontWeight: '700',
-            color: '#f4ede1',
-          }}
+          className="font-erstoria text-3xl"
+          style={{ marginTop: 12, color: colors.cream[300] }}
         >
           {questTitle}
         </Text>
       ) : null}
 
       <View
-        style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 6 }}
+        style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 8 }}
       >
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#ffca7a' }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.brown }}>
           {forecast.current} XP
         </Text>
-        <Text style={{ marginLeft: 6, fontSize: 12, color: '#9c8fa8' }}>
+        <Text
+          style={{ marginLeft: 6, fontSize: 13, color: colors.neutral[200] }}
+        >
           up to {forecast.maxIfLocked} if locked
         </Text>
       </View>
