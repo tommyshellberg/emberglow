@@ -579,4 +579,64 @@ describe('quest-presence-runtime', () => {
       expect(updateQuestRunStatus).not.toHaveBeenCalled();
     });
   });
+
+  describe('cold start (realtime-fail)', () => {
+    it('relaunch mid-AWAY within the window disarms the server and reverts the tile', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 20_000,
+        lockedMs: 0,
+        lastAliveAt: START - 20_000,
+        awayReported: true,
+      });
+      // now = START → 20s into the 40s window: resume, don't fail.
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        false,
+        LIVE_ACTIVITY_ID
+      );
+      expect(revertLiveActivityToActive).toHaveBeenCalled();
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    });
+
+    it('relaunch mid-AWAY past the window with the report acked: suppressed fail (server owned it)', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 60_000,
+        lockedMs: 0,
+        lastAliveAt: START - 60_000,
+        awayReported: true,
+      });
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToFailed).not.toHaveBeenCalled();
+      expect(updateAwayStatus).not.toHaveBeenCalled(); // terminal — no disarm
+    });
+
+    it('relaunch mid-AWAY past the window with a legacy snapshot: offline fallback fail', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 60_000,
+        lockedMs: 0,
+        lastAliveAt: START - 60_000,
+      });
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(updateQuestRunStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        'failed',
+        null,
+        undefined,
+        'left_app'
+      );
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+    });
+  });
 });

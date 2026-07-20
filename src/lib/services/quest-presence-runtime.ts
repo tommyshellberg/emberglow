@@ -371,9 +371,9 @@ function runEffects(effects: PresenceEffect[]) {
         break;
       case 'REPORT_FAIL': {
         if (!effect.reported) {
-          // Offline fallback: the server never got the away report, so no
-          // failed-tile push can ever come — flip it locally (ActivityKit
-          // is device-local; works offline).
+          // Offline fallback: the client never confirmed the server got the
+          // away report, so no failed-tile push can ever come — flip it
+          // locally (ActivityKit is device-local; works offline).
           flipLiveActivityToFailed({
             activityId: useQuestStore.getState().currentLiveActivityId,
             title: questTitle(),
@@ -464,11 +464,6 @@ function startPresenceSession(activeQuest: Quest) {
   // Run A's grace/completion timers would otherwise leak. This also covers the
   // handleRawSignal race-guard branch, which starts a session via this fn.
   clearAllTimers();
-  // A prior AWAY episode that ended via GRACE_DEADLINE (fail), rather than
-  // via cancelAwayReport's normal return/lock path, never clears this flag.
-  // A direct run→run swap reaches here without going through endSession(),
-  // so the new run must not inherit a stale "already fired" from the old one.
-  awayReportFired = false;
 
   const config = deriveConfig(activeQuest);
   const now = Date.now();
@@ -484,6 +479,15 @@ function startPresenceSession(activeQuest: Quest) {
 
   currentRunId = runId;
   ctx = context;
+  // A process death mid-AWAY loses the runtime's fired flag, and the ack may
+  // have been lost too. Treat an AWAY snapshot as fired: the resume path's
+  // CANCEL_AWAY_REPORT then sends one conservative away:false — an
+  // idempotent 200 no-op if the server was never armed. A direct run→run
+  // swap also lands here (not through endSession()) and is handled
+  // correctly by construction: the snapshot read above is keyed to the NEW
+  // run, so a swap without a persisted AWAY snapshot for that run resets to
+  // false, never inheriting a stale "already fired" from the old run.
+  awayReportFired = snapshot?.state === 'AWAY';
   notify();
   runEffects(effects);
 
