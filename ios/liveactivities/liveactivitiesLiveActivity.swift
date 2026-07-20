@@ -108,7 +108,7 @@ struct QuestActivityModel {
             let graceEndsAt = readInt(context.state.data, "graceEndsAt")
             let end = graceEndsAt > 0
                 ? Date(timeIntervalSince1970: TimeInterval(graceEndsAt))
-                : now.addingTimeInterval(30)
+                : now.addingTimeInterval(30) // mirrors VISIBLE_GRACE_MS (30_000ms) in quest-presence-machine.ts
             timerRange = now ... max(now, end)
         case .active:
             // startedAt (epoch s) anchors the elapsed timer across updates so

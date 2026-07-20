@@ -372,8 +372,10 @@ function runEffects(effects: PresenceEffect[]) {
       case 'REPORT_FAIL': {
         if (!effect.reported) {
           // Offline fallback: the client never confirmed the server got the
-          // away report, so no failed-tile push can ever come — flip it
-          // locally (ActivityKit is device-local; works offline).
+          // away report, so it can't rely on a failed-tile push arriving —
+          // flip locally (ActivityKit is device-local; works offline). If the
+          // report DID land and the server also pushes, the same-status flip
+          // renders identically by construction.
           flipLiveActivityToFailed({
             activityId: useQuestStore.getState().currentLiveActivityId,
             title: questTitle(),
