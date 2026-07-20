@@ -286,6 +286,45 @@ export async function updatePhoneLockStatus(
 }
 
 /**
+ * Report presence away/back for the realtime-fail dead-man's-switch.
+ * `away:true` arms the server's 40s grace-fail (scheduled at SERVER receive
+ * time) — always pass the current liveActivityID with it, or the server's
+ * stale-tile sweep cannot see the tile. `away:false` disarms. Both are
+ * idempotent; off the active-presence path the server 200 no-ops.
+ */
+export async function updateAwayStatus(
+  runId: string,
+  away: boolean,
+  liveActivityID?: string | null
+): Promise<QuestRunResponse> {
+  if (!runId || runId === 'null' || runId === 'undefined') {
+    throw new Error('Invalid quest run ID for away status update');
+  }
+
+  try {
+    const payload: { away: boolean; liveActivityID?: string } = { away };
+    if (away && liveActivityID) {
+      payload.liveActivityID = liveActivityID;
+    }
+
+    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const client = hasProvisionalToken ? provisionalApiClient : apiClient;
+
+    const response = await client.patch<QuestRunResponse>(
+      `/quest-runs/${runId}/away-status`,
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      `Failed to update away status for quest run ${runId}:`,
+      error
+    );
+    throw error;
+  }
+}
+
+/**
  * Activate a solo run in presence mode. The server sets status/enforcement/
  * times and schedules completion; returns the activated run.
  */

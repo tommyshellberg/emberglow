@@ -5,6 +5,7 @@ import {
   beginQuestRun,
   confirmQuestRun,
   createQuestRun,
+  updateAwayStatus,
   updateQuestRunStatus,
 } from './quest-run-service';
 
@@ -266,6 +267,48 @@ describe('quest-run-service', () => {
         {}
       );
       expect(run.status).toBe('completed');
+    });
+  });
+
+  describe('updateAwayStatus', () => {
+    it('PATCHes away:true with the liveActivityID (server sweep needs it)', async () => {
+      (apiClient.patch as jest.Mock).mockResolvedValueOnce({
+        data: { id: 'r1', status: 'active' },
+      });
+      await updateAwayStatus('r1', true, 'activity-1');
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        '/quest-runs/r1/away-status',
+        { away: true, liveActivityID: 'activity-1' }
+      );
+    });
+
+    it('omits liveActivityID on away:false (disarm needs none)', async () => {
+      (apiClient.patch as jest.Mock).mockResolvedValueOnce({
+        data: { id: 'r1', status: 'active' },
+      });
+      await updateAwayStatus('r1', false, 'activity-1');
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        '/quest-runs/r1/away-status',
+        { away: false }
+      );
+    });
+
+    it('omits liveActivityID when there is none (Android)', async () => {
+      (apiClient.patch as jest.Mock).mockResolvedValueOnce({
+        data: { id: 'r1', status: 'active' },
+      });
+      await updateAwayStatus('r1', true, null);
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        '/quest-runs/r1/away-status',
+        { away: true }
+      );
+    });
+
+    it('rejects an invalid run id before hitting the network', async () => {
+      await expect(updateAwayStatus('null', true)).rejects.toThrow(
+        /invalid quest run id/i
+      );
+      expect(apiClient.patch).not.toHaveBeenCalled();
     });
   });
 });
