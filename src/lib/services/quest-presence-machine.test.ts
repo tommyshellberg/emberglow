@@ -218,7 +218,11 @@ describe('deadline-first chronological evaluation', () => {
       enteredAt + 5 * 60_000
     );
     expect(context.state).toBe('FAILED');
-    expect(effects).toContainEqual({ type: 'REPORT_FAIL', reason: 'left_app' });
+    expect(effects).toContainEqual({
+      type: 'REPORT_FAIL',
+      reason: 'left_app',
+      reported: false,
+    });
   });
 
   it('chronological: grace before quest end → FAILED', () => {
@@ -328,7 +332,11 @@ describe('rehydratePresence (cold start)', () => {
       END + 60_000
     );
     expect(context.state).toBe('FAILED');
-    expect(effects).toContainEqual({ type: 'REPORT_FAIL', reason: 'left_app' });
+    expect(effects).toContainEqual({
+      type: 'REPORT_FAIL',
+      reason: 'left_app',
+      reported: false,
+    });
   });
 
   it('IN_APP snapshot relaunched quickly (neither deadline elapsed) → resume IN_APP', () => {
@@ -422,5 +430,109 @@ describe('away-report effects (realtime-fail)', () => {
       START + 60_000
     );
     expect(effects).not.toContainEqual({ type: 'CANCEL_AWAY_REPORT' });
+  });
+});
+
+describe('awayReported — the server-owns-the-fail fact', () => {
+  const away = (enteredAt: number, over: Partial<PresenceContext> = {}) =>
+    base({
+      state: 'AWAY',
+      enteredAt,
+      graceDeadline: enteredAt + 40_000,
+      ...over,
+    });
+
+  it('AWAY_REPORT_ACKED while AWAY records the fact and persists it', () => {
+    const enteredAt = START + 60_000;
+    const { context, effects } = presenceReducer(
+      away(enteredAt),
+      { type: 'AWAY_REPORT_ACKED' },
+      enteredAt + 4_000
+    );
+    expect(context.state).toBe('AWAY');
+    expect(context.awayReported).toBe(true);
+    expect(effects).toContainEqual({ type: 'PERSIST_SNAPSHOT' });
+  });
+
+  it('AWAY_REPORT_ACKED outside AWAY is a no-op (late ack after return)', () => {
+    const { context, effects } = presenceReducer(
+      base(),
+      { type: 'AWAY_REPORT_ACKED' },
+      START + 60_000
+    );
+    expect(context.awayReported).toBe(false);
+    expect(effects).toEqual([]);
+  });
+
+  it('fail with awayReported → REPORT_FAIL reported:true (server owns fail + tile push)', () => {
+    const enteredAt = START + 60_000;
+    const { context, effects } = presenceReducer(
+      away(enteredAt, { awayReported: true }),
+      { type: 'APP_ACTIVE' },
+      enteredAt + 5 * 60_000
+    );
+    expect(context.state).toBe('FAILED');
+    expect(effects).toContainEqual({
+      type: 'REPORT_FAIL',
+      reason: 'left_app',
+      reported: true,
+    });
+  });
+
+  it('exiting AWAY resets awayReported (next episode starts unreported)', () => {
+    const enteredAt = START + 60_000;
+    const { context } = presenceReducer(
+      away(enteredAt, { awayReported: true }),
+      { type: 'APP_ACTIVE' },
+      enteredAt + 10_000
+    );
+    expect(context.state).toBe('IN_APP');
+    expect(context.awayReported).toBe(false);
+  });
+
+  it('locking from AWAY also resets awayReported', () => {
+    const enteredAt = START + 60_000;
+    const { context } = presenceReducer(
+      away(enteredAt, { awayReported: true }),
+      { type: 'SCREEN_LOCKED' },
+      enteredAt + 10_000
+    );
+    expect(context.state).toBe('LOCKED');
+    expect(context.awayReported).toBe(false);
+  });
+
+  it('rehydrate restores awayReported from an AWAY snapshot → suppressed fail', () => {
+    const enteredAt = START + 60_000;
+    const { context, effects } = rehydratePresence(
+      {
+        state: 'AWAY',
+        enteredAt,
+        lockedMs: 0,
+        lastAliveAt: enteredAt,
+        awayReported: true,
+      },
+      { actualStartTime: START, scheduledEndTime: END },
+      enteredAt + 5 * 60_000
+    );
+    expect(context.state).toBe('FAILED');
+    expect(effects).toContainEqual({
+      type: 'REPORT_FAIL',
+      reason: 'left_app',
+      reported: true,
+    });
+  });
+
+  it('rehydrate of a legacy snapshot without awayReported falls back to reported:false', () => {
+    const enteredAt = START + 60_000;
+    const { effects } = rehydratePresence(
+      { state: 'AWAY', enteredAt, lockedMs: 0, lastAliveAt: enteredAt },
+      { actualStartTime: START, scheduledEndTime: END },
+      enteredAt + 5 * 60_000
+    );
+    expect(effects).toContainEqual({
+      type: 'REPORT_FAIL',
+      reason: 'left_app',
+      reported: false,
+    });
   });
 });

@@ -24,7 +24,8 @@ export type PresenceEvent =
   | { type: 'SCREEN_LOCKED' }
   | { type: 'SCREEN_UNLOCKED' }
   | { type: 'GRACE_DEADLINE' }
-  | { type: 'TIMER_COMPLETE' };
+  | { type: 'TIMER_COMPLETE' }
+  | { type: 'AWAY_REPORT_ACKED' };
 
 export type PresenceEffect =
   | { type: 'ARM_GRACE_DEADLINE'; at: number }
@@ -34,7 +35,7 @@ export type PresenceEffect =
   | { type: 'SCHEDULE_AWAY_REPORT'; delayMs: number }
   | { type: 'CANCEL_AWAY_REPORT' }
   | { type: 'PATCH_LOCK'; locked: boolean }
-  | { type: 'REPORT_FAIL'; reason: 'left_app' }
+  | { type: 'REPORT_FAIL'; reason: 'left_app'; reported: boolean }
   | { type: 'REPORT_COMPLETE'; lockedMs: number; source: 'watched' | 'locked' }
   | { type: 'PERSIST_SNAPSHOT' };
 
@@ -50,6 +51,7 @@ export interface PresenceContext extends PresenceConfig {
   lockedSegmentStart: number | null; // start of the currently-open locked segment (null unless LOCKED)
   graceDeadline: number | null; // armed grace expiry (only when AWAY)
   lastAliveAt: number; // last liveness tick while IN_APP; anchors cold-start crash judgment
+  awayReported: boolean; // away:true PATCH 2xx'd for the CURRENT AWAY episode → the server owns the fail + tile push
 }
 
 export type Reduction = { context: PresenceContext; effects: PresenceEffect[] };
@@ -65,6 +67,7 @@ export const initPresenceContext = (
   lockedSegmentStart: null,
   graceDeadline: null,
   lastAliveAt: now,
+  awayReported: false,
 });
 
 const isTerminal = (s: PresenceState) => s === 'FAILED' || s === 'COMPLETED';
@@ -110,7 +113,7 @@ const fail = (ctx: PresenceContext, now: number): Reduction => ({
   context: enter(ctx, { state: 'FAILED', enteredAt: now, graceDeadline: null }),
   effects: [
     { type: 'CANCEL_WARNING_NOTIFICATION' },
-    { type: 'REPORT_FAIL', reason: 'left_app' },
+    { type: 'REPORT_FAIL', reason: 'left_app', reported: ctx.awayReported },
     { type: 'PERSIST_SNAPSHOT' },
   ],
 });
@@ -165,6 +168,7 @@ const toInApp = (ctx: PresenceContext, now: number): Reduction => {
       lockedSegmentStart: null,
       graceDeadline: null,
       lastAliveAt: now,
+      awayReported: false,
     }),
     effects,
   };
@@ -175,6 +179,7 @@ const toAway = (ctx: PresenceContext, now: number): Reduction => ({
     state: 'AWAY',
     enteredAt: now,
     graceDeadline: now + PRESENCE_FAIL_GRACE_MS,
+    awayReported: false,
   }),
   effects: [
     { type: 'ARM_GRACE_DEADLINE', at: now + PRESENCE_FAIL_GRACE_MS },
@@ -191,6 +196,7 @@ const toAwayFromLock = (ctx: PresenceContext, now: number): Reduction => ({
     lockedMs: closeSegment(ctx, now),
     lockedSegmentStart: null,
     graceDeadline: now + PRESENCE_FAIL_GRACE_MS,
+    awayReported: false,
   }),
   effects: [
     { type: 'PATCH_LOCK', locked: false },
@@ -221,6 +227,7 @@ const toLocked = (ctx: PresenceContext, now: number): Reduction => {
       enteredAt: now,
       lockedSegmentStart: now,
       graceDeadline: null,
+      awayReported: false,
     }),
     effects,
   };
@@ -254,6 +261,16 @@ export const presenceReducer = (
       return ctx.state === 'LOCKED' ? noop(ctx) : toLocked(ctx, now);
     case 'SCREEN_UNLOCKED':
       return ctx.state === 'LOCKED' ? toAwayFromLock(ctx, now) : noop(ctx);
+    case 'AWAY_REPORT_ACKED':
+      // Fact recording, not a state signal. Only meaningful while still AWAY —
+      // a late ack after returning is dropped (the away:false disarm is
+      // already queued behind it; see the runtime's serialized PATCH chain).
+      return ctx.state === 'AWAY'
+        ? {
+            context: enter(ctx, { awayReported: true }),
+            effects: [{ type: 'PERSIST_SNAPSHOT' }],
+          }
+        : noop(ctx);
     case 'GRACE_DEADLINE':
     case 'TIMER_COMPLETE':
       // Their effect is realized entirely by evaluateDeadlines above; if no
@@ -270,6 +287,7 @@ export interface PresenceSnapshot {
   enteredAt: number;
   lockedMs: number;
   lastAliveAt: number;
+  awayReported?: boolean; // absent in pre-realtime-fail snapshots → offline-fallback behavior
 }
 
 /**
@@ -300,6 +318,8 @@ export const rehydratePresence = (
           PRESENCE_FAIL_GRACE_MS
         : null,
     lastAliveAt: snapshot.lastAliveAt,
+    awayReported:
+      snapshot.state === 'AWAY' ? (snapshot.awayReported ?? false) : false,
   };
 
   const byDeadline = evaluateDeadlines(restored, now);
