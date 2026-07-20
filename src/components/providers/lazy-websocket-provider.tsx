@@ -1,7 +1,9 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -91,7 +93,7 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [authStatus]);
 
   // Manual connect function
-  const connect = () => {
+  const connect = useCallback(() => {
     if (__DEV__) {
       console.log(
         '[LazyWebSocket] Connect called - authStatus:',
@@ -111,16 +113,16 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     } else if (__DEV__) {
       console.log('[LazyWebSocket] Not connecting - conditions not met');
     }
-  };
+  }, [authStatus, hasProvisionalToken, isEnabled]);
 
   // Manual disconnect function
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     if (__DEV__) {
       console.log('[LazyWebSocket] Manually disconnecting WebSocket...');
     }
     setIsEnabled(false);
     webSocketService.disconnect();
-  };
+  }, []);
 
   // Handle connection state changes
   useEffect(() => {
@@ -188,18 +190,31 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [isEnabled]);
 
-  const value: LazyWebSocketContextValue = {
-    isConnected,
-    isEnabled,
-    connect,
-    disconnect,
-    on: webSocketService.on.bind(webSocketService),
-    off: webSocketService.off.bind(webSocketService),
-    emit: webSocketService.emit.bind(webSocketService),
-    joinQuestRoom: webSocketService.joinQuestRoom.bind(webSocketService),
-    leaveQuestRoom: webSocketService.leaveQuestRoom.bind(webSocketService),
-    forceReconnect: webSocketService.forceReconnect.bind(webSocketService),
-  };
+  // Bind the service methods once. Screens key their socket effects on
+  // emit/on/off, so fresh identities on every provider re-render would re-run
+  // those effects (and their cleanup) on every connection-status flip.
+  const serviceMethods = useMemo(
+    () => ({
+      on: webSocketService.on.bind(webSocketService),
+      off: webSocketService.off.bind(webSocketService),
+      emit: webSocketService.emit.bind(webSocketService),
+      joinQuestRoom: webSocketService.joinQuestRoom.bind(webSocketService),
+      leaveQuestRoom: webSocketService.leaveQuestRoom.bind(webSocketService),
+      forceReconnect: webSocketService.forceReconnect.bind(webSocketService),
+    }),
+    []
+  );
+
+  const value: LazyWebSocketContextValue = useMemo(
+    () => ({
+      isConnected,
+      isEnabled,
+      connect,
+      disconnect,
+      ...serviceMethods,
+    }),
+    [isConnected, isEnabled, connect, disconnect, serviceMethods]
+  );
 
   return (
     <LazyWebSocketContext.Provider value={value}>
