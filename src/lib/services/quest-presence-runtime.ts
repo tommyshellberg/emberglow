@@ -23,8 +23,10 @@ import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
+import { flipLiveActivityToGrace } from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
+  updateAwayStatus,
   updatePhoneLockStatus,
   updateQuestRunStatus,
 } from '@/lib/services/quest-run-service';
@@ -42,6 +44,7 @@ import {
   presenceReducer,
   type PresenceSnapshot,
   rehydratePresence,
+  VISIBLE_GRACE_MS,
 } from './quest-presence-machine';
 
 export const snapshotKey = (runId: string) => `presence-snapshot-${runId}`;
@@ -70,6 +73,19 @@ let storeUnsub: (() => void) | null = null;
 let graceTimer: ReturnType<typeof setTimeout> | null = null;
 let completeTimer: ReturnType<typeof setTimeout> | null = null;
 let aliveInterval: ReturnType<typeof setInterval> | null = null;
+
+let awayDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+// True once the debounced away report FIRED (tile flipped + away:true
+// queued) for the current AWAY episode; cleared when the matching
+// away:false disarm goes out or the session ends. Distinct from the
+// machine's `awayReported`, which additionally requires the server's 2xx.
+// Set here; read by the CANCEL_AWAY_REPORT fired-path branch (revert +
+// away:false) added in the next task — genuinely write-only until then.
+// eslint-disable-next-line unused-imports/no-unused-vars
+let awayReportFired = false;
+// Serializes away-status PATCHes: a fast leave→return must not let the
+// away:false overtake the away:true on the wire.
+let awayPatchChain: Promise<unknown> = Promise.resolve();
 
 const viewListeners = new Set<ViewListener>();
 
@@ -128,6 +144,7 @@ function persistSnapshot(runId: string, context: PresenceContext) {
       enteredAt: context.enteredAt,
       lockedMs: context.lockedMs,
       lastAliveAt: context.lastAliveAt,
+      awayReported: context.awayReported,
     };
     setItem(snapshotKey(runId), snapshot);
   });
@@ -154,10 +171,18 @@ function clearAliveInterval() {
   }
 }
 
+function clearAwayDebounce() {
+  if (awayDebounceTimer) {
+    clearTimeout(awayDebounceTimer);
+    awayDebounceTimer = null;
+  }
+}
+
 function clearAllTimers() {
   clearGraceTimer();
   clearCompleteTimer();
   clearAliveInterval();
+  clearAwayDebounce();
 }
 
 // Liveness tick (spec G): while IN_APP, cheaply anchor lastAliveAt every
@@ -182,6 +207,7 @@ function manageAliveTick() {
           enteredAt: c.enteredAt,
           lockedMs: c.lockedMs,
           lastAliveAt: Date.now(),
+          awayReported: c.awayReported,
         } satisfies PresenceSnapshot)
       );
     }, ALIVE_TICK_MS);
@@ -222,6 +248,66 @@ function reportThenCommit(
   })();
 }
 
+const questTitle = () => useQuestStore.getState().activeQuest?.title ?? 'Quest';
+
+const durationMinutesOf = (c: PresenceContext) =>
+  Math.round((c.scheduledEndTime - c.actualStartTime) / 60_000);
+
+// Queue an away-status PATCH on the serialized chain. Failures are benign
+// (the offline fallback covers them) — but ONLY a 2xx on away:true
+// dispatches AWAY_REPORT_ACKED, which is what licenses the machine to
+// suppress its own fail. A response carrying a failed run means the
+// server's dead-man's-switch won the race — server state wins.
+function sendAwayStatus(runId: string, away: boolean) {
+  awayPatchChain = awayPatchChain.then(async () => {
+    try {
+      const run = await updateAwayStatus(
+        runId,
+        away,
+        useQuestStore.getState().currentLiveActivityId
+      );
+      if (run.status === 'failed') {
+        // Return/fail cross (~39s): fail locally; the store subscription
+        // then tears this session down (evaluateStoreState → endSession).
+        useQuestStore.getState().failQuest();
+        return;
+      }
+      if (away && currentRunId === runId) {
+        // Guard the run identity: a late ack from a replaced session must
+        // not mark a DIFFERENT run's machine as server-owned.
+        dispatch({ type: 'AWAY_REPORT_ACKED' });
+      }
+    } catch (error) {
+      console.error('[PresenceRuntime] away-status report failed:', error);
+    }
+  });
+}
+
+// Spec: leave → wait WARNING_DELAY_MS → flip the tile locally + report
+// away:true. A lock or instant switch-back within the window cancels this
+// before anything is sent — that debounce is what makes lock-vs-leave
+// robust against iOS's unpredictable background/lock event ordering and
+// keeps transient `inactive` blips (Control Center, calls, permission
+// sheets) invisible to the server AND the tile.
+function armAwayReport(runId: string, delayMs: number) {
+  clearAwayDebounce();
+  awayDebounceTimer = setTimeout(() => {
+    awayDebounceTimer = null;
+    const c = ctx;
+    // Async boundary: session teardown/replacement always clears this
+    // timer first, but the closure must not act on a swapped run.
+    if (!c || currentRunId !== runId) return;
+    awayReportFired = true;
+    flipLiveActivityToGrace({
+      activityId: useQuestStore.getState().currentLiveActivityId,
+      title: questTitle(),
+      durationMinutes: durationMinutesOf(c),
+      graceEndsAt: Date.now() + VISIBLE_GRACE_MS,
+    });
+    sendAwayStatus(runId, true);
+  }, delayMs);
+}
+
 function runEffects(effects: PresenceEffect[]) {
   const runId = currentRunId;
   const snapshotCtx = ctx;
@@ -246,8 +332,12 @@ function runEffects(effects: PresenceEffect[]) {
         safe(() => cancelPresenceWarningNotification());
         break;
       case 'SCHEDULE_AWAY_REPORT':
+        armAwayReport(runId, effect.delayMs);
+        break;
       case 'CANCEL_AWAY_REPORT':
-        // Implemented in the realtime-fail runtime tasks (6–7).
+        // Pending (not yet fired): cancel silently — nothing was sent.
+        // Fired path (revert + away:false) lands in the next task.
+        clearAwayDebounce();
         break;
       case 'PATCH_LOCK':
         safe(() =>
@@ -289,7 +379,7 @@ function runEffects(effects: PresenceEffect[]) {
         persistSnapshot(runId, snapshotCtx);
         break;
       default: {
-        // Exhaustiveness guard: a future 9th PresenceEffect fails to COMPILE
+        // Exhaustiveness guard: a future PresenceEffect fails to COMPILE
         // here instead of silently no-opping.
         const _exhaustive: never = effect;
         return _exhaustive;

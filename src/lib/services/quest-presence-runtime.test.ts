@@ -6,8 +6,10 @@ import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
+import { flipLiveActivityToGrace } from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
+  updateAwayStatus,
   updatePhoneLockStatus,
   updateQuestRunStatus,
 } from '@/lib/services/quest-run-service';
@@ -27,6 +29,13 @@ jest.mock('@/lib/services/quest-run-service', () => ({
   updateQuestRunStatus: jest.fn().mockResolvedValue({}),
   confirmQuestRun: jest.fn().mockResolvedValue({}),
   getQuestRunStatus: jest.fn().mockResolvedValue({}),
+  updateAwayStatus: jest.fn().mockResolvedValue({ status: 'active' }),
+}));
+
+jest.mock('@/lib/services/presence-live-activity', () => ({
+  flipLiveActivityToGrace: jest.fn(),
+  revertLiveActivityToActive: jest.fn(),
+  flipLiveActivityToFailed: jest.fn(),
 }));
 
 jest.mock('@/lib/services/notifications', () => ({
@@ -383,5 +392,90 @@ describe('quest-presence-runtime', () => {
     await flush();
     expect(confirmQuestRun).toHaveBeenCalledTimes(1);
     expect(confirmQuestRun).toHaveBeenCalledWith('run-2');
+  });
+
+  describe('debounced away report (realtime-fail)', () => {
+    it('a sustained background fires flip + away:true (with liveActivityID) after 3s', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      expect(updateAwayStatus).not.toHaveBeenCalled(); // debounce pending
+
+      act(() => {
+        jest.advanceTimersByTime(3_000);
+      });
+      await flush();
+
+      expect(flipLiveActivityToGrace).toHaveBeenCalledWith({
+        activityId: LIVE_ACTIVITY_ID,
+        title: 'Test quest',
+        durationMinutes: DURATION_MIN,
+        graceEndsAt: START + 3_000 + 30_000, // fire time + VISIBLE_GRACE_MS
+      });
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+    });
+
+    it('the ack is recorded and persisted (snapshot awayReported:true)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(3_000);
+      });
+      await flush();
+
+      expect(setItem).toHaveBeenCalledWith(
+        snapshotKey(RUN_ID),
+        expect.objectContaining({ state: 'AWAY', awayReported: true })
+      );
+    });
+
+    it('an instant switch-back inside the debounce sends and flips nothing', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(2_000);
+      });
+      fireAppState('active');
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+    });
+
+    it('a lock inside the debounce cancels the report and is handled immediately', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(1_000);
+      });
+      fireLockEvent('LOCKED');
+      await flush();
+
+      // Lock (the good path) was not delayed by the away debounce…
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      // …and the away report never fired.
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+    });
   });
 });
