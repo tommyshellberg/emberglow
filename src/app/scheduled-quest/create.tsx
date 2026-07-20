@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { useCreateScheduledQuest } from '@/api/scheduled-quests';
 import { CategorySlider } from '@/components/QuestForm/category-slider';
@@ -11,7 +13,6 @@ import {
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
-  ScrollView,
   SegmentedControl,
   type SegmentedControlOption,
   Text,
@@ -80,7 +81,22 @@ export default function CreateScheduledQuest() {
     <ScreenContainer>
       <FocusAwareStatusBar />
       <ScreenHeader title="Schedule an event" showBackButton />
-      <ScrollView className="flex-1 px-4">
+      {/* The title input autofocuses, so this scroller must survive an open
+          keyboard on Android:
+          - KeyboardAwareScrollView: KeyboardProvider runs Android
+            edge-to-edge, so a plain ScrollView never resizes for the
+            keyboard - the lower fields end up behind it, unreachable.
+          - keyboardShouldPersistTaps: with the default ('never') the
+            ScrollView swallows every tap while an input is focused, leaving
+            the visibility/max-participants controls and the submit button
+            unresponsive (Android keeps input focus after the keyboard is
+            back-dismissed). */}
+      <KeyboardAwareScrollView
+        testID="create-event-scroll"
+        style={styles.scroll}
+        bottomOffset={24}
+        keyboardShouldPersistTaps="handled"
+      >
         <CombinedQuestInput
           initialDuration={durationMinutes}
           startsAt={startsAt}
@@ -146,7 +162,16 @@ export default function CreateScheduledQuest() {
           loading={createMutation.isPending}
           className="my-6"
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </ScreenContainer>
   );
 }
+
+// KeyboardAwareScrollView is not registered with NativeWind's cssInterop, so
+// className would be silently dropped - style the scroller directly.
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+});
