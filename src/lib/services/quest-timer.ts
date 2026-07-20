@@ -436,6 +436,7 @@ export default class QuestTimer {
         type: 'mipmap',
       },
       color: '#77c5bf',
+      foregroundServiceType: ['specialUse' as const],
       progressBar: {
         max: 100,
         value: 0,
