@@ -8,8 +8,19 @@
  */
 
 export const VISIBLE_GRACE_MS = 30_000; // tile-visible countdown length only — never a judgment
-export const PRESENCE_FAIL_GRACE_MS = 40_000; // offline-fallback fail judgment; mirrors the server's dead-man's-switch delay (the ~10s gap absorbs the "back" PATCH round-trip + clock skew)
-export const WARNING_DELAY_MS = 3_000; // away debounce: warning + away-report fire ~3s after leaving so instant switch-backs and lock races never see them
+// Away debounce: warning + away-report fire only after the iOS protected-data
+// lock signal has had time to arrive (~10s after the physical lock, observed
+// under the keep-alive background window). A clean lock therefore sends
+// NOTHING — no warning, no away report, no server grace. Must stay above the
+// worst-case lock-signal lag; measured ~10s on device (2026-07).
+export const WARNING_DELAY_MS = 12_000;
+// Offline-fallback fail judgment. Derived, not pinned: the server arms its
+// dead-man's-switch when the away report ARRIVES (~WARNING_DELAY_MS after
+// leaving) and fails ~VISIBLE_GRACE_MS later; the slack absorbs the "back"
+// PATCH round-trip + clock skew so the server-owned fail always lands first
+// when the network is up.
+export const PRESENCE_FAIL_GRACE_MS =
+  WARNING_DELAY_MS + VISIBLE_GRACE_MS + 8_000;
 
 export type PresenceState =
   | 'IN_APP'

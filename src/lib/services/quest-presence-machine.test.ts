@@ -45,7 +45,7 @@ describe('IN_APP transitions', () => {
       t
     );
     expect(context.state).toBe('AWAY');
-    expect(context.graceDeadline).toBe(t + 40_000);
+    expect(context.graceDeadline).toBe(t + 50_000);
     expect(has(effects, 'ARM_GRACE_DEADLINE')).toBe(true);
     expect(has(effects, 'SCHEDULE_WARNING_NOTIFICATION')).toBe(true);
     expect(has(effects, 'PERSIST_SNAPSHOT')).toBe(true);
@@ -93,7 +93,7 @@ describe('LOCKED transitions & accounting', () => {
     expect(context.state).toBe('AWAY');
     expect(context.lockedMs).toBe(5 * 60_000);
     expect(context.lockedSegmentStart).toBeNull();
-    expect(context.graceDeadline).toBe(t + 40_000);
+    expect(context.graceDeadline).toBe(t + 50_000);
     expect(effects).toContainEqual({ type: 'PATCH_LOCK', locked: false });
     expect(has(effects, 'ARM_GRACE_DEADLINE')).toBe(true);
   });
@@ -125,7 +125,7 @@ describe('LOCKED transitions & accounting', () => {
 
 describe('AWAY transitions', () => {
   const away = (enteredAt: number) =>
-    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 40_000 });
+    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 50_000 });
 
   it('APP_ACTIVE within grace → IN_APP (rescue), cancels grace + warning', () => {
     const enteredAt = START + 60_000;
@@ -210,7 +210,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 40_000,
+      graceDeadline: enteredAt + 50_000,
     });
     const { context, effects } = presenceReducer(
       ctx,
@@ -231,7 +231,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 40_000,
+      graceDeadline: enteredAt + 50_000,
     });
     const { context } = presenceReducer(
       ctx,
@@ -247,7 +247,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 40_000,
+      graceDeadline: enteredAt + 50_000,
     });
     const { context } = presenceReducer(
       ctx,
@@ -262,7 +262,7 @@ describe('deadline-first chronological evaluation', () => {
     const ctx = base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 40_000,
+      graceDeadline: enteredAt + 50_000,
     });
     const { context } = presenceReducer(
       ctx,
@@ -362,7 +362,7 @@ describe('rehydratePresence (cold start)', () => {
 
 describe('away-report effects (realtime-fail)', () => {
   const away = (enteredAt: number) =>
-    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 40_000 });
+    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 50_000 });
 
   it('APP_BACKGROUND → AWAY schedules the debounced away report', () => {
     const { effects } = presenceReducer(
@@ -372,7 +372,7 @@ describe('away-report effects (realtime-fail)', () => {
     );
     expect(effects).toContainEqual({
       type: 'SCHEDULE_AWAY_REPORT',
-      delayMs: 3_000,
+      delayMs: 12_000,
     });
   });
 
@@ -390,7 +390,7 @@ describe('away-report effects (realtime-fail)', () => {
     );
     expect(effects).toContainEqual({
       type: 'SCHEDULE_AWAY_REPORT',
-      delayMs: 3_000,
+      delayMs: 12_000,
     });
   });
 
@@ -438,7 +438,7 @@ describe('awayReported — the server-owns-the-fail fact', () => {
     base({
       state: 'AWAY',
       enteredAt,
-      graceDeadline: enteredAt + 40_000,
+      graceDeadline: enteredAt + 50_000,
       ...over,
     });
 

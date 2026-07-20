@@ -425,6 +425,10 @@ export const cancelPresenceWarningNotification = async (): Promise<boolean> => {
     await ExpoNotifications.cancelScheduledNotificationAsync(
       PRESENCE_WARNING_ID
     );
+    // The iOS lock signal can arrive after the warning has already been
+    // delivered (protected-data lag) — clear the banner off the lock screen
+    // too, not just the pending schedule.
+    await ExpoNotifications.dismissNotificationAsync(PRESENCE_WARNING_ID);
     console.log('Presence warning canceled');
     return true;
   } catch (error) {

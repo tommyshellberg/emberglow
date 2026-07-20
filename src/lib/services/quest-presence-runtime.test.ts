@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
 
-import addLockListener from '@/../modules/lock-state';
+import addLockListener, { setKeepAliveEnabled } from '@/../modules/lock-state';
 import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
@@ -26,6 +26,7 @@ import { snapshotKey, usePresenceRuntime } from './quest-presence-runtime';
 jest.mock('@/../modules/lock-state', () => ({
   __esModule: true,
   default: jest.fn(() => ({ remove: jest.fn() })),
+  setKeepAliveEnabled: jest.fn(),
 }));
 
 jest.mock('@/lib/services/quest-run-service', () => ({
@@ -217,11 +218,11 @@ describe('quest-presence-runtime', () => {
 
     fireAppState('background');
     act(() => {
-      jest.advanceTimersByTime(3_000); // debounce fires, away:true acked
+      jest.advanceTimersByTime(12_000); // debounce fires, away:true acked
     });
     await flush();
     act(() => {
-      jest.advanceTimersByTime(37_000); // 40s total → grace deadline
+      jest.advanceTimersByTime(38_000); // 50s total → grace deadline
     });
     await flush();
 
@@ -236,7 +237,7 @@ describe('quest-presence-runtime', () => {
 
     fireAppState('background');
     act(() => {
-      jest.advanceTimersByTime(40_000);
+      jest.advanceTimersByTime(50_000);
     });
     await flush();
 
@@ -264,7 +265,7 @@ describe('quest-presence-runtime', () => {
     });
     fireAppState('active');
     act(() => {
-      jest.advanceTimersByTime(40_000);
+      jest.advanceTimersByTime(50_000);
     });
     await flush();
 
@@ -352,7 +353,7 @@ describe('quest-presence-runtime', () => {
 
     fireAppState('background');
     act(() => {
-      jest.advanceTimersByTime(40_000);
+      jest.advanceTimersByTime(50_000);
     });
     await flush();
 
@@ -392,7 +393,7 @@ describe('quest-presence-runtime', () => {
 
     // Grace timer was cleared: advancing past it must NOT report a failure.
     act(() => {
-      jest.advanceTimersByTime(40_000);
+      jest.advanceTimersByTime(50_000);
     });
     await flush();
     expect(updateQuestRunStatus).not.toHaveBeenCalled();
@@ -428,6 +429,23 @@ describe('quest-presence-runtime', () => {
     expect(confirmQuestRun).toHaveBeenCalledWith('run-2');
   });
 
+  describe('iOS keep-alive window', () => {
+    it('enables the native keep-alive hold when a presence session starts', () => {
+      startRuntimeForActivePresenceRun();
+
+      expect(setKeepAliveEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('disables the native keep-alive hold when the session ends', () => {
+      startRuntimeForActivePresenceRun();
+      (setKeepAliveEnabled as jest.Mock).mockClear();
+
+      transitionStore({ activeQuest: null });
+
+      expect(setKeepAliveEnabled).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe('debounced away report (realtime-fail)', () => {
     it('a sustained background fires flip + away:true (with liveActivityID) after 3s', async () => {
       startRuntimeForActivePresenceRun();
@@ -436,7 +454,7 @@ describe('quest-presence-runtime', () => {
       expect(updateAwayStatus).not.toHaveBeenCalled(); // debounce pending
 
       act(() => {
-        jest.advanceTimersByTime(3_000);
+        jest.advanceTimersByTime(12_000);
       });
       await flush();
 
@@ -444,7 +462,7 @@ describe('quest-presence-runtime', () => {
         activityId: LIVE_ACTIVITY_ID,
         title: 'Test quest',
         durationMinutes: DURATION_MIN,
-        graceEndsAt: START + 3_000 + 30_000, // fire time + VISIBLE_GRACE_MS
+        graceEndsAt: START + 12_000 + 30_000, // fire time + VISIBLE_GRACE_MS
       });
       expect(updateAwayStatus).toHaveBeenCalledWith(
         RUN_ID,
@@ -458,7 +476,7 @@ describe('quest-presence-runtime', () => {
 
       fireAppState('background');
       act(() => {
-        jest.advanceTimersByTime(3_000);
+        jest.advanceTimersByTime(12_000);
       });
       await flush();
 
@@ -517,7 +535,7 @@ describe('quest-presence-runtime', () => {
 
       fireAppState('background');
       act(() => {
-        jest.advanceTimersByTime(3_000);
+        jest.advanceTimersByTime(12_000);
       });
       await flush();
       fireAppState('active');
@@ -541,7 +559,7 @@ describe('quest-presence-runtime', () => {
 
       fireAppState('background');
       act(() => {
-        jest.advanceTimersByTime(3_000);
+        jest.advanceTimersByTime(12_000);
       });
       await flush();
       fireLockEvent('LOCKED');
@@ -568,7 +586,7 @@ describe('quest-presence-runtime', () => {
 
       fireAppState('background');
       act(() => {
-        jest.advanceTimersByTime(3_000);
+        jest.advanceTimersByTime(12_000);
       });
       await flush();
       fireAppState('active');

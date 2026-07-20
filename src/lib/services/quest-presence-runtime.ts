@@ -18,7 +18,7 @@
 import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
-import addLockListener from '@/../modules/lock-state';
+import addLockListener, { setKeepAliveEnabled } from '@/../modules/lock-state';
 import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
@@ -481,6 +481,10 @@ function startPresenceSession(activeQuest: Quest) {
 
   currentRunId = runId;
   ctx = context;
+  // iOS: hold background execution across app-background transitions for the
+  // life of this session, so the ~10s-lagged protected-data lock signal is
+  // observed before suspension (spec: lock rescues AWAY).
+  safeSync(() => setKeepAliveEnabled(true));
   // A process death mid-AWAY loses the runtime's fired flag, and the ack may
   // have been lost too. Treat an AWAY snapshot as fired: the resume path's
   // CANCEL_AWAY_REPORT then sends one conservative away:false — an
@@ -507,6 +511,8 @@ function endSession() {
   ctx = null;
   clearAllTimers();
   awayReportFired = false;
+  // No live run left to protect — stop holding background execution.
+  safeSync(() => setKeepAliveEnabled(false));
   if (endedRunId) {
     // A run canceled/failed OUTSIDE the machine (e.g. cancelQuest() while AWAY)
     // never emitted CANCEL_WARNING_NOTIFICATION, so the scheduled "hero in
