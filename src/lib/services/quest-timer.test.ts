@@ -582,6 +582,36 @@ describe('QuestTimer', () => {
       expect(beginOrder).toBeLessThan(startOrder);
     });
 
+    // Android 14+ (targetSdk >= 34) kills the app with
+    // InvalidForegroundServiceTypeException if the background service starts
+    // without an explicit foreground service type - the manifest already
+    // declares specialUse, but the runtime start call must pass it too, as
+    // prepareQuest does.
+    it('starts the background service with the specialUse foreground service type', async () => {
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'pending',
+        quest: { durationMinutes: 30, reward: { xp: 50 } },
+      });
+      (beginQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run1',
+        status: 'active',
+        enforcement: 'presence',
+        actualStartTime: Date.now(),
+        scheduledEndTime: Date.now() + 30 * 60_000,
+      });
+
+      await QuestTimer.startPresenceQuest(mockQuestTemplate);
+
+      const BackgroundService = require('react-native-background-actions');
+      expect(BackgroundService.start).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          foregroundServiceType: ['specialUse'],
+        })
+      );
+    });
+
     it('onPhoneLocked takes no action for a SOLO presence quest (the machine owns it)', async () => {
       // Set up the timer via prepareQuest, NOT startPresenceQuest. prepareQuest
       // sets this.questStartTime = null (and this.questTemplate/questRunId);
