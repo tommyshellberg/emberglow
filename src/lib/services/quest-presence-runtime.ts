@@ -24,6 +24,7 @@ import {
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
 import {
+  flipLiveActivityToFailed,
   flipLiveActivityToGrace,
   revertLiveActivityToActive,
 } from '@/lib/services/presence-live-activity';
@@ -368,19 +369,35 @@ function runEffects(effects: PresenceEffect[]) {
           )
         );
         break;
-      case 'REPORT_FAIL':
+      case 'REPORT_FAIL': {
+        if (!effect.reported) {
+          // Offline fallback: the server never got the away report, so no
+          // failed-tile push can ever come — flip it locally (ActivityKit
+          // is device-local; works offline).
+          flipLiveActivityToFailed({
+            activityId: useQuestStore.getState().currentLiveActivityId,
+            title: questTitle(),
+            durationMinutes: durationMinutesOf(snapshotCtx),
+          });
+        }
         reportThenCommit(
           () =>
-            updateQuestRunStatus(
-              runId,
-              'failed',
-              null,
-              undefined,
-              effect.reason
-            ),
+            effect.reported
+              ? // Server owns this fail + the tile push. Nothing to send —
+                // and if a raced sync ever re-sent it, failed→failed is an
+                // idempotent 200 no-op (ratified): any 2xx = converged.
+                Promise.resolve()
+              : updateQuestRunStatus(
+                  runId,
+                  'failed',
+                  null,
+                  undefined,
+                  effect.reason
+                ),
           () => useQuestStore.getState().failQuest()
         );
         break;
+      }
       case 'REPORT_COMPLETE':
         reportThenCommit(
           // 'watched': the client watched the countdown out — confirm to
@@ -417,6 +434,9 @@ function dispatch(event: PresenceEvent) {
   manageAliveTick();
   if (context.state === 'FAILED' || context.state === 'COMPLETED') {
     clearAllTimers();
+    // Terminal: the server (or the fallback flip above) owns the tile now —
+    // never revert or disarm after this point.
+    awayReportFired = false;
   }
 }
 
@@ -596,6 +616,7 @@ function unmount() {
   // App-teardown, not run-end: deliberately KEEP the MMKV snapshot (for
   // cold-start rehydration) and any scheduled warning (fires if abandoned).
   clearAllTimers();
+  awayReportFired = false;
   currentRunId = null;
   ctx = null;
 }

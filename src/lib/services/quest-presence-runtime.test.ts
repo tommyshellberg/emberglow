@@ -7,6 +7,7 @@ import {
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
 import {
+  flipLiveActivityToFailed,
   flipLiveActivityToGrace,
   revertLiveActivityToActive,
 } from '@/lib/services/presence-live-activity';
@@ -132,6 +133,10 @@ describe('quest-presence-runtime', () => {
     }) as any;
 
     (getItem as jest.Mock).mockReturnValue(null);
+    // clearAllMocks() wipes call history only, not implementations — reset
+    // the default resolution every test so a prior test's mockRejectedValue
+    // (offline scenarios) can't bleed into a later test that needs the ack.
+    (updateAwayStatus as jest.Mock).mockResolvedValue({ status: 'active' });
     storeSubscriber = undefined;
     (useQuestStore.subscribe as jest.Mock).mockImplementation((cb) => {
       storeSubscriber = cb as () => void;
@@ -207,7 +212,26 @@ describe('quest-presence-runtime', () => {
     );
   });
 
-  it('APP_BACKGROUND arms a 40s grace timer and, on expiry, reports left_app', async () => {
+  it('grace expiry with the away report acked: server owns the fail — no status PATCH, local commit only', async () => {
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    act(() => {
+      jest.advanceTimersByTime(3_000); // debounce fires, away:true acked
+    });
+    await flush();
+    act(() => {
+      jest.advanceTimersByTime(37_000); // 40s total → grace deadline
+    });
+    await flush();
+
+    expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    expect(mockQuestState.failQuest).toHaveBeenCalled();
+    expect(flipLiveActivityToFailed).not.toHaveBeenCalled(); // server pushes the failed tile
+  });
+
+  it('grace expiry with the away report unreachable (offline): fallback fail + local failed tile', async () => {
+    (updateAwayStatus as jest.Mock).mockRejectedValue(new Error('offline'));
     startRuntimeForActivePresenceRun();
 
     fireAppState('background');
@@ -223,6 +247,12 @@ describe('quest-presence-runtime', () => {
       undefined,
       'left_app'
     );
+    expect(mockQuestState.failQuest).toHaveBeenCalled();
+    expect(flipLiveActivityToFailed).toHaveBeenCalledWith({
+      activityId: LIVE_ACTIVITY_ID,
+      title: 'Test quest',
+      durationMinutes: DURATION_MIN,
+    });
   });
 
   it('returning within grace cancels the timer and warning, no fail', async () => {
@@ -317,6 +347,7 @@ describe('quest-presence-runtime', () => {
 
   it('REPORT_FAIL still calls failQuest() locally even if the network report rejects', async () => {
     (updateQuestRunStatus as jest.Mock).mockRejectedValue(new Error('offline'));
+    (updateAwayStatus as jest.Mock).mockRejectedValue(new Error('offline'));
     startRuntimeForActivePresenceRun();
 
     fireAppState('background');
@@ -501,7 +532,7 @@ describe('quest-presence-runtime', () => {
       const awayFlags = (updateAwayStatus as jest.Mock).mock.calls.map(
         (c) => c[1]
       );
-      expect(awayFlags).toEqual([true, false]); // serialized, in order
+      expect(awayFlags).toEqual([true, false]); // call order (the chain's race-serialization is by construction, not tested here)
       expect(updateQuestRunStatus).not.toHaveBeenCalled(); // no fail — rescued
     });
 
