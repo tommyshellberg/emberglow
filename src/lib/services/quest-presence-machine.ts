@@ -31,6 +31,8 @@ export type PresenceEffect =
   | { type: 'CANCEL_GRACE_DEADLINE' }
   | { type: 'SCHEDULE_WARNING_NOTIFICATION'; delayMs: number }
   | { type: 'CANCEL_WARNING_NOTIFICATION' }
+  | { type: 'SCHEDULE_AWAY_REPORT'; delayMs: number }
+  | { type: 'CANCEL_AWAY_REPORT' }
   | { type: 'PATCH_LOCK'; locked: boolean }
   | { type: 'REPORT_FAIL'; reason: 'left_app' }
   | { type: 'REPORT_COMPLETE'; lockedMs: number; source: 'watched' | 'locked' }
@@ -149,6 +151,11 @@ const toInApp = (ctx: PresenceContext, now: number): Reduction => {
     lockedMs = closeSegment(ctx, now);
     effects.push({ type: 'PATCH_LOCK', locked: false });
   }
+  if (ctx.state === 'AWAY') {
+    // Leaving AWAY: cancel the pending away report, or — if it already
+    // fired — the runtime reverts the tile and sends away:false.
+    effects.push({ type: 'CANCEL_AWAY_REPORT' });
+  }
   effects.push({ type: 'PERSIST_SNAPSHOT' });
   return {
     context: enter(ctx, {
@@ -172,6 +179,7 @@ const toAway = (ctx: PresenceContext, now: number): Reduction => ({
   effects: [
     { type: 'ARM_GRACE_DEADLINE', at: now + PRESENCE_FAIL_GRACE_MS },
     { type: 'SCHEDULE_WARNING_NOTIFICATION', delayMs: WARNING_DELAY_MS },
+    { type: 'SCHEDULE_AWAY_REPORT', delayMs: WARNING_DELAY_MS },
     { type: 'PERSIST_SNAPSHOT' },
   ],
 });
@@ -188,24 +196,35 @@ const toAwayFromLock = (ctx: PresenceContext, now: number): Reduction => ({
     { type: 'PATCH_LOCK', locked: false },
     { type: 'ARM_GRACE_DEADLINE', at: now + PRESENCE_FAIL_GRACE_MS },
     { type: 'SCHEDULE_WARNING_NOTIFICATION', delayMs: WARNING_DELAY_MS },
+    { type: 'SCHEDULE_AWAY_REPORT', delayMs: WARNING_DELAY_MS },
     { type: 'PERSIST_SNAPSHOT' },
   ],
 });
 
-const toLocked = (ctx: PresenceContext, now: number): Reduction => ({
-  context: enter(ctx, {
-    state: 'LOCKED',
-    enteredAt: now,
-    lockedSegmentStart: now,
-    graceDeadline: null,
-  }),
-  effects: [
+const toLocked = (ctx: PresenceContext, now: number): Reduction => {
+  const effects: PresenceEffect[] = [
     { type: 'CANCEL_GRACE_DEADLINE' },
     { type: 'CANCEL_WARNING_NOTIFICATION' },
+  ];
+  if (ctx.state === 'AWAY') {
+    // Spec: ANY exit from AWAY cancels the server timer. (Ratification 3
+    // means the locked:true PATCH below is itself a second, redundant disarm.)
+    effects.push({ type: 'CANCEL_AWAY_REPORT' });
+  }
+  effects.push(
     { type: 'PATCH_LOCK', locked: true },
-    { type: 'PERSIST_SNAPSHOT' },
-  ],
-});
+    { type: 'PERSIST_SNAPSHOT' }
+  );
+  return {
+    context: enter(ctx, {
+      state: 'LOCKED',
+      enteredAt: now,
+      lockedSegmentStart: now,
+      graceDeadline: null,
+    }),
+    effects,
+  };
+};
 
 const noop = (ctx: PresenceContext): Reduction => ({
   context: ctx,

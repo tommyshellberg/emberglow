@@ -245,6 +245,10 @@ function runEffects(effects: PresenceEffect[]) {
       case 'CANCEL_WARNING_NOTIFICATION':
         safe(() => cancelPresenceWarningNotification());
         break;
+      case 'SCHEDULE_AWAY_REPORT':
+      case 'CANCEL_AWAY_REPORT':
+        // Implemented in the realtime-fail runtime tasks (6–7).
+        break;
       case 'PATCH_LOCK':
         safe(() =>
           updatePhoneLockStatus(

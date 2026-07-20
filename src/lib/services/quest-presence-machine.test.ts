@@ -129,7 +129,7 @@ describe('AWAY transitions', () => {
 
   it('APP_ACTIVE within grace → IN_APP (rescue), cancels grace + warning', () => {
     const enteredAt = START + 60_000;
-    const t = enteredAt + 10_000; // within 30s
+    const t = enteredAt + 10_000; // within grace
     const { context, effects } = presenceReducer(
       away(enteredAt),
       { type: 'APP_ACTIVE' },
@@ -349,5 +349,78 @@ describe('rehydratePresence (cold start)', () => {
       START + 5 * 60_000
     );
     expect(context.state).toBe('FAILED');
+  });
+});
+
+describe('away-report effects (realtime-fail)', () => {
+  const away = (enteredAt: number) =>
+    base({ state: 'AWAY', enteredAt, graceDeadline: enteredAt + 40_000 });
+
+  it('APP_BACKGROUND → AWAY schedules the debounced away report', () => {
+    const { effects } = presenceReducer(
+      base(),
+      { type: 'APP_BACKGROUND' },
+      START + 60_000
+    );
+    expect(effects).toContainEqual({
+      type: 'SCHEDULE_AWAY_REPORT',
+      delayMs: 3_000,
+    });
+  });
+
+  it('SCREEN_UNLOCKED → AWAY (from LOCKED) also schedules the away report', () => {
+    const segStart = START + 60_000;
+    const ctx = base({
+      state: 'LOCKED',
+      enteredAt: segStart,
+      lockedSegmentStart: segStart,
+    });
+    const { effects } = presenceReducer(
+      ctx,
+      { type: 'SCREEN_UNLOCKED' },
+      segStart + 60_000
+    );
+    expect(effects).toContainEqual({
+      type: 'SCHEDULE_AWAY_REPORT',
+      delayMs: 3_000,
+    });
+  });
+
+  it('returning to IN_APP from AWAY cancels the away report', () => {
+    const enteredAt = START + 60_000;
+    const { effects } = presenceReducer(
+      away(enteredAt),
+      { type: 'APP_ACTIVE' },
+      enteredAt + 10_000
+    );
+    expect(effects).toContainEqual({ type: 'CANCEL_AWAY_REPORT' });
+  });
+
+  it('locking from AWAY cancels the away report (lock rescues)', () => {
+    const enteredAt = START + 60_000;
+    const { effects } = presenceReducer(
+      away(enteredAt),
+      { type: 'SCREEN_LOCKED' },
+      enteredAt + 2_000
+    );
+    expect(effects).toContainEqual({ type: 'CANCEL_AWAY_REPORT' });
+  });
+
+  it('IN_APP → LOCKED emits no CANCEL_AWAY_REPORT (nothing to cancel)', () => {
+    const { effects } = presenceReducer(
+      base(),
+      { type: 'SCREEN_LOCKED' },
+      START + 60_000
+    );
+    expect(effects).not.toContainEqual({ type: 'CANCEL_AWAY_REPORT' });
+  });
+
+  it('APP_ACTIVE while already IN_APP emits no CANCEL_AWAY_REPORT', () => {
+    const { effects } = presenceReducer(
+      base(),
+      { type: 'APP_ACTIVE' },
+      START + 60_000
+    );
+    expect(effects).not.toContainEqual({ type: 'CANCEL_AWAY_REPORT' });
   });
 });
