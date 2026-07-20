@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 import { useCooperativeLobbyStore } from '@/store/cooperative-lobby-store';
@@ -239,13 +240,33 @@ describe('CooperativeQuestLobby', () => {
     expect(declineButton).toBeTruthy();
   });
 
-  it('should leave WebSocket room on unmount', () => {
+  // The lobby -> ready screen transition unmounts this screen while the same
+  // socket stays connected. A leave emitted here makes the server treat the
+  // host as having abandoned the lobby and cancel it for everyone, so leaving
+  // must only happen through the explicit back-out flow.
+  it('should NOT emit lobby:leave on unmount', () => {
     const { unmount } = render(<CooperativeQuestLobby />);
 
     unmount();
 
+    expect(mockEmit).not.toHaveBeenCalledWith('lobby:leave', expect.anything());
+  });
+
+  it('emits lobby:leave when the creator explicitly confirms leaving', () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    render(<CooperativeQuestLobby />);
+
+    fireEvent.press(screen.getByTestId('lobby-back-button'));
+
+    const leaveButton = alertSpy.mock.calls[0]?.[2]?.find(
+      (button) => button.text === 'Leave'
+    );
+    expect(leaveButton).toBeTruthy();
+    leaveButton?.onPress?.();
+
     expect(mockEmit).toHaveBeenCalledWith('lobby:leave', {
       lobbyId: 'test-lobby-123',
+      userId: 'creator-123',
     });
   });
 });
