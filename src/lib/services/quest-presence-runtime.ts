@@ -23,7 +23,10 @@ import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
-import { flipLiveActivityToGrace } from '@/lib/services/presence-live-activity';
+import {
+  flipLiveActivityToGrace,
+  revertLiveActivityToActive,
+} from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
   updateAwayStatus,
@@ -79,9 +82,7 @@ let awayDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 // queued) for the current AWAY episode; cleared when the matching
 // away:false disarm goes out or the session ends. Distinct from the
 // machine's `awayReported`, which additionally requires the server's 2xx.
-// Set here; read by the CANCEL_AWAY_REPORT fired-path branch (revert +
-// away:false) added in the next task — genuinely write-only until then.
-// eslint-disable-next-line unused-imports/no-unused-vars
+// Read by cancelAwayReport()'s fired-path branch (revert + away:false).
 let awayReportFired = false;
 // Serializes away-status PATCHes: a fast leave→return must not let the
 // away:false overtake the away:true on the wire.
@@ -267,9 +268,12 @@ function sendAwayStatus(runId: string, away: boolean) {
         useQuestStore.getState().currentLiveActivityId
       );
       if (run.status === 'failed') {
-        // Return/fail cross (~39s): fail locally; the store subscription
-        // then tears this session down (evaluateStoreState → endSession).
-        useQuestStore.getState().failQuest();
+        // Return/fail cross (~39s): the server's dead-man's-switch won.
+        // Identity-guarded like the ack below: a late response from a
+        // replaced session must not fail a DIFFERENT run.
+        if (currentRunId === runId) {
+          useQuestStore.getState().failQuest();
+        }
         return;
       }
       if (away && currentRunId === runId) {
@@ -308,6 +312,24 @@ function armAwayReport(runId: string, delayMs: number) {
   }, delayMs);
 }
 
+// Undo the away signal on ANY exit from AWAY (return or lock — spec rule).
+// Pending: cancel silently (nothing was sent — brief switches stay free).
+// Fired: revert the tile locally and queue the away:false disarm. The
+// disarm goes out even if the away:true 2xx never arrived (lost ack):
+// away:false off the armed path is a benign 200 no-op server-side.
+function cancelAwayReport(runId: string, c: PresenceContext) {
+  clearAwayDebounce();
+  if (!awayReportFired) return;
+  awayReportFired = false;
+  revertLiveActivityToActive({
+    activityId: useQuestStore.getState().currentLiveActivityId,
+    title: questTitle(),
+    durationMinutes: durationMinutesOf(c),
+    startedAt: c.actualStartTime,
+  });
+  sendAwayStatus(runId, false);
+}
+
 function runEffects(effects: PresenceEffect[]) {
   const runId = currentRunId;
   const snapshotCtx = ctx;
@@ -335,9 +357,7 @@ function runEffects(effects: PresenceEffect[]) {
         armAwayReport(runId, effect.delayMs);
         break;
       case 'CANCEL_AWAY_REPORT':
-        // Pending (not yet fired): cancel silently — nothing was sent.
-        // Fired path (revert + away:false) lands in the next task.
-        clearAwayDebounce();
+        cancelAwayReport(runId, snapshotCtx);
         break;
       case 'PATCH_LOCK':
         safe(() =>
@@ -424,6 +444,11 @@ function startPresenceSession(activeQuest: Quest) {
   // Run A's grace/completion timers would otherwise leak. This also covers the
   // handleRawSignal race-guard branch, which starts a session via this fn.
   clearAllTimers();
+  // A prior AWAY episode that ended via GRACE_DEADLINE (fail), rather than
+  // via cancelAwayReport's normal return/lock path, never clears this flag.
+  // A direct run→run swap reaches here without going through endSession(),
+  // so the new run must not inherit a stale "already fired" from the old one.
+  awayReportFired = false;
 
   const config = deriveConfig(activeQuest);
   const now = Date.now();
@@ -455,6 +480,7 @@ function endSession() {
   currentRunId = null;
   ctx = null;
   clearAllTimers();
+  awayReportFired = false;
   if (endedRunId) {
     // A run canceled/failed OUTSIDE the machine (e.g. cancelQuest() while AWAY)
     // never emitted CANCEL_WARNING_NOTIFICATION, so the scheduled "hero in

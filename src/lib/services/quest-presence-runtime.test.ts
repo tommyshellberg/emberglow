@@ -6,7 +6,10 @@ import {
   cancelPresenceWarningNotification,
   schedulePresenceWarningNotification,
 } from '@/lib/services/notifications';
-import { flipLiveActivityToGrace } from '@/lib/services/presence-live-activity';
+import {
+  flipLiveActivityToGrace,
+  revertLiveActivityToActive,
+} from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
   updateAwayStatus,
@@ -476,6 +479,73 @@ describe('quest-presence-runtime', () => {
       // …and the away report never fired.
       expect(updateAwayStatus).not.toHaveBeenCalled();
       expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+    });
+
+    it('returning after the report fired reverts the tile and disarms (away:true then away:false)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(3_000);
+      });
+      await flush();
+      fireAppState('active');
+      await flush();
+
+      expect(revertLiveActivityToActive).toHaveBeenCalledWith({
+        activityId: LIVE_ACTIVITY_ID,
+        title: 'Test quest',
+        durationMinutes: DURATION_MIN,
+        startedAt: START,
+      });
+      const awayFlags = (updateAwayStatus as jest.Mock).mock.calls.map(
+        (c) => c[1]
+      );
+      expect(awayFlags).toEqual([true, false]); // serialized, in order
+      expect(updateQuestRunStatus).not.toHaveBeenCalled(); // no fail — rescued
+    });
+
+    it('locking after the report fired also disarms (lock rescue)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(3_000);
+      });
+      await flush();
+      fireLockEvent('LOCKED');
+      await flush();
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        false,
+        LIVE_ACTIVITY_ID
+      );
+      expect(revertLiveActivityToActive).toHaveBeenCalled();
+    });
+
+    it('an away:false response carrying a failed run fails locally (server won the ~39s cross)', async () => {
+      (updateAwayStatus as jest.Mock)
+        .mockResolvedValueOnce({ status: 'active' }) // away:true ack
+        .mockResolvedValueOnce({ status: 'failed' }); // disarm lost the race
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(3_000);
+      });
+      await flush();
+      fireAppState('active');
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      // The client itself sent no fail — the server owned it.
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
     });
   });
 });
