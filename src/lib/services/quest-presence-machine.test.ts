@@ -535,4 +535,31 @@ describe('awayReported — the server-owns-the-fail fact', () => {
       reported: false,
     });
   });
+
+  it('AWAY_REPORT_ACKED in LOCKED is a no-op', () => {
+    const segStart = START + 60_000;
+    const ctx = base({
+      state: 'LOCKED',
+      enteredAt: segStart,
+      lockedSegmentStart: segStart,
+    });
+    const { context, effects } = presenceReducer(
+      ctx,
+      { type: 'AWAY_REPORT_ACKED' },
+      segStart + 5_000
+    );
+    expect(context.awayReported).toBe(false);
+    expect(effects).toEqual([]);
+  });
+
+  it('a second AWAY_REPORT_ACKED while already reported stays true (idempotent)', () => {
+    const enteredAt = START + 60_000;
+    const { context } = presenceReducer(
+      away(enteredAt, { awayReported: true }),
+      { type: 'AWAY_REPORT_ACKED' },
+      enteredAt + 8_000
+    );
+    expect(context.state).toBe('AWAY');
+    expect(context.awayReported).toBe(true);
+  });
 });
