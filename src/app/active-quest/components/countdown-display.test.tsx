@@ -20,15 +20,20 @@ describe('formatCountdown', () => {
 });
 
 describe('CountdownDisplay', () => {
-  it('renders the formatted countdown and a REMAINING sublabel', () => {
-    render(<CountdownDisplay remainingMs={23 * 60_000 + 41_000} />);
+  it('renders the countdown over an "Of MM:SS" total sublabel', () => {
+    render(
+      <CountdownDisplay
+        remainingMs={23 * 60_000 + 41_000}
+        totalMs={30 * 60_000}
+      />
+    );
 
     expect(screen.getByText('23:41')).toBeTruthy();
-    expect(screen.getByText('Remaining')).toBeTruthy();
+    expect(screen.getByText('Of 30:00')).toBeTruthy();
   });
 
   it('renders 00:00 when remainingMs is 0', () => {
-    render(<CountdownDisplay remainingMs={0} />);
+    render(<CountdownDisplay remainingMs={0} totalMs={15 * 60_000} />);
 
     expect(screen.getByText('00:00')).toBeTruthy();
   });

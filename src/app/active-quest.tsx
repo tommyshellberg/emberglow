@@ -1,16 +1,25 @@
 import { useKeepAwake } from 'expo-keep-awake';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, FocusAwareStatusBar, View } from '@/components/ui';
+import { ProgressRing } from '@/components/emberglow';
+import {
+  BackgroundImage,
+  colors,
+  FocusAwareStatusBar,
+  View,
+} from '@/components/ui';
 import { useQuestPresence } from '@/lib/hooks/use-quest-presence';
 import { questAudio } from '@/lib/services/quest-audio.service';
 import { useQuestStore } from '@/store/quest-store';
+import { palette, scrims, withAlpha } from '@/theme';
 
 import { AmbientMusicPill } from './active-quest/components/ambient-music-pill';
 import { CampfireAmbience } from './active-quest/components/campfire-ambience';
 import { CountdownDisplay } from './active-quest/components/countdown-display';
-import { JourneyProgressBar } from './active-quest/components/journey-progress-bar';
+import { JourneyCaption } from './active-quest/components/journey-caption';
 import { PresenceFooter } from './active-quest/components/presence-footer';
 import { PresenceInfoStrip } from './active-quest/components/presence-info-strip';
 
@@ -77,12 +86,14 @@ export default function ActiveQuestScreen() {
 
   // The hook exposes remaining time but not the run's total duration, so we
   // read it from the active quest's display data (not a pass/fail input) to
-  // compute the journey bar's fill. When it's unavailable (e.g. this test
-  // doesn't seed the quest store), fall back to remainingMs so the bar still
+  // compute the ring's fill. When it's unavailable (e.g. this test doesn't
+  // seed the quest store), fall back to remainingMs so the ring still
   // renders sensibly instead of dividing by an unknown total.
   const totalMs =
     durationMinutes != null ? durationMinutes * 60_000 : remainingMs;
   const travelledMs = Math.max(0, totalMs - remainingMs);
+  // The arc fills as the hero travels (journey metaphor, inherited from the
+  // old journey bar) rather than draining like a stopwatch.
   const fill = totalMs > 0 ? travelledMs / totalMs : 0;
 
   return (
@@ -92,6 +103,37 @@ export default function ActiveQuestScreen() {
           light-mode device would render dark icons, invisible on this dark
           screen. Matches every other full-bleed dark screen in the app. */}
       <FocusAwareStatusBar />
+
+      {/* Full-bleed painted art under a rich-black wash + scrims
+          (quest-flow.jsx TimerScreen:55-58), so the campfire ambience and
+          text keep their contrast over the artwork. */}
+      <BackgroundImage
+        testID="active-quest-art"
+        source={require('@/../assets/images/background/card-background-alt.jpg')}
+        tintClassName="bg-transparent"
+      >
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: withAlpha(palette.richBlack, 0.55) },
+          ]}
+        />
+      </BackgroundImage>
+      <LinearGradient
+        pointerEvents="none"
+        colors={scrims.top.colors}
+        start={scrims.top.start}
+        end={scrims.top.end}
+        style={styles.scrimTop}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={scrims.bottom.colors}
+        start={scrims.bottom.start}
+        end={scrims.bottom.end}
+        style={styles.scrimBottom}
+      />
+
       <CampfireAmbience />
 
       {/* Own the safe area ourselves now that the native header is gone, so
@@ -116,13 +158,18 @@ export default function ActiveQuestScreen() {
             reassurance so the screen reads as one calm column instead of a
             top-loaded list with a void beneath it. */}
         <View style={{ flex: 1, justifyContent: 'center' }}>
-          <CountdownDisplay remainingMs={remainingMs} />
+          <View testID="quest-progress-ring" style={{ alignItems: 'center' }}>
+            <ProgressRing progress={fill} size={248}>
+              <CountdownDisplay remainingMs={remainingMs} totalMs={totalMs} />
+            </ProgressRing>
+          </View>
 
-          <JourneyProgressBar
-            fill={fill}
-            travelledMs={travelledMs}
-            liveMultiplier={liveMultiplier}
-          />
+          <View style={{ marginTop: 18 }}>
+            <JourneyCaption
+              travelledMs={travelledMs}
+              liveMultiplier={liveMultiplier}
+            />
+          </View>
 
           <View style={{ marginTop: 24 }}>
             <AmbientMusicPill
@@ -140,3 +187,21 @@ export default function ActiveQuestScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // Scrim depths from the design mock's timer screen (38% / 42%).
+  scrimTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '38%',
+  },
+  scrimBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '42%',
+  },
+});

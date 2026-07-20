@@ -1,9 +1,12 @@
 import React from 'react';
 
-import { colors, Text, View } from '@/components/ui';
+import { Text, View } from '@/components/ui';
+import { colors as ember, palette } from '@/theme';
 
 interface CountdownDisplayProps {
   remainingMs: number;
+  /** The run's total duration, shown as the "Of MM:SS" sublabel. */
+  totalMs: number;
 }
 
 /**
@@ -26,22 +29,26 @@ export function formatCountdown(remainingMs: number): string {
 }
 
 /**
- * Large countdown readout for the active-quest screen. Purely presentational
- * — it displays `remainingMs` from `useQuestPresence()` and computes no
- * pass/fail decision of its own.
+ * Countdown readout for the center of the active-quest ember ring. Purely
+ * presentational — it displays `remainingMs` from `useQuestPresence()` and
+ * computes no pass/fail decision of its own. Sized to sit inside the
+ * 248px ProgressRing (quest-flow.jsx TimerScreen).
  */
-export function CountdownDisplay({ remainingMs }: CountdownDisplayProps) {
+export function CountdownDisplay({
+  remainingMs,
+  totalMs,
+}: CountdownDisplayProps) {
   return (
     <View className="items-center">
       <Text
         style={{
-          fontSize: 66,
+          fontSize: 56,
           // Explicit lineHeight (~1.2×) gives the heavy glyphs a tall enough
           // line box; without it RN sizes the box to the font's own metrics
           // and clips the digits' ascenders (the bug this screen shipped with).
-          lineHeight: 80,
-          fontWeight: '800',
-          color: colors.lightBrown[300],
+          lineHeight: 68,
+          fontWeight: '700',
+          color: palette.bone,
           // Tabular figures keep every digit the same width so the readout
           // doesn't shift horizontally as the seconds tick down.
           fontVariant: ['tabular-nums'],
@@ -53,14 +60,14 @@ export function CountdownDisplay({ remainingMs }: CountdownDisplayProps) {
       <Text
         style={{
           marginTop: 2,
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: '600',
-          letterSpacing: 4,
-          color: colors.neutral[200],
+          letterSpacing: 2.5,
+          color: ember.text.muted,
           textTransform: 'uppercase',
         }}
       >
-        Remaining
+        Of {formatCountdown(totalMs)}
       </Text>
     </View>
   );

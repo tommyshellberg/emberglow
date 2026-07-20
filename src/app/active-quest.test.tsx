@@ -29,11 +29,10 @@ jest.mock('@/lib/services/quest-audio.service', () => ({
   },
 }));
 
-// lucide-react-native renders SVG icons (User/Flag/Lock) via react-native-svg,
-// which needs a native view manager not present under the test renderer.
+// lucide-react-native renders SVG icons (the footer's Lock) via
+// react-native-svg, which needs a native view manager not present under the
+// test renderer.
 jest.mock('lucide-react-native', () => ({
-  User: () => null,
-  Flag: () => null,
   Lock: () => null,
 }));
 jest.mock('react-native-svg', () => ({
@@ -85,6 +84,9 @@ describe('ActiveQuestScreen', () => {
     render(<ActiveQuestScreen />);
 
     expect(screen.getByText('23:41')).toBeTruthy();
+    // The quest store isn't seeded here, so the screen falls back to
+    // remainingMs as the total — the sublabel mirrors the countdown.
+    expect(screen.getByText('Of 23:41')).toBeTruthy();
     expect(screen.getByText(/62 XP/)).toBeTruthy();
     expect(screen.getByText(/up to 93 if locked/)).toBeTruthy();
     expect(screen.getByText(/1\.18× XP/)).toBeTruthy();
@@ -92,6 +94,25 @@ describe('ActiveQuestScreen', () => {
     expect(
       screen.getByText(/Leaving the app will end the quest early/)
     ).toBeTruthy();
+  });
+
+  it('draws the countdown inside the ember ring over full-bleed art, with the journey caption below', () => {
+    mockUseQuestPresence({
+      state: 'IN_APP',
+      remainingMs: 23 * 60_000 + 41_000,
+      liveMultiplier: 1.18,
+      forecast: { current: 62, maxIfLocked: 93 },
+      questTitle: 'The Whispering Glade',
+      mode: 'story',
+      lockedMs: 0,
+      isMuted: false,
+    });
+
+    render(<ActiveQuestScreen />);
+
+    expect(screen.getByTestId('quest-progress-ring')).toBeTruthy();
+    expect(screen.getByTestId('active-quest-art')).toBeTruthy();
+    expect(screen.getByTestId('journey-caption')).toBeTruthy();
   });
 
   it('calls useKeepAwake so the screen never idle-dims', () => {
