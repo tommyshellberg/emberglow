@@ -23,6 +23,11 @@ prepare_react_native_project!
 
 target 'Emberglow' do
   use_expo_modules!
+  # Required by @react-native-google-signin/google-signin: its Swift pod
+  # dependency chain (AppCheckCore -> GoogleUtilities, RecaptchaInterop) has
+  # no defined modules, so CocoaPods can't integrate them as static
+  # libraries without this. See google-signin/google-sign-in-ios#357.
+  use_modular_headers!
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

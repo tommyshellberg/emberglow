@@ -41,6 +41,15 @@
 				<string>exp+unquest-app</string>
 			</array>
 		</dict>
+		<!-- TODO(social-signin): replace with the reversed form of the real
+		     GOOGLE_IOS_CLIENT_ID once it exists (see plan Human prerequisites).
+		     Format: com.googleusercontent.apps.<client-id-prefix> -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.PLACEHOLDER-IOS-CLIENT-ID</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>

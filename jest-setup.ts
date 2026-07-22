@@ -345,3 +345,30 @@ jest.mock('react-native-edge-to-edge', () => ({
 
 // Note: Removed invasive global mocks that were breaking other tests
 // Test-specific mocks should be added in individual test files as needed
+
+// Mock expo-apple-authentication for social sign-in
+jest.mock('expo-apple-authentication', () => ({
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  signInAsync: jest.fn(),
+  AppleAuthenticationScope: { EMAIL: 1 },
+  AppleAuthenticationButton: jest.fn().mockReturnValue(null),
+  AppleAuthenticationButtonType: { SIGN_IN: 0 },
+  AppleAuthenticationButtonStyle: { WHITE: 1 },
+}));
+
+// Mock expo-crypto for social sign-in nonce hashing
+jest.mock('expo-crypto', () => ({
+  digestStringAsync: jest.fn().mockResolvedValue('hashed-nonce'),
+  randomUUID: jest.fn().mockReturnValue('raw-nonce'),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
+
+// Mock @react-native-google-signin/google-signin for social sign-in
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn().mockResolvedValue(true),
+    signIn: jest.fn(),
+  },
+  statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },
+}));
