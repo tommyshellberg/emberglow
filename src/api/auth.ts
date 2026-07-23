@@ -4,7 +4,7 @@ import { OneSignal } from 'react-native-onesignal';
 import { signIn } from '@/lib/auth';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem, removeItem } from '@/lib/storage';
+import { removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -38,7 +38,7 @@ export interface RegisterResponse {
  */
 export const requestMagicLink = async (email: string): Promise<void> => {
   try {
-    const provisionalToken = getItem('provisionalAccessToken');
+    const provisionalToken = tokenService.getProvisionalAccessToken();
 
     console.log('provisionalToken exists:', !!provisionalToken);
 
@@ -90,7 +90,7 @@ export const verifyMagicLink = async (
     tokenService.storeTokens(response.data);
 
     // Clear provisional user data after successful authentication
-    removeItem('provisionalAccessToken');
+    tokenService.removeProvisionalAccessToken();
     removeItem('provisionalUserId');
     removeItem('provisionalEmail');
     console.log('Cleared provisional user data after successful login');

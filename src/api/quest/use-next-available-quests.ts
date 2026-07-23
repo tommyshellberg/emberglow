@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getItem } from '@/lib/storage';
+import { getProvisionalAccessToken } from '@/api/token';
 
 import { apiClient } from '../common';
 import { provisionalApiClient } from '../common/provisional-client';
@@ -26,7 +26,7 @@ export const useNextAvailableQuests = ({
       });
 
       // Check if we're using a provisional user
-      const hasProvisionalToken = !!getItem('provisionalAccessToken');
+      const hasProvisionalToken = !!getProvisionalAccessToken();
       const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
       const response = await client.get(

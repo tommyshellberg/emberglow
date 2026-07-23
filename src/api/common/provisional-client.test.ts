@@ -12,10 +12,10 @@ jest.mock('./get-api-url', () => ({
   getApiUrl: jest.fn(() => 'https://api.example.com'),
 }));
 
-// Mock storage
-const mockGetItem = jest.fn();
-jest.mock('@/lib/storage', () => ({
-  getItem: mockGetItem,
+// Mock the provisional token accessor
+const mockGetProvisionalAccessToken = jest.fn();
+jest.mock('@/api/token', () => ({
+  getProvisionalAccessToken: mockGetProvisionalAccessToken,
 }));
 
 // Mock axios
@@ -96,7 +96,7 @@ describe('Provisional API Client', () => {
 
   describe('Request Interceptor', () => {
     it('should attach provisional token to request headers when token exists', async () => {
-      mockGetItem.mockReturnValue('test-provisional-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-provisional-token');
 
       const config = {
         headers: {},
@@ -106,14 +106,14 @@ describe('Provisional API Client', () => {
 
       const result = await requestInterceptor(config);
 
-      expect(mockGetItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(mockGetProvisionalAccessToken).toHaveBeenCalled();
       expect(result.headers.Authorization).toBe(
         'Bearer test-provisional-token'
       );
     });
 
     it('should not attach authorization header when no token exists', async () => {
-      mockGetItem.mockReturnValue(null);
+      mockGetProvisionalAccessToken.mockReturnValue(null);
 
       const config = {
         headers: {},
@@ -123,12 +123,12 @@ describe('Provisional API Client', () => {
 
       const result = await requestInterceptor(config);
 
-      expect(mockGetItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(mockGetProvisionalAccessToken).toHaveBeenCalled();
       expect(result.headers.Authorization).toBeUndefined();
     });
 
     it('should log invitation-related requests', async () => {
-      mockGetItem.mockReturnValue('test-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-token');
 
       const config = {
         headers: {},
@@ -159,7 +159,7 @@ describe('Provisional API Client', () => {
     });
 
     it('should not log non-invitation requests', async () => {
-      mockGetItem.mockReturnValue('test-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-token');
 
       const config = {
         headers: {},
@@ -177,7 +177,7 @@ describe('Provisional API Client', () => {
     });
 
     it('should handle invitation URL patterns correctly', async () => {
-      mockGetItem.mockReturnValue('test-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-token');
 
       const invitationUrls = [
         '/invitations/123',
@@ -321,7 +321,7 @@ describe('Provisional API Client', () => {
 
   describe('Edge Cases', () => {
     it('should handle config with undefined URL in request interceptor', async () => {
-      mockGetItem.mockReturnValue('test-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-token');
 
       const config = {
         headers: {},
@@ -359,7 +359,7 @@ describe('Provisional API Client', () => {
     });
 
     it('should handle config with null method in request interceptor', async () => {
-      mockGetItem.mockReturnValue('test-token');
+      mockGetProvisionalAccessToken.mockReturnValue('test-token');
 
       const config = {
         headers: {},
@@ -375,7 +375,7 @@ describe('Provisional API Client', () => {
     });
 
     it('should handle empty storage token', async () => {
-      mockGetItem.mockReturnValue('');
+      mockGetProvisionalAccessToken.mockReturnValue('');
 
       const config = {
         headers: {},
@@ -389,7 +389,7 @@ describe('Provisional API Client', () => {
     });
 
     it('should handle storage that throws an error', async () => {
-      mockGetItem.mockImplementation(() => {
+      mockGetProvisionalAccessToken.mockImplementation(() => {
         throw new Error('Storage error');
       });
 

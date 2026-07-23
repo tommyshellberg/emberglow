@@ -2,10 +2,10 @@ import React, { createContext, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { queryClient } from '@/api/common';
+import { getProvisionalAccessToken } from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { type TypedWebSocketEvents } from '@/lib/services/websocket-events.types';
 import { webSocketService } from '@/lib/services/websocket-service';
-import { getItem } from '@/lib/storage';
 import { useQuestStore } from '@/store/quest-store';
 
 interface WebSocketContextValue {
@@ -62,13 +62,13 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   // Check for token changes on auth status changes and component renders
   React.useEffect(() => {
-    const provisionalToken = getItem('provisionalAccessToken');
+    const provisionalToken = getProvisionalAccessToken();
     setHasProvisionalToken(!!provisionalToken);
   }, [authStatus]);
 
   // Also check for token changes on every render to catch mock changes in tests
   React.useEffect(() => {
-    const provisionalToken = getItem('provisionalAccessToken');
+    const provisionalToken = getProvisionalAccessToken();
     const hasToken = !!provisionalToken;
     if (hasToken !== hasProvisionalToken) {
       setHasProvisionalToken(hasToken);

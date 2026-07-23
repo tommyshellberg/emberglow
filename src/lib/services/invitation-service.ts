@@ -1,6 +1,6 @@
 import { apiClient } from '@/api';
 import { provisionalApiClient } from '@/api/common/provisional-client';
-import { getItem } from '@/lib/storage';
+import { getProvisionalAccessToken } from '@/api/token';
 import { type QuestInvitation } from '@/store/types';
 
 export interface CreateInvitationRequest {
@@ -32,7 +32,7 @@ export async function createInvitation(
   request: CreateInvitationRequest
 ): Promise<QuestInvitation> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.post<QuestInvitation>(
@@ -53,7 +53,7 @@ export async function getInvitationStatus(
   invitationId: string
 ): Promise<InvitationStatusResponse> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.get<InvitationStatusResponse>(
@@ -79,7 +79,7 @@ export async function acceptInvitation(
   console.log('========================================');
 
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     console.log(
@@ -113,7 +113,7 @@ export async function declineInvitation(
   console.log('========================================');
 
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     console.log(
@@ -139,7 +139,7 @@ export async function declineInvitation(
  */
 export async function getPendingInvitations(): Promise<QuestInvitation[]> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     // Quest invitations are at /invitations, not /users/invites
@@ -174,7 +174,7 @@ export function getInvitationTimeRemaining(
  */
 export async function getActiveInvitations(): Promise<QuestInvitation[]> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.get<QuestInvitation[]>('/invitations/active');

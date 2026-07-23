@@ -79,6 +79,9 @@ jest.mock('@/lib/storage', () => ({
   getItem: jest.fn(() => null),
   setItem: jest.fn(),
 }));
+jest.mock('@/api/token', () => ({
+  getProvisionalAccessToken: jest.fn(() => null),
+}));
 
 import { Directory, File } from 'expo-file-system';
 

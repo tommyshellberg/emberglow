@@ -1,8 +1,9 @@
 import { renderHook } from '@testing-library/react-native';
 
+// Import mocked modules
+import { getProvisionalAccessToken } from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { useNavigationTarget } from '@/lib/navigation/navigation-state-resolver';
-// Import mocked modules
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep } from '@/store/onboarding-store';
@@ -11,6 +12,7 @@ import { useQuestStore } from '@/store/quest-store';
 
 // Mock modules
 jest.mock('@/lib/storage');
+jest.mock('@/api/token');
 jest.mock('@/lib/auth');
 jest.mock('@/store/onboarding-store');
 jest.mock('@/store/character-store');
@@ -18,6 +20,10 @@ jest.mock('@/store/quest-store');
 
 // Setup mock implementations
 const mockGetItem = getItem as jest.MockedFunction<typeof getItem>;
+const mockGetProvisionalAccessToken =
+  getProvisionalAccessToken as jest.MockedFunction<
+    typeof getProvisionalAccessToken
+  >;
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockUseOnboardingStore = useOnboardingStore as jest.MockedFunction<
   typeof useOnboardingStore
@@ -68,6 +74,7 @@ beforeEach(() => {
 
   // Reset mock implementations
   mockGetItem.mockReturnValue(null);
+  mockGetProvisionalAccessToken.mockReturnValue(null);
 
   mockUseAuth.mockImplementation((selector) => selector(mockAuthState));
 
@@ -187,10 +194,7 @@ describe('Navigation State Resolver', () => {
     mockQuestState.recentCompletedQuest = { id: 'quest-1a' };
     mockQuestState.completedQuests = [];
 
-    mockGetItem.mockImplementation((key) => {
-      if (key === 'provisionalAccessToken') return 'test-provisional-token';
-      return null;
-    });
+    mockGetProvisionalAccessToken.mockReturnValue('test-provisional-token');
 
     const { result } = renderHook(() => useNavigationTarget());
 
@@ -206,10 +210,7 @@ describe('Navigation State Resolver', () => {
     mockQuestState.failedQuest = { id: 'quest-1a' };
     mockQuestState.completedQuests = [];
 
-    mockGetItem.mockImplementation((key) => {
-      if (key === 'provisionalAccessToken') return 'test-provisional-token';
-      return null;
-    });
+    mockGetProvisionalAccessToken.mockReturnValue('test-provisional-token');
 
     const { result } = renderHook(() => useNavigationTarget());
 

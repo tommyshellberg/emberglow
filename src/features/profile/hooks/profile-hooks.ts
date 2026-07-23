@@ -7,6 +7,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
+import { getProvisionalAccessToken } from '@/api/token';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
@@ -28,12 +29,15 @@ import type { UserWithLegacyCharacter } from '@/features/profile/types/profile-t
 export function useCharacterSync(dependencies?: {
   characterStore?: typeof useCharacterStore;
   getStorageItem?: typeof getItem;
+  getProvisionalAccessToken?: typeof getProvisionalAccessToken;
   getUserDetails?: typeof getUserDetails;
   router?: ReturnType<typeof useRouter>;
 }) {
   // Use provided dependencies or defaults for production
   const characterStore = dependencies?.characterStore || useCharacterStore;
   const getStorageItem = dependencies?.getStorageItem || getItem;
+  const getProvisionalAccessTokenFunc =
+    dependencies?.getProvisionalAccessToken || getProvisionalAccessToken;
   const getUserDetailsFunc = dependencies?.getUserDetails || getUserDetails;
   const providedRouter = dependencies?.router;
 
@@ -86,7 +90,7 @@ export function useCharacterSync(dependencies?: {
             // Check for provisional data to determine if they're in onboarding
             const hasProvisionalData = !!(
               getStorageItem('provisionalUserId') ||
-              getStorageItem('provisionalAccessToken') ||
+              getProvisionalAccessTokenFunc() ||
               getStorageItem('provisionalEmail')
             );
 
@@ -114,6 +118,7 @@ export function useCharacterSync(dependencies?: {
     isRedirecting,
     characterStore,
     getStorageItem,
+    getProvisionalAccessTokenFunc,
     getUserDetailsFunc,
   ]);
 

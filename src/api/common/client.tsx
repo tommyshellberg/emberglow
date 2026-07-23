@@ -1,8 +1,8 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
+import { getProvisionalAccessToken } from '@/api/token';
 import { signOut } from '@/lib/auth';
 import { getToken } from '@/lib/auth/utils';
-import { getItem } from '@/lib/storage';
 
 import { refreshAccessToken } from '../auth';
 import { getApiUrl } from './get-api-url';
@@ -194,7 +194,7 @@ apiClient.interceptors.response.use(
           processQueue(refreshError);
 
           // Check if this is a provisional user before signing out
-          const hasProvisionalToken = !!getItem('provisionalAccessToken');
+          const hasProvisionalToken = !!getProvisionalAccessToken();
           if (!hasProvisionalToken) {
             signOut();
           } else if (__DEV__) {
@@ -209,7 +209,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshError as Error);
 
         // Check if this is a provisional user before signing out
-        const hasProvisionalToken = !!getItem('provisionalAccessToken');
+        const hasProvisionalToken = !!getProvisionalAccessToken();
         if (!hasProvisionalToken) {
           signOut();
         } else if (__DEV__) {

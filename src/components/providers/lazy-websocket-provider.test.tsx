@@ -25,8 +25,8 @@ jest.mock('@/lib/auth', () => ({
   useAuth: (selector: any) => selector({ status: 'signIn' }),
 }));
 
-jest.mock('@/lib/storage', () => ({
-  getItem: jest.fn(() => null),
+jest.mock('@/api/token', () => ({
+  getProvisionalAccessToken: jest.fn(() => null),
 }));
 
 describe('LazyWebSocketProvider', () => {

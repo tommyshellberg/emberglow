@@ -1,8 +1,8 @@
 import { io, type Socket } from 'socket.io-client';
 
 import { getApiUrl } from '@/api/common/get-api-url';
+import { getProvisionalAccessToken } from '@/api/token';
 import { getToken } from '@/lib/auth/utils';
-import { getItem } from '@/lib/storage';
 
 import { type TypedWebSocketEvents } from './websocket-events.types';
 
@@ -32,11 +32,13 @@ class WebSocketService {
 
     // Get token from the auth store
     const tokenData = getToken();
-    const provisionalToken = getItem('provisionalAccessToken');
+    const provisionalToken = getProvisionalAccessToken();
     const accessToken = tokenData?.access || provisionalToken;
 
     if (!accessToken) {
-      console.warn('[WebSocket] No access token available, skipping connection');
+      console.warn(
+        '[WebSocket] No access token available, skipping connection'
+      );
       return;
     }
 
@@ -119,7 +121,9 @@ class WebSocketService {
   on(event: string, handler: (...args: any[]) => void): void;
   on(event: string, handler: (...args: any[]) => void): void {
     if (!this.socket) {
-      console.warn('[WebSocket] Cannot subscribe to events, socket not initialized');
+      console.warn(
+        '[WebSocket] Cannot subscribe to events, socket not initialized'
+      );
       return;
     }
 

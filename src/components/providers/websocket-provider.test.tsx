@@ -2,9 +2,9 @@ import { act, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 import { queryClient } from '@/api/common';
+import { getProvisionalAccessToken } from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { webSocketService } from '@/lib/services/websocket-service';
-import { getItem } from '@/lib/storage';
 import { useQuestStore } from '@/store/quest-store';
 
 import { WebSocketProvider } from './websocket-provider';
@@ -38,8 +38,8 @@ jest.mock('@/api/common', () => ({
   },
 }));
 
-jest.mock('@/lib/storage', () => ({
-  getItem: jest.fn(),
+jest.mock('@/api/token', () => ({
+  getProvisionalAccessToken: jest.fn(),
 }));
 
 // Mock AppState specifically
@@ -67,7 +67,9 @@ const mockUseQuestStore = useQuestStore as jest.MockedFunction<
   typeof useQuestStore
 >;
 const mockQueryClient = queryClient as jest.Mocked<typeof queryClient>;
-const mockGetItem = getItem as jest.MockedFunction<typeof getItem>;
+const mockGetItem = getProvisionalAccessToken as jest.MockedFunction<
+  typeof getProvisionalAccessToken
+>;
 
 describe('WebSocketProvider', () => {
   let mockQuestStore: any;

@@ -9,6 +9,7 @@ import { useCharacterSync } from './profile-hooks';
 describe('useCharacterSync', () => {
   let mockCharacterStore: any;
   let mockGetStorageItem: jest.Mock;
+  let mockGetProvisionalAccessToken: jest.Mock;
   let mockGetUserDetails: jest.Mock;
   let mockRouter: any;
 
@@ -42,6 +43,7 @@ describe('useCharacterSync', () => {
 
     // Create mock storage
     mockGetStorageItem = jest.fn(() => null);
+    mockGetProvisionalAccessToken = jest.fn(() => null);
 
     // Create mock user service
     mockGetUserDetails = jest.fn();
@@ -61,16 +63,29 @@ describe('useCharacterSync', () => {
       mockCharacterStore.mockImplementation((selector) => {
         if (selector) {
           return selector({
-            character: { name: 'TestHero', type: 'knight', level: 5, currentXP: 150 },
+            character: {
+              name: 'TestHero',
+              type: 'knight',
+              level: 5,
+              currentXP: 150,
+            },
           });
         }
-        return { character: { name: 'TestHero', type: 'knight', level: 5, currentXP: 150 } };
+        return {
+          character: {
+            name: 'TestHero',
+            type: 'knight',
+            level: 5,
+            currentXP: 150,
+          },
+        };
       });
 
       const { result } = renderHook(() =>
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -106,6 +121,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -116,7 +132,10 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('wizard', 'MerlinTheWise');
+        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith(
+          'wizard',
+          'MerlinTheWise'
+        );
       });
 
       expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
@@ -154,6 +173,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -165,7 +185,10 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('knight', 'BraveSir');
+        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith(
+          'knight',
+          'BraveSir'
+        );
       });
 
       expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
@@ -202,6 +225,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -241,6 +265,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -255,7 +280,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );
@@ -272,15 +299,13 @@ describe('useCharacterSync', () => {
       };
 
       mockGetUserDetails.mockResolvedValue(mockUser);
-      mockGetStorageItem.mockImplementation((key) => {
-        if (key === 'provisionalAccessToken') return 'token-abc';
-        return null;
-      });
+      mockGetProvisionalAccessToken.mockReturnValue('token-abc');
 
       const { result } = renderHook(() =>
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -295,7 +320,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );
@@ -321,6 +348,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -335,7 +363,9 @@ describe('useCharacterSync', () => {
 
       await waitFor(
         () => {
-          expect(mockRouter.replace).toHaveBeenCalledWith('/onboarding/choose-character');
+          expect(mockRouter.replace).toHaveBeenCalledWith(
+            '/onboarding/choose-character'
+          );
         },
         { timeout: 3000 }
       );
@@ -358,6 +388,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })
@@ -381,6 +412,7 @@ describe('useCharacterSync', () => {
         useCharacterSync({
           characterStore: mockCharacterStore,
           getStorageItem: mockGetStorageItem,
+          getProvisionalAccessToken: mockGetProvisionalAccessToken,
           getUserDetails: mockGetUserDetails,
           router: mockRouter,
         })

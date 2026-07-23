@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import { getItem } from '@/lib/storage';
+import { getProvisionalAccessToken } from '@/api/token';
 
 import { getApiUrl } from './get-api-url';
 
@@ -19,7 +19,7 @@ const provisionalApiClient = axios.create({
 // Simple request interceptor that attaches the provisional token
 provisionalApiClient.interceptors.request.use(
   (config) => {
-    const provisionalToken = getItem<string>('provisionalAccessToken');
+    const provisionalToken = getProvisionalAccessToken();
 
     if (provisionalToken) {
       config.headers.Authorization = `Bearer ${provisionalToken}`;

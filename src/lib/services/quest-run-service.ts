@@ -1,6 +1,6 @@
 import { apiClient } from '@/api';
 import { provisionalApiClient } from '@/api/common/provisional-client';
-import { getItem } from '@/lib/storage';
+import { getProvisionalAccessToken } from '@/api/token';
 import {
   type CooperativeQuestTemplate,
   type CustomQuestTemplate,
@@ -137,7 +137,7 @@ export async function createQuestRun(
 
   try {
     // Check if we're using a provisional user
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     console.log(
       '[createQuestRun] Using provisional token:',
       hasProvisionalToken
@@ -192,7 +192,7 @@ export async function updateQuestRunStatus(
     }
 
     // Check if we're using a provisional user
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
 
     // Use the appropriate client
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
@@ -212,7 +212,7 @@ export async function getQuestRunStatus(
   runId: string
 ): Promise<QuestRunResponse> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.get<QuestRunResponse>(`/quest-runs/${runId}`);
@@ -251,7 +251,7 @@ export async function updatePhoneLockStatus(
     }
 
     // Check if we're using a provisional user
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
 
     // Use the appropriate client
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;

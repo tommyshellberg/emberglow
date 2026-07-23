@@ -9,10 +9,10 @@ import React, {
 } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
+import { getProvisionalAccessToken } from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { type TypedWebSocketEvents } from '@/lib/services/websocket-events.types';
 import { webSocketService } from '@/lib/services/websocket-service';
-import { getItem } from '@/lib/storage';
 
 interface LazyWebSocketContextValue {
   isConnected: boolean;
@@ -88,7 +88,7 @@ export const LazyWebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Check for provisional token
   useEffect(() => {
-    const provisionalToken = getItem('provisionalAccessToken');
+    const provisionalToken = getProvisionalAccessToken();
     setHasProvisionalToken(!!provisionalToken);
   }, [authStatus]);
 
