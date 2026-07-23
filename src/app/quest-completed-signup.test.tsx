@@ -18,10 +18,57 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+// Stable capture fn so assertions can see calls — a fresh object per
+// usePostHog() call (as the previous inline factory produced) would give
+// every render its own throwaway `capture`, making call assertions
+// impossible (same fix as verify.test.tsx / social-sign-in-buttons.test.tsx).
+const mockPosthogCapture = jest.fn();
 jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({
-    capture: jest.fn(),
+    capture: mockPosthogCapture,
   }),
+}));
+
+// Mock SocialSignInButtons — this suite only tests the screen's placement
+// of, and wiring to, the component; its own behavior (credential exchange,
+// cancellation, per-outcome toasts) is covered by
+// social-sign-in-buttons.test.tsx. The stub exposes one press target per
+// onSuccess/onError scenario the screen needs to handle.
+jest.mock('@/components/login/social-sign-in-buttons', () => {
+  const { View, Pressable } = jest.requireActual('react-native');
+  return {
+    SocialSignInButtons: ({
+      onSuccess,
+      onError,
+    }: {
+      onSuccess: (target: string, outcome: string, provider: string) => void;
+      onError: (kind: 'email-in-use' | 'generic') => void;
+    }) => (
+      <View testID="social-sign-in-buttons-mock">
+        <Pressable
+          testID="mock-social-success-google"
+          onPress={() => onSuccess('app', 'converted', 'google')}
+        />
+        <Pressable
+          testID="mock-social-success-apple"
+          onPress={() => onSuccess('app', 'converted', 'apple')}
+        />
+        <Pressable
+          testID="mock-social-error-email-in-use"
+          onPress={() => onError('email-in-use')}
+        />
+        <Pressable
+          testID="mock-social-error-generic"
+          onPress={() => onError('generic')}
+        />
+      </View>
+    ),
+  };
+});
+
+const mockShowMessage = jest.fn();
+jest.mock('react-native-flash-message', () => ({
+  showMessage: (...args: unknown[]) => mockShowMessage(...args),
 }));
 
 // Mock stores
@@ -183,6 +230,104 @@ describe('QuestCompletedSignupScreen', () => {
           'Rowan lives only on this device for now. A free account is how you keep them.'
         )
       ).toBeTruthy();
+    });
+  });
+
+  describe('Social sign-in', () => {
+    it('renders the social sign-in buttons above the Create account button', () => {
+      const { getByTestId, getByText, toJSON } = render(
+        <QuestCompletedSignupScreen />
+      );
+
+      expect(getByTestId('social-sign-in-buttons-mock')).toBeTruthy();
+      expect(getByText('Create account')).toBeTruthy();
+
+      // Depth-first walk collecting testIDs and text leaves in render
+      // order, so "above" is asserted structurally rather than assumed.
+      const order: string[] = [];
+      const walk = (node: any): void => {
+        if (node === null || typeof node === 'string') {
+          if (typeof node === 'string') order.push(node);
+          return;
+        }
+        if (Array.isArray(node)) {
+          node.forEach(walk);
+          return;
+        }
+        if (typeof node.props?.testID === 'string') {
+          order.push(node.props.testID);
+        }
+        if (node.children) walk(node.children);
+      };
+      walk(toJSON());
+
+      const socialIndex = order.indexOf('social-sign-in-buttons-mock');
+      const createAccountIndex = order.indexOf('Create account');
+
+      expect(socialIndex).toBeGreaterThanOrEqual(0);
+      expect(createAccountIndex).toBeGreaterThan(socialIndex);
+    });
+
+    it('still routes "Create account" to /login', async () => {
+      const { getByText } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByText('Create account'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/login');
+      });
+    });
+
+    it('fires signup_completed with the provider on a successful google sign-in', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-google'));
+
+      await waitFor(() => {
+        expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+          method: 'google',
+        });
+      });
+    });
+
+    it('fires signup_completed with the provider on a successful apple sign-in', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-apple'));
+
+      await waitFor(() => {
+        expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+          method: 'apple',
+        });
+      });
+    });
+
+    it('surfaces a message when social sign-in fails with email-in-use', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-error-email-in-use'));
+
+      await waitFor(() => {
+        expect(mockShowMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description: 'This email is already tied to another account.',
+          })
+        );
+      });
+    });
+
+    it('surfaces a generic message when social sign-in fails for any other reason', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-error-generic'));
+
+      await waitFor(() => {
+        expect(mockShowMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description: 'Please try again.',
+          })
+        );
+      });
     });
   });
 });

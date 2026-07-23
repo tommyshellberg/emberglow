@@ -3,13 +3,19 @@ import { Feather, Scroll, User, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useCallback } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import CHARACTERS from '@/app/data/characters';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button, EyebrowLabel } from '@/components/emberglow';
+import {
+  type SocialProvider,
+  SocialSignInButtons,
+} from '@/components/login/social-sign-in-buttons';
 import { FocusAwareStatusBar } from '@/components/ui';
+import type { SocialSignInOutcome } from '@/lib/auth/social';
 import { useCharacterStore } from '@/store/character-store';
 import {
   colors,
@@ -77,6 +83,42 @@ export default function QuestCompletedSignupScreen() {
     // COMPLETED after successful authentication.
     router.replace('/login');
   }, [posthog]);
+
+  const handleSocialSignInSuccess = useCallback(
+    (
+      _target: 'onboarding' | 'app',
+      _outcome: SocialSignInOutcome | (string & {}),
+      provider: SocialProvider
+    ) => {
+      // The user arriving here already has a provisional character and has
+      // completed quest-1 (that's how they reached this screen), so unlike
+      // the login screen's `created` case, no explicit routing decision is
+      // needed: `socialSignIn` (src/api/auth.ts) clears the provisional
+      // tokens as a side effect, and the globally-mounted NavigationGate's
+      // onboarding-sync heuristic (navigation-state-resolver.ts) then flips
+      // onboarding to COMPLETED and routes to `/(app)` on its own — the
+      // same mechanism the magic-link conversion path already relies on
+      // (see `completeSignIn`'s JSDoc). This only fires the funnel event.
+      posthog.capture('signup_completed', { method: provider });
+    },
+    [posthog]
+  );
+
+  const handleSocialSignInError = useCallback(
+    (kind: 'email-in-use' | 'generic') => {
+      showMessage({
+        message:
+          kind === 'email-in-use' ? 'Email already in use' : 'Sign-in failed',
+        description:
+          kind === 'email-in-use'
+            ? 'This email is already tied to another account.'
+            : 'Please try again.',
+        type: 'danger',
+        duration: 3000,
+      });
+    },
+    []
+  );
 
   // Hero card data — real data throughout, no hardcoded name/XP/type. XP is
   // quest-1's reward preview from AVAILABLE_QUESTS (matching the
@@ -162,6 +204,10 @@ export default function QuestCompletedSignupScreen() {
       <Animated.View
         entering={FadeInDown.delay(ANIM_STAGGER * 4).duration(ANIM_DURATION)}
       >
+        <SocialSignInButtons
+          onSuccess={handleSocialSignInSuccess}
+          onError={handleSocialSignInError}
+        />
         <Button
           variant="primary"
           size="lg"

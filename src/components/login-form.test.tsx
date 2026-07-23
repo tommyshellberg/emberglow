@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { requestMagicLink } from '@/api/auth';
-import { cleanup, screen, setup, waitFor } from '@/lib/test-utils';
+import { cleanup, fireEvent, screen, setup, waitFor } from '@/lib/test-utils';
 
 import type { LoginFormProps } from './login-form';
 import { LoginForm } from './login-form';
@@ -29,6 +29,57 @@ jest.mock('posthog-react-native', () => ({
 jest.mock('expo-linking', () => ({
   openURL: jest.fn(),
 }));
+
+// Mock expo-router's imperative `router` — LoginForm's social sign-in
+// routing calls `router.replace` directly (mirroring verify.tsx), same
+// pattern as quest-completed-signup.test.tsx.
+const mockRouterReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  router: {
+    replace: (...args: unknown[]) => mockRouterReplace(...args),
+  },
+}));
+
+// Mock SocialSignInButtons — this suite only tests LoginForm's placement of
+// and wiring to the component (its own behavior, e.g. credential exchange,
+// cancellation, outcome-based toasts, is covered exhaustively by
+// social-sign-in-buttons.test.tsx). The stub exposes one press target per
+// onSuccess/onError scenario LoginForm needs to route or map.
+jest.mock('./login/social-sign-in-buttons', () => {
+  const { Pressable } = jest.requireActual('react-native');
+  return {
+    SocialSignInButtons: ({
+      onSuccess,
+      onError,
+    }: {
+      onSuccess: (target: string, outcome: string) => void;
+      onError: (kind: 'email-in-use' | 'generic') => void;
+    }) => (
+      <>
+        <Pressable
+          testID="mock-social-success-app-login"
+          onPress={() => onSuccess('app', 'login')}
+        />
+        <Pressable
+          testID="mock-social-success-app-created"
+          onPress={() => onSuccess('app', 'created')}
+        />
+        <Pressable
+          testID="mock-social-success-onboarding-target"
+          onPress={() => onSuccess('onboarding', 'login')}
+        />
+        <Pressable
+          testID="mock-social-error-email-in-use"
+          onPress={() => onError('email-in-use')}
+        />
+        <Pressable
+          testID="mock-social-error-generic"
+          onPress={() => onError('generic')}
+        />
+      </>
+    ),
+  };
+});
 
 const mockedRequestMagicLink = requestMagicLink as jest.MockedFunction<
   typeof requestMagicLink
@@ -488,5 +539,99 @@ describe('LoginForm Form ', () => {
 
     // Should not have called the API
     expect(mockedRequestMagicLink).not.toHaveBeenCalled();
+  });
+
+  describe('Social sign-in', () => {
+    it('renders the social sign-in options above the email form before the email is sent', async () => {
+      setup(<LoginForm />);
+
+      expect(await screen.findByText(/emberglow/i)).toBeOnTheScreen();
+      expect(
+        screen.getByTestId('mock-social-success-app-login')
+      ).toBeOnTheScreen();
+      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+    });
+
+    it('hides the social sign-in options once the email has been sent', async () => {
+      const { user } = setup(<LoginForm />);
+
+      const button = screen.getByTestId('login-button');
+      const emailInput = screen.getByTestId('email-input');
+      await user.type(emailInput, 'test@example.com');
+
+      await waitFor(() => {
+        expect(button.props.accessibilityState?.disabled).not.toBe(true);
+      });
+      await user.press(button);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
+      });
+
+      expect(
+        screen.queryByTestId('mock-social-success-app-login')
+      ).not.toBeOnTheScreen();
+    });
+
+    it('routes to the app when social sign-in resolves an app target for an ordinary outcome', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(screen.getByTestId('mock-social-success-app-login'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
+      });
+    });
+
+    it('routes to onboarding when social sign-in resolves an onboarding target', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(
+        screen.getByTestId('mock-social-success-onboarding-target')
+      );
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
+      });
+    });
+
+    it('routes brand-new social signups (outcome "created") to onboarding, not the app shell with no character', async () => {
+      setup(<LoginForm />);
+
+      // `completeSignIn` always resolves target 'app' — routing this by
+      // target alone would drop a brand-new, character-less user into the
+      // app shell. This pins the `created`-outcome override instead.
+      fireEvent.press(screen.getByTestId('mock-social-success-app-created'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
+      });
+    });
+
+    it('maps a social sign-in email-in-use error to the same copy as the magic-link 409 path', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(screen.getByTestId('mock-social-error-email-in-use'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /This email address is already associated with an account/i
+          )
+        ).toBeOnTheScreen();
+      });
+    });
+
+    it('maps a generic social sign-in error to the existing generic error copy', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(screen.getByTestId('mock-social-error-generic'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Login link failed to send. Please try again./i)
+        ).toBeOnTheScreen();
+      });
+    });
   });
 });

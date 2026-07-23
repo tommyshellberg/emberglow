@@ -139,7 +139,7 @@ describe('SocialSignInButtons', () => {
       fireEvent.press(screen.getByTestId('google-sign-in-button'));
 
       await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalledWith('app', 'login');
+        expect(onSuccess).toHaveBeenCalledWith('app', 'login', 'google');
       });
 
       expect(mockGetGoogleCredential).toHaveBeenCalledTimes(1);

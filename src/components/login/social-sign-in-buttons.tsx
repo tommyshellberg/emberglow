@@ -16,14 +16,17 @@ import {
 } from '@/lib/auth/social';
 import { colors, fontFamily, radii, spacing } from '@/theme';
 
-type SocialProvider = 'google' | 'apple';
+export type SocialProvider = 'google' | 'apple';
 
 export type SocialSignInButtonsProps = {
-  /** Called after a successful credential exchange. Both fields are
+  /** Called after a successful credential exchange. `target`/`outcome` are
    * forwarded rather than just `target`, because the server's `outcome`
    * (e.g. `'created'` vs `'existing-account-login'`) is what the caller
    * needs to route brand-new users differently — `completeSignIn` always
-   * resolves `'app'` today (see `src/api/auth.ts`'s JSDoc).
+   * resolves `'app'` today (see `src/api/auth.ts`'s JSDoc). `provider` is
+   * forwarded too so a caller that fires its own funnel analytics (e.g. the
+   * quest-completed-signup conversion screen's `signup_completed`) doesn't
+   * have to duplicate the google/apple branch this component already ran.
    *
    * Note: the `existing-account-login` success toast ("Welcome back...")
    * is shown INSIDE this component, not the caller's — `onSuccess` fires
@@ -31,7 +34,8 @@ export type SocialSignInButtonsProps = {
    * responsibility via `onError`. */
   onSuccess: (
     target: 'onboarding' | 'app',
-    outcome: SocialSignInOutcome | (string & {})
+    outcome: SocialSignInOutcome | (string & {}),
+    provider: SocialProvider
   ) => void;
   /** `'email-in-use'` maps to the existing 409 copy already used by the
    * magic-link flow; `'generic'` covers every other failure. */
@@ -76,7 +80,7 @@ export function SocialSignInButtons({
           });
         }
 
-        onSuccess(target, outcome);
+        onSuccess(target, outcome, provider);
       } catch (error) {
         if (error instanceof SocialSignInCancelled) {
           // Cancelling is a routine dismissal, not a failure — it's folded
