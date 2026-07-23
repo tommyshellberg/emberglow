@@ -8,6 +8,11 @@
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Required by expo-apple-authentication so the native
+	     AppleAuthenticationButton (Sign In / Continue with Apple) localizes
+	     its label correctly regardless of the app's own primary language. -->
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
