@@ -2,8 +2,6 @@ import { getToken, removeToken, setToken } from '@/lib/auth/utils';
 import { getItem, removeItem, setItem } from '@/lib/auth/secure-token-storage';
 
 import {
-  ACCESS_TOKEN_EXPIRY_KEY,
-  ACCESS_TOKEN_KEY,
   type AuthTokens,
   getAccessToken,
   getProvisionalAccessToken,
@@ -12,8 +10,6 @@ import {
   isTokenExpired,
   PROVISIONAL_ACCESS_TOKEN_KEY,
   PROVISIONAL_REFRESH_TOKEN_KEY,
-  REFRESH_TOKEN_EXPIRY_KEY,
-  REFRESH_TOKEN_KEY,
   removeProvisionalAccessToken,
   removeProvisionalRefreshToken,
   removeTokens,
@@ -38,15 +34,6 @@ afterAll(() => {
 describe('token.ts', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('Constants', () => {
-    it('should export correct storage keys', () => {
-      expect(ACCESS_TOKEN_KEY).toBe('auth_access_token');
-      expect(REFRESH_TOKEN_KEY).toBe('auth_refresh_token');
-      expect(ACCESS_TOKEN_EXPIRY_KEY).toBe('auth_access_token_expiry');
-      expect(REFRESH_TOKEN_EXPIRY_KEY).toBe('auth_refresh_token_expiry');
-    });
   });
 
   describe('storeTokens', () => {

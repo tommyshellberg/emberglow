@@ -17,6 +17,7 @@ jest.mock('@/lib/storage');
 jest.mock('expo-secure-store', () => {
   const store = new Map<string, string>();
   return {
+    AFTER_FIRST_UNLOCK: 1,
     getItem: jest.fn((key: string) => (store.has(key) ? store.get(key) : null)),
     setItem: jest.fn((key: string, value: string) => {
       store.set(key, value);
@@ -39,10 +40,23 @@ const secureStore = SecureStore as unknown as {
   __store: Map<string, string>;
 };
 
+// The options object every SecureStore call should be invoked with, per the
+// locked-keychain fix: WHEN_UNLOCKED (the library default) throws on reads
+// and writes while the device is locked, and this app reads tokens while
+// locked as a core flow.
+const AFTER_FIRST_UNLOCK_OPTIONS = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+};
+
+const LOCKED_KEYCHAIN_ERROR = new Error(
+  'Could not decrypt the item in SecureStore (locked)'
+);
+
 describe('secure-token-storage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     secureStore.__store.clear();
+    (getMMKVItem as jest.Mock).mockReturnValue(null);
   });
 
   describe('getItem', () => {
@@ -93,7 +107,8 @@ describe('secure-token-storage', () => {
       expect(result).toEqual(legacyValue);
       expect(secureStore.setItem).toHaveBeenCalledWith(
         TEST_KEY,
-        JSON.stringify(legacyValue)
+        JSON.stringify(legacyValue),
+        AFTER_FIRST_UNLOCK_OPTIONS
       );
       expect(removeMMKVItem).toHaveBeenCalledWith(TEST_KEY);
     });
@@ -110,6 +125,75 @@ describe('secure-token-storage', () => {
 
       expect(getMMKVItem).toHaveBeenCalledTimes(1);
     });
+
+    // Locked-keychain fix: expo-secure-store defaults to
+    // keychainAccessible: WHEN_UNLOCKED, under which Keychain reads throw
+    // while the device is locked. Tokens are read while locked as a core
+    // flow (quest timer lock-status sync, axios interceptor getToken,
+    // navigation-state-resolver, websocket-service connect), so a throw
+    // here must never propagate or be mistaken for "signed out."
+    it('returns null (not a throw) when SecureStore.getItem throws and the key has never been cached', () => {
+      const coldKey = 'never-cached-key';
+      secureStore.getItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      let result: TestToken | null = null;
+      expect(() => {
+        result = getItem<TestToken>(coldKey);
+      }).not.toThrow();
+
+      expect(result).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[secure-token-storage]'),
+        coldKey,
+        LOCKED_KEYCHAIN_ERROR
+      );
+    });
+
+    it('returns the cached value when SecureStore.getItem throws after a prior successful read', () => {
+      const warmKey = 'warm-via-read-key';
+      const value: TestToken = { access: 'a', refresh: 'r' };
+      secureStore.__store.set(warmKey, JSON.stringify(value));
+      // Prime the cache with one successful (non-throwing) read.
+      expect(getItem<TestToken>(warmKey)).toEqual(value);
+
+      secureStore.getItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+
+      const result = getItem<TestToken>(warmKey);
+
+      expect(result).toEqual(value);
+    });
+
+    it('prevents a removed key from being resurrected by the cache: getItem returns null after removeItem, even if SecureStore then throws', () => {
+      const key = 'removed-then-locked-key';
+      const value: TestToken = { access: 'a', refresh: 'r' };
+      secureStore.__store.set(key, JSON.stringify(value));
+      // Prime the cache.
+      expect(getItem<TestToken>(key)).toEqual(value);
+
+      removeItem(key);
+
+      secureStore.getItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+
+      const result = getItem<TestToken>(key);
+
+      expect(result).toBeNull();
+    });
+
+    it('passes keychainAccessible: AFTER_FIRST_UNLOCK to SecureStore.getItem', () => {
+      getItem<TestToken>(TEST_KEY);
+
+      expect(secureStore.getItem).toHaveBeenCalledWith(
+        TEST_KEY,
+        AFTER_FIRST_UNLOCK_OPTIONS
+      );
+    });
   });
 
   describe('setItem', () => {
@@ -120,7 +204,8 @@ describe('secure-token-storage', () => {
 
       expect(secureStore.setItem).toHaveBeenCalledWith(
         TEST_KEY,
-        JSON.stringify(value)
+        JSON.stringify(value),
+        AFTER_FIRST_UNLOCK_OPTIONS
       );
       expect(setMMKVItem).not.toHaveBeenCalled();
 
@@ -128,6 +213,50 @@ describe('secure-token-storage', () => {
       // called), and that MMKV never receives a plaintext copy.
       expect(getItem<TestToken>(TEST_KEY)).toEqual(value);
       expect(getMMKVItem).not.toHaveBeenCalled();
+    });
+
+    it('passes keychainAccessible: AFTER_FIRST_UNLOCK in options (mock call args)', () => {
+      setItem<TestToken>(TEST_KEY, { access: 'a', refresh: 'r' });
+
+      expect(secureStore.setItem).toHaveBeenCalledWith(
+        TEST_KEY,
+        expect.any(String),
+        { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
+      );
+    });
+
+    it('removes any legacy plaintext MMKV copy of the key, independent of the migration read path', () => {
+      setItem<TestToken>(TEST_KEY, { access: 'a', refresh: 'r' });
+
+      expect(removeMMKVItem).toHaveBeenCalledWith(TEST_KEY);
+    });
+
+    it('does not throw when SecureStore.setItem throws, and keeps the value in memory so a subsequent getItem serves it while the keychain remains inaccessible', () => {
+      const key = 'set-fails-then-locked-key';
+      const value: TestToken = { access: 'a', refresh: 'r' };
+      secureStore.setItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect(() => setItem<TestToken>(key, value)).not.toThrow();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[secure-token-storage]'),
+        key,
+        LOCKED_KEYCHAIN_ERROR
+      );
+
+      // The real SecureStore write failed, so a genuinely unlocked read
+      // would legitimately find nothing. Simulate the keychain still being
+      // inaccessible on the very next read, the way it would be if the
+      // device is still locked.
+      secureStore.getItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+
+      const result = getItem<TestToken>(key);
+
+      expect(result).toEqual(value);
     });
   });
 
@@ -137,8 +266,52 @@ describe('secure-token-storage', () => {
 
       removeItem(TEST_KEY);
 
-      expect(secureStore.deleteItemAsync).toHaveBeenCalledWith(TEST_KEY);
+      expect(secureStore.deleteItemAsync).toHaveBeenCalledWith(
+        TEST_KEY,
+        AFTER_FIRST_UNLOCK_OPTIONS
+      );
       expect(removeMMKVItem).toHaveBeenCalledWith(TEST_KEY);
+    });
+
+    it('logs (rather than throwing) when the underlying deleteItemAsync rejects', async () => {
+      const key = 'delete-rejects-key';
+      const deleteError = new Error('delete failed');
+      secureStore.deleteItemAsync.mockImplementationOnce(() =>
+        Promise.reject(deleteError)
+      );
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect(() => removeItem(key)).not.toThrow();
+      // Let the fire-and-forget promise's rejection handler run.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to delete'),
+        key,
+        deleteError
+      );
+    });
+
+    it('clears the in-memory cache synchronously, before the async delete resolves', () => {
+      const key = 'cache-clear-key';
+      const value: TestToken = { access: 'a', refresh: 'r' };
+      secureStore.__store.set(key, JSON.stringify(value));
+      expect(getItem<TestToken>(key)).toEqual(value);
+
+      // deleteItemAsync never resolves in this test — proving the cache is
+      // cleared up front, not as a continuation of the async delete.
+      secureStore.deleteItemAsync.mockImplementationOnce(
+        () => new Promise(() => {})
+      );
+
+      removeItem(key);
+
+      secureStore.getItem.mockImplementationOnce(() => {
+        throw LOCKED_KEYCHAIN_ERROR;
+      });
+
+      expect(getItem<TestToken>(key)).toBeNull();
     });
   });
 });

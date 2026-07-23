@@ -1,16 +1,8 @@
 import { getItem, removeItem, setItem } from '@/lib/auth/secure-token-storage';
 import { getToken, removeToken, setToken } from '@/lib/auth/utils';
 
-// Keys for secure storage
-export const ACCESS_TOKEN_KEY = 'auth_access_token';
-export const REFRESH_TOKEN_KEY = 'auth_refresh_token';
-export const ACCESS_TOKEN_EXPIRY_KEY = 'auth_access_token_expiry';
-export const REFRESH_TOKEN_EXPIRY_KEY = 'auth_refresh_token_expiry';
-
 // The keys actually used to persist expiry timestamps (see storeTokens /
-// isTokenExpired / removeTokens below) — distinct from the
-// ACCESS_TOKEN_KEY/REFRESH_TOKEN_KEY/*_EXPIRY_KEY constants above, which are
-// unused leftovers from an earlier, abandoned SecureStore migration attempt.
+// isTokenExpired / removeTokens below).
 const ACCESS_TOKEN_EXPIRY_STORAGE_KEY = 'access_token_expiry';
 const REFRESH_TOKEN_EXPIRY_STORAGE_KEY = 'refresh_token_expiry';
 
