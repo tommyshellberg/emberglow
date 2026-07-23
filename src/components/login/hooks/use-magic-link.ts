@@ -4,20 +4,11 @@ import { useCallback, useState } from 'react';
 
 import { requestMagicLink } from '@/api/auth';
 
+import {
+  EMAIL_IN_USE_ERROR_MESSAGE,
+  GENERIC_SEND_ERROR_MESSAGE,
+} from '../constants';
 import { emailSchema } from '../types';
-
-/**
- * Shared with `login-form.tsx`'s social sign-in error mapping — a 409 from
- * either auth path (magic link or social) means the same thing to the user,
- * so both surfaces show the identical copy rather than each owning a
- * hand-typed duplicate that could drift.
- */
-export const EMAIL_IN_USE_ERROR_MESSAGE =
-  'This email address is already associated with an account. Please use a different email address.';
-
-/** Ditto for the catch-all failure copy. */
-export const GENERIC_SEND_ERROR_MESSAGE =
-  'Login link failed to send. Please try again.';
 
 export type UseMagicLinkReturn = {
   isLoading: boolean;

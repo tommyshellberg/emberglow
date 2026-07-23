@@ -18,10 +18,14 @@ jest.mock('@/api/auth', () => ({
   requestMagicLink: jest.fn(),
 }));
 
-// Mock PostHog
+// Stable capture fn so assertions can see calls — a fresh object per
+// usePostHog() call (as an inline factory would produce) would give every
+// render its own throwaway `capture`, making call assertions impossible
+// (same fix as quest-completed-signup.test.tsx / verify.test.tsx).
+const mockPosthogCapture = jest.fn();
 jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({
-    capture: jest.fn(),
+    capture: mockPosthogCapture,
   }),
 }));
 
@@ -52,21 +56,21 @@ jest.mock('./login/social-sign-in-buttons', () => {
       onSuccess,
       onError,
     }: {
-      onSuccess: (target: string, outcome: string) => void;
+      onSuccess: (target: string, outcome: string, provider: string) => void;
       onError: (kind: 'email-in-use' | 'generic') => void;
     }) => (
       <>
         <Pressable
           testID="mock-social-success-app-login"
-          onPress={() => onSuccess('app', 'login')}
+          onPress={() => onSuccess('app', 'login', 'google')}
         />
         <Pressable
           testID="mock-social-success-app-created"
-          onPress={() => onSuccess('app', 'created')}
+          onPress={() => onSuccess('app', 'created', 'google')}
         />
         <Pressable
           testID="mock-social-success-onboarding-target"
-          onPress={() => onSuccess('onboarding', 'login')}
+          onPress={() => onSuccess('onboarding', 'login', 'google')}
         />
         <Pressable
           testID="mock-social-error-email-in-use"
@@ -606,6 +610,35 @@ describe('LoginForm Form ', () => {
       await waitFor(() => {
         expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
       });
+    });
+
+    it('fires signup_completed with the provider when a brand-new social account is created', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(screen.getByTestId('mock-social-success-app-created'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
+      });
+
+      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+        method: 'google',
+      });
+    });
+
+    it('does NOT fire signup_completed for an ordinary login outcome', async () => {
+      setup(<LoginForm />);
+
+      fireEvent.press(screen.getByTestId('mock-social-success-app-login'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
+      });
+
+      expect(mockPosthogCapture).not.toHaveBeenCalledWith(
+        'signup_completed',
+        expect.anything()
+      );
     });
 
     it('maps a social sign-in email-in-use error to the same copy as the magic-link 409 path', async () => {

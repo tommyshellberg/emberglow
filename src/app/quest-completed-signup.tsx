@@ -15,7 +15,10 @@ import {
   SocialSignInButtons,
 } from '@/components/login/social-sign-in-buttons';
 import { FocusAwareStatusBar } from '@/components/ui';
-import type { SocialSignInOutcome } from '@/lib/auth/social';
+import {
+  SOCIAL_SIGNIN_OUTCOMES,
+  type SocialSignInOutcome,
+} from '@/lib/auth/social';
 import { useCharacterStore } from '@/store/character-store';
 import {
   colors,
@@ -87,7 +90,7 @@ export default function QuestCompletedSignupScreen() {
   const handleSocialSignInSuccess = useCallback(
     (
       _target: 'onboarding' | 'app',
-      _outcome: SocialSignInOutcome | (string & {}),
+      outcome: SocialSignInOutcome | (string & {}),
       provider: SocialProvider
     ) => {
       // The user arriving here already has a provisional character and has
@@ -98,8 +101,21 @@ export default function QuestCompletedSignupScreen() {
       // onboarding-sync heuristic (navigation-state-resolver.ts) then flips
       // onboarding to COMPLETED and routes to `/(app)` on its own — the
       // same mechanism the magic-link conversion path already relies on
-      // (see `completeSignIn`'s JSDoc). This only fires the funnel event.
-      posthog.capture('signup_completed', { method: provider });
+      // (see `completeSignIn`'s JSDoc).
+      //
+      // This screen is reachable by a returning user too (e.g. reinstalled
+      // the app, still has a provisional character + completed quest-1 on
+      // this device, and their social identity already resolves to an
+      // existing full account) — outcomes `login`, `existing-account-login`,
+      // and `linked` all mean "signed into an account that already
+      // existed," not a new signup, so only `created`/`converted` (a
+      // genuinely new full account) should count toward the funnel.
+      if (
+        outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED ||
+        outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED
+      ) {
+        posthog.capture('signup_completed', { method: provider });
+      }
     },
     [posthog]
   );

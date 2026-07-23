@@ -1,9 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { usePostHog } from 'posthog-react-native';
 import React, { useEffect } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
+import type { SocialProvider } from '@/components/login';
 import { useAuth } from '@/lib/auth';
 import {
   SOCIAL_SIGNIN_OUTCOMES,
@@ -13,14 +15,15 @@ import { removeItem } from '@/lib/storage';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { colors, fontFamily, radii, scrims, shadows, spacing } from '@/theme';
 
-import { BRAND_NAME, LOGO_SIZE } from './login/constants';
-import { EmailInputView } from './login/email-input-view';
-import { EmailSentView } from './login/email-sent-view';
 import {
+  BRAND_NAME,
   EMAIL_IN_USE_ERROR_MESSAGE,
   GENERIC_SEND_ERROR_MESSAGE,
-  useMagicLink,
-} from './login/hooks/use-magic-link';
+  LOGO_SIZE,
+} from './login/constants';
+import { EmailInputView } from './login/email-input-view';
+import { EmailSentView } from './login/email-sent-view';
+import { useMagicLink } from './login/hooks/use-magic-link';
 import { SocialSignInButtons } from './login/social-sign-in-buttons';
 import type { LoginFormProps } from './login/types';
 
@@ -54,6 +57,7 @@ function mapError(kind: 'email-in-use' | 'generic'): string {
  * Handles magic link authentication with email input and success states
  */
 export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
+  const posthog = usePostHog();
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
   const signOut = useAuth((state) => state.signOut);
 
@@ -83,7 +87,8 @@ export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
 
   const handleSocialSignInSuccess = (
     target: 'onboarding' | 'app',
-    outcome: SocialSignInOutcome | (string & {})
+    outcome: SocialSignInOutcome | (string & {}),
+    provider: SocialProvider
   ) => {
     // `completeSignIn` (src/api/auth.ts) always resolves target 'app' today
     // — 'onboarding' is unreachable (see its JSDoc) — so mirroring
@@ -91,14 +96,19 @@ export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
     // signup (`outcome === 'created'`: a full user created directly from
     // THIS screen, with no character — a state the app never had before
     // social sign-in) straight into the app shell. Nothing under
-    // `(app)/` checks for a missing character, and
-    // navigation-state-resolver.ts's "verified user on a fresh install"
-    // heuristic (the effect around its line ~82-108) actively marks
-    // onboarding COMPLETED for exactly this signed-in/no-provisional-data
-    // shape — it would never send them to onboarding on its own either.
-    // So `created` is routed to onboarding explicitly here; every other
-    // outcome follows `target`, same as verify.tsx.
+    // `(app)/` checks for a missing character, and the verified-user-on-
+    // fresh-install sync effect in navigation-state-resolver.ts actively
+    // marks onboarding COMPLETED for exactly this signed-in/no-provisional-
+    // data shape — it would never send them to onboarding on its own
+    // either. So `created` is routed to onboarding explicitly here; every
+    // other outcome follows `target`, same as verify.tsx.
     if (outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED) {
+      // This is a genuinely new full account created directly from the
+      // login screen (as opposed to `login`/`existing-account-login`/
+      // `linked`, all of which sign the user into an account that already
+      // existed) — capture before navigating, same funnel event the
+      // magic-link (verify.tsx) and quest-completed-signup paths fire.
+      posthog.capture('signup_completed', { method: provider });
       router.replace('/onboarding');
       return;
     }

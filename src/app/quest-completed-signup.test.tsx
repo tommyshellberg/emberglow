@@ -54,6 +54,10 @@ jest.mock('@/components/login/social-sign-in-buttons', () => {
           onPress={() => onSuccess('app', 'converted', 'apple')}
         />
         <Pressable
+          testID="mock-social-success-existing-account"
+          onPress={() => onSuccess('app', 'existing-account-login', 'google')}
+        />
+        <Pressable
           testID="mock-social-error-email-in-use"
           onPress={() => onError('email-in-use')}
         />
@@ -300,6 +304,21 @@ describe('QuestCompletedSignupScreen', () => {
           method: 'apple',
         });
       });
+    });
+
+    it('does NOT fire signup_completed for a reachable-but-not-new outcome (existing-account-login)', async () => {
+      // A reinstalled user whose social account is already linked to a
+      // full account lands here (they still have a provisional character
+      // + completed quest-1 on this fresh install) but is NOT a new
+      // account — `existing-account-login` must not count as a signup.
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-existing-account'));
+
+      expect(mockPosthogCapture).not.toHaveBeenCalledWith(
+        'signup_completed',
+        expect.anything()
+      );
     });
 
     it('surfaces a message when social sign-in fails with email-in-use', async () => {
