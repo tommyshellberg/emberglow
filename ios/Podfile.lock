@@ -2676,6 +2676,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - AppCheckCore
   - EASClient (from `../node_modules/expo-eas-client/ios`)
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
@@ -2711,6 +2712,7 @@ DEPENDENCIES:
   - EXUpdates (from `../node_modules/expo-updates/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
+  - GoogleUtilities/Environment
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - LockState (from `../modules/lock-state/ios`)
   - lottie-react-native (from `../node_modules/lottie-react-native`)
@@ -2789,6 +2791,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RecaptchaInterop
   - "RNCMaskedView (from `../node_modules/@react-native-masked-view/masked-view`)"
   - "RNCPicker (from `../node_modules/@react-native-picker/picker`)"
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
@@ -3232,6 +3235,6 @@ SPEC CHECKSUMS:
   Sentry: b3ec44d01708fce73f99b544beb57e890eca4406
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: 9bf58492eddb34009d57b3be32ff11bd5e7d5593
+PODFILE CHECKSUM: 4cc12bb7f70f1876ce1ae1381513b7639ac465b9
 
 COCOAPODS: 1.16.2
