@@ -106,7 +106,22 @@ export const verifyMagicLink = async (
  * Shared post-auth orchestration: given tokens from ANY sign-in method
  * (magic link, Apple, Google, ...), updates the auth store, fetches and
  * stores user data, and identifies the user to analytics/push.
- * Returns navigation target: 'onboarding' | 'app'
+ *
+ * Error/return contract for callers:
+ * - Failures in the initial `signIn(...)` call, or a malformed `tokens`
+ *   shape (missing `access`/`refresh`), throw RAW out of this function —
+ *   there is no internal try/catch around that step. Callers must wrap
+ *   this call themselves (`verifyMagicLinkAndSignIn` does; social sign-in
+ *   callers must too).
+ * - Failures from `getUserDetails()` onward (fetching/storing the user,
+ *   analytics identify, character sync) are swallowed internally and the
+ *   function still resolves `'app'` — verification/sign-in succeeded even
+ *   if the follow-up user-data fetch didn't.
+ * - The current implementation ALWAYS resolves `'app'`. The `'onboarding'`
+ *   union member is reserved for future use and unreachable today — do
+ *   not rely on the return value alone to route brand-new users; e.g. the
+ *   social sign-in flow derives that routing decision from the server's
+ *   `outcome` field instead.
  */
 export const completeSignIn = async (
   tokens: tokenService.AuthTokens
@@ -148,7 +163,7 @@ export const completeSignIn = async (
           try {
             const externalId = await OneSignal.User.getExternalId();
             console.log(
-              '[OneSignal Debug] After verifyMagicLink - External ID:',
+              '[OneSignal Debug] After sign-in - External ID:',
               externalId
             );
             console.log('[OneSignal Debug] Expected:', userResponse.id);
