@@ -12,6 +12,7 @@ import {
   refreshAccessToken,
   removeTokens,
   requestMagicLink,
+  socialSignIn,
   verifyMagicLink,
   verifyMagicLinkAndSignIn,
 } from './auth';
@@ -368,6 +369,121 @@ describe('auth.ts', () => {
         expect.any(Error)
       );
       expect(result).toBe('app');
+    });
+  });
+
+  describe('socialSignIn', () => {
+    const credential = {
+      provider: 'google' as const,
+      idToken: 'google-id-token',
+    };
+    const mockTokens = {
+      access: { token: 'access-token', expires: '2025-01-01' },
+      refresh: { token: 'refresh-token', expires: '2025-02-01' },
+    };
+
+    beforeEach(() => {
+      (authClient.post as jest.Mock).mockClear();
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: { tokens: mockTokens, outcome: 'existing' },
+      });
+      (getUserDetails as jest.Mock).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+      });
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+    });
+
+    it('posts the credential without an Authorization header when there is no provisional token', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+
+      await socialSignIn(credential);
+
+      expect(authClient.post).toHaveBeenCalledWith('/auth/social', credential, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    it('posts the credential with a provisional Bearer header when a provisional token exists', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+
+      await socialSignIn(credential);
+
+      expect(authClient.post).toHaveBeenCalledWith('/auth/social', credential, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer provisional-token-123',
+        },
+      });
+    });
+
+    it('includes the apple nonce in the posted body when present', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      const appleCredential = {
+        provider: 'apple' as const,
+        idToken: 'apple-id-token',
+        nonce: 'raw-nonce',
+      };
+
+      await socialSignIn(appleCredential);
+
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        appleCredential,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    it('stores the returned tokens', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+
+      await socialSignIn(credential);
+
+      expect(tokenService.storeTokens).toHaveBeenCalledWith(mockTokens);
+    });
+
+    it('clears provisional storage after a successful sign-in', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+
+      await socialSignIn(credential);
+
+      expect(removeItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalUserId');
+      expect(removeItem).toHaveBeenCalledWith('provisionalEmail');
+    });
+
+    it('returns the completeSignIn target alongside the server outcome', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: { tokens: mockTokens, outcome: 'created' },
+      });
+
+      const result = await socialSignIn(credential);
+
+      expect(result).toEqual({ target: 'app', outcome: 'created' });
+    });
+
+    it('propagates the raw error when the server request fails (e.g. 409 conflict)', async () => {
+      const error = Object.assign(new Error('Conflict'), {
+        response: { status: 409 },
+      });
+      (authClient.post as jest.Mock).mockRejectedValue(error);
+
+      await expect(socialSignIn(credential)).rejects.toThrow('Conflict');
+    });
+
+    it('propagates a raw completeSignIn failure instead of swallowing it', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      (signIn as jest.Mock).mockImplementation(() => {
+        throw new Error('signIn store update failed');
+      });
+
+      await expect(socialSignIn(credential)).rejects.toThrow(
+        'signIn store update failed'
+      );
     });
   });
 

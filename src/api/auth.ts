@@ -258,6 +258,55 @@ export const verifyMagicLinkAndSignIn = async (
 };
 
 /**
+ * Exchange a native social sign-in credential (Google or Apple) for our own
+ * session tokens, mirroring the magic-link verify flow's storage/cleanup
+ * side effects so social-authenticated sessions are indistinguishable from
+ * magic-link ones afterwards.
+ *
+ * Error contract: this function does NOT catch anything — network failures,
+ * non-2xx responses (e.g. a 409 if the social account is already linked to
+ * a different user), and `completeSignIn`'s own raw throws (see its JSDoc)
+ * all propagate uncaught. Callers (the sign-in UI) must catch and render
+ * an error state; `SocialSignInCancelled` from the native wrappers is a
+ * separate, earlier failure mode this function never sees.
+ *
+ * Returns both `target` and the server's `outcome` because `completeSignIn`
+ * always resolves `'app'` today (see its JSDoc) — routing brand-new
+ * ('created') users differently is derived from `outcome` by the caller,
+ * not from `target`.
+ */
+export const socialSignIn = async (credential: {
+  provider: 'google' | 'apple';
+  idToken: string;
+  nonce?: string;
+}): Promise<{ target: 'onboarding' | 'app'; outcome: string }> => {
+  const provisionalToken = getItem('provisionalAccessToken');
+
+  const headers: { [key: string]: string } = {
+    'Content-Type': 'application/json',
+  };
+  if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+    headers.Authorization = `Bearer ${provisionalToken}`;
+  }
+
+  const response = await authClient.post('/auth/social', credential, {
+    headers,
+  });
+  const { tokens, outcome } = response.data;
+
+  tokenService.storeTokens(tokens);
+
+  // Clear provisional user data now that we have a real session, same as
+  // verifyMagicLink.
+  removeItem('provisionalAccessToken');
+  removeItem('provisionalUserId');
+  removeItem('provisionalEmail');
+
+  const target = await completeSignIn(tokens);
+  return { target, outcome };
+};
+
+/**
  * Check if user is authenticated
  */
 export const isAuthenticated = (): boolean => {
