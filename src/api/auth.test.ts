@@ -1,10 +1,12 @@
 import { signIn } from '@/lib/auth';
+import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
 import {
   authClient,
+  completeSignIn,
   isAuthenticated,
   logout,
   refreshAccessToken,
@@ -317,6 +319,55 @@ describe('auth.ts', () => {
         'Magic link verification failed:',
         error
       );
+    });
+  });
+
+  describe('completeSignIn', () => {
+    const mockTokens = {
+      access: { token: 'access-token', expires: '2025-01-01' },
+      refresh: { token: 'refresh-token', expires: '2025-02-01' },
+    };
+
+    it('should sign in, fetch user data, and identify to posthog', async () => {
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+      };
+      const mockSetUser = jest.fn();
+
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: mockSetUser,
+      });
+
+      const result = await completeSignIn(mockTokens);
+
+      expect(signIn).toHaveBeenCalledWith({
+        token: {
+          access: 'access-token',
+          refresh: 'refresh-token',
+        },
+      });
+      expect(getUserDetails).toHaveBeenCalled();
+      expect(mockSetUser).toHaveBeenCalledWith(mockUser);
+      expect(posthogClient.identify).toHaveBeenCalledWith('user-123');
+      expect(result).toBe('app');
+    });
+
+    it('should continue and return app even if user fetch fails', async () => {
+      (getUserDetails as jest.Mock).mockRejectedValue(
+        new Error('User fetch error')
+      );
+
+      const result = await completeSignIn(mockTokens);
+
+      expect(signIn).toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith(
+        'Error fetching user data during verification:',
+        expect.any(Error)
+      );
+      expect(result).toBe('app');
     });
   });
 

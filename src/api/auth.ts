@@ -103,6 +103,124 @@ export const verifyMagicLink = async (
 };
 
 /**
+ * Shared post-auth orchestration: given tokens from ANY sign-in method
+ * (magic link, Apple, Google, ...), updates the auth store, fetches and
+ * stores user data, and identifies the user to analytics/push.
+ * Returns navigation target: 'onboarding' | 'app'
+ */
+export const completeSignIn = async (
+  tokens: tokenService.AuthTokens
+): Promise<'onboarding' | 'app'> => {
+  // Step 2: Update auth store with proper signIn call
+  signIn({
+    token: {
+      access: tokens.access.token,
+      refresh: tokens.refresh.token,
+    },
+  });
+
+  // Step 3: Fetch and store user data
+  try {
+    const userResponse = await getUserDetails();
+    console.log(
+      '[Auth] User response from server:',
+      JSON.stringify(userResponse, null, 2)
+    );
+
+    // Store user data in user store
+    if (userResponse && userResponse.id && userResponse.email) {
+      useUserStore.getState().setUser(userResponse);
+
+      // Same id as OneSignal/RevenueCat — merges the anonymous history
+      // into the server-side user in PostHog.
+      posthogClient.identify(userResponse.id);
+
+      // Link OneSignal with the user's MongoDB ID
+      if ((global as any).isOneSignalInitialized) {
+        console.log(
+          '[Auth] Logging into OneSignal with user ID:',
+          userResponse.id
+        );
+        OneSignal.login(userResponse.id);
+
+        // Debug: Verify the login worked
+        setTimeout(async () => {
+          try {
+            const externalId = await OneSignal.User.getExternalId();
+            console.log(
+              '[OneSignal Debug] After verifyMagicLink - External ID:',
+              externalId
+            );
+            console.log('[OneSignal Debug] Expected:', userResponse.id);
+            console.log(
+              '[OneSignal Debug] Match:',
+              externalId === userResponse.id
+            );
+          } catch (error) {
+            console.error('[OneSignal Debug] Error verifying login:', error);
+          }
+        }, 1000);
+      } else {
+        console.log('[Auth] OneSignal not initialized yet, will login later');
+      }
+
+      // If user has character data from server, store it in character store
+      // Check both nested character object and top-level properties
+      if (userResponse?.type && userResponse?.name) {
+        const characterStore = useCharacterStore.getState();
+
+        // Handle both formats: nested character object or top-level properties
+        const characterData = {
+          type: (userResponse as any).type,
+          name: (userResponse as any).name,
+          level: (userResponse as any).level || 1,
+          currentXP: (userResponse as any).xp || 0,
+        };
+
+        // First create the character if it doesn't exist locally
+        if (!characterStore.character) {
+          characterStore.createCharacter(
+            characterData.type as any,
+            characterData.name
+          );
+        }
+
+        // Then update with the server data
+        characterStore.updateCharacter({
+          type: characterData.type || (userResponse as any).type,
+          name: characterData.name || (userResponse as any).name,
+          level: characterData.level || (userResponse as any).level || 1,
+          currentXP: characterData.currentXP || (userResponse as any).xp || 0,
+        });
+
+        // Also update streak if provided
+        if (userResponse.dailyQuestStreak !== undefined) {
+          characterStore.setStreak(userResponse.dailyQuestStreak);
+        }
+
+        console.log('[Auth] Character data synchronized from server');
+      } else {
+        console.log('[Auth] No character data found in server response');
+      }
+    }
+
+    console.log('[Auth] User data fetched and stored successfully');
+
+    // Let the navigation resolver determine the correct route
+    // Since we've cleared provisional data and signed in with real tokens,
+    // the navigation resolver will detect this is a verified user and handle routing appropriately
+    return 'app';
+  } catch (fetchError) {
+    console.error('Error fetching user data during verification:', fetchError);
+    // If we can't fetch user data but verification succeeded, still let navigation resolver decide
+    console.log(
+      '[Auth] Failed to fetch user data, letting navigation resolver decide routing'
+    );
+    return 'app';
+  }
+};
+
+/**
  * Comprehensive magic link verification that includes user fetching and auth store updates
  * Returns navigation target: 'onboarding' | 'app'
  */
@@ -114,116 +232,10 @@ export const verifyMagicLinkAndSignIn = async (
     const tokens = await verifyMagicLink(token);
     console.log('[verifyMagicLinkAndSignIn] - tokens: ', tokens);
 
-    // Step 2: Update auth store with proper signIn call
-    signIn({
-      token: {
-        access: tokens.access.token,
-        refresh: tokens.refresh.token,
-      },
-    });
-
-    // Step 3: Fetch and store user data
-    try {
-      const userResponse = await getUserDetails();
-      console.log(
-        '[Auth] User response from server:',
-        JSON.stringify(userResponse, null, 2)
-      );
-
-      // Store user data in user store
-      if (userResponse && userResponse.id && userResponse.email) {
-        useUserStore.getState().setUser(userResponse);
-
-        // Same id as OneSignal/RevenueCat — merges the anonymous history
-        // into the server-side user in PostHog.
-        posthogClient.identify(userResponse.id);
-
-        // Link OneSignal with the user's MongoDB ID
-        if ((global as any).isOneSignalInitialized) {
-          console.log(
-            '[Auth] Logging into OneSignal with user ID:',
-            userResponse.id
-          );
-          OneSignal.login(userResponse.id);
-
-          // Debug: Verify the login worked
-          setTimeout(async () => {
-            try {
-              const externalId = await OneSignal.User.getExternalId();
-              console.log(
-                '[OneSignal Debug] After verifyMagicLink - External ID:',
-                externalId
-              );
-              console.log('[OneSignal Debug] Expected:', userResponse.id);
-              console.log(
-                '[OneSignal Debug] Match:',
-                externalId === userResponse.id
-              );
-            } catch (error) {
-              console.error('[OneSignal Debug] Error verifying login:', error);
-            }
-          }, 1000);
-        } else {
-          console.log('[Auth] OneSignal not initialized yet, will login later');
-        }
-
-        // If user has character data from server, store it in character store
-        // Check both nested character object and top-level properties
-        if (userResponse?.type && userResponse?.name) {
-          const characterStore = useCharacterStore.getState();
-
-          // Handle both formats: nested character object or top-level properties
-          const characterData = {
-            type: (userResponse as any).type,
-            name: (userResponse as any).name,
-            level: (userResponse as any).level || 1,
-            currentXP: (userResponse as any).xp || 0,
-          };
-
-          // First create the character if it doesn't exist locally
-          if (!characterStore.character) {
-            characterStore.createCharacter(
-              characterData.type as any,
-              characterData.name
-            );
-          }
-
-          // Then update with the server data
-          characterStore.updateCharacter({
-            type: characterData.type || (userResponse as any).type,
-            name: characterData.name || (userResponse as any).name,
-            level: characterData.level || (userResponse as any).level || 1,
-            currentXP: characterData.currentXP || (userResponse as any).xp || 0,
-          });
-
-          // Also update streak if provided
-          if (userResponse.dailyQuestStreak !== undefined) {
-            characterStore.setStreak(userResponse.dailyQuestStreak);
-          }
-
-          console.log('[Auth] Character data synchronized from server');
-        } else {
-          console.log('[Auth] No character data found in server response');
-        }
-      }
-
-      console.log('[Auth] User data fetched and stored successfully');
-
-      // Let the navigation resolver determine the correct route
-      // Since we've cleared provisional data and signed in with real tokens,
-      // the navigation resolver will detect this is a verified user and handle routing appropriately
-      return 'app';
-    } catch (fetchError) {
-      console.error(
-        'Error fetching user data during verification:',
-        fetchError
-      );
-      // If we can't fetch user data but verification succeeded, still let navigation resolver decide
-      console.log(
-        '[Auth] Failed to fetch user data, letting navigation resolver decide routing'
-      );
-      return 'app';
-    }
+    // Steps 2-3: sign in + fetch/store user data (shared with other
+    // sign-in methods) — kept inside this try so a failure here still
+    // gets the magic-link-specific log below, same as before the split.
+    return await completeSignIn(tokens);
   } catch (error) {
     console.error('Magic link verification failed:', error);
     throw error;
