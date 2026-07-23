@@ -1,6 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import {
+  setProvisionalAccessToken,
+  setProvisionalRefreshToken,
+} from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 import type { Character } from '@/store/types';
@@ -383,7 +387,7 @@ export async function createProvisionalUser(
         'setting provisional access token',
         response.data.tokens.access.token
       );
-      setItem('provisionalAccessToken', response.data.tokens.access.token);
+      setProvisionalAccessToken(response.data.tokens.access.token);
     }
 
     // Store refresh token if provided
@@ -392,7 +396,7 @@ export async function createProvisionalUser(
         'setting provisional refresh token',
         response.data.tokens.refresh.token
       );
-      setItem('provisionalRefreshToken', response.data.tokens.refresh.token);
+      setProvisionalRefreshToken(response.data.tokens.refresh.token);
     }
 
     // Set OneSignal external ID for provisional user

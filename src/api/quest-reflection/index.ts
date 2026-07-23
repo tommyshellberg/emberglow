@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '@/api';
 import { provisionalApiClient } from '@/api/common/provisional-client';
-import { getItem } from '@/lib/storage';
+import { getProvisionalAccessToken } from '@/api/token';
 
 export interface ReflectionData {
   questRunId: string;
@@ -29,7 +29,7 @@ export async function createQuestReflection(
     console.log('[createQuestReflection] Creating reflection:', reflectionData);
 
     // Check if we're using a provisional user
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.post<QuestReflectionResponse>(
@@ -55,7 +55,7 @@ export async function getQuestReflection(
   questRunId: string
 ): Promise<QuestReflectionResponse | null> {
   try {
-    const hasProvisionalToken = !!getItem('provisionalAccessToken');
+    const hasProvisionalToken = !!getProvisionalAccessToken();
     const client = hasProvisionalToken ? provisionalApiClient : apiClient;
 
     const response = await client.get<QuestReflectionResponse>(

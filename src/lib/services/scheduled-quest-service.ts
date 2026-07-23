@@ -1,7 +1,7 @@
 import { apiClient } from '@/api';
 import { provisionalApiClient } from '@/api/common/provisional-client';
+import { getProvisionalAccessToken } from '@/api/token';
 import { type ScheduledQuestRun } from '@/features/scheduled-quests/types';
-import { getItem } from '@/lib/storage';
 
 export interface CreateScheduledQuestInput {
   title: string;
@@ -21,7 +21,7 @@ export interface DiscoverParams {
 // Same client-selection idiom as quest-run-service.ts: presence of a
 // provisional token decides which axios instance carries the call.
 const clientFor = () =>
-  getItem<string>('provisionalAccessToken') ? provisionalApiClient : apiClient;
+  getProvisionalAccessToken() ? provisionalApiClient : apiClient;
 
 export async function createScheduledQuest(
   input: CreateScheduledQuestInput

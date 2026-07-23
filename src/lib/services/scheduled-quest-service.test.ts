@@ -16,13 +16,15 @@ jest.mock('@/api', () => ({
 jest.mock('@/api/common/provisional-client', () => ({
   provisionalApiClient: { get: jest.fn(), post: jest.fn(), delete: jest.fn() },
 }));
-jest.mock('@/lib/storage', () => ({ getItem: jest.fn(() => null) }));
+jest.mock('@/api/token', () => ({
+  getProvisionalAccessToken: jest.fn(() => null),
+}));
 
 const { apiClient } = jest.requireMock('@/api');
 const { provisionalApiClient } = jest.requireMock(
   '@/api/common/provisional-client'
 );
-const { getItem } = jest.requireMock('@/lib/storage');
+const { getProvisionalAccessToken } = jest.requireMock('@/api/token');
 
 describe('scheduled-quest-service', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -42,7 +44,7 @@ describe('scheduled-quest-service', () => {
   });
 
   it('uses the provisional client when a provisional token exists', async () => {
-    getItem.mockReturnValue('prov-token');
+    getProvisionalAccessToken.mockReturnValue('prov-token');
     provisionalApiClient.get.mockResolvedValue({ data: { results: [] } });
     await getMyScheduledQuests();
     expect(provisionalApiClient.get).toHaveBeenCalledWith(
@@ -55,7 +57,7 @@ describe('scheduled-quest-service', () => {
     // Reset the provisional-token stub from the previous test: jest.clearAllMocks()
     // wipes call history but not a previously-set mockReturnValue, so without this
     // every clientFor() call here would still resolve to provisionalApiClient.
-    getItem.mockReturnValue(null);
+    getProvisionalAccessToken.mockReturnValue(null);
     apiClient.get.mockResolvedValue({ data: { results: [] } });
     apiClient.post.mockResolvedValue({ data: {} });
     apiClient.delete.mockResolvedValue({ data: {} });

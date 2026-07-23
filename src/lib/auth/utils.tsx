@@ -1,5 +1,6 @@
-import { getItem, removeItem, setItem } from '@/lib/storage';
 import type { User } from '@/store/types';
+
+import { getItem, removeItem, setItem } from './secure-token-storage';
 
 const TOKEN = 'token';
 

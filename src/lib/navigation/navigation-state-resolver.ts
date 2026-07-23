@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { getProvisionalAccessToken } from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
@@ -84,7 +85,7 @@ export function useNavigationTarget(): NavigationTarget {
       // Check if user has provisional data (indicating they're a new user going through onboarding)
       const hasProvisionalData = !!(
         getItem('provisionalUserId') ||
-        getItem('provisionalAccessToken') ||
+        getProvisionalAccessToken() ||
         getItem('provisionalEmail')
       );
 
@@ -148,7 +149,7 @@ export function useNavigationTarget(): NavigationTarget {
   // authStatus alone can't identify the onboarding first-quest flow after an
   // app restart — check for a provisional session as well.
   const hasProvisionalSession = !!(
-    getItem('provisionalUserId') || getItem('provisionalAccessToken')
+    getItem('provisionalUserId') || getProvisionalAccessToken()
   );
   const isInOnboardingFlow =
     !isOnboardingComplete &&

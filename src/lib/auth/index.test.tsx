@@ -1,9 +1,12 @@
 import Constants from 'expo-constants';
 import { OneSignal } from 'react-native-onesignal';
 
-import { storeTokens } from '@/api/token';
+import {
+  getProvisionalAccessToken,
+  getProvisionalRefreshToken,
+  storeTokens,
+} from '@/api/token';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
 import { useAuth } from './index';
@@ -31,6 +34,8 @@ jest.mock('react-native-onesignal', () => ({
 
 jest.mock('@/api/token', () => ({
   storeTokens: jest.fn(),
+  getProvisionalAccessToken: jest.fn(),
+  getProvisionalRefreshToken: jest.fn(),
 }));
 
 jest.mock('@/lib/services/user', () => ({
@@ -75,12 +80,6 @@ jest.mock('./utils', () => ({
   getToken: jest.fn(),
   removeToken: jest.fn(),
   setToken: jest.fn(),
-}));
-
-jest.mock('@/lib/storage', () => ({
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
 }));
 
 // Get references to the mocks
@@ -322,7 +321,8 @@ describe('Auth Store', () => {
 
     it('should set signOut status when no token exists', async () => {
       (getToken as jest.Mock).mockReturnValue(null);
-      (getItem as jest.Mock).mockReturnValue(null); // No provisional tokens either
+      (getProvisionalAccessToken as jest.Mock).mockReturnValue(null); // No provisional tokens either
+      (getProvisionalRefreshToken as jest.Mock).mockReturnValue(null);
 
       await useAuth.getState().hydrate();
 

@@ -2,6 +2,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 import { apiClient } from '@/api/common/client';
 import { provisionalApiClient } from '@/api/common/provisional-client';
+import { getProvisionalAccessToken } from '@/api/token';
 import { getToken } from '@/lib/auth/utils';
 import { getItem, setItem } from '@/lib/storage';
 import {
@@ -168,7 +169,7 @@ class AudioCacheService {
     try {
       // Choose the appropriate client based on authentication state
       const hasRegularToken = !!getToken();
-      const hasProvisionalToken = !!getItem('provisionalAccessToken');
+      const hasProvisionalToken = !!getProvisionalAccessToken();
       const client = hasRegularToken
         ? apiClient
         : hasProvisionalToken
@@ -235,7 +236,7 @@ class AudioCacheService {
     try {
       // Choose the appropriate client based on authentication state
       const hasRegularToken = !!getToken();
-      const hasProvisionalToken = !!getItem('provisionalAccessToken');
+      const hasProvisionalToken = !!getProvisionalAccessToken();
       const client = hasRegularToken
         ? apiClient
         : hasProvisionalToken

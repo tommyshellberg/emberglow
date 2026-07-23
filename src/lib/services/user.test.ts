@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { setProvisionalAccessToken } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 
@@ -21,11 +22,16 @@ import {
 
 // Mock dependencies
 jest.mock('@/api/common/client');
+jest.mock('@/api/token');
 jest.mock('@/lib/storage');
 jest.mock('uuid');
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
 const mockSetItem = setItem as jest.MockedFunction<typeof setItem>;
+const mockSetProvisionalAccessToken =
+  setProvisionalAccessToken as jest.MockedFunction<
+    typeof setProvisionalAccessToken
+  >;
 const mockUuidv4 = uuidv4 as jest.MockedFunction<typeof uuidv4>;
 
 describe('User Service', () => {
@@ -762,8 +768,7 @@ describe('User Service', () => {
         'provisionalUserId',
         'provisional-user-123'
       );
-      expect(mockSetItem).toHaveBeenCalledWith(
-        'provisionalAccessToken',
+      expect(mockSetProvisionalAccessToken).toHaveBeenCalledWith(
         'provisional-access-token'
       );
 
@@ -827,11 +832,8 @@ describe('User Service', () => {
         'provisionalUserId',
         'provisional-user-456'
       );
-      // Should not call setItem for access token
-      expect(mockSetItem).not.toHaveBeenCalledWith(
-        'provisionalAccessToken',
-        expect.anything()
-      );
+      // Should not call setProvisionalAccessToken when the response has no token
+      expect(mockSetProvisionalAccessToken).not.toHaveBeenCalled();
 
       expect(result).toEqual(mockResponse.user);
     });

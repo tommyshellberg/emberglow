@@ -1,22 +1,26 @@
 import { getToken, removeToken, setToken } from '@/lib/auth/utils';
-import { getItem, removeItem, setItem } from '@/lib/storage';
+import { getItem, removeItem, setItem } from '@/lib/auth/secure-token-storage';
 
 import {
-  ACCESS_TOKEN_EXPIRY_KEY,
-  ACCESS_TOKEN_KEY,
   type AuthTokens,
   getAccessToken,
+  getProvisionalAccessToken,
+  getProvisionalRefreshToken,
   getRefreshToken,
   isTokenExpired,
-  REFRESH_TOKEN_EXPIRY_KEY,
-  REFRESH_TOKEN_KEY,
+  PROVISIONAL_ACCESS_TOKEN_KEY,
+  PROVISIONAL_REFRESH_TOKEN_KEY,
+  removeProvisionalAccessToken,
+  removeProvisionalRefreshToken,
   removeTokens,
+  setProvisionalAccessToken,
+  setProvisionalRefreshToken,
   storeTokens,
 } from './token';
 
 // Mock dependencies
 jest.mock('@/lib/auth/utils');
-jest.mock('@/lib/storage');
+jest.mock('@/lib/auth/secure-token-storage');
 
 // Mock console methods
 const originalConsoleError = console.error;
@@ -30,15 +34,6 @@ afterAll(() => {
 describe('token.ts', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('Constants', () => {
-    it('should export correct storage keys', () => {
-      expect(ACCESS_TOKEN_KEY).toBe('auth_access_token');
-      expect(REFRESH_TOKEN_KEY).toBe('auth_refresh_token');
-      expect(ACCESS_TOKEN_EXPIRY_KEY).toBe('auth_access_token_expiry');
-      expect(REFRESH_TOKEN_EXPIRY_KEY).toBe('auth_refresh_token_expiry');
-    });
   });
 
   describe('storeTokens', () => {
@@ -72,7 +67,7 @@ describe('token.ts', () => {
 
     it('should handle errors when storing tokens', () => {
       const error = new Error('Storage error');
-      (setToken as jest.Mock).mockImplementation(() => {
+      (setToken as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -96,7 +91,7 @@ describe('token.ts', () => {
 
     it('should handle errors when storing expiry dates', () => {
       const error = new Error('Storage error');
-      (setItem as jest.Mock).mockImplementation(() => {
+      (setItem as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -152,7 +147,7 @@ describe('token.ts', () => {
 
     it('should return null and log error when getToken throws', () => {
       const error = new Error('Storage error');
-      (getToken as jest.Mock).mockImplementation(() => {
+      (getToken as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -199,7 +194,7 @@ describe('token.ts', () => {
 
     it('should return null and log error when getToken throws', () => {
       const error = new Error('Storage error');
-      (getToken as jest.Mock).mockImplementation(() => {
+      (getToken as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -281,7 +276,7 @@ describe('token.ts', () => {
 
     it('should return true and log error when getItem throws', () => {
       const error = new Error('Storage error');
-      (getItem as jest.Mock).mockImplementation(() => {
+      (getItem as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -307,7 +302,7 @@ describe('token.ts', () => {
 
     it('should return false and log error when removeToken throws', () => {
       const error = new Error('Storage error');
-      (removeToken as jest.Mock).mockImplementation(() => {
+      (removeToken as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -322,7 +317,7 @@ describe('token.ts', () => {
 
     it('should return false and log error when removeItem throws', () => {
       const error = new Error('Storage error');
-      (removeItem as jest.Mock).mockImplementation(() => {
+      (removeItem as jest.Mock).mockImplementationOnce(() => {
         throw error;
       });
 
@@ -333,6 +328,61 @@ describe('token.ts', () => {
         'Error removing tokens:',
         error
       );
+    });
+  });
+
+  describe('provisional token helpers', () => {
+    it('should expose the provisional storage keys', () => {
+      expect(PROVISIONAL_ACCESS_TOKEN_KEY).toBe('provisionalAccessToken');
+      expect(PROVISIONAL_REFRESH_TOKEN_KEY).toBe('provisionalRefreshToken');
+    });
+
+    it('getProvisionalAccessToken reads the provisional access token key', () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-access-value');
+
+      const result = getProvisionalAccessToken();
+
+      expect(getItem).toHaveBeenCalledWith(PROVISIONAL_ACCESS_TOKEN_KEY);
+      expect(result).toBe('provisional-access-value');
+    });
+
+    it('setProvisionalAccessToken writes the provisional access token key', () => {
+      setProvisionalAccessToken('new-access-value');
+
+      expect(setItem).toHaveBeenCalledWith(
+        PROVISIONAL_ACCESS_TOKEN_KEY,
+        'new-access-value'
+      );
+    });
+
+    it('removeProvisionalAccessToken clears the provisional access token key', () => {
+      removeProvisionalAccessToken();
+
+      expect(removeItem).toHaveBeenCalledWith(PROVISIONAL_ACCESS_TOKEN_KEY);
+    });
+
+    it('getProvisionalRefreshToken reads the provisional refresh token key', () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-refresh-value');
+
+      const result = getProvisionalRefreshToken();
+
+      expect(getItem).toHaveBeenCalledWith(PROVISIONAL_REFRESH_TOKEN_KEY);
+      expect(result).toBe('provisional-refresh-value');
+    });
+
+    it('setProvisionalRefreshToken writes the provisional refresh token key', () => {
+      setProvisionalRefreshToken('new-refresh-value');
+
+      expect(setItem).toHaveBeenCalledWith(
+        PROVISIONAL_REFRESH_TOKEN_KEY,
+        'new-refresh-value'
+      );
+    });
+
+    it('removeProvisionalRefreshToken clears the provisional refresh token key', () => {
+      removeProvisionalRefreshToken();
+
+      expect(removeItem).toHaveBeenCalledWith(PROVISIONAL_REFRESH_TOKEN_KEY);
     });
   });
 });

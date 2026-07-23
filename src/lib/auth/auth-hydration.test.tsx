@@ -11,6 +11,8 @@ jest.mock('@/lib/auth/utils');
 jest.mock('@/store/user-store');
 jest.mock('@/api/token', () => ({
   storeTokens: jest.fn(),
+  getProvisionalAccessToken: jest.fn(),
+  getProvisionalRefreshToken: jest.fn(),
 }));
 
 // Mock the auth store to avoid issues with dynamic imports

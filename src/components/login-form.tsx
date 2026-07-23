@@ -4,6 +4,10 @@ import React, { useEffect } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
+import {
+  removeProvisionalAccessToken,
+  removeProvisionalRefreshToken,
+} from '@/api/token';
 import { useAuth } from '@/lib/auth';
 import { removeItem } from '@/lib/storage';
 import { useOnboardingStore } from '@/store/onboarding-store';
@@ -65,8 +69,8 @@ export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
     signOut();
 
     // Clear provisional data
-    removeItem('provisionalRefreshToken');
-    removeItem('provisionalAccessToken');
+    removeProvisionalRefreshToken();
+    removeProvisionalAccessToken();
     removeItem('provisionalUserId');
     removeItem('provisionalEmail');
 

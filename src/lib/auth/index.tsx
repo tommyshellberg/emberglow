@@ -2,11 +2,14 @@ import Constants from 'expo-constants';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
 
-import { storeTokens } from '@/api/token';
+import {
+  getProvisionalAccessToken,
+  getProvisionalRefreshToken,
+  storeTokens,
+} from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -130,10 +133,8 @@ const _useAuth = create<AuthState>((set, get) => ({
       console.log('userToken', userToken);
 
       // Check for provisional tokens if no regular token
-      const provisionalToken = getItem<string>('provisionalAccessToken');
-      const provisionalRefreshToken = getItem<string>(
-        'provisionalRefreshToken'
-      );
+      const provisionalToken = getProvisionalAccessToken();
+      const provisionalRefreshToken = getProvisionalRefreshToken();
 
       if (userToken !== null) {
         set({ token: userToken });
