@@ -10,7 +10,9 @@ import { Button } from '@/components/emberglow';
 import {
   getAppleCredential,
   getGoogleCredential,
+  SOCIAL_SIGNIN_OUTCOMES,
   SocialSignInCancelled,
+  type SocialSignInOutcome,
 } from '@/lib/auth/social';
 import { colors, fontFamily, radii, spacing } from '@/theme';
 
@@ -21,8 +23,16 @@ export type SocialSignInButtonsProps = {
    * forwarded rather than just `target`, because the server's `outcome`
    * (e.g. `'created'` vs `'existing-account-login'`) is what the caller
    * needs to route brand-new users differently — `completeSignIn` always
-   * resolves `'app'` today (see `src/api/auth.ts`'s JSDoc). */
-  onSuccess: (target: 'onboarding' | 'app', outcome: string) => void;
+   * resolves `'app'` today (see `src/api/auth.ts`'s JSDoc).
+   *
+   * Note: the `existing-account-login` success toast ("Welcome back...")
+   * is shown INSIDE this component, not the caller's — `onSuccess` fires
+   * after it. All error-state UI, by contrast, is entirely the caller's
+   * responsibility via `onError`. */
+  onSuccess: (
+    target: 'onboarding' | 'app',
+    outcome: SocialSignInOutcome | (string & {})
+  ) => void;
   /** `'email-in-use'` maps to the existing 409 copy already used by the
    * magic-link flow; `'generic'` covers every other failure. */
   onError: (kind: 'email-in-use' | 'generic') => void;
@@ -30,12 +40,6 @@ export type SocialSignInButtonsProps = {
 
 const APPLE_BUTTON_HEIGHT = 54;
 const GOOGLE_LOGO_SIZE = 18;
-
-// The server's `outcome` value (see `POST /v1/auth/social`) when the
-// credential matched an account that already existed — as opposed to
-// creating a brand-new one. Named here so the comparison below can't
-// silently drift from the server's string.
-const EXISTING_ACCOUNT_LOGIN_OUTCOME = 'existing-account-login';
 
 export function SocialSignInButtons({
   onSuccess,
@@ -63,7 +67,7 @@ export function SocialSignInButtons({
 
         posthog.capture('social_signin_success', { provider, outcome });
 
-        if (outcome === EXISTING_ACCOUNT_LOGIN_OUTCOME) {
+        if (outcome === SOCIAL_SIGNIN_OUTCOMES.EXISTING_ACCOUNT_LOGIN) {
           showMessage({
             message: 'Welcome back',
             description: 'You signed into your existing account.',
@@ -109,7 +113,6 @@ export function SocialSignInButtons({
     <View>
       {Platform.OS === 'ios' ? (
         <View
-          testID="apple-sign-in-button"
           style={styles.appleButtonWrapper}
           // AppleAuthenticationButton has no `disabled` prop of its own
           // (it only extends View props) — dropping pointer events is the
@@ -118,6 +121,7 @@ export function SocialSignInButtons({
           pointerEvents={isSigningIn ? 'none' : 'auto'}
         >
           <AppleAuthentication.AppleAuthenticationButton
+            testID="apple-sign-in-button"
             buttonType={
               AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
             }
@@ -143,12 +147,21 @@ export function SocialSignInButtons({
         <Image
           source={require('@/../assets/images/google-g-logo.png')}
           style={styles.googleLogo}
-          accessibilityLabel="Google logo"
         />
         <Text style={styles.googleLabel}>Continue with Google</Text>
       </Button>
 
-      <View style={styles.dividerRow} testID="social-signin-divider">
+      <View
+        style={styles.dividerRow}
+        testID="social-signin-divider"
+        // Purely decorative — "or" between two buttons that are already
+        // individually labeled conveys nothing extra to a screen reader.
+        // Both props are required for cross-platform coverage: iOS reads
+        // `accessibilityElementsHidden`, Android reads
+        // `importantForAccessibility`.
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <View style={styles.dividerLine} />
         <Text style={styles.dividerText}>or</Text>
         <View style={styles.dividerLine} />
@@ -171,7 +184,10 @@ const styles = StyleSheet.create({
   },
   googleLabel: {
     fontFamily: fontFamily.semibold,
-    fontSize: 16,
+    // Matches Button's own `size="lg"` label fontSize (see button.tsx's
+    // `sizeStyles.lg.fontSize`) — this Text replaces that default label,
+    // so it should render at the same size the button would otherwise use.
+    fontSize: 17,
     color: colors.text.primary,
   },
   dividerRow: {

@@ -347,14 +347,26 @@ jest.mock('react-native-edge-to-edge', () => ({
 // Test-specific mocks should be added in individual test files as needed
 
 // Mock expo-apple-authentication for social sign-in
-jest.mock('expo-apple-authentication', () => ({
-  isAvailableAsync: jest.fn().mockResolvedValue(true),
-  signInAsync: jest.fn(),
-  AppleAuthenticationScope: { EMAIL: 1 },
-  AppleAuthenticationButton: jest.fn().mockReturnValue(null),
-  AppleAuthenticationButtonType: { SIGN_IN: 0 },
-  AppleAuthenticationButtonStyle: { WHITE: 1 },
-}));
+jest.mock('expo-apple-authentication', () => {
+  const React = jest.requireActual('react');
+  const { TouchableOpacity } = jest.requireActual('react-native');
+
+  return {
+    isAvailableAsync: jest.fn().mockResolvedValue(true),
+    signInAsync: jest.fn(),
+    AppleAuthenticationScope: { EMAIL: 1 },
+    // Real component renders Apple's own native button and only accepts
+    // `onPress` (plus style/layout props) — not a generic Pressable. This
+    // stub forwards just `onPress` and `testID` onto a real RN
+    // TouchableOpacity so tests can find and press it, instead of the
+    // previous `mockReturnValue(null)`, which made the button untestable.
+    AppleAuthenticationButton: jest.fn(({ onPress, testID, style }) =>
+      React.createElement(TouchableOpacity, { onPress, testID, style })
+    ),
+    AppleAuthenticationButtonType: { SIGN_IN: 0 },
+    AppleAuthenticationButtonStyle: { WHITE: 1 },
+  };
+});
 
 // Mock expo-crypto for social sign-in nonce hashing
 jest.mock('expo-crypto', () => ({

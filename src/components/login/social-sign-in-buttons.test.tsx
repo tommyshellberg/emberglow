@@ -3,8 +3,12 @@ import type { ReactTestRendererJSON } from 'react-test-renderer';
 import { Platform } from 'react-native';
 
 import { socialSignIn } from '@/api/auth';
+import {
+  getAppleCredential,
+  getGoogleCredential,
+  SocialSignInCancelled,
+} from '@/lib/auth/social';
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
-import { getGoogleCredential, SocialSignInCancelled } from '@/lib/auth/social';
 
 import { SocialSignInButtons } from './social-sign-in-buttons';
 
@@ -23,6 +27,13 @@ jest.mock('@/lib/auth/social', () => ({
   getGoogleCredential: jest.fn(),
   getAppleCredential: jest.fn(),
   SocialSignInCancelled: class SocialSignInCancelled extends Error {},
+  SOCIAL_SIGNIN_OUTCOMES: {
+    LOGIN: 'login',
+    EXISTING_ACCOUNT_LOGIN: 'existing-account-login',
+    CONVERTED: 'converted',
+    LINKED: 'linked',
+    CREATED: 'created',
+  },
 }));
 
 const mockShowMessage = jest.fn();
@@ -32,6 +43,9 @@ jest.mock('react-native-flash-message', () => ({
 
 const mockGetGoogleCredential = getGoogleCredential as jest.MockedFunction<
   typeof getGoogleCredential
+>;
+const mockGetAppleCredential = getAppleCredential as jest.MockedFunction<
+  typeof getAppleCredential
 >;
 const mockSocialSignIn = socialSignIn as jest.MockedFunction<
   typeof socialSignIn
@@ -75,7 +89,12 @@ describe('SocialSignInButtons', () => {
 
       expect(screen.getByTestId('apple-sign-in-button')).toBeOnTheScreen();
       expect(screen.getByTestId('google-sign-in-button')).toBeOnTheScreen();
-      expect(screen.getByText('or')).toBeOnTheScreen();
+      // The divider is marked accessibility-hidden (decorative — see the
+      // component), so it has to be queried with `includeHiddenElements`
+      // to still be found by text.
+      expect(
+        screen.getByText('or', { includeHiddenElements: true })
+      ).toBeOnTheScreen();
 
       const order = collectTestIdOrder(view.toJSON());
       const appleIndex = order.indexOf('apple-sign-in-button');
@@ -280,6 +299,38 @@ describe('SocialSignInButtons', () => {
 
       await waitFor(() => {
         expect(mockSocialSignIn).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  describe('pressing the Apple button', () => {
+    beforeEach(() => {
+      Platform.OS = 'ios';
+    });
+
+    it('calls getAppleCredential then socialSignIn, and captures provider apple on success', async () => {
+      mockGetAppleCredential.mockResolvedValue({
+        provider: 'apple',
+        idToken: 'apple-id-token',
+        nonce: 'raw-nonce',
+      });
+      mockSocialSignIn.mockResolvedValue({ target: 'app', outcome: 'login' });
+
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+      fireEvent.press(screen.getByTestId('apple-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockSocialSignIn).toHaveBeenCalledWith({
+          provider: 'apple',
+          idToken: 'apple-id-token',
+          nonce: 'raw-nonce',
+        });
+      });
+
+      expect(mockGetAppleCredential).toHaveBeenCalledTimes(1);
+      expect(mockCapture).toHaveBeenCalledWith('social_signin_success', {
+        provider: 'apple',
+        outcome: 'login',
       });
     });
   });

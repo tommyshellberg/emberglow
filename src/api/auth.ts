@@ -2,6 +2,7 @@ import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
 import { signIn } from '@/lib/auth';
+import type { SocialSignInOutcome } from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
@@ -279,7 +280,16 @@ export const socialSignIn = async (credential: {
   provider: 'google' | 'apple';
   idToken: string;
   nonce?: string;
-}): Promise<{ target: 'onboarding' | 'app'; outcome: string }> => {
+}): Promise<{
+  target: 'onboarding' | 'app';
+  // `SocialSignInOutcome` documents the server's five known literals (see
+  // its own JSDoc) for autocomplete/review purposes; `(string & {})` keeps
+  // the type open so an outcome the server adds later doesn't fail to
+  // compile here or at any caller — it just isn't one of the known cases
+  // in a `switch`/equality check, which is a safer failure mode than a
+  // hard type error shipping a stale client against a newer server.
+  outcome: SocialSignInOutcome | (string & {});
+}> => {
   const provisionalToken = getItem('provisionalAccessToken');
 
   const headers: { [key: string]: string } = {
