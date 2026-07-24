@@ -159,6 +159,14 @@ export const useQuestStore = create<QuestState>()(
               // where we have access to the posthog instance
             }
 
+            // Derived from the quest itself (not cooperativeQuestRun state) so
+            // it holds on the background-task completion path too. Mirrors
+            // prepareQuest's definition of a cooperative quest.
+            const isCooperativeQuest =
+              activeQuest.mode === 'cooperative' ||
+              (activeQuest.mode === 'custom' &&
+                activeQuest.category === 'cooperative');
+
             // Check if this is the first quest completed today
             const isFirstQuestOfTheDay = (() => {
               if (!lastCompletedQuestTimestamp) return true;
@@ -272,11 +280,14 @@ export const useQuestStore = create<QuestState>()(
                 );
             }
 
-            // Reward enrichment is best-effort and must stay BELOW the set()
-            // above: NavigationGate routes on recentCompletedQuest, and this
-            // fetch goes out while the phone may still be locked — it can
-            // stall long past the point the background service is torn down.
-            if (questRunId) {
+            // Reward enrichment only populates per-participant rewards, which
+            // is a cooperative-quest concern — solo quests already have their
+            // reward set locally above, so skip the fetch entirely for them.
+            // (It's also best-effort and stays BELOW the set() above:
+            // NavigationGate routes on recentCompletedQuest, and this fetch
+            // goes out while the phone may still be locked — it can stall long
+            // past the point the background service is torn down.)
+            if (questRunId && isCooperativeQuest) {
               try {
                 console.log(
                   '[QuestStore] Fetching quest run data to get rewards:',
