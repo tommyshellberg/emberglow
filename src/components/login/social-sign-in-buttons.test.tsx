@@ -205,6 +205,51 @@ describe('SocialSignInButtons', () => {
       });
     });
 
+    it('records the native error code on social_signin_failure, so a DEVELOPER_ERROR is distinguishable from a network failure', async () => {
+      mockGetGoogleCredential.mockRejectedValue(
+        Object.assign(new Error('developer error'), {
+          code: 'DEVELOPER_ERROR',
+        })
+      );
+
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockCapture).toHaveBeenCalledWith('social_signin_failure', {
+          provider: 'google',
+          reason: 'generic',
+          code: 'DEVELOPER_ERROR',
+        });
+      });
+    });
+
+    it('records the HTTP status when the server rejects the credential', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      // 501 is what the server returns when it has no GOOGLE_WEB_CLIENT_ID
+      // configured — indistinguishable from a network failure without this.
+      mockSocialSignIn.mockRejectedValue(
+        Object.assign(new Error('Request failed with status code 501'), {
+          isAxiosError: true,
+          response: { status: 501 },
+        })
+      );
+
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockCapture).toHaveBeenCalledWith('social_signin_failure', {
+          provider: 'google',
+          reason: 'generic',
+          status: 501,
+        });
+      });
+    });
+
     it('captures social_signin_success with the provider on success', async () => {
       mockGetGoogleCredential.mockResolvedValue({
         provider: 'google',

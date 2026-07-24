@@ -126,7 +126,7 @@ describe('QuestCompletedSignupScreen', () => {
     it('should navigate to login when Create Account button is pressed', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       // Wait for async navigation
@@ -141,7 +141,7 @@ describe('QuestCompletedSignupScreen', () => {
     it('should NOT set onboarding to COMPLETED when navigating to login', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       // Wait for any async operations
@@ -159,7 +159,7 @@ describe('QuestCompletedSignupScreen', () => {
     it('should use router.replace instead of router.push', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       await waitFor(
@@ -238,13 +238,13 @@ describe('QuestCompletedSignupScreen', () => {
   });
 
   describe('Social sign-in', () => {
-    it('renders the social sign-in buttons above the Create account button', () => {
+    it('renders the social sign-in buttons above the Sign up with email button', () => {
       const { getByTestId, getByText, toJSON } = render(
         <QuestCompletedSignupScreen />
       );
 
       expect(getByTestId('social-sign-in-buttons-mock')).toBeTruthy();
-      expect(getByText('Create account')).toBeTruthy();
+      expect(getByText('Sign up with email')).toBeTruthy();
 
       // Depth-first walk collecting testIDs and text leaves in render
       // order, so "above" is asserted structurally rather than assumed.
@@ -266,16 +266,16 @@ describe('QuestCompletedSignupScreen', () => {
       walk(toJSON());
 
       const socialIndex = order.indexOf('social-sign-in-buttons-mock');
-      const createAccountIndex = order.indexOf('Create account');
+      const createAccountIndex = order.indexOf('Sign up with email');
 
       expect(socialIndex).toBeGreaterThanOrEqual(0);
       expect(createAccountIndex).toBeGreaterThan(socialIndex);
     });
 
-    it('still routes "Create account" to /login', async () => {
+    it('still routes "Sign up with email" to /login', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      fireEvent.press(getByText('Create account'));
+      fireEvent.press(getByText('Sign up with email'));
 
       await waitFor(() => {
         expect(mockRouterReplace).toHaveBeenCalledWith('/login');

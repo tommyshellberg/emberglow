@@ -40,14 +40,50 @@ export type SocialSignInButtonsProps = {
   /** `'email-in-use'` maps to the existing 409 copy already used by the
    * magic-link flow; `'generic'` covers every other failure. */
   onError: (kind: 'email-in-use' | 'generic') => void;
+  /** Promotes the Google button to the screen's single primary (ember)
+   * action — solid Cinnabar with a warm glow instead of the default
+   * `outline`. Off by default because the login screen's magic-link submit
+   * already owns the one-primary-per-screen slot there (brand rule: orange is
+   * scarce and meaningful); the quest-completed-signup conversion screen, where
+   * Google IS the main action, opts in. */
+  googlePrimary?: boolean;
 };
 
 const APPLE_BUTTON_HEIGHT = 54;
 const GOOGLE_LOGO_SIZE = 18;
 
+/**
+ * Reduces a sign-in failure to the two bounded identifiers that are safe to
+ * retain in analytics: the native SDK's `code` (e.g. Google's
+ * `'DEVELOPER_ERROR'`, Apple's `'ERR_REQUEST_CANCELED'`) and the HTTP status
+ * of a server rejection.
+ *
+ * Deliberately omits `error.message`. Axios embeds the request URL — and for
+ * some failures the response body — in its message, and PostHog events are
+ * retained and queryable indefinitely, so a free-text message is an unbounded
+ * channel for user data to leak into analytics. The full error still reaches
+ * the local console (see the caller), which is where the rich detail belongs:
+ * ephemeral, developer-only, never transmitted.
+ */
+function describeFailure(error: unknown): { code?: string; status?: number } {
+  const description: { code?: string; status?: number } = {};
+
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' || typeof code === 'number') {
+    description.code = String(code);
+  }
+
+  if (axios.isAxiosError(error) && error.response) {
+    description.status = error.response.status;
+  }
+
+  return description;
+}
+
 export function SocialSignInButtons({
   onSuccess,
   onError,
+  googlePrimary = false,
 }: SocialSignInButtonsProps) {
   const posthog = usePostHog();
   // Guards against a double-tap firing two concurrent sign-in attempts —
@@ -98,12 +134,23 @@ export function SocialSignInButtons({
         // linked to a different account (the existing magic-link 409 copy
         // covers it); everything else collapses to a generic retry
         // message.
-        const isEmailInUse =
-          axios.isAxiosError(error) && error.response?.status === 409;
+        const { code, status } = describeFailure(error);
+
+        // This is the ONLY place the error is ever observed. `socialSignIn`
+        // documents that it catches nothing, and every failure below
+        // collapses into one of two retry messages — so without this log a
+        // misconfigured OAuth client (`DEVELOPER_ERROR`), an unreachable API
+        // host, and a server that hasn't been given its client ID (501) are
+        // indistinguishable to whoever is holding the phone.
+        console.error(`[SocialSignIn] ${provider} sign-in failed`, error);
+
+        const isEmailInUse = status === 409;
 
         posthog.capture('social_signin_failure', {
           provider,
           reason: isEmailInUse ? 'email-in-use' : 'generic',
+          ...(code === undefined ? {} : { code }),
+          ...(status === undefined ? {} : { status }),
         });
         onError(isEmailInUse ? 'email-in-use' : 'generic');
       } finally {
@@ -141,7 +188,8 @@ export function SocialSignInButtons({
 
       <Button
         testID="google-sign-in-button"
-        variant="outline"
+        variant={googlePrimary ? 'primary' : 'outline'}
+        glow={googlePrimary}
         size="lg"
         fullWidth
         disabled={isSigningIn}
@@ -152,7 +200,16 @@ export function SocialSignInButtons({
           source={require('@/../assets/images/google-g-logo.png')}
           style={styles.googleLogo}
         />
-        <Text style={styles.googleLabel}>Continue with Google</Text>
+        <Text
+          style={[
+            styles.googleLabel,
+            // Children bypass Button's per-variant label color, so the label
+            // must track the variant itself: near-white onAccent on Cinnabar.
+            googlePrimary && { color: colors.text.onAccent },
+          ]}
+        >
+          Continue with Google
+        </Text>
       </Button>
 
       <View

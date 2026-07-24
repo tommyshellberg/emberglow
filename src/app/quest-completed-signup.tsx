@@ -221,16 +221,21 @@ export default function QuestCompletedSignupScreen() {
         entering={FadeInDown.delay(ANIM_STAGGER * 4).duration(ANIM_DURATION)}
       >
         <SocialSignInButtons
+          googlePrimary
           onSuccess={handleSocialSignInSuccess}
           onError={handleSocialSignInError}
         />
         <Button
-          variant="primary"
+          variant="secondary"
           size="lg"
           fullWidth
-          label="Create account"
-          accessibilityLabel="Create account"
+          label="Sign up with email"
+          accessibilityLabel="Sign up with email"
           onPress={handleCreateAccount}
+          // Balances the gap the "or" divider already has above it, so the
+          // divider reads as centered between Google and this button rather
+          // than flush against it.
+          containerStyle={styles.emailButton}
         />
       </Animated.View>
     </View>
@@ -327,5 +332,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     maxWidth: FOOTNOTE_MAX_WIDTH,
     marginBottom: spacing[4],
+  },
+  emailButton: {
+    marginTop: spacing[4],
   },
 });
