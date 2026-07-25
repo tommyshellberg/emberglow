@@ -8,6 +8,11 @@
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Required by expo-apple-authentication so the native
+	     AppleAuthenticationButton (Sign In / Continue with Apple) localizes
+	     its label correctly regardless of the app's own primary language. -->
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -39,6 +44,15 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>exp+unquest-app</string>
+			</array>
+		</dict>
+		<!-- TODO(social-signin): replace with the reversed form of the real
+		     GOOGLE_IOS_CLIENT_ID once it exists (see plan Human prerequisites).
+		     Format: com.googleusercontent.apps.<client-id-prefix> -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.294858595704-9mp664qph89g16istbfoklhku760lnj5</string>
 			</array>
 		</dict>
 	</array>

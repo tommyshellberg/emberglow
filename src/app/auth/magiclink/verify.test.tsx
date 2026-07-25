@@ -122,7 +122,9 @@ describe('MagicLinkVerifyScreen', () => {
     render(<MagicLinkVerifyScreen />);
 
     await waitFor(() => {
-      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed');
+      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+        method: 'magic_link',
+      });
     });
   });
 

@@ -3,13 +3,23 @@ import { Feather, Scroll, User, Users } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { useCallback } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import CHARACTERS from '@/app/data/characters';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button, EyebrowLabel } from '@/components/emberglow';
+import { SocialDivider } from '@/components/login/social-divider';
+import {
+  type SocialProvider,
+  SocialSignInButtons,
+} from '@/components/login/social-sign-in-buttons';
 import { FocusAwareStatusBar } from '@/components/ui';
+import {
+  SOCIAL_SIGNIN_OUTCOMES,
+  type SocialSignInOutcome,
+} from '@/lib/auth/social';
 import { useCharacterStore } from '@/store/character-store';
 import {
   colors,
@@ -74,9 +84,65 @@ export default function QuestCompletedSignupScreen() {
     posthog.capture('onboarding_trigger_try_create_account');
 
     // Navigate to login - the login flow will handle setting onboarding to
-    // COMPLETED after successful authentication.
-    router.replace('/login');
+    // COMPLETED after successful authentication. `intent=convert` tells that
+    // screen the user has a provisional hero to keep, so it frames itself as
+    // saving progress rather than as a returning-user sign-in.
+    //
+    // Object form, not `'/login?intent=convert'`: under `typedRoutes` only
+    // the object form's `pathname` is checked against the generated route
+    // union, so a path typo fails at compile time instead of at runtime
+    // (same form as auth/magiclink/verify.tsx).
+    router.replace({ pathname: '/login', params: { intent: 'convert' } });
   }, [posthog]);
+
+  const handleSocialSignInSuccess = useCallback(
+    (
+      _target: 'onboarding' | 'app',
+      outcome: SocialSignInOutcome | (string & {}),
+      provider: SocialProvider
+    ) => {
+      // The user arriving here already has a provisional character and has
+      // completed quest-1 (that's how they reached this screen), so unlike
+      // the login screen's `created` case, no explicit routing decision is
+      // needed: `socialSignIn` (src/api/auth.ts) clears the provisional
+      // tokens as a side effect, and the globally-mounted NavigationGate's
+      // onboarding-sync heuristic (navigation-state-resolver.ts) then flips
+      // onboarding to COMPLETED and routes to `/(app)` on its own — the
+      // same mechanism the magic-link conversion path already relies on
+      // (see `completeSignIn`'s JSDoc).
+      //
+      // This screen is reachable by a returning user too (e.g. reinstalled
+      // the app, still has a provisional character + completed quest-1 on
+      // this device, and their social identity already resolves to an
+      // existing full account) — outcomes `login`, `existing-account-login`,
+      // and `linked` all mean "signed into an account that already
+      // existed," not a new signup, so only `created`/`converted` (a
+      // genuinely new full account) should count toward the funnel.
+      if (
+        outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED ||
+        outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED
+      ) {
+        posthog.capture('signup_completed', { method: provider });
+      }
+    },
+    [posthog]
+  );
+
+  const handleSocialSignInError = useCallback(
+    (kind: 'email-in-use' | 'generic') => {
+      showMessage({
+        message:
+          kind === 'email-in-use' ? 'Email already in use' : 'Sign-in failed',
+        description:
+          kind === 'email-in-use'
+            ? 'This email is already tied to another account.'
+            : 'Please try again.',
+        type: 'danger',
+        duration: 3000,
+      });
+    },
+    []
+  );
 
   // Hero card data — real data throughout, no hardcoded name/XP/type. XP is
   // quest-1's reward preview from AVAILABLE_QUESTS (matching the
@@ -162,13 +228,23 @@ export default function QuestCompletedSignupScreen() {
       <Animated.View
         entering={FadeInDown.delay(ANIM_STAGGER * 4).duration(ANIM_DURATION)}
       >
+        <SocialSignInButtons
+          googlePrimary
+          onSuccess={handleSocialSignInSuccess}
+          onError={handleSocialSignInError}
+        />
+        <SocialDivider />
         <Button
-          variant="primary"
+          variant="secondary"
           size="lg"
           fullWidth
-          label="Create account"
-          accessibilityLabel="Create account"
+          label="Sign up with email"
+          accessibilityLabel="Sign up with email"
           onPress={handleCreateAccount}
+          // Mirrors `SocialDivider`'s own `marginTop`, so the divider sits
+          // equidistant between the Google button above it and this button
+          // below rather than flush against either.
+          containerStyle={styles.emailButton}
         />
       </Animated.View>
     </View>
@@ -265,5 +341,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     maxWidth: FOOTNOTE_MAX_WIDTH,
     marginBottom: spacing[4],
+  },
+  emailButton: {
+    marginTop: spacing[4],
   },
 });

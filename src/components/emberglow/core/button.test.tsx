@@ -44,6 +44,26 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
+  it('blocks onPress and announces busy while the action is in flight', async () => {
+    const onPress = jest.fn();
+    const { user } = setup(
+      <Button testID="button" label="Begin quest" busy onPress={onPress} />
+    );
+    const button = screen.getByTestId('button');
+    expect(button.props.accessibilityState.busy).toBe(true);
+    expect(button.props.accessibilityState.disabled).toBe(true);
+    await user.press(button);
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('keeps a busy button at full strength — dimming is for unavailable, not working', () => {
+    render(<Button testID="button" label="Begin quest" busy />);
+    const style = StyleSheet.flatten(screen.getByTestId('button').props.style);
+    // The whole point of `busy`: the caller renders a spinner inside, and a
+    // spinner at 40% opacity reads as broken rather than working.
+    expect(style.opacity).toBeUndefined();
+  });
+
   it('exposes the button accessibility role', () => {
     render(<Button testID="button" label="Begin quest" />);
     expect(screen.getByTestId('button').props.accessibilityRole).toBe('button');

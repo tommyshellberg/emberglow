@@ -108,6 +108,61 @@ describe('isAlreadyAtTarget', () => {
     });
   });
 
+  describe('the dead pre-account links regression', () => {
+    // emberglow#359, reported from a device: "Have an account? Log in" on the
+    // welcome screen appeared to do nothing. It navigated fine — then the gate
+    // put the user straight back, because the resolver still answered
+    // 'onboarding' (no store changes when you tap a link) and a strict match
+    // read /login as the wrong place. Three links died the same way.
+    //
+    // Each case below is one of those links, written as
+    // (where the resolver says to be, where the user put themselves).
+    it.each([
+      // welcome.tsx: "Have an account? Log in".
+      ['onboarding', ['login'], '/login'],
+      // login-form.tsx: "New here? Create a hero".
+      ['login', ['onboarding', 'welcome'], '/onboarding/welcome'],
+      // quest-completed-signup.tsx: "Create account" (intent=convert).
+      ['quest-completed-signup', ['login'], '/login'],
+      // The reverse of the above — back to the signup prompt from /login.
+      ['login', ['quest-completed-signup'], '/quest-completed-signup'],
+    ])('target %s accepts /%s as good enough', (type, segments, pathname) => {
+      expect(
+        isAlreadyAtTarget({ type } as any, segments as string[], pathname)
+      ).toBe(true);
+    });
+
+    // The permissiveness is scoped to the resolver's last-resort answers. A
+    // quest in flight outranks all of them and must still evict.
+    it.each([
+      'pending-quest',
+      'cooperative-pending-quest',
+      'streak-celebration',
+      'first-quest-result',
+    ])('target %s still evicts a user sitting on /login', (type) => {
+      expect(
+        isAlreadyAtTarget(
+          { type, questId: 'q1', outcome: 'completed' } as any,
+          ['login'],
+          '/login'
+        )
+      ).toBe(false);
+    });
+
+    // Nothing outside the zone gets in on the zone's ticket.
+    it('does not accept an app-group route for target onboarding', () => {
+      expect(
+        isAlreadyAtTarget({ type: 'onboarding' }, ['(app)'], '/profile')
+      ).toBe(false);
+    });
+
+    // Cold start: no location yet is a reason to redirect here, unlike the
+    // 'app' case above where it is a reason to wait.
+    it('still performs the launch redirect when segments are empty', () => {
+      expect(isAlreadyAtTarget({ type: 'onboarding' }, [], '/')).toBe(false);
+    });
+  });
+
   describe('the failed-quest redirect loop regression', () => {
     // Captured from a real Android SDK 53 session (2026-07-16): with
     // failedQuest armed, usePathname() read bare '/quest' while segments read

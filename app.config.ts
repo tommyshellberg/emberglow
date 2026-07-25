@@ -29,6 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     bundleIdentifier: Env.BUNDLE_ID,
     icon: './assets/images/app-icon.png',
+    usesAppleSignIn: true,
     config: {
       usesNonExemptEncryption: false,
     },
@@ -82,6 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     ['expo-secure-store'],
+    'expo-apple-authentication',
     [
       'expo-font',
       {
