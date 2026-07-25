@@ -174,7 +174,10 @@ export function SocialSignInButtons({
           <AppleAuthentication.AppleAuthenticationButton
             testID="apple-sign-in-button"
             buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+              // CONTINUE, not SIGN_IN: this button can create an account, and
+              // Apple's HIG reserves "Sign in with Apple" for pure sign-in.
+              // The label is OS-localized — we don't control the string.
+              AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
             }
             buttonStyle={
               AppleAuthentication.AppleAuthenticationButtonStyle.WHITE

@@ -1,5 +1,6 @@
 import type { ReactTestRendererJSON } from 'react-test-renderer';
 
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 
 import { socialSignIn } from '@/api/auth';
@@ -109,6 +110,13 @@ describe('SocialSignInButtons', () => {
       // divider rendered — it would prove nothing.
       expect(collectTestIdOrder(view.toJSON())).not.toContain(
         'social-signin-divider'
+      );
+    });
+
+    it('uses the CONTINUE button type so the native label is mode-neutral', () => {
+      render(<SocialSignInButtons onSuccess={jest.fn()} onError={jest.fn()} />);
+      expect(screen.getByTestId('apple-sign-in-button').props.buttonType).toBe(
+        AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
       );
     });
   });
