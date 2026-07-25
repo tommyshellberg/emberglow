@@ -2,7 +2,11 @@ import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
 import { signIn } from '@/lib/auth';
-import type { SocialSignInOutcome } from '@/lib/auth/social';
+import type {
+  ExistingAccountSummary,
+  SocialSignInOutcome,
+} from '@/lib/auth/social';
+import { ExistingAccountConfirmationRequired } from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
@@ -264,23 +268,33 @@ export const verifyMagicLinkAndSignIn = async (
  * side effects so social-authenticated sessions are indistinguishable from
  * magic-link ones afterwards.
  *
- * Error contract: this function does NOT catch anything — network failures,
- * non-2xx responses (e.g. a 409 if the social account is already linked to
- * a different user), and `completeSignIn`'s own raw throws (see its JSDoc)
- * all propagate uncaught. Callers (the sign-in UI) must catch and render
- * an error state; `SocialSignInCancelled` from the native wrappers is a
- * separate, earlier failure mode this function never sees.
+ * Error contract: exactly ONE failure is translated — the server's
+ * existing-account collision becomes `ExistingAccountConfirmationRequired`
+ * (see below). Everything else is re-thrown as the very same object: network
+ * failures, other non-2xx responses (including the generic email-in-use 409
+ * the magic-link path also returns), and `completeSignIn`'s own raw throws
+ * (see its JSDoc). Callers (the sign-in UI) must catch and render an error
+ * state; `SocialSignInCancelled` from the native wrappers is a separate,
+ * earlier failure mode this function never sees.
+ *
+ * `confirmExistingAccount` is the collision's second act: on catching
+ * `ExistingAccountConfirmationRequired` the UI confirms with the user, then
+ * replays the SAME credential with the flag set — no second native prompt.
+ * The server had mutated nothing on the first, rejected attempt.
  *
  * Returns both `target` and the server's `outcome` because `completeSignIn`
  * always resolves `'app'` today (see its JSDoc) — routing brand-new
  * ('created') users differently is derived from `outcome` by the caller,
  * not from `target`.
  */
-export const socialSignIn = async (credential: {
-  provider: 'google' | 'apple';
-  idToken: string;
-  nonce?: string;
-}): Promise<{
+export const socialSignIn = async (
+  credential: {
+    provider: 'google' | 'apple';
+    idToken: string;
+    nonce?: string;
+  },
+  confirmExistingAccount = false
+): Promise<{
   target: 'onboarding' | 'app';
   // `SocialSignInOutcome` documents the server's five known literals (see
   // its own JSDoc) for autocomplete/review purposes; `(string & {})` keeps
@@ -299,15 +313,43 @@ export const socialSignIn = async (credential: {
     headers.Authorization = `Bearer ${provisionalToken}`;
   }
 
-  const response = await authClient.post('/auth/social', credential, {
-    headers,
-  });
+  let response;
+  try {
+    response = await authClient.post(
+      '/auth/social',
+      // Always send the flag, never `undefined`/`null`: the server validates it
+      // with `Joi.boolean().default(false)`, which 400s on an explicit null.
+      { ...credential, confirmExistingAccount },
+      { headers }
+    );
+  } catch (error) {
+    // Branch on `details.reason` BEFORE status: the magic-link path already
+    // uses 409 for email-in-use, and that one must keep reaching the generic
+    // error copy untouched.
+    //
+    // The payload generic is spelled out because `isAxiosError`'s defaults to
+    // `any` — left off, a typo in `reason`/`account` below would read
+    // `undefined` and silently fall through to that generic copy.
+    const details = axios.isAxiosError<{
+      details?: { reason?: string; account?: ExistingAccountSummary };
+    }>(error)
+      ? error.response?.data?.details
+      : undefined;
+    if (details?.reason === 'existing-account-confirmation-required') {
+      throw new ExistingAccountConfirmationRequired(details.account ?? {});
+    }
+    throw error;
+  }
+
   const { tokens, outcome } = response.data;
 
   tokenService.storeTokens(tokens);
 
   // Clear provisional user data now that we have a real session, same as
-  // verifyMagicLink.
+  // verifyMagicLink. Must stay AFTER the post — an unconfirmed collision
+  // throws above, and dismissing it has to leave the provisional session
+  // intact so the local hero survives and the confirm re-post still carries
+  // its Bearer header (and so still hits the provisional-conversion branch).
   removeItem('provisionalAccessToken');
   removeItem('provisionalUserId');
   removeItem('provisionalEmail');
