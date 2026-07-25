@@ -1,11 +1,9 @@
-import * as Linking from 'expo-linking';
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Input } from '@/components/emberglow';
-import { colors, fontFamily, spacing } from '@/theme';
+import { colors, spacing } from '@/theme';
 
-import { TERMS_URL } from './constants';
 import { ErrorBanner } from './error-banner';
 import { cardBody, cardTitle } from './text-styles';
 import { emailSchema } from './types';
@@ -25,7 +23,8 @@ type EmailInputViewProps = {
 };
 
 // Mockup puts `marginTop: 14` on the send button; carried here as the
-// input block's bottom margin (the Terms line sits between them).
+// input block's bottom margin instead — Input and Button are adjacent
+// siblings below, so this margin sits directly between them.
 const INPUT_MARGIN_BOTTOM = 14;
 
 /**
@@ -69,20 +68,6 @@ export function EmailInputView({
         containerStyle={styles.inputContainer}
       />
 
-      {/* Terms and privacy — kept even though the mockup omits it (legal). */}
-      <Text style={styles.terms}>
-        By signing in to this app you agree with our{' '}
-        <Text
-          style={styles.termsLink}
-          onPress={() => Linking.openURL(TERMS_URL)}
-          accessibilityRole="link"
-          accessibilityLabel="Terms of Use and Privacy Policy"
-        >
-          Terms of Use and Privacy Policy
-        </Text>
-        .
-      </Text>
-
       <Button
         testID="login-button"
         variant="primary"
@@ -111,18 +96,5 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: INPUT_MARGIN_BOTTOM,
-  },
-  terms: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12.5,
-    lineHeight: 12.5 * 1.5,
-    color: colors.text.muted,
-    textAlign: 'center',
-    marginBottom: spacing[4],
-  },
-  termsLink: {
-    fontFamily: fontFamily.medium,
-    color: colors.text.secondary,
-    textDecorationLine: 'underline',
   },
 });
