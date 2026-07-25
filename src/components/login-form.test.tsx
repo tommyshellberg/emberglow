@@ -2,7 +2,14 @@ import * as Linking from 'expo-linking';
 import React from 'react';
 
 import { requestMagicLink } from '@/api/auth';
-import { cleanup, fireEvent, screen, setup, waitFor } from '@/lib/test-utils';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  setup,
+  waitFor,
+} from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 
 import { TERMS_URL } from './login/constants';
@@ -96,7 +103,9 @@ const mockedRequestMagicLink = requestMagicLink as jest.MockedFunction<
 // RNTL 13 sets `defaultIncludeHiddenElements: false`, so a bare `queryBy*`
 // returning null proves absence only from the VISIBLE tree — an earlier task in
 // this plan shipped a "the divider is gone" test that passed with the divider
-// fully present. Every absence assertion below passes this.
+// fully present. Every absence assertion below passes this — including the two
+// pre-existing bare-form ones, converted rather than exempted, so the claim
+// stays true for the whole file instead of being narrowed to describe it.
 const hidden = { includeHiddenElements: true } as const;
 
 /**
@@ -141,6 +150,41 @@ const setupOnEmailStep = async (props: LoginFormProps = {}) => {
   const utils = setup(<LoginForm {...props} />);
   await utils.user.press(screen.getByTestId('continue-with-email-button'));
   return utils;
+};
+
+/** A 500 from the magic-link endpoint, in the shape axios actually throws. */
+const serverError = () =>
+  Object.assign(new Error('Request failed with status code 500'), {
+    response: { status: 500, data: { message: 'Internal server error' } },
+    config: {},
+    isAxiosError: true,
+  });
+
+/**
+ * Holds the next send in flight so a test can act during the request window.
+ *
+ * That window is where two reachable bugs lived: the back link was live while
+ * `isLoading`, so a user could leave the email step and have the send's outcome
+ * land on a step that never asked for it.
+ */
+const deferredSend = () => {
+  let settle!: { resolve: () => void; reject: (reason: unknown) => void };
+  mockedRequestMagicLink.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        settle = { resolve: () => resolve(), reject };
+      })
+  );
+  const flush = async (fire: () => void) => {
+    await act(async () => {
+      fire();
+      await Promise.resolve();
+    });
+  };
+  return {
+    resolve: () => flush(() => settle.resolve()),
+    reject: (reason: unknown) => flush(() => settle.reject(reason)),
+  };
 };
 
 /** Reaches the `sent` step from the email step via a successful send. */
@@ -332,7 +376,7 @@ describe('LoginForm Form ', () => {
     expect(screen.getByTestId('email-input')).toBeOnTheScreen();
 
     // Verify the success message is NOT shown
-    expect(screen.queryByText(/Check your inbox/i)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Check your inbox/i, hidden)).toBeNull();
   });
 
   it('should show timeout error message', async () => {
@@ -545,7 +589,7 @@ describe('LoginForm Form ', () => {
     expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
 
     // The default spam hint yields the footnote slot to the error
-    expect(screen.queryByText(/Check your spam folder/i)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Check your spam folder/i, hidden)).toBeNull();
   });
 
   it('should show contact support link after 3 failed attempts', async () => {
@@ -885,6 +929,116 @@ describe('LoginForm Form ', () => {
 
       expect(screen.queryByTestId('email-input', hidden)).toBeNull();
       expect(screen.queryByTestId('back-to-chooser-link', hidden)).toBeNull();
+    });
+
+    it('clears a chooser error on the way forward to the email step', async () => {
+      const { user } = setup(<LoginForm intent="signin" />);
+
+      // A failed Apple/Google attempt belongs to the chooser.
+      fireEvent.press(screen.getByTestId('mock-social-error-generic'));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Login link failed to send. Please try again./i)
+        ).toBeOnTheScreen();
+      });
+
+      await user.press(screen.getByTestId('continue-with-email-button'));
+
+      // Without this, the email step opens saying a link failed to send when no
+      // link has been requested — the generic social copy is the magic-link
+      // copy, so it is doubly misattributed.
+      expect(
+        screen.queryByText(/Login link failed to send. Please try again./i, {
+          ...hidden,
+        })
+      ).toBeNull();
+      expect(rawCount('Login link failed to send')).toBe(0);
+      expect(screen.queryByTestId('error-message', hidden)).toBeNull();
+      expect(mockedRequestMagicLink).not.toHaveBeenCalled();
+    });
+
+    it('does not carry a chooser 409 into the email step', async () => {
+      const { user } = setup(<LoginForm intent="signin" />);
+
+      fireEvent.press(screen.getByTestId('mock-social-error-email-in-use'));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/already associated with an account/i)
+        ).toBeOnTheScreen();
+      });
+
+      await user.press(screen.getByTestId('continue-with-email-button'));
+
+      expect(
+        screen.queryByText(/already associated with an account/i, { ...hidden })
+      ).toBeNull();
+      expect(rawCount('already associated with an account')).toBe(0);
+    });
+  });
+
+  // Both of these are about the request window. The back link used to be live
+  // while a send was pending, which let the user leave the email step and have
+  // the send's outcome land on a step that never asked for it.
+  describe('While a send is in flight', () => {
+    it('keeps a failed send’s error on the email step instead of the chooser', async () => {
+      const pending = deferredSend();
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
+      await user.press(screen.getByTestId('login-button'));
+
+      const backLink = screen.getByTestId('back-to-chooser-link');
+      // Disclosed as inert, not just ignored — a screen reader reads this.
+      expect(backLink.props.accessibilityState?.disabled).toBe(true);
+      await user.press(backLink);
+
+      // The press is a no-op: still on the email step, where the request was
+      // made from.
+      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('continue-with-email-button', hidden)
+      ).toBeNull();
+
+      await pending.reject(serverError());
+
+      // `setError('')` in the back handler fires synchronously; the rejection
+      // arrives after it. So clearing alone cannot keep this error off the
+      // chooser — only refusing the transition can. Left unguarded, this copy
+      // renders in the chooser's banner directly above Apple and Google.
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Login link failed to send. Please try again./i)
+        ).toBeOnTheScreen();
+      });
+      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('continue-with-email-button', hidden)
+      ).toBeNull();
+    });
+
+    it('leaves "Change email" a way back to the email form after a send that resolves', async () => {
+      const pending = deferredSend();
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
+      await user.press(screen.getByTestId('login-button'));
+
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+      await pending.resolve();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
+      });
+
+      await user.press(screen.getByText(/Change email/i));
+
+      // `resetForm` only unsets hook state, so `step` collapses to whatever
+      // `mode` holds. If the back-link press had been allowed to set it to
+      // 'chooser', the user would land on the chooser with no email input —
+      // stranded, with the address they just used discarded.
+      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+      expect(screen.getByText('Sign in with email')).toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('continue-with-email-button', hidden)
+      ).toBeNull();
     });
   });
 

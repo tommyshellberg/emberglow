@@ -74,9 +74,12 @@ export const LoginForm = ({
   const signOut = useAuth((state) => state.signOut);
   // Read here rather than inside `ChooserView` so that view stays a pure
   // function of its props (see its `heroName` JSDoc) — the shell is the layer
-  // that already talks to stores. `character?.name` goes straight through:
-  // `copy.ts` owns the missing-name fallback.
-  const character = useCharacterStore((state) => state.character);
+  // that already talks to stores. Selected down to the name (as
+  // `onboarding/first-quest.tsx:89` and `app-introduction.tsx:133` also do)
+  // rather than to `character`, so replacing the character object does not
+  // re-render this whole screen for a name that did not change. Passed straight
+  // through: `copy.ts` owns the missing-name fallback.
+  const heroName = useCharacterStore((state) => state.character?.name);
 
   // Which of the two user-chosen steps is showing. `sent` is not in here — see
   // `step` below.
@@ -109,9 +112,14 @@ export const LoginForm = ({
 
   // Three rendered steps, two pieces of state. `sent` is the send's OUTCOME,
   // owned by `useMagicLink`, not a step the user navigates to — copying it into
-  // `mode` would give it two homes that have to agree. Deriving it also makes
-  // "Change email" (`resetForm`, which only unsets `emailSent`) land back on the
-  // email step for free.
+  // `mode` would give it two homes that have to agree.
+  //
+  // `resetForm` ("Change email") clears only hook state and never touches
+  // `mode`, so `step` collapses back to whichever step the user was on. That is
+  // only useful because the back link is inert while a send is pending (see
+  // `isLoading` below): the transition out of `email` is blocked for exactly the
+  // window in which `emailSent` can flip, so `mode === 'email'` is guaranteed
+  // whenever that happens and the two can never disagree.
   const step: 'chooser' | 'email' | 'sent' = emailSent ? 'sent' : mode;
 
   const handleEmailSubmit = async (email: string) => {
@@ -120,13 +128,15 @@ export const LoginForm = ({
     });
   };
 
-  const handleBackToChooser = () => {
-    // Clearing the error is not incidental tidying: `error` at this point is
-    // whatever the email step produced (a failed send, a 409 on that address).
-    // Left set, it would render in the chooser's banner directly above the
-    // Apple and Google buttons and read as their failure.
+  // `error` always belongs to the step that produced it — a failed send on the
+  // email step, a failed Apple/Google attempt on the chooser. Changing step
+  // leaves that context behind, so clearing is part of moving, not a courtesy
+  // one particular link performs. Carried forward it misattributes: the
+  // chooser's generic social failure reuses the magic-link copy, so it would
+  // greet the email step with "Login link failed to send" before a link exists.
+  const goToMode = (next: 'chooser' | 'email') => {
     setError('');
-    setMode('chooser');
+    setMode(next);
   };
 
   const handleSocialSignInSuccess = (
@@ -227,7 +237,14 @@ export const LoginForm = ({
           {step === 'email' ? (
             <TouchableOpacity
               testID="back-to-chooser-link"
-              onPress={handleBackToChooser}
+              onPress={() => goToMode('chooser')}
+              // Inert while a send is pending. Without this the user can leave
+              // the email step mid-request and have the outcome land on a step
+              // that never asked for it: a rejection renders its error in the
+              // chooser's banner above Apple and Google, and a success shows the
+              // sent view over `mode === 'chooser'`, so "Change email" collapses
+              // to the chooser with no email input at all.
+              disabled={isLoading}
               style={styles.backLink}
               accessibilityRole="button"
               accessibilityLabel="Other ways to sign in"
@@ -248,61 +265,59 @@ export const LoginForm = ({
                 sendAttempts={sendAttempts}
                 error={error}
               />
+            ) : step === 'chooser' ? (
+              <ChooserView
+                intent={intent}
+                heroName={heroName}
+                error={error}
+                onContinueWithEmail={() => goToMode('email')}
+                onSocialSuccess={handleSocialSignInSuccess}
+                onSocialError={(kind) => setError(mapError(kind))}
+              />
             ) : (
-              <>
-                {step === 'chooser' ? (
-                  <ChooserView
-                    intent={intent}
-                    heroName={character?.name}
-                    error={error}
-                    onContinueWithEmail={() => setMode('email')}
-                    onSocialSuccess={handleSocialSignInSuccess}
-                    onSocialError={(kind) => setError(mapError(kind))}
-                  />
-                ) : (
-                  <EmailInputView
-                    onSubmit={handleEmailSubmit}
-                    isLoading={isLoading}
-                    error={error}
-                    title={copy.emailTitle}
-                    subtitle={copy.emailSubtitle}
-                  />
-                )}
+              <EmailInputView
+                onSubmit={handleEmailSubmit}
+                isLoading={isLoading}
+                error={error}
+                title={copy.emailTitle}
+                subtitle={copy.emailSubtitle}
+              />
+            )}
 
-                {/* The screen's single consent point, deliberately OUTSIDE the
-                    chooser/email switch.
+            {/* The screen's single consent point, a sibling of the step switch
+                rather than a child of one branch of it.
 
-                    It was on the chooser alone until this was found: `convert`
-                    — the primary signup funnel — opens on the email step and
-                    can complete a signup without ever rendering the chooser, so
-                    "every user passes through the chooser first" was false and
-                    that path showed no terms at all. Placing it here makes
-                    coverage a property of the shell instead of an assumption
-                    about which steps a user visits.
+                It was on the chooser alone until this was found: `convert` —
+                the primary signup funnel — opens on the email step and can
+                complete a signup without ever rendering the chooser, so "every
+                user passes through the chooser first" was false and that path
+                showed no terms at all.
 
-                    Not shown on `sent`: by then the account-creating action has
-                    been taken, and `EmailSentView`'s footnote slot is already
-                    contended by the resend error, the support escalation and
-                    the spam hint. */}
-                <Text testID="legal-consent" style={styles.terms}>
-                  By continuing you agree to our{' '}
-                  {/* One link over both names, not two: the document hosted at
-                      TERMS_URL IS the combined "Terms of Service and Privacy
-                      Policy" (see the landing page's terms route — one page, no
-                      separate privacy URL and no anchors to deep-link). Split
-                      this in two only once the policies are hosted
-                      separately. */}
-                  <Text
-                    style={styles.termsLink}
-                    onPress={() => Linking.openURL(TERMS_URL)}
-                    accessibilityRole="link"
-                    accessibilityLabel="Terms and Privacy Policy"
-                  >
-                    Terms and Privacy Policy
-                  </Text>
-                  .
+                Written as an exclusion of `sent` by name, so the default for any
+                step added later is consent-shown, and dropping it takes a
+                deliberate edit here. `sent` is excluded because the
+                account-creating action has already been taken by then, and
+                `EmailSentView`'s footnote slot is already contended by the
+                resend error, the support escalation and the spam hint. */}
+            {step === 'sent' ? null : (
+              <Text testID="legal-consent" style={styles.terms}>
+                By continuing you agree to our{' '}
+                {/* One link over both names, not two: the document hosted at
+                    TERMS_URL IS the combined "Terms of Service and Privacy
+                    Policy" (see the landing page's terms route — one page, no
+                    separate privacy URL and no anchors to deep-link). Split
+                    this in two only once the policies are hosted
+                    separately. */}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL(TERMS_URL)}
+                  accessibilityRole="link"
+                  accessibilityLabel="Terms and Privacy Policy"
+                >
+                  Terms and Privacy Policy
                 </Text>
-              </>
+                .
+              </Text>
             )}
           </View>
 

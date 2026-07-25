@@ -43,9 +43,10 @@ export type ChooserViewProps = {
  * an "or" rule, then the email alternative.
  *
  * The legal line is NOT here, though the spec first put it here. `login-form.tsx`
- * renders it for the whole screen, because `intent=convert` opens straight on the
- * email step and would otherwise complete a signup having shown no terms at all.
- * Adding it back here would render it twice on this step.
+ * renders it for both the chooser and the email step (not `sent`), because
+ * `intent=convert` opens straight on the email step and would otherwise complete
+ * a signup having shown no terms at all. Adding it back here would render it
+ * twice on this step.
  *
  * Deliberately has no Cinnabar action. Orange is scarce and meaningful in this
  * brand, and the one primary in the login card is spent on the email step's
