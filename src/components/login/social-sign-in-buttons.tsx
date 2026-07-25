@@ -2,7 +2,14 @@ import axios from 'axios';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { usePostHog } from 'posthog-react-native';
 import * as React from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { showMessage } from 'react-native-flash-message';
 
 import { socialSignIn } from '@/api/auth';
@@ -64,6 +71,29 @@ export type SocialSignInButtonsProps = {
 const APPLE_BUTTON_HEIGHT = 54;
 const GOOGLE_LOGO_SIZE = 18;
 
+const SIGNING_IN_LABEL = 'Signing you in…';
+
+/**
+ * The in-flight face of a social button: the provider's mark and its label are
+ * both replaced, so the motion and the words say the same thing.
+ *
+ * Shared by the Google button and the Apple slot rather than written twice —
+ * the two are the only places it appears, and a second copy is the one that
+ * would keep saying "Continue with…" after the copy here changed.
+ *
+ * The window this covers is almost entirely the server round trip
+ * (`socialSignIn`). Everything before it happens under the provider's own
+ * full-screen sheet, where nobody can see this.
+ */
+function SigningInContent({ color }: { color: string }) {
+  return (
+    <>
+      <ActivityIndicator testID="social-sign-in-spinner" color={color} />
+      <Text style={[styles.buttonLabel, { color }]}>{SIGNING_IN_LABEL}</Text>
+    </>
+  );
+}
+
 /**
  * Reduces a sign-in failure to the two bounded identifiers that are safe to
  * retain in analytics: the native SDK's `code` (e.g. Google's
@@ -98,12 +128,18 @@ export function SocialSignInButtons({
   googlePrimary = false,
 }: SocialSignInButtonsProps) {
   const posthog = usePostHog();
-  // Guards against a double-tap firing two concurrent sign-in attempts —
-  // the server handles the resulting race safely, but there's no reason to
-  // invite it (duplicate credential exchanges, doubled analytics). Checked
-  // synchronously at the top of `handleSignIn` (before the first `await`),
-  // so a second tap in the same event loop turn still sees it.
-  const [isSigningIn, setIsSigningIn] = React.useState(false);
+  // Which provider's attempt is running, not merely whether one is — the two
+  // buttons need different states from it: the one being used shows progress,
+  // the other is simply unavailable. A boolean here is what left the Apple
+  // button with no in-flight face of its own at all.
+  //
+  // Still the double-tap guard it always was: two concurrent attempts are a
+  // race the server survives but nothing asks for (duplicate credential
+  // exchanges, doubled analytics). Read synchronously at the top of
+  // `handleSignIn`, before the first `await`.
+  const [signingInProvider, setSigningInProvider] =
+    React.useState<SocialProvider | null>(null);
+  const isSigningIn = signingInProvider !== null;
   // The attempt parked on the confirmation sheet: the credential the user
   // already produced, so confirming replays it instead of sending them back
   // through the provider's UI, plus the summary the sheet renders.
@@ -180,7 +216,7 @@ export function SocialSignInButtons({
   const handleSignIn = React.useCallback(
     async (provider: SocialProvider) => {
       if (isSigningIn) return;
-      setIsSigningIn(true);
+      setSigningInProvider(provider);
 
       // Hoisted out of the `try` so the collision branch below can hand it to
       // the sheet — that branch is the whole reason it lives here.
@@ -234,7 +270,7 @@ export function SocialSignInButtons({
 
         reportFailure(error, provider);
       } finally {
-        if (!awaitingConfirmation) setIsSigningIn(false);
+        if (!awaitingConfirmation) setSigningInProvider(null);
       }
     },
     [isSigningIn, finishSignIn, reportFailure, posthog]
@@ -263,7 +299,7 @@ export function SocialSignInButtons({
       // The parked attempt is over either way. Without this the buttons stay
       // disabled for the rest of the screen's life — which matters most on the
       // failure path, where retrying is exactly what the user is told to do.
-      setIsSigningIn(false);
+      setSigningInProvider(null);
     }
   }, [finishSignIn, pendingCollision, posthog, reportFailure]);
 
@@ -276,36 +312,58 @@ export function SocialSignInButtons({
       provider: pendingCollision.provider,
     });
     setPendingCollision(null);
-    setIsSigningIn(false);
+    setSigningInProvider(null);
   }, [pendingCollision, posthog]);
 
   return (
     <View>
       {Platform.OS === 'ios' ? (
-        <View
-          style={styles.appleButtonWrapper}
-          // AppleAuthenticationButton has no `disabled` prop of its own
-          // (it only extends View props) — dropping pointer events is the
-          // only way to apply the same in-flight guard to it as the
-          // Google button gets via `disabled`.
-          pointerEvents={isSigningIn ? 'none' : 'auto'}
-        >
-          <AppleAuthentication.AppleAuthenticationButton
-            testID="apple-sign-in-button"
-            buttonType={
-              // CONTINUE, not SIGN_IN: this button can create an account, and
-              // Apple's HIG reserves "Sign in with Apple" for pure sign-in.
-              // The label is OS-localized — we don't control the string.
-              AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
-            }
-            buttonStyle={
-              AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-            }
-            cornerRadius={radii.pill}
-            style={styles.appleButton}
-            onPress={() => handleSignIn('apple')}
-          />
-        </View>
+        // The native button cannot show progress — it renders its own label and
+        // has no `disabled` (it only extends View props) — so the in-flight
+        // face is a matching Emberglow button standing in its place for the
+        // round trip. `size="lg"` is 54pt tall, the same as APPLE_BUTTON_HEIGHT,
+        // so nothing below it moves during the swap.
+        signingInProvider === 'apple' ? (
+          <Button
+            testID="apple-sign-in-progress"
+            variant="outline"
+            size="lg"
+            fullWidth
+            busy
+            containerStyle={styles.appleButtonWrapper}
+            accessibilityLabel={SIGNING_IN_LABEL}
+          >
+            <SigningInContent color={colors.text.primary} />
+          </Button>
+        ) : (
+          <View
+            testID="apple-sign-in-wrapper"
+            style={[
+              styles.appleButtonWrapper,
+              // Google is mid-flight: dropping pointer events alone left this
+              // button looking fully available while silently eating taps —
+              // the dim is what tells you it is the other one that is working.
+              isSigningIn && styles.unavailable,
+            ]}
+            pointerEvents={isSigningIn ? 'none' : 'auto'}
+          >
+            <AppleAuthentication.AppleAuthenticationButton
+              testID="apple-sign-in-button"
+              buttonType={
+                // CONTINUE, not SIGN_IN: this button can create an account, and
+                // Apple's HIG reserves "Sign in with Apple" for pure sign-in.
+                // The label is OS-localized — we don't control the string.
+                AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+              }
+              buttonStyle={
+                AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+              }
+              cornerRadius={radii.pill}
+              style={styles.appleButton}
+              onPress={() => handleSignIn('apple')}
+            />
+          </View>
+        )
       ) : null}
 
       <Button
@@ -314,24 +372,40 @@ export function SocialSignInButtons({
         glow={googlePrimary}
         size="lg"
         fullWidth
-        disabled={isSigningIn}
+        // Split deliberately: `busy` blocks presses without the 40% dim, so the
+        // spinner reads as working, while Apple's attempt leaves this button
+        // genuinely unavailable and dimmed.
+        busy={signingInProvider === 'google'}
+        disabled={signingInProvider === 'apple'}
         onPress={() => handleSignIn('google')}
-        accessibilityLabel="Continue with Google"
+        accessibilityLabel={
+          signingInProvider === 'google'
+            ? SIGNING_IN_LABEL
+            : 'Continue with Google'
+        }
       >
-        <Image
-          source={require('@/../assets/images/google-g-logo.png')}
-          style={styles.googleLogo}
-        />
-        <Text
-          style={[
-            styles.googleLabel,
-            // Children bypass Button's per-variant label color, so the label
-            // must track the variant itself: near-white onAccent on Cinnabar.
-            googlePrimary && { color: colors.text.onAccent },
-          ]}
-        >
-          Continue with Google
-        </Text>
+        {signingInProvider === 'google' ? (
+          <SigningInContent
+            color={googlePrimary ? colors.text.onAccent : colors.text.primary}
+          />
+        ) : (
+          <>
+            <Image
+              source={require('@/../assets/images/google-g-logo.png')}
+              style={styles.googleLogo}
+            />
+            <Text
+              style={[
+                styles.buttonLabel,
+                // Children bypass Button's per-variant label color, so the label
+                // must track the variant itself: near-white onAccent on Cinnabar.
+                googlePrimary && { color: colors.text.onAccent },
+              ]}
+            >
+              Continue with Google
+            </Text>
+          </>
+        )}
       </Button>
 
       {/* Mounted unconditionally, visibility driven by state: the sheet owns a
@@ -358,11 +432,16 @@ const styles = StyleSheet.create({
     height: APPLE_BUTTON_HEIGHT,
     width: '100%',
   },
+  /** Matches Button's own `disabled` dim (button.tsx's `styles.disabled`), so
+   * the native Apple button greys out the same amount the Google one does. */
+  unavailable: {
+    opacity: 0.4,
+  },
   googleLogo: {
     width: GOOGLE_LOGO_SIZE,
     height: GOOGLE_LOGO_SIZE,
   },
-  googleLabel: {
+  buttonLabel: {
     fontFamily: fontFamily.semibold,
     // Matches Button's own `size="lg"` label fontSize (see button.tsx's
     // `sizeStyles.lg.fontSize`) — this Text replaces that default label,

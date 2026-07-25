@@ -1,7 +1,7 @@
 import type { ReactTestRendererJSON } from 'react-test-renderer';
 
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { socialSignIn } from '@/api/auth';
 import {
@@ -397,6 +397,92 @@ describe('SocialSignInButtons', () => {
       await waitFor(() => {
         expect(mockSocialSignIn).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('while a sign-in is in flight', () => {
+    /** Holds the server round-trip open — the window the user actually sees,
+     * since the provider's own sheet covers the screen for everything before
+     * it. Returns the release valve. */
+    function holdServerRoundTrip() {
+      let release: () => void = () => {};
+      mockSocialSignIn.mockReturnValue(
+        new Promise((resolve) => {
+          release = () => resolve({ target: 'app', outcome: 'login' });
+        })
+      );
+      return () => {
+        release();
+      };
+    }
+
+    beforeEach(() => {
+      Platform.OS = 'android';
+      mockGetGoogleCredential.mockResolvedValue(GOOGLE_CREDENTIAL);
+      mockGetAppleCredential.mockResolvedValue(APPLE_CREDENTIAL);
+    });
+
+    it('replaces the Google button face with a spinner and progress label', async () => {
+      holdServerRoundTrip();
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Signing you in…')).toBeOnTheScreen();
+      });
+      // The idle label must go: leaving "Continue with Google" up next to a
+      // spinner still reads as an invitation to tap.
+      expect(screen.queryByText('Continue with Google')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('social-sign-in-spinner')).toBeOnTheScreen();
+    });
+
+    it('shows the progress on the Apple button when Apple is the one signing in — and leaves Google alone', async () => {
+      Platform.OS = 'ios';
+      holdServerRoundTrip();
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+
+      fireEvent.press(screen.getByTestId('apple-sign-in-button'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('apple-sign-in-progress')).toBeOnTheScreen();
+      });
+      // Progress belongs to the button that was pressed. Before the state
+      // tracked WHICH provider was running, Apple's attempt greyed out the
+      // Google button and left the Apple one looking untouched — pointing at
+      // the wrong button entirely.
+      expect(screen.getByText('Continue with Google')).toBeOnTheScreen();
+      expect(screen.getByTestId('social-sign-in-spinner')).toBeOnTheScreen();
+    });
+
+    it('dims the untouched button so a dead tap on it is visibly dead', async () => {
+      Platform.OS = 'ios';
+      holdServerRoundTrip();
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      // The Apple button can't be disabled (native view, View props only), so
+      // it used to just stop responding at full brightness.
+      await waitFor(() => {
+        const wrapper = screen.getByTestId('apple-sign-in-wrapper');
+        expect(StyleSheet.flatten(wrapper.props.style).opacity).toBe(0.4);
+      });
+    });
+
+    it('restores the idle face after a failure, so the retry it tells you to make is possible', async () => {
+      mockSocialSignIn.mockRejectedValue(new Error('network down'));
+      render(<SocialSignInButtons onSuccess={noop} onError={noop} />);
+
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Continue with Google')).toBeOnTheScreen();
+      });
+      expect(screen.queryByText('Signing you in…')).not.toBeOnTheScreen();
+      expect(
+        screen.queryByTestId('social-sign-in-spinner')
+      ).not.toBeOnTheScreen();
     });
   });
 
