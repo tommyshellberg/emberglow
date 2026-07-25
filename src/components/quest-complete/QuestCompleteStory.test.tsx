@@ -71,6 +71,20 @@ describe('QuestCompleteStory', () => {
         getByText('Congratulations on completing your quest!')
       ).toBeTruthy();
     });
+
+    it('should render the "THE STORY SO FAR" eyebrow for story quests', () => {
+      const { getByText } = render(
+        <QuestCompleteStory story="Test story" quest={mockStoryQuest} />
+      );
+      expect(getByText('THE STORY SO FAR')).toBeTruthy();
+    });
+
+    it('should not render the eyebrow for non-story quests', () => {
+      const { queryByText } = render(
+        <QuestCompleteStory story="Test story" quest={mockCustomQuest} />
+      );
+      expect(queryByText('THE STORY SO FAR')).toBeNull();
+    });
   });
 
   describe('StoryNarration Integration', () => {
@@ -96,22 +110,17 @@ describe('QuestCompleteStory', () => {
     });
   });
 
-  describe('ScrollView', () => {
-    it('should render story in a scrollable view', () => {
-      const { UNSAFE_getByType } = render(
+  describe('Card layout', () => {
+    // The story card is no longer height-constrained/internally scrollable
+    // (Tommy: "Story card needs to be bigger") — it grows naturally inside
+    // the screen's single scrollable column (quest-flow.jsx:144-150), so
+    // there's no inner ScrollView to clip it anymore.
+    it('should not wrap the story in its own ScrollView', () => {
+      const { UNSAFE_queryAllByType } = render(
         <QuestCompleteStory story="Test story" quest={mockStoryQuest} />
       );
       const ScrollView = require('react-native').ScrollView;
-      expect(UNSAFE_getByType(ScrollView)).toBeTruthy();
-    });
-
-    it('should show vertical scroll indicator', () => {
-      const { UNSAFE_getByType } = render(
-        <QuestCompleteStory story="Test story" quest={mockStoryQuest} />
-      );
-      const ScrollView = require('react-native').ScrollView;
-      const scrollView = UNSAFE_getByType(ScrollView);
-      expect(scrollView.props.showsVerticalScrollIndicator).toBe(true);
+      expect(UNSAFE_queryAllByType(ScrollView)).toHaveLength(0);
     });
   });
 
@@ -158,6 +167,30 @@ describe('QuestCompleteStory', () => {
       );
       expect(getByText('Cooperative quest text')).toBeTruthy();
       expect(queryByTestId('story-narration-mock')).toBeNull();
+    });
+  });
+
+  describe('Cooperative Quest Card', () => {
+    it('should not wrap cooperative quest text in a Card', () => {
+      const { UNSAFE_queryByType } = render(
+        <QuestCompleteStory
+          story="Cooperative quest text"
+          quest={mockCooperativeQuest}
+        />
+      );
+      const Card = require('@/components/ui/card').Card;
+      expect(UNSAFE_queryByType(Card)).toBeNull();
+    });
+
+    it('should wrap story quest content in the story card, not the bare cooperative layout', () => {
+      const { queryByTestId } = render(
+        <QuestCompleteStory story="Story quest text" quest={mockStoryQuest} />
+      );
+      // The Emberglow redesign renders story quests inside the bespoke story
+      // card (`styles.card`, a two-layer shadow View) with the in-card
+      // StoryNarration player — unlike the cooperative branch, which shows a
+      // bare centered congrats message with no narration.
+      expect(queryByTestId('story-narration-mock')).toBeTruthy();
     });
   });
 });

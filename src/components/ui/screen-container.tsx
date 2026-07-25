@@ -1,7 +1,9 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import React from 'react';
-import { type ViewProps } from 'react-native';
+import { View, type ViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors } from '@/theme';
 
 interface ScreenContainerProps extends ViewProps {
   children: React.ReactNode;
@@ -10,62 +12,63 @@ interface ScreenContainerProps extends ViewProps {
   noHorizontalPadding?: boolean;
   fullScreen?: boolean;
   /**
-   * Reverse the gradient direction (dark at top, light at bottom).
-   * Useful for screens with headers for smoother visual transition.
+   * Render with a transparent background instead of the flat
+   * `colors.surface.app` canvas. Use on screens that render their own
+   * full-screen background art/scrim behind this container (e.g. Quest
+   * Complete, Quest Failed, Streak Celebration) so that art isn't fully
+   * occluded.
    */
-  reverseGradient?: boolean;
+  transparent?: boolean;
 }
 
 /**
- * A container component that adds consistent padding for screens
- * Since the root SafeAreaView doesn't include bottom edge, this ensures
- * content doesn't go too close to the bottom of the screen
+ * A container component that paints the flat Emberglow canvas
+ * (`colors.surface.app`, richBlack) behind its children and adds consistent
+ * padding for screens. The root SafeAreaView omits the bottom edge on
+ * purpose, so whatever sits at the bottom of the window owns that inset:
+ * on tab screens that's the tab bar, and everywhere else it's this
+ * container.
  *
  * Standard padding:
- * - Bottom: 8px above safe area (for screens with tab bar)
- * - Bottom: 32px above safe area (for full screens without tab bar, use fullScreen={true})
+ * - Bottom: 8px, on screens with a tab bar (the bar already spans the inset)
+ * - Bottom: insets.bottom + 32px (for full screens without tab bar, use fullScreen={true})
  * - Horizontal: 16px (4 in Tailwind = 16px)
+ *
+ * Pass `transparent` on screens that render their own full-screen
+ * background art/scrim behind this container — otherwise the flat canvas
+ * fully occludes it.
  */
-// Gradient colors from light to dark
-const GRADIENT_COLORS = [
-  '#102442',
-  '#0e203b',
-  '#0d1d35',
-  '#0b1a2e',
-  '#0a1628',
-] as const;
-
 export function ScreenContainer({
   children,
   bottomPadding,
   noPadding = false,
   noHorizontalPadding = false,
   fullScreen = false,
-  reverseGradient = false,
+  transparent = false,
   style,
   ...props
 }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = React.useContext(BottomTabBarHeightContext);
 
   // Determine bottom padding: fullScreen uses 32px, tab screens use 8px
   const defaultBottomPadding = fullScreen ? 32 : 8;
   const finalBottomPadding = bottomPadding ?? defaultBottomPadding;
 
-  // Use reversed gradient for smoother header transition when needed.
-  // GRADIENT_COLORS is a fixed 5-element literal tuple, so both branches
-  // always have at least 2 elements; cast to the tuple shape LinearGradient
-  // expects since spreading a `const` tuple widens it to `string[]`.
-  const gradientColors = (
-    reverseGradient ? [...GRADIENT_COLORS].reverse() : [...GRADIENT_COLORS]
-  ) as [string, string, ...string[]];
+  // A tab bar below us already spans insets.bottom, so reserving it here too
+  // would strand a dead strip of canvas above the bar. The context is still
+  // set on in-tab routes that hide the bar (quest-discovery, quest/reflection)
+  // — those pass fullScreen, which is why it also gates this.
+  const tabBarSpansInset = tabBarHeight !== undefined && !fullScreen;
+  const bottomInset = tabBarSpansInset ? 0 : insets.bottom;
 
   return (
-    <LinearGradient
-      colors={gradientColors}
+    <View
       style={[
         {
           flex: 1,
-          paddingBottom: noPadding ? 0 : insets.bottom + finalBottomPadding,
+          backgroundColor: transparent ? 'transparent' : colors.surface.app,
+          paddingBottom: noPadding ? 0 : bottomInset + finalBottomPadding,
           paddingHorizontal: noHorizontalPadding ? 0 : 16,
         },
         style,
@@ -73,6 +76,6 @@ export function ScreenContainer({
       {...props}
     >
       {children}
-    </LinearGradient>
+    </View>
   );
 }

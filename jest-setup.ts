@@ -29,7 +29,12 @@ jest.mock('react-native-purchases-ui', () => ({
 jest.mock('react-native-localize', () => ({
   getTimeZone: jest.fn(() => 'America/New_York'),
   getLocales: jest.fn(() => [
-    { countryCode: 'US', languageTag: 'en-US', languageCode: 'en', isRTL: false },
+    {
+      countryCode: 'US',
+      languageTag: 'en-US',
+      languageCode: 'en',
+      isRTL: false,
+    },
   ]),
   getNumberFormatSettings: jest.fn(() => ({
     decimalSeparator: '.',
@@ -128,7 +133,71 @@ jest.mock('expo-notifications', () => ({
   },
 }));
 
-jest.mock('react-native-bg-actions', () => ({
+// Mock expo-file-system with the SDK 54 File/Directory/Paths class API.
+// jest-expo's bundled default mock (jest-expo/src/preset/setup.js) still
+// targets the pre-54 legacy function API and doesn't export `Paths`, so any
+// module-scope `new Directory(Paths.cache, ...)` (e.g. the audio-cache
+// singleton, constructed at import time) crashes under the stock mock with
+// "Cannot read properties of undefined (reading 'cache')". Tests that need
+// to control File/Directory behavior in detail provide their own more
+// specific `jest.mock('expo-file-system', ...)` (see
+// audio-cache.service.test.ts), which overrides this default.
+jest.mock('expo-file-system', () => {
+  function uriOf(part: unknown): string {
+    return typeof part === 'string' ? part : (part as { uri: string }).uri;
+  }
+  function withTrailingSlash(uri: string): string {
+    return uri.endsWith('/') ? uri : `${uri}/`;
+  }
+  function joinUris(parts: unknown[]): string {
+    return parts.reduce((acc: string, part) => {
+      const next = uriOf(part);
+      return acc ? `${withTrailingSlash(acc)}${next}` : next;
+    }, '');
+  }
+
+  class MockDirectory {
+    uri: string;
+    constructor(...uris: unknown[]) {
+      this.uri = withTrailingSlash(joinUris(uris));
+    }
+    create() {}
+    delete() {}
+    list() {
+      return [];
+    }
+    get exists() {
+      return false;
+    }
+  }
+
+  class MockFile {
+    uri: string;
+    name: string;
+    constructor(...uris: unknown[]) {
+      this.uri = joinUris(uris);
+      this.name = this.uri.split('/').filter(Boolean).pop() ?? '';
+    }
+    delete() {}
+    get exists() {
+      return false;
+    }
+    get modificationTime() {
+      return null;
+    }
+    static downloadFileAsync(_url: string, destination: MockFile) {
+      return Promise.resolve(destination);
+    }
+  }
+
+  return {
+    File: MockFile,
+    Directory: MockDirectory,
+    Paths: { cache: new MockDirectory('file:///mock-cache/') },
+  };
+});
+
+jest.mock('react-native-background-actions', () => ({
   start: jest.fn().mockResolvedValue(undefined),
   stop: jest.fn().mockResolvedValue(undefined),
   isRunning: jest.fn().mockReturnValue(false),
@@ -170,6 +239,23 @@ jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({
     capture: jest.fn(),
   }),
+  PostHogProvider: ({ children }: { children: React.ReactNode }) => children,
+  default: jest.fn().mockImplementation(() => ({
+    capture: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  })),
+}));
+
+// Shared module-level client (src/lib/posthog.ts) — mocked globally so
+// services and stores that import it can run under test; suites assert on
+// these fns directly.
+jest.mock('@/lib/posthog', () => ({
+  posthogClient: {
+    capture: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
 }));
 
 // Mock BlurView from expo-blur
@@ -189,6 +275,9 @@ jest.mock('@gorhom/bottom-sheet', () => {
     BottomSheetModalProvider: jest.fn(({ children }) => children),
     BottomSheetBackdrop: jest.fn(() => null),
     BottomSheetScrollView: jest.fn(({ children }) => children),
+    BottomSheetTextInput: jest.fn((props) =>
+      React.createElement(RN.TextInput, props)
+    ),
     BottomSheetFlatList: jest.fn((props) =>
       React.createElement(RN.FlatList, props)
     ),
@@ -256,3 +345,53 @@ jest.mock('react-native-edge-to-edge', () => ({
 
 // Note: Removed invasive global mocks that were breaking other tests
 // Test-specific mocks should be added in individual test files as needed
+
+// Mock expo-apple-authentication for social sign-in
+jest.mock('expo-apple-authentication', () => {
+  const React = jest.requireActual('react');
+  const { View } = jest.requireActual('react-native');
+
+  return {
+    isAvailableAsync: jest.fn().mockResolvedValue(true),
+    signInAsync: jest.fn(),
+    AppleAuthenticationScope: { EMAIL: 1 },
+    // Real component renders Apple's own native button and only accepts
+    // `onPress` (plus style/layout props) — not a generic Pressable. This
+    // stub forwards `onPress`, `testID`, `style`, and `buttonType` onto a
+    // real RN `View` (a host component) so tests can find, press, and
+    // inspect it, instead of the previous `mockReturnValue(null)`, which
+    // made the button untestable.
+    //
+    // `fireEvent.press` walks up the element tree — including composite
+    // elements — so it finds the `onPress` passed to this component
+    // regardless of what the stub renders. The host type only matters for
+    // prop visibility: `TouchableOpacity` spreads just its own known props,
+    // dropping `buttonType` before it reaches the node a test can query;
+    // `View` doesn't filter, so `buttonType` survives. `onPress` is still
+    // forwarded here for shape fidelity with the real component's accepted
+    // props, not because press needs it.
+    AppleAuthenticationButton: jest.fn(
+      ({ onPress, testID, style, buttonType }) =>
+        React.createElement(View, { onPress, testID, style, buttonType })
+    ),
+    AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 },
+    AppleAuthenticationButtonStyle: { WHITE: 1 },
+  };
+});
+
+// Mock expo-crypto for social sign-in nonce hashing
+jest.mock('expo-crypto', () => ({
+  digestStringAsync: jest.fn().mockResolvedValue('hashed-nonce'),
+  randomUUID: jest.fn().mockReturnValue('raw-nonce'),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
+
+// Mock @react-native-google-signin/google-signin for social sign-in
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn().mockResolvedValue(true),
+    signIn: jest.fn(),
+  },
+  statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },
+}));

@@ -3,6 +3,7 @@ import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
 
 import { storeTokens } from '@/api/token';
+import { posthogClient } from '@/lib/posthog';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
@@ -40,6 +41,7 @@ const _useAuth = create<AuthState>((set, get) => ({
 
     // Login to RevenueCat with user ID
     if (loginResponse.user?.id) {
+      posthogClient.identify(loginResponse.user.id);
       try {
         await revenueCatService.loginUser(loginResponse.user.id);
         console.log(
@@ -63,6 +65,10 @@ const _useAuth = create<AuthState>((set, get) => ({
 
     // Clear user store
     useUserStore.getState().clearUser();
+
+    // Detach the PostHog person so a next login on this device doesn't
+    // inherit this user's identity.
+    posthogClient.reset();
 
     // Logout from RevenueCat
     try {
@@ -170,6 +176,7 @@ const _useAuth = create<AuthState>((set, get) => ({
 
           // Login to RevenueCat with user ID
           if (user.id) {
+            posthogClient.identify(user.id);
             try {
               await revenueCatService.loginUser(user.id);
               console.log(

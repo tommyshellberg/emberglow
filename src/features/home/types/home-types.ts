@@ -50,11 +50,11 @@ export interface StoryOptionButtonProps {
  */
 export interface CarouselState {
   activeIndex: number;
-  setActiveIndex: (index: number) => void;
   progress: {
     value: number;
   };
-  handleMomentumScrollEnd: (event: any) => void;
+  advance: (delta: number) => void;
+  select: (index: number) => void;
 }
 
 /**

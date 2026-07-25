@@ -1,7 +1,6 @@
-import { FlashList } from '@shopify/flash-list';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -15,7 +14,7 @@ import Animated, {
 
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
-import QuestCard from '@/components/home/quest-card';
+import { Badge, Button } from '@/components/emberglow';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
@@ -23,23 +22,21 @@ import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
 import {
   BackgroundImage,
-  Button,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
   useModal,
   View,
 } from '@/components/ui';
-import Colors from '@/components/ui/colors';
+import {
+  QuestDeck,
+  type QuestDeckItem,
+} from '@/features/home/components/quest-deck';
 import { StoryOptionButtons } from '@/features/home/components/story-option-buttons';
 import {
-  CARD_HEIGHT,
-  CARD_SPACING,
   CARD_WIDTH,
-  CAROUSEL_CONTENT_PADDING,
-  CAROUSEL_VERTICAL_PADDING,
+  FOOTER_MIN_HEIGHT,
   QUEST_MODES,
-  SNAP_INTERVAL,
 } from '@/features/home/constants/home-constants';
 import { useCarouselState } from '@/features/home/hooks/use-carousel-state';
 import { useHomeData } from '@/features/home/hooks/use-home-data';
@@ -50,11 +47,15 @@ import { useServerQuests } from '@/hooks/use-server-quests';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import QuestTimer from '@/lib/services/quest-timer';
 import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/user';
+import {
+  getAnnouncementToShow,
+  useAnnouncementStore,
+} from '@/store/announcement-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
-import { useSettingsStore } from '@/store/settings-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
+import { shadows } from '@/theme';
 
 export default function Home() {
   const activeQuest = useQuestStore((state) => state.activeQuest);
@@ -68,13 +69,11 @@ export default function Home() {
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const { handlePaywallSuccess } = usePremiumAccess();
 
-  // Carousel state with paywall reset
-  const {
-    activeIndex,
-    setActiveIndex: _setActiveIndex,
-    progress,
-    handleMomentumScrollEnd,
-  } = useCarouselState({
+  // Deck state with paywall reset. Item count is tied to QUEST_MODES
+  // (always the 3 fixed modes), not carouselData.length, so this hook can
+  // be called before useHomeData computes carouselData below.
+  const { activeIndex, progress, advance } = useCarouselState({
+    itemCount: QUEST_MODES.length,
     onPaywallReset: () => {
       if (showPaywallModal) {
         setShowPaywallModal(false);
@@ -82,30 +81,35 @@ export default function Home() {
     },
   });
 
-  // Branching story announcement modal
+  // Home-screen feature announcements. Gating + the once-per-day throttle live
+  // in the announcement store (see getAnnouncementToShow); these three refs are
+  // the sheets this screen presents.
   const branchingModal = useModal();
-  const hasSeenBranchingAnnouncement = useSettingsStore(
+  const skillTreeModal = useModal();
+  const guildsModal = useModal();
+
+  const hasSeenBranchingAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenBranchingAnnouncement
   );
-  const completedQuests = useQuestStore((state) => state.completedQuests);
+  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenSkillTreeAnnouncement
+  );
+  const hasSeenGuildsAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenGuildsAnnouncement
+  );
+  const lastAnnouncementShownAt = useAnnouncementStore(
+    (state) => state.lastAnnouncementShownAt
+  );
+  const markAnnouncementShown = useAnnouncementStore(
+    (state) => state.markAnnouncementShown
+  );
 
-  // Check if user has completed first branching quest (quest-1a or quest-1b)
+  const completedQuests = useQuestStore((state) => state.completedQuests);
+  // First branching quest (quest-1a or quest-1b) unlocks the restart offer.
   const hasCompletedFirstBranch = completedQuests.some(
     (quest) => quest.id === 'quest-1a' || quest.id === 'quest-1b'
   );
-
-  // Skill tree announcement modal
-  const skillTreeModal = useModal();
-  const hasSeenSkillTreeAnnouncement = useSettingsStore(
-    (state) => state.hasSeenSkillTreeAnnouncement
-  );
   const user = useUserStore((state) => state.user);
-
-  // Guilds announcement modal
-  const guildsModal = useModal();
-  const hasSeenGuildsAnnouncement = useSettingsStore(
-    (state) => state.hasSeenGuildsAnnouncement
-  );
   const availablePerks = useSkillTreeStore((state) =>
     state.getAvailablePerksToUnlock()
   );
@@ -224,10 +228,6 @@ export default function Home() {
   const headerOpacity = useSharedValue(0);
   const contentOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(50);
-  const scrollContainerOpacity = useSharedValue(1);
-  const animatedScrollStyle = useAnimatedStyle(() => ({
-    opacity: scrollContainerOpacity.value,
-  }));
 
   // Check for stuck cooperative quest and clean it up
   useEffect(() => {
@@ -243,55 +243,55 @@ export default function Home() {
     }
   }, [activeQuest]);
 
-  // Check if branching story announcement should be shown
+  // Decide which feature announcement (if any) to surface, honoring the
+  // once-per-day cap. Previously three independent effects that could stack all
+  // three sheets in one session; now a single selector-driven effect.
   useEffect(() => {
-    // Only show if user hasn't seen it and has completed first branching quest (quest-1a or quest-1b)
-    // This means they've made their first story choice and can benefit from restart option
-    if (!hasSeenBranchingAnnouncement && hasCompletedFirstBranch) {
-      // Delay showing the modal slightly to let the screen load
-      const timer = setTimeout(() => {
-        branchingModal.present();
-      }, 1500);
+    const which = getAnnouncementToShow(
+      {
+        hasSeenBranchingAnnouncement,
+        hasSeenSkillTreeAnnouncement,
+        hasSeenGuildsAnnouncement,
+        lastAnnouncementShownAt,
+      },
+      {
+        hasCompletedFirstBranch,
+        isRegistered: !!user && !user.isProvisional,
+        completedQuestCount: completedQuests.length,
+        availablePerksCount: availablePerks.length,
+      }
+    );
 
-      return () => clearTimeout(timer);
-    }
-  }, [hasSeenBranchingAnnouncement, hasCompletedFirstBranch, branchingModal]);
+    if (!which) return;
 
-  // Check if skill tree announcement should be shown
-  useEffect(() => {
-    const isRegistered = user && !user.isProvisional;
-    const hasAvailablePerks = availablePerks.length > 0;
-    const shouldShow =
-      isRegistered && !hasSeenSkillTreeAnnouncement && hasAvailablePerks;
+    const modalByKey = {
+      branching: branchingModal,
+      skillTree: skillTreeModal,
+      guilds: guildsModal,
+    };
 
-    if (shouldShow) {
-      const timer = setTimeout(() => {
-        skillTreeModal.present();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
+    // Delay slightly to let the screen settle, then present and stamp the
+    // throttle so nothing else shows today.
+    const timer = setTimeout(() => {
+      modalByKey[which].present();
+      markAnnouncementShown();
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [
+    hasSeenBranchingAnnouncement,
     hasSeenSkillTreeAnnouncement,
+    hasSeenGuildsAnnouncement,
+    lastAnnouncementShownAt,
+    hasCompletedFirstBranch,
     user,
+    completedQuests.length,
     availablePerks.length,
+    branchingModal,
     skillTreeModal,
+    guildsModal,
+    markAnnouncementShown,
   ]);
-
-  // Check if guilds announcement should be shown
-  useEffect(() => {
-    const isRegistered = user && !user.isProvisional;
-    // Show after user has completed at least 3 quests (engaged user)
-    const hasCompletedEnoughQuests = completedQuests.length >= 3;
-    const shouldShow =
-      isRegistered && !hasSeenGuildsAnnouncement && hasCompletedEnoughQuests;
-
-    if (shouldShow) {
-      const timer = setTimeout(() => {
-        guildsModal.present();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasSeenGuildsAnnouncement, user, completedQuests.length, guildsModal]);
 
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
@@ -353,27 +353,22 @@ export default function Home() {
     };
   });
 
-  // Render item for the carousel
-  const renderCarouselItem = ({ item }: { item: any }) => {
-    return (
-      <View style={{ width: CARD_WIDTH }}>
-        <QuestCard
-          mode={item.mode}
-          title={item.title}
-          subtitle={item.subtitle}
-          duration={item.duration}
-          xp={item.xp}
-          key={item.id}
-          description={item.recap || ''}
-          progress={item.progress}
-          showProgress={item.mode === 'story'}
-          requiresPremium={item.isPremium && !hasPremiumAccess}
-          isCompleted={item.mode === 'story' && isStorylineComplete}
-          onRestart={item.mode === 'story' ? handleRestartStoryline : undefined}
-        />
-      </View>
-    );
-  };
+  // Mode deck data — the deck's card content, one entry per QUEST_MODES
+  // slot (story / custom / cooperative).
+  const deckData: QuestDeckItem[] = carouselData.map((item) => ({
+    id: item.id,
+    mode: item.mode,
+    title: item.title,
+    subtitle: item.subtitle,
+    duration: item.duration,
+    xp: item.xp,
+    description: item.recap || '',
+    progress: item.progress ?? 0,
+    showProgress: item.mode === 'story',
+    requiresPremium: Boolean(item.isPremium) && !hasPremiumAccess,
+    isCompleted: item.mode === 'story' && isStorylineComplete,
+    onRestart: item.mode === 'story' ? handleRestartStoryline : undefined,
+  }));
 
   // Track premium CTA view
   const PremiumCTATracker = ({
@@ -410,7 +405,6 @@ export default function Home() {
       <BackgroundImage
         source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
       >
-        <StreakCounter size="small" position="topRight" />
         <Animated.View
           style={[
             backgroundStyle,
@@ -425,46 +419,37 @@ export default function Home() {
       </BackgroundImage>
 
       <ScreenContainer className="flex-col">
-        {/* Header */}
+        {/* Header — the streak rides in the header's right slot rather than
+            floating over the background, so the title's flex-1 box shrinks to
+            meet it instead of growing underneath it. */}
         <ScreenHeader
-          testID="home-header"
-          title="Choose Your Adventure"
-          subtitle="Continue your epic story, create a quest of your own design, or play a cooperative quest with a friend."
+          title="Choose an Adventure"
+          rightComponent={<StreakCounter size="small" />}
         />
 
-        {/* Main content area */}
-        <View className="flex-1 justify-center">
-          <Animated.View
-            style={[animatedScrollStyle, { height: CARD_HEIGHT + 20 }]}
-          >
-            <FlashList
-              data={carouselData}
-              horizontal
-              snapToInterval={SNAP_INTERVAL}
-              decelerationRate="fast"
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              initialScrollIndex={0} // Start at the first item
-              contentContainerStyle={{
-                paddingHorizontal: CAROUSEL_CONTENT_PADDING,
-                paddingVertical: CAROUSEL_VERTICAL_PADDING,
-              }}
-              ItemSeparatorComponent={() => (
-                <View style={{ width: CARD_SPACING }} />
-              )}
-              onMomentumScrollEnd={handleMomentumScrollEnd}
-              renderItem={renderCarouselItem}
-              estimatedItemSize={CARD_WIDTH}
-              removeClippedSubviews={true} // improves performance by clipping offscreen items
-            />
-          </Animated.View>
+        {/* Main content area — the mode deck (story / custom / cooperative) */}
+        <View style={styles.deckWrapper}>
+          <QuestDeck
+            data={deckData}
+            activeIndex={activeIndex}
+            onAdvance={advance}
+          />
         </View>
 
         {/* Footer area with buttons */}
-        {!activeQuest && !pendingQuest && (
+        {!activeQuest && (
           <View
+            testID="home-footer"
             className="items-center justify-center"
-            style={{ minHeight: 140 }}
+            style={{
+              minHeight: FOOTER_MIN_HEIGHT,
+              // Committing the DecisionSlider arms pendingQuest while its
+              // settle worklet still animates these views; unmounting them at
+              // that instant is host-fatal on New Arch (reanimated#7594). Go
+              // inert instead — pending-quest covers this a beat later.
+              opacity: pendingQuest ? 0 : 1,
+              pointerEvents: pendingQuest ? 'none' : 'auto',
+            }}
           >
             {activeIndex === 0 ? (
               <StoryOptionButtons
@@ -484,24 +469,14 @@ export default function Home() {
               >
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
-                  style={{
-                    width: CARD_WIDTH,
-                    shadowColor: Colors.black,
-                    shadowOffset: {
-                      width: 0,
-                      height: 3,
-                    },
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    elevation: 6,
-                  }}
+                  style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
                   <Button
                     label="Create Custom Quest"
                     onPress={handleStartCustomQuest}
-                    className="h-16 justify-center rounded-xl bg-primary-300 p-3"
-                    textClassName="text-sm text-white text-center leading-snug"
-                    textStyle={{ fontWeight: '700' }}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   />
                 </Animated.View>
               </Animated.View>
@@ -514,18 +489,13 @@ export default function Home() {
                 {!hasCoopAccess && <PremiumCTATracker type="cooperative" />}
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
-                  style={{
-                    width: CARD_WIDTH,
-                    shadowColor: Colors.black,
-                    shadowOffset: {
-                      width: 0,
-                      height: 3,
-                    },
-                    shadowOpacity: 0.12,
-                    shadowRadius: 4,
-                    elevation: 6,
-                  }}
+                  style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
+                  {!hasCoopAccess && (
+                    <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
+                      <Badge tone="warm">Premium</Badge>
+                    </View>
+                  )}
                   <Button
                     label={
                       hasCoopAccess
@@ -544,11 +514,9 @@ export default function Home() {
                         setShowPaywallModal(true);
                       }
                     }}
-                    className={`h-16 justify-center rounded-xl p-3 ${
-                      hasCoopAccess ? 'bg-primary-300' : 'bg-amber-400'
-                    }`}
-                    textClassName="text-sm text-white text-center leading-snug"
-                    textStyle={{ fontWeight: '700' }}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   />
                 </Animated.View>
               </Animated.View>
@@ -560,6 +528,7 @@ export default function Home() {
       {/* Premium Paywall Modal */}
       <PremiumPaywall
         isVisible={showPaywallModal}
+        source="home"
         onClose={() => {
           setShowPaywallModal(false);
         }}
@@ -588,3 +557,10 @@ export default function Home() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  deckWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+});

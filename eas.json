@@ -10,9 +10,6 @@
       "distribution": "store",
       "autoIncrement": true,
       "pnpm": "9.12.3",
-      "ios": {
-        "image": "latest"
-      },
       "android": {
         "buildType": "app-bundle",
         "image": "latest"
@@ -26,9 +23,6 @@
     "preview": {
       "android": {
         "buildType": "apk",
-        "image": "latest"
-      },
-      "ios": {
         "image": "latest"
       },
       "distribution": "internal",
@@ -45,9 +39,6 @@
       "channel": "staging",
       "distribution": "internal",
       "pnpm": "9.12.3",
-      "ios": {
-        "image": "latest"
-      },
       "android": {
         "buildType": "apk",
         "image": "latest"
@@ -62,9 +53,6 @@
       "developmentClient": true,
       "distribution": "internal",
       "pnpm": "9.12.3",
-      "ios": {
-        "image": "latest"
-      },
       "android": {
         "image": "latest"
       },
@@ -77,8 +65,7 @@
     "simulator-apk": {
       "pnpm": "9.12.3",
       "ios": {
-        "simulator": true,
-        "image": "latest"
+        "simulator": true
       },
       "android": {
         "image": "latest",

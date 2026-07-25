@@ -5,10 +5,17 @@ import React, {
   useImperativeHandle,
   useState,
 } from 'react';
-import { ActivityIndicator, Alert, AppState, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-import { Modal, Text, useModal } from '@/components/ui';
-import { background } from '@/components/ui/colors';
+import { BottomSheet, useEmberglowBottomSheet } from '@/components/emberglow';
+import { colors, fontFamily, spacing } from '@/theme';
 
 import { ContactsList } from './ContactsList';
 import { EmptyContactsView } from './EmptyContactsView';
@@ -55,9 +62,9 @@ export const ContactsImportModal = forwardRef<
   ContactsImportModalRef,
   ContactsImportModalProps
 >(({ sendBulkInvites, friends, userEmail }, ref) => {
-  const modal = useModal();
+  const sheet = useEmberglowBottomSheet();
   const [viewState, setViewState] = useState<ViewState>('empty');
-  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [contacts, setContacts] = useState<Contacts.ExistingContact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<SelectedContacts>(
     {}
   );
@@ -72,11 +79,11 @@ export const ContactsImportModal = forwardRef<
     ref,
     () => ({
       present: () => {
-        modal.present();
+        sheet.present();
         checkPermissionsAndLoadContacts();
       },
       dismiss: () => {
-        modal.dismiss();
+        sheet.dismiss();
         // Reset state when modal closes
         setViewState('empty');
         setContacts([]);
@@ -86,7 +93,7 @@ export const ContactsImportModal = forwardRef<
         setManualEmail('');
       },
     }),
-    [modal]
+    [sheet]
   );
 
   // Handle app state changes to re-check permissions after user returns from settings
@@ -187,7 +194,7 @@ export const ContactsImportModal = forwardRef<
     }
   };
 
-  const handleContactSelect = (contact: Contacts.Contact) => {
+  const handleContactSelect = (contact: Contacts.ExistingContact) => {
     if (contact.emails && contact.emails[0]) {
       const email = contact.emails[0].email!;
       const name = contact.name || email;
@@ -305,7 +312,7 @@ export const ContactsImportModal = forwardRef<
   };
 
   const handleDone = () => {
-    modal.dismiss();
+    sheet.dismiss();
     // Reset state when modal closes
     setViewState('empty');
     setContacts([]);
@@ -316,6 +323,14 @@ export const ContactsImportModal = forwardRef<
   };
 
   const renderContent = () => {
+    // Captured before the switch: inside `case 'manual'`, TS narrows
+    // `viewState` to the literal `'manual'`, which makes a direct
+    // `viewState === 'sending'` comparison in that branch a compile error
+    // (pre-existing — see task report). Hoisting the comparison here keeps
+    // the exact same (structurally always-false) runtime value without
+    // fighting the narrowing.
+    const isSendingManualInvite = viewState === 'sending';
+
     switch (viewState) {
       case 'empty':
         return (
@@ -361,33 +376,23 @@ export const ContactsImportModal = forwardRef<
             onBack={() =>
               setViewState(contacts.length > 0 ? 'contacts' : 'empty')
             }
-            // `viewState` is narrowed to 'manual' in this branch, so this can
-            // never be true: submitting switches to the separate 'sending'
-            // case below (a full-screen spinner), unmounting this view. Kept
-            // as an explicit `false` rather than removing the prop, since
-            // whether ManualEmailView should instead stay mounted during
-            // submit is a UX call, not a type fix.
-            isSubmitting={false}
+            isSubmitting={isSendingManualInvite}
           />
         );
 
       case 'loading':
         return (
-          <View className="flex-1 items-center justify-center p-6">
-            <ActivityIndicator size="large" color="#36B6D3" />
-            <Text className="mt-4 text-lg text-neutral-200">
-              Loading contacts...
-            </Text>
+          <View style={styles.centerState}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text style={styles.centerStateText}>Loading contacts...</Text>
           </View>
         );
 
       case 'sending':
         return (
-          <View className="flex-1 items-center justify-center p-6">
-            <ActivityIndicator size="large" color="#36B6D3" />
-            <Text className="mt-4 text-lg text-neutral-200">
-              Sending invitations...
-            </Text>
+          <View style={styles.centerState}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text style={styles.centerStateText}>Sending invitations...</Text>
           </View>
         );
 
@@ -396,31 +401,27 @@ export const ContactsImportModal = forwardRef<
     }
   };
 
-  // Dynamic snap points based on view state
-  const getSnapPoints = () => {
-    switch (viewState) {
-      case 'manual':
-        return ['50%'];
-      case 'empty':
-        return ['60%']; // Compact height for benefits section
-      case 'permissions-denied':
-        return ['60%'];
-      default:
-        return ['90%'];
-    }
-  };
-
   return (
-    <Modal
-      ref={modal.ref}
+    <BottomSheet
+      ref={sheet.ref}
       title={viewState === 'results' ? 'Invites Sent!' : 'Invite Friends'}
-      snapPoints={getSnapPoints()}
-      backgroundStyle={{ backgroundColor: background }}
-      handleIndicatorStyle={{ backgroundColor: '#9E8E7F' }}
     >
-      <View className="flex-1 rounded-t-2xl bg-background">
-        {renderContent()}
-      </View>
-    </Modal>
+      {renderContent()}
+    </BottomSheet>
   );
+});
+
+const styles = StyleSheet.create({
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing[6],
+  },
+  centerStateText: {
+    marginTop: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: 18,
+    color: colors.text.secondary,
+  },
 });

@@ -1,31 +1,32 @@
 import React, { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
 
-import {
-  BackgroundImage,
-  Button,
-  Eyebrow,
-  ScreenContainer,
-  Text,
-  Title,
-  View,
-} from '@/components/ui';
+import { Button, EyebrowLabel } from '@/components/emberglow';
+import { BackgroundImage, ScreenContainer } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import type {
   CustomQuestTemplate,
   Quest,
   StoryQuestTemplate,
 } from '@/store/types';
+import { colors, easing, fontFamily, spacing, text } from '@/theme';
 
 type FailedQuestProps = {
   quest: Quest | StoryQuestTemplate | CustomQuestTemplate;
   onRetry: () => void;
 };
+
+// Fade+translateY via withDelay/withTiming/easing.emberOut — the entrance
+// pattern this screen now shares with QuestComplete's sub-components.
+const EMBER_OUT = Easing.bezier(...easing.emberOut);
+const RISE_DISTANCE = 20;
 
 export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
   // Create animated values for header, message, and button animations
@@ -35,70 +36,131 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
 
   // Trigger animations in sequence on mount
   useEffect(() => {
-    headerAnim.value = withTiming(1, { duration: 500 });
-    messageAnim.value = withDelay(600, withTiming(1, { duration: 500 }));
-    buttonAnim.value = withDelay(1200, withTiming(1, { duration: 500 }));
+    headerAnim.value = withTiming(1, { duration: 500, easing: EMBER_OUT });
+    messageAnim.value = withDelay(
+      600,
+      withTiming(1, { duration: 500, easing: EMBER_OUT })
+    );
+    buttonAnim.value = withDelay(
+      1200,
+      withTiming(1, { duration: 500, easing: EMBER_OUT })
+    );
   }, [headerAnim, messageAnim, buttonAnim]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     opacity: headerAnim.value,
-    transform: [{ translateY: 20 * (1 - headerAnim.value) }],
+    transform: [{ translateY: RISE_DISTANCE * (1 - headerAnim.value) }],
   }));
 
   const messageAnimatedStyle = useAnimatedStyle(() => ({
     opacity: messageAnim.value,
-    transform: [{ translateY: 20 * (1 - messageAnim.value) }],
+    transform: [{ translateY: RISE_DISTANCE * (1 - messageAnim.value) }],
   }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
     opacity: buttonAnim.value,
-    transform: [{ translateY: 20 * (1 - buttonAnim.value) }],
+    transform: [{ translateY: RISE_DISTANCE * (1 - buttonAnim.value) }],
   }));
 
   return (
-    <View className="flex-1">
+    <View style={styles.flex}>
       {/* Background image */}
-      <BackgroundImage />
+      <BackgroundImage tintClassName="">
+        {/* Darkening overlay for text legibility over the art, normalized
+            to a theme token instead of BackgroundImage's default NativeWind
+            white tint (which was never visible before — the old opaque
+            ScreenContainer gradient fully occluded this art). */}
+        <View style={styles.overlay} />
+      </BackgroundImage>
 
-      <ScreenContainer className="py-8">
+      <ScreenContainer transparent style={styles.screenPadding}>
         {/* Title Section */}
-        <Animated.View
-          style={headerAnimatedStyle}
-          className="mt-12 items-center"
-        >
-          <Eyebrow text={getQuestModeLabel(quest.mode)} />
-          <Title variant="centered">Quest Failed</Title>
-          <Text className="mt-2 text-center text-lg font-medium text-white">
-            {quest.title}
-          </Text>
+        <Animated.View style={[styles.header, headerAnimatedStyle]}>
+          <EyebrowLabel>
+            {getQuestModeLabel(quest.mode).toUpperCase()}
+          </EyebrowLabel>
+          <Text style={styles.title}>Quest Failed</Text>
+          <Text style={styles.questTitle}>{quest.title}</Text>
         </Animated.View>
 
         {/* Message Section */}
-        <Animated.View
-          style={messageAnimatedStyle}
-          className="my-6 flex-1 items-center px-6"
-        >
-          <Text className="mb-4 text-center text-white">
+        <Animated.View style={[styles.message, messageAnimatedStyle]}>
+          <Text style={styles.messagePrimary}>
             It's okay to fail – every setback teaches you a lesson.
           </Text>
-          <Text className="mb-4 text-center text-base text-neutral-200">
+          <Text style={styles.messageSecondary}>
             Resist unlocking out of boredom.
           </Text>
-          <Text className="text-center text-base text-neutral-200">
+          <Text style={styles.messageSecondary}>
             Using your phone less helps build focus and mindfulness.
           </Text>
         </Animated.View>
 
         {/* Button Section */}
-        <Animated.View style={buttonAnimatedStyle} className="items-center">
+        <Animated.View style={[styles.buttonRow, buttonAnimatedStyle]}>
           <Button
             label="Try Again"
-            onPressOut={onRetry}
-            className="mb-4 rounded-full bg-primary-400"
-            textClassName="text-white font-semibold"
+            onPress={onRetry}
+            variant="primary"
+            fullWidth
           />
         </Animated.View>
       </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.surface.overlay,
+  },
+  screenPadding: {
+    paddingVertical: spacing[8],
+  },
+  header: {
+    marginTop: spacing[12],
+    alignItems: 'center',
+  },
+  title: {
+    ...text.h1,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginTop: spacing[2],
+  },
+  questTitle: {
+    fontFamily: fontFamily.medium,
+    fontSize: 18,
+    textAlign: 'center',
+    color: colors.text.primary,
+    marginTop: spacing[2],
+  },
+  message: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: spacing[6],
+    marginVertical: spacing[6],
+  },
+  messagePrimary: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    textAlign: 'center',
+    color: colors.text.primary,
+    marginBottom: spacing[4],
+  },
+  messageSecondary: {
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    textAlign: 'center',
+    color: colors.text.secondary,
+    marginBottom: spacing[4],
+  },
+  buttonRow: {
+    // Full-width CTA pinned at the bottom, matching screenPadding's side
+    // margins (welcome.tsx's canonical full-width primary CTA pattern).
+    paddingHorizontal: spacing[6],
+  },
+});

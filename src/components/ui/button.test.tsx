@@ -92,4 +92,30 @@ describe('Button component ', () => {
       'opacity-50'
     );
   });
+
+  // The default (primary) button is the single bold action on a screen. It uses
+  // the vivid brand orange with a dark label so it stays legible (~5.2:1) rather
+  // than the muddy deep-orange + cream it used before (~3.85:1, below AA).
+  it('default variant is the vivid brand orange with a dark label', () => {
+    render(<Button testID="button" label="Go" />);
+    expect(screen.getByTestId('button').props.className).toContain(
+      'bg-primary-400'
+    );
+    expect(screen.getByTestId('button-label').props.className).toContain(
+      'text-black'
+    );
+  });
+
+  // The muted variant is the reusable low-emphasis surface (~7:1 cream on the
+  // card blue) for secondary actions and unselected states, replacing the
+  // off-palette bg-neutral-800 hand-styling.
+  it('muted variant uses the card surface with a cream label', () => {
+    render(<Button testID="button" variant="muted" label="Go" />);
+    expect(screen.getByTestId('button').props.className).toContain(
+      'bg-cardBackground'
+    );
+    expect(screen.getByTestId('button-label').props.className).toContain(
+      'text-white'
+    );
+  });
 });

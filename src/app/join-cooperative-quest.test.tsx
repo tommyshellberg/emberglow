@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { invitationApi } from '@/api/invitation';
-import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
+import { act, fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 
 // Import the component
 import JoinCooperativeQuest from './join-cooperative-quest';
@@ -9,11 +9,13 @@ import JoinCooperativeQuest from './join-cooperative-quest';
 // Mock the router
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
     replace: mockReplace,
     back: mockBack,
+    push: mockPush,
   }),
 }));
 
@@ -78,8 +80,7 @@ describe('JoinCooperativeQuest', () => {
       expect(
         screen.getByText("You don't have any pending quest invitations.")
       ).toBeTruthy();
-      expect(screen.getByText('Public Quests')).toBeTruthy();
-      expect(screen.getByText('Coming Soon')).toBeTruthy();
+      expect(screen.getByText('Public Events')).toBeTruthy();
     });
   });
 
@@ -228,7 +229,16 @@ describe('JoinCooperativeQuest', () => {
     });
 
     const declineButtons = screen.getAllByText('Decline');
-    fireEvent.press(declineButtons[0]); // Decline first invitation
+    // handleDecline in the component awaits respondToInvitation before
+    // calling setInvitations to drop the declined item - that update lands
+    // after fireEvent.press's own (synchronous) act() scope has already
+    // closed. Under React 19 that occasionally meant the list update never
+    // got flushed before the assertions below ran, making this test flaky.
+    // Wrapping the press in an async act() keeps the scope open until the
+    // whole handler (including its post-await setState) settles.
+    await act(async () => {
+      fireEvent.press(declineButtons[0]); // Decline first invitation
+    });
 
     await waitFor(() => {
       expect(invitationApi.respondToInvitation).toHaveBeenCalledWith(
@@ -242,26 +252,27 @@ describe('JoinCooperativeQuest', () => {
     });
   });
 
-  it('should show public quests preview section with mock data', async () => {
-    // Test with no invitations to see the public quests section
+  it('should render a live public events section that routes to /scheduled-quest', async () => {
+    // Test with no invitations to see the public events section
     (invitationApi.getPendingInvitations as jest.Mock).mockResolvedValue([]);
 
     render(<JoinCooperativeQuest />);
 
     await waitFor(() => {
       expect(screen.getByText('No Invitations')).toBeTruthy();
-      expect(screen.getByText('Public Quests')).toBeTruthy();
-      expect(screen.getByText('Coming Soon')).toBeTruthy();
-
-      // Check for mock public quest
-      expect(screen.getByText('Morning Productivity Challenge')).toBeTruthy();
-
-      // Check for disabled join button
-      expect(screen.getByText('Join (Coming Soon)')).toBeTruthy();
-
-      // Check for info message
-      expect(screen.getByText('Public Quests are coming soon!')).toBeTruthy();
+      expect(screen.getByText('Public Events')).toBeTruthy();
     });
+
+    // No "Coming Soon" mock content should remain anywhere on screen
+    expect(screen.queryByText('Coming Soon')).toBeNull();
+    expect(screen.queryByText('Morning Productivity Challenge')).toBeNull();
+    expect(screen.queryByText('Join (Coming Soon)')).toBeNull();
+    expect(screen.queryByText('Public Quests are coming soon!')).toBeNull();
+
+    const browseButton = screen.getByTestId('browse-public-events');
+    fireEvent.press(browseButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
   });
 
   it('should handle back navigation', async () => {

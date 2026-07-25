@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { Clock, Lock, Users } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Image, type ImageStyle } from 'react-native';
@@ -152,8 +151,9 @@ export default function CooperativePendingQuestScreen() {
   }, [showCountdown]);
 
   const handleCancelQuest = () => {
+    // As in pending-quest.tsx: clearing pendingQuest flips the resolver to
+    // target 'app' and NavigationGate owns the move off this screen.
     cancelQuest();
-    router.back();
   };
 
   // Loading state
@@ -201,7 +201,9 @@ export default function CooperativePendingQuestScreen() {
           entering={FadeIn.delay(600).duration(500)}
           className="px-8 text-center text-lg text-white"
         >
-          All companions must lock together
+          {cooperativeQuestRun?.completionPolicy === 'individual'
+            ? 'Lock your phone to take part - an early unlock only fails you'
+            : 'All companions must lock together'}
         </Animated.Text>
       </View>
     );
@@ -437,7 +439,9 @@ export default function CooperativePendingQuestScreen() {
             accessibilityElementsHidden
           />
           <Text className="ml-2 text-base font-semibold text-white">
-            All companions must lock phones to begin
+            {cooperativeQuestRun?.completionPolicy === 'individual'
+              ? 'Lock your phone to take part - an early unlock only fails you'
+              : 'All companions must lock phones to begin'}
           </Text>
         </Animated.View>
 

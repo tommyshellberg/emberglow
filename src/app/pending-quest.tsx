@@ -1,26 +1,25 @@
-import { router } from 'expo-router';
-import { Lock } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowLeft, Lock } from 'lucide-react-native';
 import React from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestRewardPreview } from '@/api/quest-runs';
 import {
-  BackgroundImage,
+  Badge,
   Button,
-  Eyebrow,
-  Text,
-  Title,
-  View,
-} from '@/components/ui';
-import colors from '@/components/ui/colors';
+  EyebrowLabel,
+  IconButton,
+} from '@/components/emberglow';
+import { ONBOARDING_QUEST_ID } from '@/components/quest-complete/constants';
+import { BackgroundImage } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
-import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
+import { colors, fontFamily, palette, scrims, spacing } from '@/theme';
 
-import { QuestInfoCard } from './pending-quest/components/quest-info-card';
+import { ActivePerksCard } from './pending-quest/components/active-perks-card';
 import {
   ANIMATION_CONFIG,
   STRINGS,
@@ -29,9 +28,30 @@ import {
 } from './pending-quest/constants';
 import { usePendingQuestAnimations } from './pending-quest/hooks/use-pending-quest-animations';
 
+// Screen-specific copy and sizing (quest-flow.jsx StartQuestScreen, lines
+// 5-38). `./pending-quest/constants` is shared with
+// `cooperative-pending-quest.tsx` — values that only apply to this screen's
+// Emberglow layout live here instead of overloading a shared export.
+const HERO_BODY_COPY =
+  'Your hero stands ready. The story continues the moment you step away.';
+const CANCEL_BUTTON_LABEL = 'Cancel quest';
+// The back button fires the same handler as "Cancel quest" (see
+// `handleCancelQuest`) rather than a plain `router.back()` — the app is
+// force-routed back to this screen while a quest is pending
+// (`navigation-state-resolver.ts`'s `pendingQuest` branch), so a bare
+// "back" would just bounce right back here. The accessibility label names
+// the actual effect (cancelling the quest) rather than "Go back", since a
+// back arrow that quietly cancels something needs to say so.
+const BACK_BUTTON_LABEL = 'Cancel quest';
+const BACK_BUTTON_TEST_ID = 'pending-quest-back-button';
+const STORY_MODE_BADGE_LABEL = 'Vaedros';
+const LOCK_ICON_SIZE = 17;
+const CONTENT_BOTTOM_PADDING = 36;
+const TITLE_FONT_SIZE = 34;
+const BODY_FONT_SIZE = 15;
+
 export default function PendingQuestScreen() {
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
-  const character = useCharacterStore((state) => state.character);
   const cancelQuest = useQuestStore((state) => state.cancelQuest);
   const userId = useUserStore((state) => state.user?.id);
   const insets = useSafeAreaInsets();
@@ -40,74 +60,128 @@ export default function PendingQuestScreen() {
   // Custom and cooperative quests need questData, story quests need questTemplateId
   const needsQuestData =
     pendingQuest?.mode === 'custom' || pendingQuest?.mode === 'cooperative';
-  const { data: rewardPreview, isLoading: isLoadingPreview } =
-    useQuestRewardPreview({
-      questTemplateId: needsQuestData ? undefined : pendingQuest?.id,
-      questData: needsQuestData
-        ? {
-            durationMinutes: pendingQuest?.durationMinutes || 0,
-            category: pendingQuest?.category,
-            mode: pendingQuest?.mode || 'custom',
-            reward: {
-              xp: pendingQuest?.reward?.xp || 0,
-            },
-          }
-        : undefined,
-      participantIds: userId ? [userId] : [],
-      enabled: !!pendingQuest && !!userId,
-    });
+  const { data: rewardPreview } = useQuestRewardPreview({
+    questTemplateId: needsQuestData ? undefined : pendingQuest?.id,
+    questData: needsQuestData
+      ? {
+          durationMinutes: pendingQuest?.durationMinutes || 0,
+          category: pendingQuest?.category,
+          mode: pendingQuest?.mode || 'custom',
+          reward: {
+            xp: pendingQuest?.reward?.xp || 0,
+          },
+        }
+      : undefined,
+    participantIds: userId ? [userId] : [],
+    enabled: !!pendingQuest && !!userId,
+  });
 
   // Use animation hook for all screen animations
   const { headerStyle, cardStyle, buttonStyle, shimmerStyle } =
     usePendingQuestAnimations(!!pendingQuest);
 
   const handleCancelQuest = () => {
+    // No navigation here: clearing pendingQuest flips the resolver to target
+    // 'app', and NavigationGate owns the move off this screen. Navigating as
+    // well raced the gate — it replaced this screen with a fresh (app) tab tree
+    // while router.back() tore that down in the same frame.
     cancelQuest();
-    router.back();
   };
 
   if (!pendingQuest) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View style={styles.loadingContainer}>
         <ActivityIndicator />
       </View>
     );
   }
 
+  // XP resolution matches the old `QuestInfoCard` -> `RewardPreviewCard`
+  // path: the current user's adjusted (post-perk) reward preview XP, falling
+  // back to the quest's base reward while the preview is loading/unavailable.
+  const participant = rewardPreview?.participantRewards[0];
+  const xp = participant?.adjustedXP ?? pendingQuest.reward?.xp ?? 0;
+
+  // Third badge: story quests always take place in Vaedros; custom quests
+  // show their (required) category when it's a non-empty string.
+  const thirdBadgeLabel =
+    pendingQuest.mode === 'story'
+      ? STORY_MODE_BADGE_LABEL
+      : pendingQuest.category || undefined;
+
+  // The onboarding quest ('quest-1') can't have any perks yet, and we don't
+  // introduce the perks mechanic during the opening beat — so its perks card
+  // is suppressed. Every other pending screen keeps it. The onboarding flow
+  // (first-quest.tsx) sets the quest's `id` to this stable template id.
+  const isOnboardingQuest = pendingQuest.id === ONBOARDING_QUEST_ID;
+
   return (
-    <View className="flex-1">
+    <View style={styles.flex}>
       {/* Full-screen Background Image */}
       <BackgroundImage
         testID="background-image"
-        source={require('@/../assets/images/background/pending-quest-bg-alt.jpg')}
-      ></BackgroundImage>
+        source={require('@/../assets/images/background/card-background-alt.jpg')}
+      />
+
+      {/* Scrims over the background art (quest-flow.jsx:10-11) */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={scrims.top.colors}
+        start={scrims.top.start}
+        end={scrims.top.end}
+        style={styles.scrimTop}
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={scrims.bottom.colors}
+        start={scrims.bottom.start}
+        end={scrims.bottom.end}
+        style={styles.scrimBottom}
+      />
 
       <View
-        className="flex-1 justify-between"
-        style={{
-          paddingTop: insets.top,
-          paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
-        }}
+        style={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing[4],
+            paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
+            paddingBottom: CONTENT_BOTTOM_PADDING,
+          },
+        ]}
       >
-        {/* Eyebrow + Title */}
-        <Animated.View style={headerStyle} className="items-center">
-          <Eyebrow text={getQuestModeLabel(pendingQuest.mode)} />
-          <Title variant="centered" className="text-4xl">
-            {STRINGS.TITLE}
-          </Title>
+        <IconButton
+          label={BACK_BUTTON_LABEL}
+          onPress={handleCancelQuest}
+          testID={BACK_BUTTON_TEST_ID}
+          style={styles.backButton}
+        >
+          <ArrowLeft />
+        </IconButton>
+
+        {/* Eyebrow + Title + Badges + Body copy — left-aligned header block */}
+        <Animated.View style={[headerStyle, styles.header]}>
+          <EyebrowLabel>{getQuestModeLabel(pendingQuest.mode)}</EyebrowLabel>
+          <Text style={styles.title}>{pendingQuest.title}</Text>
+          <View style={styles.badgeRow}>
+            <Badge tone="warm">{`+${xp} XP`}</Badge>
+            <Badge tone="neutral">{`${pendingQuest.durationMinutes} min offline`}</Badge>
+            {thirdBadgeLabel ? (
+              <Badge tone="neutral">{thirdBadgeLabel}</Badge>
+            ) : null}
+          </View>
+          <Text style={styles.bodyCopy}>{HERO_BODY_COPY}</Text>
         </Animated.View>
 
-        {/* Card with Quest Info */}
-        <View className="flex-1 justify-center">
-          <Animated.View style={cardStyle}>
-            <QuestInfoCard
-              quest={pendingQuest}
-              character={character}
-              rewardPreview={rewardPreview}
-              isLoadingPreview={isLoadingPreview}
-            />
+        {/* Active perks — restores the "active perks" info the redesign
+            regressed, as a list card instead of layered art. Hidden on the
+            onboarding quest (see `isOnboardingQuest`). */}
+        {!isOnboardingQuest ? (
+          <Animated.View style={[cardStyle, styles.perksCardWrapper]}>
+            <ActivePerksCard participant={participant} />
           </Animated.View>
-        </View>
+        ) : null}
+
+        <View style={styles.spacer} />
 
         {/* Lock Instructions - Outside Card with Shimmer */}
         <Animated.View
@@ -115,43 +189,108 @@ export default function PendingQuestScreen() {
           entering={FadeInDown.delay(
             ANIMATION_CONFIG.LOCK_INSTRUCTIONS_DELAY
           ).duration(ANIMATION_CONFIG.QUEST_INFO_FADE_DURATION)}
-          style={shimmerStyle}
-          className="mb-6 flex-row items-center justify-center"
+          style={[shimmerStyle, styles.lockRow]}
         >
           <Lock
-            size={UI_CONFIG.LOCK_ICON_SIZE}
-            color={colors.white}
+            size={LOCK_ICON_SIZE}
+            color={palette.sandy}
             accessibilityElementsHidden
           />
           <Text
-            className="ml-2 text-base font-semibold text-white"
+            style={styles.lockText}
             accessibilityLabel={STRINGS.LOCK_INSTRUCTIONS}
           >
             {STRINGS.LOCK_INSTRUCTIONS}
           </Text>
         </Animated.View>
 
-        {/* Cancel Button */}
-        <Animated.View
-          style={[buttonStyle, { marginBottom: UI_CONFIG.BOTTOM_PADDING }]}
-        >
+        {/* Cancel Button — no tap-to-start affordance: quests begin when the
+            phone locks (`QuestTimer.onPhoneLocked`), not on a button press. */}
+        <Animated.View style={buttonStyle}>
           <Button
             onPress={handleCancelQuest}
-            variant="destructive"
-            className="items-center rounded-full"
-            accessibilityRole="button"
-            accessibilityLabel={STRINGS.CANCEL_BUTTON}
-            accessibilityHint="Cancels the quest and returns to the previous screen"
-          >
-            <Text
-              className="text-base font-semibold"
-              style={{ fontWeight: '700' }}
-            >
-              {STRINGS.CANCEL_BUTTON}
-            </Text>
-          </Button>
+            variant="ghost"
+            fullWidth
+            label={CANCEL_BUTTON_LABEL}
+          />
         </Animated.View>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrimTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '35%',
+  },
+  scrimBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '55%',
+  },
+  content: {
+    flex: 1,
+  },
+  spacer: {
+    flex: 1,
+  },
+  backButton: {
+    marginBottom: spacing[5],
+  },
+  header: {
+    alignItems: 'flex-start',
+  },
+  title: {
+    fontFamily: fontFamily.display,
+    fontSize: TITLE_FONT_SIZE,
+    // Repo convention for Erstoria display text: fontSize * 1.15, not the
+    // documented --leading-display (1.12) — see e.g. profile-card.tsx.
+    lineHeight: TITLE_FONT_SIZE * 1.15,
+    color: colors.text.primary,
+    textAlign: 'left',
+    marginTop: 10,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    marginTop: 14,
+  },
+  bodyCopy: {
+    fontFamily: fontFamily.regular,
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_FONT_SIZE * 1.5,
+    color: colors.text.secondary,
+    textAlign: 'left',
+    marginTop: 12,
+  },
+  perksCardWrapper: {
+    marginTop: spacing[6],
+  },
+  lockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    marginBottom: 14,
+  },
+  lockText: {
+    fontFamily: fontFamily.regular,
+    fontSize: BODY_FONT_SIZE,
+    color: colors.text.primary,
+  },
+});

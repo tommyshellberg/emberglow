@@ -1,6 +1,8 @@
 import { Search } from 'lucide-react-native';
 import React from 'react';
-import { TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
+
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 interface ContactSearchBarProps {
   value: string;
@@ -12,24 +14,43 @@ export const ContactSearchBar: React.FC<ContactSearchBarProps> = ({
   onChangeText,
 }) => {
   return (
-    <View className="border-b border-neutral-200 bg-background p-4">
-      <View className="flex-row items-center rounded-lg bg-cardBackground p-3">
-        <Search size={20} color="#9E8E7F" />
+    <View style={styles.container}>
+      <View style={styles.field}>
+        <Search size={18} color={colors.text.muted} />
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder="Search contacts"
-          placeholderTextColor="#9E8E7F"
+          placeholderTextColor={colors.text.muted}
           autoCapitalize="none"
           autoCorrect={false}
-          className="ml-3 flex-1 text-base text-black"
-          style={{
-            fontSize: 16,
-            color: '#1f0f0c',
-            paddingVertical: 0,
-          }}
+          style={styles.input}
         />
       </View>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    paddingBottom: spacing[3],
+  },
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    backgroundColor: colors.surface.inset,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: 12,
+  },
+  input: {
+    flex: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    color: colors.text.primary,
+    paddingVertical: 0,
+  },
+});

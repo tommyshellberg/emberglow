@@ -1,5 +1,11 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio, type AVPlaybackStatus } from 'expo-av';
+import {
+  type AudioSource,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from 'expo-audio';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
@@ -7,172 +13,151 @@ import {
   type AppStateStatus,
   Platform,
   Pressable,
+  StyleSheet,
+  Text,
   View,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { Text } from '@/components/ui';
-import { ProgressBar, type ProgressBarRef } from '@/components/ui/progress-bar';
 import { audioCacheService } from '@/lib/services/audio-cache.service';
 import { type StoryQuestTemplate } from '@/store/types';
+import { colors, fontFamily, palette, radii, shadows, spacing } from '@/theme';
 import { getQuestAudioPath } from '@/utils/audio-utils';
 
 type Props = {
   quest: StoryQuestTemplate;
 };
 
+/**
+ * Resolves the quest's audio source, then hands off to <NarrationPlayer/>.
+ *
+ * The split exists because `useAudioPlayer` needs its source at hook-call time
+ * and the source arrives asynchronously (S3 download + cache fallback). Rather
+ * than construct a player with no source and guard every read of it, the outer
+ * component owns the async lookup plus the loading/error UI, and the inner one
+ * only ever runs with a source that already exists.
+ */
 export function StoryNarration({ quest }: Props) {
-  const progressBarRef = useRef<ProgressBarRef>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const appStateRef = useRef(AppState.currentState);
-
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [source, setSource] = useState<AudioSource | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [audioInitialized, setAudioInitialized] = useState(false);
 
-  // Derived state - no useEffect needed (React best practice)
-  const progress = duration > 0 ? position / duration : 0;
-  const isCompleted = duration > 0 && position >= duration && !isPlaying;
-
-  // Initialize audio - only runs once when component mounts
   React.useEffect(() => {
     let isMounted = true;
 
-    const initializeAudio = async () => {
+    const resolveSource = async () => {
       try {
-        // Set audio mode
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
+        // playsInSilentMode: narration is the point of the screen — a muted
+        // phone shouldn't silently produce nothing. shouldPlayInBackground is
+        // false because quests pause on blur (see NarrationPlayer).
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+          interruptionModeAndroid: 'duckOthers',
         });
 
-        // Get the audio path dynamically based on quest custom ID
-        // Use customId if available (from server), otherwise fall back to id (for local quests)
+        // customId (from the server) wins over id (local quests).
         const questId = (quest as any).customId || quest.id;
-        const audioPath = getQuestAudioPath(questId);
-        console.log('quest audio path:', audioPath);
-
-        // Get the audio source from cache service (handles S3 download and fallback)
-        const audioSource = await audioCacheService.getAudioSource(audioPath);
-        if (!audioSource) {
+        const resolved = await audioCacheService.getAudioSource(
+          getQuestAudioPath(questId)
+        );
+        if (!resolved) {
           throw new Error('No audio source found for quest');
         }
 
-        const { sound, status } = await Audio.Sound.createAsync(
-          audioSource,
-          { shouldPlay: false },
-          onPlaybackStatusUpdate
-        );
-
-        if (!isMounted) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        soundRef.current = sound;
-
-        if (status.isLoaded) {
-          setDuration(status.durationMillis || 0);
-          setAudioInitialized(true);
-        }
-
-        // Add a small delay on Android to ensure the audio system is fully ready
-        if (Platform.OS === 'android') {
-          setTimeout(() => {
-            setIsLoading(false);
-          }, 500);
-        } else {
-          setIsLoading(false);
+        if (isMounted) {
+          setSource(resolved);
         }
       } catch (error) {
         console.error('Failed to load audio:', error);
         if (isMounted) {
           setLoadError('Failed to load audio narration');
-          setIsLoading(false);
         }
       }
     };
 
-    initializeAudio();
+    resolveSource();
 
     return () => {
       isMounted = false;
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(console.error);
-        soundRef.current = null;
-      }
-      stopProgressTracking();
     };
-  }, [quest.id]); // Only depend on quest.id, not the entire audioFile object
+  }, [quest.id]);
 
-  // Status update callback - handles all playback state
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
+  if (loadError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{loadError}</Text>
+      </View>
+    );
+  }
 
-    setIsPlaying(status.isPlaying);
-    setPosition(status.positionMillis || 0);
+  if (!source) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading audio...</Text>
+        </View>
+      </View>
+    );
+  }
 
+  // key: a new quest must build a new player, not mutate the running one.
+  return <NarrationPlayer key={quest.id} source={source} />;
+}
+
+/** How often expo-audio pushes a status update, in ms. Matches the cadence of
+ *  the old expo-av polling loop so the progress bar keeps its former smoothness
+ *  (expo-audio's own default is 500ms, which reads as visibly steppy against
+ *  the 150ms fill easing below). */
+const STATUS_INTERVAL_MS = 100;
+
+function NarrationPlayer({ source }: { source: AudioSource }) {
+  const player = useAudioPlayer(source, { updateInterval: STATUS_INTERVAL_MS });
+  const status = useAudioPlayerStatus(player);
+  const appStateRef = useRef(AppState.currentState);
+
+  // expo-audio reports SECONDS (expo-av used milliseconds).
+  const position = status.currentTime ?? 0;
+  const duration = status.duration ?? 0;
+  const isPlaying = status.playing ?? false;
+
+  // Derived state - no useEffect needed (React best practice)
+  const progress = duration > 0 ? position / duration : 0;
+  const isCompleted = duration > 0 && position >= duration && !isPlaying;
+
+  // Cinnabar->Sandy fill width, animated (XPBar's recipe) rather than driven
+  // imperatively — status updates arrive every STATUS_INTERVAL_MS.
+  const fillWidthPct = useSharedValue(progress * 100);
+  const animatedFillStyle = useAnimatedStyle(() => ({
+    width: `${fillWidthPct.value}%`,
+  }));
+
+  const togglePlayback = () => {
+    if (isPlaying) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  };
+
+  const handleReplay = () => {
+    // Seek explicitly: at the tail, play() alone would be a no-op.
+    player.seekTo(0).catch(console.error);
+    player.play();
+  };
+
+  // expo-av reset the position itself on finish; expo-audio parks the player at
+  // the end instead. Without this the bar would stay full and `isCompleted`
+  // would latch true, greying out the play button after every chapter.
+  React.useEffect(() => {
     if (status.didJustFinish) {
-      setIsPlaying(false);
-      setPosition(0);
-      stopProgressTracking();
-      progressBarRef.current?.setProgress(0);
+      player.seekTo(0).catch(console.error);
     }
-  };
-
-  // Progress tracking functions
-  const startProgressTracking = () => {
-    stopProgressTracking();
-    progressIntervalRef.current = setInterval(() => {
-      if (soundRef.current) {
-        soundRef.current.getStatusAsync().catch(() => {
-          stopProgressTracking();
-        });
-      }
-    }, 100);
-  };
-
-  const stopProgressTracking = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-  };
-
-  // Event handlers
-  const togglePlayback = async () => {
-    if (!soundRef.current) return;
-
-    try {
-      if (isPlaying) {
-        await soundRef.current.pauseAsync();
-        stopProgressTracking();
-      } else {
-        await soundRef.current.playAsync();
-        startProgressTracking();
-      }
-    } catch (error) {
-      console.error('Error toggling playback:', error);
-    }
-  };
-
-  const handleReplay = async () => {
-    if (!soundRef.current) return;
-
-    try {
-      await soundRef.current.stopAsync();
-      await soundRef.current.playFromPositionAsync(0);
-      setPosition(0);
-      progressBarRef.current?.setProgress(0);
-      startProgressTracking();
-    } catch (error) {
-      console.error('Error replaying:', error);
-    }
-  };
+  }, [status.didJustFinish, player]);
 
   // Handle app state changes
   React.useEffect(() => {
@@ -180,11 +165,9 @@ export function StoryNarration({ quest }: Props) {
       if (
         appStateRef.current === 'active' &&
         nextAppState.match(/inactive|background/) &&
-        soundRef.current &&
         isPlaying
       ) {
-        soundRef.current.pauseAsync().catch(console.error);
-        stopProgressTracking();
+        player.pause();
       }
       appStateRef.current = nextAppState;
     };
@@ -194,97 +177,206 @@ export function StoryNarration({ quest }: Props) {
       handleAppStateChange
     );
     return () => subscription.remove();
-  }, [isPlaying]);
+  }, [isPlaying, player]);
 
   // Handle navigation focus
   useFocusEffect(
     useCallback(() => {
       return () => {
-        if (soundRef.current && isPlaying) {
-          soundRef.current.pauseAsync().catch(console.error);
-          stopProgressTracking();
+        if (isPlaying) {
+          player.pause();
         }
       };
-    }, [isPlaying])
+    }, [isPlaying, player])
   );
 
-  // Update progress bar when progress changes
+  // Animate the fill toward the latest progress fraction whenever it changes.
   React.useEffect(() => {
-    progressBarRef.current?.setProgress(progress * 100);
-  }, [progress]);
+    fillWidthPct.value = withTiming(progress * 100, {
+      duration: 150,
+      easing: Easing.linear,
+    });
+  }, [progress, fillWidthPct]);
 
-  // Format time helper
-  const formatTime = (milliseconds: number) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+  /** seconds -> m:ss */
+  const formatTime = (totalSecondsRaw: number) => {
+    const totalSeconds = Math.floor(totalSecondsRaw);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Early returns for error and loading states
-  if (loadError) {
-    return (
-      <View className="mt-4 w-full items-center rounded-lg bg-cardBackground p-4">
-        <Text className="text-red-500">{loadError}</Text>
-      </View>
-    );
-  }
+  const controlsDisabled = !status.isLoaded;
 
   return (
-    <View className="mt-4 w-full p-4">
-      {isLoading && (
-        <View className="absolute inset-0 z-10 items-center justify-center rounded-lg bg-cardBackground">
-          <Text className="text-sm text-neutral-200">Loading audio...</Text>
-        </View>
-      )}
-      <View className="mb-2 w-full">
-        <ProgressBar
-          ref={progressBarRef}
-          initialProgress={progress * 100}
-          className="h-1.5 rounded"
-          backgroundColor="#2A4754"
-        />
-        <View className="mt-1 flex-row justify-between">
-          <Text className="text-xs text-neutral-200">
-            {formatTime(position)}
-          </Text>
-          <Text className="text-xs text-neutral-200">
-            {formatTime(duration)}
-          </Text>
-        </View>
-      </View>
-
-      <View className="mt-2 flex-row items-center justify-center">
-        <Pressable
-          className="mx-4 p-2"
-          onPress={handleReplay}
-          disabled={isLoading || !audioInitialized}
-          style={{ opacity: isLoading || !audioInitialized ? 0.3 : 1 }}
-        >
-          <Feather name="rotate-ccw" size={24} color="#36B6D3" />
-        </Pressable>
-
+    <View style={styles.container}>
+      <View style={styles.row}>
         {!isCompleted ? (
           <Pressable
+            testID="narration-play-toggle"
             onPress={togglePlayback}
-            disabled={isLoading || !audioInitialized}
+            disabled={controlsDisabled}
+            style={[
+              styles.playDisc,
+              Platform.OS === 'ios' && styles.playDiscGlow,
+              controlsDisabled && styles.controlDisabled,
+            ]}
           >
             <Feather
-              name={isPlaying ? 'pause-circle' : 'play-circle'}
-              size={32}
-              color="#36B6D3"
-              style={{ opacity: isLoading || !audioInitialized ? 0.3 : 1 }}
+              name={isPlaying ? 'pause' : 'play'}
+              size={20}
+              color={colors.text.onAccent}
             />
           </Pressable>
         ) : (
-          <Feather
-            name="play-circle"
-            size={32}
-            color="#36B6D3"
-            style={{ opacity: 0.3 }}
-          />
+          <View
+            style={[
+              styles.playDisc,
+              Platform.OS === 'ios' && styles.playDiscGlow,
+              styles.controlDisabled,
+            ]}
+          >
+            <Feather name="play" size={20} color={colors.text.onAccent} />
+          </View>
         )}
+
+        <View style={styles.middle}>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Listen to this chapter</Text>
+            <Text style={[styles.label, styles.timeLabel]}>
+              {formatTime(position)} / {formatTime(duration)}
+            </Text>
+          </View>
+          <View style={styles.track}>
+            {progress > 0 && (
+              <Animated.View style={[styles.fill, animatedFillStyle]}>
+                <LinearGradient
+                  colors={[palette.cinnabar, palette.sandy]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.fillGradient}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </View>
+
+        <Pressable
+          onPress={handleReplay}
+          disabled={controlsDisabled}
+          style={[
+            styles.replayDisc,
+            controlsDisabled && styles.controlDisabled,
+          ]}
+        >
+          <Feather name="rotate-ccw" size={16} color={colors.text.secondary} />
+        </Pressable>
       </View>
     </View>
   );
 }
+
+/** Mockup spec: 5px track (quest-flow.jsx:162). */
+const TRACK_HEIGHT = 5;
+
+const styles = StyleSheet.create({
+  // In-card inset treatment (quest-flow.jsx:153): drops the old standalone
+  // `mt-4` placement — this now renders as the story card's bottom section,
+  // clipped to the card's rounded corners by the parent's `overflow: hidden`.
+  container: {
+    backgroundColor: colors.surface.inset,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.hairline,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[4],
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.inset,
+  },
+  loadingText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+  errorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.surface.inset,
+    padding: spacing[4],
+  },
+  errorText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.status.danger,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  playDisc: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Colored shadows only render on iOS; Android would just paint a grey box
+  // via `elevation` (ground rule 5) — see button.tsx for the same gate.
+  playDiscGlow: {
+    shadowColor: shadows.glowEmber.shadowColor,
+    shadowOffset: shadows.glowEmber.shadowOffset,
+    shadowRadius: shadows.glowEmber.shadowRadius,
+    shadowOpacity: shadows.glowEmber.shadowOpacity,
+    elevation: 0,
+  },
+  replayDisc: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlDisabled: {
+    opacity: 0.3,
+  },
+  middle: {
+    flex: 1,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  label: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11.5,
+    color: colors.text.muted,
+  },
+  timeLabel: {
+    fontVariant: ['tabular-nums'],
+  },
+  track: {
+    height: TRACK_HEIGHT,
+    borderRadius: radii.pill,
+    backgroundColor: colors.track,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: radii.pill,
+  },
+  fillGradient: {
+    flex: 1,
+    borderRadius: radii.pill,
+  },
+});

@@ -1,105 +1,101 @@
 import { Flame } from 'lucide-react-native';
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import Animated, {
-  interpolate,
+  interpolateColor,
+  type SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
 import { Text, View } from '@/components/ui';
-import { muted, red, white } from '@/components/ui/colors';
+import { colors, fontFamily, radii, shadows } from '@/theme';
 
-import { COLORS, INTERPOLATION, LAYOUT } from './streak-celebration.constants';
+import { LAYOUT } from './streak-celebration.constants';
 import { type StreakDay } from './streak-visualization.util';
 
 interface AnimatedStreakDayProps {
   day: StreakDay;
-  animationValue: Animated.SharedValue<number>;
+  /** 0 -> 1 ignition progress, drives the lit background/border/glow. */
+  litProgress: SharedValue<number>;
+  /** 1 -> BOUNCE_SCALE -> 1 punch on ignite. */
+  scale: SharedValue<number>;
 }
 
 /**
- * Animated day component that displays a single day in the streak visualization.
- * Shows the day abbreviation and a flame icon that animates when the day is completed.
+ * A single day circle in the streak week row. Unlit days show a faint
+ * flame outline; lit days ease to the Cinnabar accent with an ember glow
+ * and a brief punch of scale as they ignite.
  */
 export function AnimatedStreakDay({
   day,
-  animationValue,
+  litProgress,
+  scale,
 }: AnimatedStreakDayProps) {
-  const animatedStyle = useAnimatedStyle(() => {
-    const scale = interpolate(
-      animationValue.value,
-      [0, 0.5, 1],
-      [
-        INTERPOLATION.SCALE_FROM,
-        INTERPOLATION.SCALE_BOUNCE,
-        INTERPOLATION.SCALE_TO,
-      ]
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const litStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      litProgress.value,
+      [0, 1],
+      [colors.fill.faint, colors.accent.primary]
+    );
+    const borderColor = interpolateColor(
+      litProgress.value,
+      [0, 1],
+      [colors.border.hairline, colors.accent.glow]
     );
 
     return {
-      transform: [{ scale }],
+      backgroundColor,
+      borderColor,
+      shadowOpacity: shadows.glowEmber.shadowOpacity * litProgress.value,
     };
   });
 
-  const backgroundColorStyle = useAnimatedStyle(() => {
-    if (!day.isCompleted) {
-      return {
-        backgroundColor: muted[100],
-      };
-    }
-
-    // Interpolate RGB values from muted[100] (#D3DEDA) to red[300] (#FD7859)
-    const r = interpolate(animationValue.value, [0, 1], [211, 253]);
-    const g = interpolate(animationValue.value, [0, 1], [222, 120]);
-    const b = interpolate(animationValue.value, [0, 1], [218, 89]);
-
-    return {
-      backgroundColor: `rgb(${r}, ${g}, ${b})`,
-    };
-  });
-
-  const flameAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: day.isCompleted ? animationValue.value : 1,
-    transform: [
-      {
-        scale: interpolate(
-          animationValue.value,
-          [0, 0.5, 1],
-          [
-            INTERPOLATION.FLAME_SCALE_FROM,
-            INTERPOLATION.FLAME_SCALE_BOUNCE,
-            INTERPOLATION.FLAME_SCALE_TO,
-          ]
-        ),
-      },
-    ],
-  }));
+  const flameColor = day.isCompleted ? colors.text.onAccent : colors.text.muted;
 
   return (
-    <View className="items-center">
-      <Text
-        className="mb-2 text-sm font-medium"
-        style={{ color: COLORS.DAY_NAME_TEXT }}
-      >
+    <View style={styles.container}>
+      <Text style={[styles.dayName, day.isToday && styles.dayNameToday]}>
         {day.name}
       </Text>
       <Animated.View
         testID="flame-container"
-        className="items-center justify-center rounded-full"
-        style={[
-          animatedStyle,
-          backgroundColorStyle,
-          {
-            width: LAYOUT.DAY_CIRCLE_SIZE,
-            height: LAYOUT.DAY_CIRCLE_SIZE,
-            borderWidth: day.isToday ? 2 : 0,
-            borderColor: day.isToday ? red[300] : 'transparent',
-          },
-        ]}
+        style={[styles.circle, scaleStyle, litStyle]}
       >
-        <Animated.View style={flameAnimatedStyle}>
-          <Flame size={32} color={day.isCompleted ? white : muted[400]} />
-        </Animated.View>
+        <Flame size={19} color={flameColor} />
       </Animated.View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    gap: 8,
+    width: LAYOUT.DAY_CIRCLE_SIZE,
+  },
+  dayName: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    letterSpacing: 12 * 0.04,
+    color: colors.text.muted,
+  },
+  dayNameToday: {
+    color: colors.text.accent,
+  },
+  circle: {
+    width: LAYOUT.DAY_CIRCLE_SIZE,
+    height: LAYOUT.DAY_CIRCLE_SIZE,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: shadows.glowEmber.shadowColor,
+    shadowOffset: shadows.glowEmber.shadowOffset,
+    shadowRadius: shadows.glowEmber.shadowRadius,
+    elevation: 0,
+  },
+});

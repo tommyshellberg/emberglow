@@ -1,17 +1,31 @@
-import * as Linking from 'expo-linking';
 import React, { useState } from 'react';
-import { TextInput } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Text, View } from '@/components/ui';
+import { Button, Input } from '@/components/emberglow';
+import { colors, spacing } from '@/theme';
 
-import { TERMS_URL } from './constants';
+import { ErrorBanner } from './error-banner';
+import { cardBody, cardTitle } from './text-styles';
 import { emailSchema } from './types';
 
 type EmailInputViewProps = {
   onSubmit: (email: string) => void;
   isLoading: boolean;
   error: string;
+  /**
+   * Heading and subheading, supplied by the screen: the same email step is
+   * a sign-in for a returning user and a sign-up for someone converting a
+   * provisional account (see `copy.ts`). Required rather than defaulted so
+   * a caller cannot silently get the wrong framing.
+   */
+  title: string;
+  subtitle: string;
 };
+
+// Mockup puts `marginTop: 14` on the send button; carried here as the
+// input block's bottom margin instead — Input and Button are adjacent
+// siblings below, so this margin sits directly between them.
+const INPUT_MARGIN_BOTTOM = 14;
 
 /**
  * Email input form view for magic link authentication
@@ -21,6 +35,8 @@ export function EmailInputView({
   onSubmit,
   isLoading,
   error,
+  title,
+  subtitle,
 }: EmailInputViewProps) {
   const [email, setEmail] = useState('');
 
@@ -33,64 +49,57 @@ export function EmailInputView({
   };
 
   return (
-    <View className="p-6">
-      {/* Email input with label on left */}
-      <View className="mb-6 flex-row items-center border-b border-neutral-300 pb-2">
-        <Text className="w-28 text-base font-semibold text-white">EMAIL</Text>
-        <TextInput
-          testID="email-input"
-          placeholder="Enter your email"
-          placeholderTextColor="#9CA3AF"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-          style={{
-            flex: 1,
-            fontSize: 16,
-            fontWeight: '600',
-            color: '#e8dcc7', // white (warm cream)
-            paddingVertical: 0,
-            includeFontPadding: false,
-          }}
-          accessibilityLabel="Email address"
-          accessibilityHint="Enter your email to receive a login link"
-        />
-      </View>
+    <View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{subtitle}</Text>
 
-      {/* Terms and privacy */}
-      <Text className="mb-4 px-6 text-center text-sm">
-        By signing in to this app you agree with our{' '}
-        <Text
-          className="text-charcoal-600 underline"
-          onPress={() => Linking.openURL(TERMS_URL)}
-          accessibilityRole="link"
-          accessibilityLabel="Terms of Use and Privacy Policy"
-        >
-          Terms of Use and Privacy Policy
-        </Text>
-        .
-      </Text>
+      <ErrorBanner error={error} />
 
-      {/* Error message */}
-      {error ? (
-        <Text className="mb-4 text-center text-red-400" testID="error-message">
-          {error}
-        </Text>
-      ) : null}
+      <Input
+        testID="email-input"
+        label="Email"
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+        accessibilityLabel="Email address"
+        accessibilityHint="Enter your email to receive a login link"
+        containerStyle={styles.inputContainer}
+      />
 
-      {/* Submit button */}
       <Button
         testID="login-button"
-        label="Send Link"
-        loading={isLoading}
+        variant="primary"
+        size="lg"
+        fullWidth
+        label="Send sign-in link"
         onPress={handleSubmit}
-        disabled={isLoading || !isValidEmail(email)}
-        className={`rounded-xl bg-primary-500 ${!isValidEmail(email) ? 'opacity-50' : ''}`}
-        textClassName="text-white font-bold"
+        // Split rather than folded into one `disabled`: both block the press,
+        // but only `disabled` dims to 40% — and the spinner below is the thing
+        // that would be dimmed. An unsendable email really is unavailable;
+        // a send already in flight is working, and should look it.
+        busy={isLoading}
+        disabled={!isValidEmail(email)}
         accessibilityLabel="Send login link"
         accessibilityHint="Sends a magic link to your email for authentication"
-      />
+      >
+        {isLoading ? <ActivityIndicator color={colors.text.onAccent} /> : null}
+      </Button>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  title: {
+    ...cardTitle,
+    marginBottom: spacing[1],
+  },
+  body: {
+    ...cardBody,
+    marginBottom: spacing[4],
+  },
+  inputContainer: {
+    marginBottom: INPUT_MARGIN_BOTTOM,
+  },
+});

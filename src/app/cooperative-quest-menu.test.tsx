@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
+import { useUserStore } from '@/store/user-store';
 
 // Import the component
 import CooperativeQuestMenu from './cooperative-quest-menu';
@@ -73,6 +74,9 @@ jest.mock('@/components/providers/lazy-websocket-provider', () => ({
 describe('CooperativeQuestMenu', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
+      selector({ user: { featureFlags: ['coop_mode'] } })
+    );
   });
 
   it('should render the cooperative quest screen', async () => {
@@ -82,28 +86,51 @@ describe('CooperativeQuestMenu', () => {
     });
   });
 
-  it('should navigate to create quest screen when Create Quest is pressed', () => {
+  // These options only render once the `friends` query (mocked with a real
+  // Promise) resolves and the component leaves its `isLoading` state - a
+  // plain `screen.getByText` right after `render` races that resolution.
+  // `findByText` awaits it the same way the first test's `waitFor` does.
+
+  it('should navigate to create quest screen when Create Quest is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const createButton = screen.getByText('Create Quest');
+    const createButton = await screen.findByText('Create Quest');
     fireEvent.press(createButton);
 
     expect(mockPush).toHaveBeenCalledWith('/create-cooperative-quest');
   });
 
-  it('should navigate to join quest screen when Join Quest is pressed', () => {
+  it('should navigate to join quest screen when Join Quest is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const joinButton = screen.getByText('Join Quest');
+    const joinButton = await screen.findByText('Join Quest');
     fireEvent.press(joinButton);
 
     expect(mockPush).toHaveBeenCalledWith('/join-cooperative-quest');
   });
 
-  it('should open contacts modal when Add Friends is pressed', () => {
+  it('should navigate to scheduled quest screen when Public Events is pressed', async () => {
     render(<CooperativeQuestMenu />);
 
-    const friendsButton = screen.getByText('Add Friends');
+    const eventsButton = await screen.findByText('Public Events');
+    fireEvent.press(eventsButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/scheduled-quest');
+  });
+
+  it('should show Public Events option regardless of feature flags', async () => {
+    (useUserStore as unknown as jest.Mock).mockImplementation((selector) =>
+      selector({ user: { featureFlags: [] } })
+    );
+    render(<CooperativeQuestMenu />);
+
+    expect(await screen.findByText('Public Events')).toBeTruthy();
+  });
+
+  it('should open contacts modal when Add Friends is pressed', async () => {
+    render(<CooperativeQuestMenu />);
+
+    const friendsButton = await screen.findByText('Add Friends');
     fireEvent.press(friendsButton);
 
     // The Add Friends button opens a modal, not a navigation
@@ -114,8 +141,16 @@ describe('CooperativeQuestMenu', () => {
   it('should navigate back when back button is pressed', () => {
     render(<CooperativeQuestMenu />);
 
-    const backButton = screen.getByText('Back');
-    fireEvent.press(backButton);
+    // ScreenHeader's back button is icon-only (no "Back" text) — find the
+    // touchable back button by looking for the first accessible element in
+    // the header, matching the pattern used by sibling screens (e.g.
+    // join-cooperative-quest.test.tsx).
+    const accessibleElements = screen.root.findAll(
+      (node: any) => node.props?.accessible === true
+    );
+
+    expect(accessibleElements.length).toBeGreaterThan(0);
+    fireEvent.press(accessibleElements[0]);
 
     expect(mockBack).toHaveBeenCalled();
   });

@@ -21,13 +21,12 @@ jest.mock('@/api/quest', () => ({
   useQuestRuns: jest.fn(),
 }));
 
-// Mock vector icons
-jest.mock('@expo/vector-icons', () => ({
-  Feather: () => null,
-}));
-
+// Mock vector icons used by the recomposed quest row (mode icon + empty state)
 jest.mock('lucide-react-native', () => ({
   Notebook: () => null,
+  Scroll: () => null,
+  Feather: () => null,
+  Users: () => null,
 }));
 
 // Mock StreakCounter
@@ -133,9 +132,7 @@ describe('JournalScreen', () => {
       render(<JournalScreen />);
 
       expect(screen.getByText('Journal')).toBeOnTheScreen();
-      expect(
-        screen.getByText('Your quest history and achievements')
-      ).toBeOnTheScreen();
+      expect(screen.getByText('Every quest leaves a mark.')).toBeOnTheScreen();
     });
 
     it('renders all filter chips', () => {
@@ -154,7 +151,7 @@ describe('JournalScreen', () => {
       expect(screen.getAllByText('Co-op').length).toBeGreaterThan(0);
 
       // Status filters
-      expect(screen.getByText('All Status')).toBeOnTheScreen();
+      expect(screen.getByText('All status')).toBeOnTheScreen();
       expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
     });
@@ -282,7 +279,7 @@ describe('JournalScreen', () => {
       } as any);
     });
 
-    it('shows all quests when "All Status" filter is active', () => {
+    it('shows all quests when "All status" filter is active', () => {
       render(<JournalScreen />);
 
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
@@ -395,8 +392,8 @@ describe('JournalScreen', () => {
     it('displays XP for completed quests', () => {
       render(<JournalScreen />);
 
-      expect(screen.getByText('90 XP')).toBeOnTheScreen();
-      expect(screen.getByText('180 XP')).toBeOnTheScreen();
+      expect(screen.getByText('+90 XP')).toBeOnTheScreen();
+      expect(screen.getByText('+180 XP')).toBeOnTheScreen();
     });
 
     it('does not display XP for failed quests', () => {
@@ -414,18 +411,16 @@ describe('JournalScreen', () => {
       expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
     });
 
-    it('displays correct mode pill for each quest', () => {
+    it('displays date, duration, and mode together in the row subtitle', () => {
       render(<JournalScreen />);
 
-      // We expect Story, Custom, and Co-op mode pills
-      const storyPills = screen.queryAllByText('Story');
-      const customPills = screen.queryAllByText('Custom');
-      const coopPills = screen.queryAllByText('Co-op');
-
-      // One pill in filter + one in quest list
-      expect(storyPills.length).toBeGreaterThan(1);
-      expect(customPills.length).toBeGreaterThan(1);
-      expect(coopPills.length).toBeGreaterThan(1);
+      // Mode moved off a standalone pill and into the composed subtitle
+      // under the title: `${date} · ${duration} · ${mode}` (mockup
+      // `tabs.jsx` JournalScreen). The filter chip above still renders the
+      // bare mode label once, so these composed strings are quest-row-only.
+      expect(screen.getByText('Jan 15 · 30 min · Story')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 14 · 60 min · Custom')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 13 · 60 min · Co-op')).toBeOnTheScreen();
     });
   });
 
@@ -582,12 +577,13 @@ describe('JournalScreen', () => {
 
       render(<JournalScreen />);
 
-      // Morning Meditation: 30 minutes
-      expect(screen.getByText('30 minutes')).toBeOnTheScreen();
-      // Gym Workout and Team Challenge: both are 60 minutes (use getAllByText)
-      expect(screen.getAllByText('60 minutes').length).toBeGreaterThanOrEqual(
-        1
-      );
+      // Duration renders as `N min` inside the composed row subtitle
+      // (`${date} · ${duration} · ${mode}`), not `N minutes` standalone.
+      // Morning Meditation: 30 min
+      expect(screen.getByText('Jan 15 · 30 min · Story')).toBeOnTheScreen();
+      // Gym Workout and Team Challenge: both are 60 min
+      expect(screen.getByText('Jan 14 · 60 min · Custom')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 13 · 60 min · Co-op')).toBeOnTheScreen();
     });
 
     it('shows approximate duration when actual duration exceeds 24 hours', () => {
@@ -627,7 +623,7 @@ describe('JournalScreen', () => {
       render(<JournalScreen />);
 
       // Should show approximate duration based on quest's durationMinutes
-      expect(screen.getByText('~30 minutes')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 17 · ~30 min · Story')).toBeOnTheScreen();
     });
 
     it('shows "Unknown" when quest times are missing', () => {
@@ -665,14 +661,14 @@ describe('JournalScreen', () => {
 
       render(<JournalScreen />);
 
-      // Quest is displayed but duration shows Unknown
+      // Quest is displayed but duration shows Unknown within the subtitle
       expect(screen.getByText('No Time Quest')).toBeOnTheScreen();
-      expect(screen.getByText('Unknown')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 15 · Unknown · Story')).toBeOnTheScreen();
     });
   });
 
   describe('Date Display', () => {
-    it('displays formatted dates correctly', () => {
+    it('displays formatted dates correctly, without the year', () => {
       mockUseQuestRuns.mockReturnValue({
         data: mockQuestRunsResponse,
         isLoading: false,
@@ -681,8 +677,10 @@ describe('JournalScreen', () => {
 
       render(<JournalScreen />);
 
-      expect(screen.getByText('Jan 15, 2024')).toBeOnTheScreen();
-      expect(screen.getByText('Jan 14, 2024')).toBeOnTheScreen();
+      // Date drops the year (`MMM d`, not `MMM d, yyyy`) and lives inside
+      // the composed row subtitle alongside duration and mode.
+      expect(screen.getByText('Jan 15 · 30 min · Story')).toBeOnTheScreen();
+      expect(screen.getByText('Jan 14 · 60 min · Custom')).toBeOnTheScreen();
     });
   });
 

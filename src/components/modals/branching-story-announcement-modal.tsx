@@ -1,15 +1,24 @@
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { Check } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { forwardRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useResetStoryline } from '@/api/quest';
-import { Button, Modal, Text, View } from '@/components/ui';
-import { useSettingsStore } from '@/store/settings-store';
+import { BottomSheet, Button } from '@/components/emberglow';
+import { useAnnouncementStore } from '@/store/announcement-store';
+import { colors, fontFamily, radii, spacing } from '@/theme';
+
+const RESET_BENEFITS = [
+  'Keep your level and XP',
+  'Keep your streaks and stats',
+  'Keep all achievements',
+];
 
 export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
   (_, ref) => {
     const posthog = usePostHog();
-    const setHasSeenBranchingAnnouncement = useSettingsStore(
+    const setHasSeenBranchingAnnouncement = useAnnouncementStore(
       (state) => state.setHasSeenBranchingAnnouncement
     );
     const resetStorylineMutation = useResetStoryline();
@@ -65,71 +74,102 @@ export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
     };
 
     return (
-      <Modal
+      <BottomSheet
         ref={ref}
-        snapPoints={['70%']}
         title="Branching Storylines"
         onChange={handleModalChange}
-        backgroundStyle={{ backgroundColor: '#2c456b' }}
       >
-        <View className="px-4 pb-6">
-          {/* Icon/Visual Element */}
-          <View className="mb-4 items-center">
-            <Text className="text-4xl">⚔️</Text>
-          </View>
+        <Text style={styles.heading}>Your Story Just Got Deadlier</Text>
 
-          {/* Main Message */}
-          <Text className="mb-2 text-center text-2xl font-bold text-cream-500">
-            Your Story Just Got Deadlier
+        <Text style={styles.body}>
+          unQuest now features branching storylines with real consequences. Some
+          choices lead to victory, others... to death.
+        </Text>
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>
+            Experience the storylines from the beginning
           </Text>
-
-          <Text className="mb-6 text-center text-sm text-cream-500">
-            unQuest now features branching storylines with real consequences.
-            Some choices lead to victory, others... to death.
+          <Text style={styles.infoBody}>
+            Restart at the first branching point. You'll keep all your
+            achievements, stats, streaks, and XP. Only story progress resets.
           </Text>
-
-          {/* Reset Option */}
-          <View className="mb-6 rounded-lg border border-primary-300 bg-primary-500/10 p-4">
-            <Text className="mb-2 text-base font-bold text-cream-500">
-              Experience the storylines from the beginning
-            </Text>
-            <Text className="mb-3 text-base text-cream-300">
-              Restart at the first branching point. You'll keep all your
-              achievements, stats, streaks, and XP. Only story progress resets.
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Keep your level and XP
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Keep your streaks and stats
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Keep all achievements
-            </Text>
-          </View>
-
-          {/* Action Buttons */}
-          <View className="space-y-3">
-            <Button
-              label={
-                isResetting ? 'Resetting...' : 'Restart at Branching Point'
-              }
-              onPress={handleRestart}
-              disabled={isResetting}
-              className="bg-primary-400"
-            />
-
-            <Button
-              label="Continue Current Journey"
-              onPress={handleContinue}
-              variant="outline"
-              disabled={isResetting}
-              className="border-cream-500"
-              textClassName="text-cream-500"
-            />
-          </View>
+          {RESET_BENEFITS.map((benefit) => (
+            <View key={benefit} style={styles.benefitRow}>
+              <Check size={16} color={colors.text.accent} strokeWidth={2.5} />
+              <Text style={styles.benefitText}>{benefit}</Text>
+            </View>
+          ))}
         </View>
-      </Modal>
+
+        <View style={styles.actions}>
+          <Button
+            label={isResetting ? 'Resetting...' : 'Restart at Branching Point'}
+            onPress={handleRestart}
+            disabled={isResetting}
+            fullWidth
+          />
+          <Button
+            label="Continue Current Journey"
+            variant="ghost"
+            onPress={handleContinue}
+            disabled={isResetting}
+            fullWidth
+          />
+        </View>
+      </BottomSheet>
     );
   }
 );
+
+const styles = StyleSheet.create({
+  heading: {
+    fontFamily: fontFamily.display,
+    fontSize: 22,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  body: {
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing[6],
+  },
+  infoCard: {
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.fill.faint,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    marginBottom: spacing[6],
+    gap: spacing[2],
+  },
+  infoTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+  infoBody: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.text.secondary,
+    marginBottom: spacing[1],
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  benefitText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  actions: {
+    gap: spacing[3],
+  },
+});

@@ -22,14 +22,19 @@ jest.mock('@/hooks/useCustomQuestStory', () => ({
   useCustomQuestStory: jest.fn(() => null),
 }));
 
-// Mock sub-components
+// Mock sub-components — the real Header/Story/Actions get their own
+// dedicated test files; here we only verify QuestComplete wires the right
+// props through to each (fromJournal, onBack, hasReflection, etc).
 jest.mock('./quest-complete/QuestCompleteHeader', () => ({
-  QuestCompleteHeader: ({ quest }: any) => {
-    const { View, Text } = require('react-native');
+  QuestCompleteHeader: ({ quest, fromJournal, onBack }: any) => {
+    const { View, Text, Pressable } = require('react-native');
     return (
       <View testID="quest-complete-header">
-        <Text>Quest Complete!</Text>
         {quest.title && <Text>{quest.title}</Text>}
+        <Text>{fromJournal ? 'journal-header' : 'flow-header'}</Text>
+        <Pressable testID="header-back-button" onPress={onBack}>
+          <Text>Back</Text>
+        </Pressable>
       </View>
     );
   },
@@ -47,27 +52,35 @@ jest.mock('./quest-complete/QuestCompleteStory', () => ({
 }));
 
 jest.mock('./quest-complete/QuestCompleteActions', () => ({
-  QuestCompleteActions: ({ continueText, onContinue }: any) => {
+  QuestCompleteActions: ({
+    continueText,
+    onContinue,
+    fromJournal,
+    hasReflection,
+  }: any) => {
     const { View, Pressable, Text } = require('react-native');
     const { useQuestStore } = require('@/store/quest-store');
 
     return (
       <View testID="quest-complete-actions">
-        <Pressable
-          onPress={() => {
-            const clearRecentCompletedQuest = useQuestStore(
-              (state: any) => state.clearRecentCompletedQuest
-            );
-            clearRecentCompletedQuest();
-            if (onContinue) {
-              onContinue();
-            } else {
-              require('expo-router').router.push('/(app)');
-            }
-          }}
-        >
-          <Text>{continueText}</Text>
-        </Pressable>
+        <Text>{hasReflection ? 'has-reflection' : 'no-reflection'}</Text>
+        {!fromJournal && (
+          <Pressable
+            onPress={() => {
+              const clearRecentCompletedQuest = useQuestStore(
+                (state: any) => state.clearRecentCompletedQuest
+              );
+              clearRecentCompletedQuest();
+              if (onContinue) {
+                onContinue();
+              } else {
+                require('expo-router').router.push('/(app)');
+              }
+            }}
+          >
+            <Text>{continueText}</Text>
+          </Pressable>
+        )}
       </View>
     );
   },
@@ -139,6 +152,63 @@ describe('QuestComplete', () => {
       expect(getByTestId('quest-complete-header')).toBeTruthy();
       expect(getByTestId('quest-complete-story')).toBeTruthy();
       expect(queryByTestId('quest-complete-actions')).toBeNull();
+    });
+  });
+
+  describe('fromJournal context (quest-flow.jsx fromJournal flag)', () => {
+    it('defaults to the quest-flow context (fromJournal=false) when unset', () => {
+      const { getByText } = render(
+        <QuestComplete quest={mockStoryQuest} story="Test story" />
+      );
+      expect(getByText('flow-header')).toBeTruthy();
+    });
+
+    it('passes fromJournal through to the header', () => {
+      const { getByText } = render(
+        <QuestComplete quest={mockStoryQuest} story="Test story" fromJournal />
+      );
+      expect(getByText('journal-header')).toBeTruthy();
+    });
+
+    it('passes hasReflection through to actions', () => {
+      const { getByText } = render(
+        <QuestComplete
+          quest={mockStoryQuest}
+          story="Test story"
+          hasReflection
+        />
+      );
+      expect(getByText('has-reflection')).toBeTruthy();
+    });
+  });
+
+  describe('Back navigation', () => {
+    it('calls the provided onBack handler when the back button is pressed', () => {
+      const onBack = jest.fn();
+      const { getByTestId } = render(
+        <QuestComplete
+          quest={mockStoryQuest}
+          story="Test story"
+          onBack={onBack}
+        />
+      );
+
+      fireEvent.press(getByTestId('header-back-button'));
+      expect(onBack).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to onContinue when onBack is not provided (matches quest-flow.jsx:125)', () => {
+      const onContinue = jest.fn();
+      const { getByTestId } = render(
+        <QuestComplete
+          quest={mockStoryQuest}
+          story="Test story"
+          onContinue={onContinue}
+        />
+      );
+
+      fireEvent.press(getByTestId('header-back-button'));
+      expect(onContinue).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -273,15 +343,17 @@ describe('QuestComplete', () => {
     });
   });
 
-  describe('Background', () => {
-    it('should render background image', () => {
+  describe('Layout', () => {
+    it('does not force-spread content across the full screen height, so short content (e.g. no story card) does not leave a big gap below the image', () => {
       const { UNSAFE_getByType } = render(
-        <QuestComplete quest={mockStoryQuest} story="Test story" />
+        <QuestComplete quest={mockCooperativeQuest} story="Coop quest text" />
       );
 
-      const Image = require('@/components/ui').Image;
-      const images = UNSAFE_getByType(Image);
-      expect(images).toBeTruthy();
+      const { ScrollView } = require('react-native');
+      const scrollView = UNSAFE_getByType(ScrollView);
+      expect(
+        scrollView.props.contentContainerStyle?.justifyContent
+      ).not.toBe('space-between');
     });
   });
 });

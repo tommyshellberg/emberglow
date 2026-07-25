@@ -1,33 +1,60 @@
-import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, useRootNavigationState } from 'expo-router';
+import { Book, Compass, Map, Settings, User } from 'lucide-react-native';
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import colors, { white } from '@/components/ui/colors';
 import { useAuth } from '@/lib/auth';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
-import { useUserStore } from '@/store/user-store';
+import {
+  colors,
+  fontFamily,
+  fontSize,
+  palette,
+  radii,
+  shadows,
+  withAlpha,
+} from '@/theme';
+
+/** Default hit size for side tab icons (Journal, Map, Profile, Settings). */
+const TAB_ICON_SIZE = 22;
+
+/**
+ * Height of the tab bar's visible content zone, measured above the bottom
+ * safe-area inset. react-navigation returns a numeric `tabBarStyle.height`
+ * verbatim and skips its own `+ insets.bottom` (see `getTabBarHeight` in
+ * BottomTabBar), so a flat height silently swallows the inset — the bar's top
+ * edge then rides ~1 nav-bar higher on every Android device, squeezing the
+ * scene above it. Add the inset explicitly instead.
+ */
+const TAB_BAR_CONTENT_HEIGHT = 56;
+
+/** Raised center-orb geometry. */
+const ORB_SIZE = 56;
+const ORB_RAISE = -20;
 
 // Tab icon component
 function TabBarIcon({
-  name,
+  icon,
   color,
-  size = 24,
+  size = TAB_ICON_SIZE,
   focused = false,
 }: {
-  name: React.ComponentProps<typeof Feather>['name'];
+  icon: React.ReactElement<{
+    color?: string;
+    size?: number;
+    style?: StyleProp<ViewStyle>;
+  }>;
   color: string;
   size?: number;
   focused?: boolean;
 }) {
-  return (
-    <Feather
-      name={name}
-      size={size}
-      color={color}
-      style={focused ? { opacity: 1 } : { opacity: 0.8 }}
-    />
-  );
+  return React.cloneElement(icon, {
+    color,
+    size,
+    style: focused ? { opacity: 1 } : { opacity: 0.8 },
+  });
 }
 
 // Custom center button component
@@ -38,18 +65,30 @@ function CenterButton({
   color?: string; // Unused but required by the tab bar API
 }) {
   return (
-    <View className="-mt-5 items-center justify-center">
+    <View
+      style={{
+        marginTop: ORB_RAISE,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <View
         style={{
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: focused ? colors.primary[300] : colors.primary[400],
+          width: ORB_SIZE,
+          height: ORB_SIZE,
+          borderRadius: radii.pill,
+          backgroundColor: focused
+            ? colors.accent.primaryHover
+            : colors.accent.primary,
+          borderWidth: 2,
+          borderColor: withAlpha(palette.bone, 0.18),
           alignItems: 'center',
           justifyContent: 'center',
+          ...shadows.glowEmber,
+          elevation: shadows.raised.elevation,
         }}
       >
-        <Feather name="compass" size={28} color={white} />
+        <Compass size={26} color={colors.text.onAccent} />
       </View>
     </View>
   );
@@ -57,28 +96,16 @@ function CenterButton({
 
 export default function TabLayout() {
   const navigationState = useRootNavigationState();
+  const insets = useSafeAreaInsets();
 
   // Activate lock detection for the whole main app.
   useLockStateDetection();
 
   const authStatus = useAuth((state) => state.status);
-  const { user } = useUserStore.getState();
-  console.log(
-    ' 👤 [AppLayout] the user is a provisional user: ',
-    user?.isProvisional
-  );
 
   // Auth protection
   if (authStatus === 'signOut') {
-    console.log('[AppLayout] Redirecting to login - not authenticated');
     return <Redirect href="/login" />;
-  }
-
-  // provisional users shouldn't be here, cause a login so they can create an account
-  if (user && user?.isProvisional) {
-    console.log(
-      '[AppLayout] Redirecting to login - provisional user trying to access protected app route.'
-    );
   }
 
   // Check if navigation is ready
@@ -91,17 +118,17 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarActiveTintColor: colors.white, // Warm cream for active tabs
-        tabBarInactiveTintColor: colors.neutral[200], // Light gray for inactive tabs
-        sceneContainerStyle: {
-          backgroundColor: colors.black,
+        tabBarActiveTintColor: colors.text.primary,
+        tabBarInactiveTintColor: colors.text.muted,
+        sceneStyle: {
+          backgroundColor: colors.surface.app,
         },
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface.overlay,
           borderTopWidth: 1,
-          borderTopColor: colors.neutral[300], // Medium gray for borders
-          height: 120,
-          paddingBottom: 20,
+          borderTopColor: colors.border.hairline,
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
           // Hide tab bar for quest screens and pending-quest
           display:
             ['pending-quest', 'quest-discovery', 'invitation-waiting'].includes(
@@ -111,7 +138,8 @@ export default function TabLayout() {
               : 'flex',
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontFamily: fontFamily.semibold,
+          fontSize: fontSize.caption,
           marginBottom: 6,
           paddingTop: 2,
         },
@@ -122,7 +150,7 @@ export default function TabLayout() {
         options={{
           title: 'Journal',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="book" color={color} focused={focused} />
+            <TabBarIcon icon={<Book />} color={color} focused={focused} />
           ),
           tabBarButtonTestID: 'journal-tab',
         }}
@@ -133,7 +161,7 @@ export default function TabLayout() {
         options={{
           title: 'Map',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="map" color={color} focused={focused} />
+            <TabBarIcon icon={<Map />} color={color} focused={focused} />
           ),
           tabBarButtonTestID: 'map-tab',
         }}
@@ -148,7 +176,8 @@ export default function TabLayout() {
           ),
           tabBarButtonTestID: 'new-quest-tab',
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontFamily: fontFamily.semibold,
+            fontSize: fontSize.caption,
             marginTop: 8,
             paddingTop: 2,
           },
@@ -160,7 +189,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="user" color={color} focused={focused} />
+            <TabBarIcon icon={<User />} color={color} focused={focused} />
           ),
           tabBarButtonTestID: 'profile-tab',
         }}
@@ -171,7 +200,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="settings" color={color} focused={focused} />
+            <TabBarIcon icon={<Settings />} color={color} focused={focused} />
           ),
           tabBarButtonTestID: 'settings-tab',
         }}
@@ -242,6 +271,13 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="guild/create"
+        options={{
+          href: null,
+        }}
+      />
+      {/* Dev-only Emberglow component gallery — not linked from any menu, reached by URL. */}
+      <Tabs.Screen
+        name="emberglow-gallery"
         options={{
           href: null,
         }}

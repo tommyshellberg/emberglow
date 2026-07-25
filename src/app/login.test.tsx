@@ -14,13 +14,23 @@ jest.mock('expo-router', () => ({
   },
 }));
 
-// Mock the LoginForm component
+// Mock the LoginForm component. `intent` is echoed as text (via String(),
+// so an undefined prop renders "intent:undefined" and fails loudly rather
+// than rendering nothing) — this suite owns the param parsing, while
+// login-form.test.tsx owns what the resolved copy renders as.
 jest.mock('@/components/login-form', () => ({
-  LoginForm: ({ initialError }: { initialError?: string | null }) => {
+  LoginForm: ({
+    initialError,
+    intent,
+  }: {
+    initialError?: string | null;
+    intent?: string;
+  }) => {
     const { View, Text } = require('react-native');
     return (
       <View testID="login-form">
         {initialError && <Text testID="initial-error">{initialError}</Text>}
+        <Text testID="login-intent">{`intent:${String(intent)}`}</Text>
       </View>
     );
   },
@@ -101,5 +111,48 @@ describe('Login Screen', () => {
 
     expect(screen.getByTestId('login-form')).toBeOnTheScreen();
     expect(screen.getByText(errorMessage)).toBeOnTheScreen();
+  });
+
+  describe('intent param', () => {
+    it('passes the convert intent through when arriving from the conversion screen', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: 'convert',
+      });
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:convert')).toBeOnTheScreen();
+    });
+
+    it('defaults to the signin intent when no param is present', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({});
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
+
+    it('falls back to the signin intent for an unrecognised value', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: 'nonsense',
+      });
+
+      setup(<Login />);
+
+      // Not `intent:nonsense` — an unvalidated cast would key the copy
+      // table with it and render undefined copy.
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
+
+    it('falls back to the signin intent when the param is repeated', () => {
+      // `?intent=convert&intent=signin` — expo-router hands back an array.
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: ['convert', 'signin'],
+      });
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
   });
 });

@@ -3,25 +3,28 @@
  *
  * Toggle between Friends and Global leaderboards.
  * Fully accessible with proper roles, labels, and states.
+ *
+ * No Emberglow segmented-control primitive exists yet, so this stays a
+ * bespoke `Pressable` pair, retinted from `@/theme`.
  */
 
 import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Pressable, Text, View } from '@/components/ui';
-
-import { A11Y, COLORS, STRINGS } from '@/features/leaderboard/constants/leaderboard-constants';
+import {
+  A11Y,
+  STRINGS,
+} from '@/features/leaderboard/constants/leaderboard-constants';
 import type { ScopeToggleProps } from '@/features/leaderboard/types/leaderboard-types';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
   return (
-    <View className="mb-4 flex-row rounded-full bg-gray-100 p-1">
+    <View style={styles.container}>
       {/* Friends Toggle */}
       <Pressable
         onPress={() => onScopeChange('friends')}
-        className="flex-1 rounded-full py-2"
-        style={
-          scope === 'friends' ? { backgroundColor: COLORS.selectedToggle } : {}
-        }
+        style={[styles.option, scope === 'friends' && styles.optionSelected]}
         accessible
         accessibilityRole={A11Y.roleButton}
         accessibilityLabel={A11Y.labelScopeToggleFriends}
@@ -29,11 +32,7 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
         accessibilityState={{ selected: scope === 'friends' }}
       >
         <Text
-          className="text-center font-semibold"
-          style={{
-            color:
-              scope === 'friends' ? COLORS.textPrimary : COLORS.textSecondary,
-          }}
+          style={[styles.label, scope === 'friends' && styles.labelSelected]}
         >
           {STRINGS.scopeFriends}
         </Text>
@@ -42,10 +41,7 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
       {/* Global Toggle */}
       <Pressable
         onPress={() => onScopeChange('global')}
-        className="flex-1 rounded-full py-2"
-        style={
-          scope === 'global' ? { backgroundColor: COLORS.selectedToggle } : {}
-        }
+        style={[styles.option, scope === 'global' && styles.optionSelected]}
         accessible
         accessibilityRole={A11Y.roleButton}
         accessibilityLabel={A11Y.labelScopeToggleGlobal}
@@ -53,11 +49,7 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
         accessibilityState={{ selected: scope === 'global' }}
       >
         <Text
-          className="text-center font-semibold"
-          style={{
-            color:
-              scope === 'global' ? COLORS.textPrimary : COLORS.textSecondary,
-          }}
+          style={[styles.label, scope === 'global' && styles.labelSelected]}
         >
           {STRINGS.scopeGlobal}
         </Text>
@@ -65,3 +57,32 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    marginBottom: spacing[4],
+    padding: spacing[1],
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.surface.inset,
+  },
+  option: {
+    flex: 1,
+    paddingVertical: spacing[2],
+    borderRadius: radii.pill,
+  },
+  optionSelected: {
+    backgroundColor: colors.accent.primary,
+  },
+  label: {
+    textAlign: 'center',
+    fontFamily: fontFamily.semibold,
+    fontSize: 15,
+    color: colors.text.secondary,
+  },
+  labelSelected: {
+    color: colors.text.onAccent,
+  },
+});

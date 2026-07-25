@@ -4,7 +4,7 @@ import React from 'react';
 
 import { verifyMagicLinkAndSignIn } from '@/api/auth';
 import { signOut } from '@/lib/auth';
-import { render, screen, waitFor } from '@/lib/test-utils';
+import { act, render, screen, waitFor } from '@/lib/test-utils';
 
 import MagicLinkVerifyScreen from './verify';
 
@@ -30,6 +30,13 @@ jest.mock('@/lib/auth', () => ({
 // Mock axios
 jest.mock('axios');
 
+// Stable capture fn so assertions can see calls (the global jest-setup mock
+// returns a fresh object per usePostHog call).
+const mockPosthogCapture = jest.fn();
+jest.mock('posthog-react-native', () => ({
+  usePostHog: () => ({ capture: mockPosthogCapture }),
+}));
+
 describe('MagicLinkVerifyScreen', () => {
   let mockReplace: jest.Mock;
 
@@ -42,6 +49,12 @@ describe('MagicLinkVerifyScreen', () => {
     (useRouter as jest.Mock).mockReturnValue({
       replace: mockReplace,
     });
+  });
+
+  afterEach(() => {
+    // The failure tests switch to fake timers for the delayed redirect —
+    // keep the restore local to this file.
+    jest.useRealTimers();
   });
 
   it('should show loading state initially', () => {
@@ -57,8 +70,9 @@ describe('MagicLinkVerifyScreen', () => {
 
     render(<MagicLinkVerifyScreen />);
 
-    // Check that loading indicator is shown
-    expect(screen.getByText('Verifying your login...')).toBeTruthy();
+    // Check that the verifying state is shown
+    expect(screen.getByText('Verifying your login')).toBeTruthy();
+    expect(screen.getByText('Stoking the fire — one moment.')).toBeTruthy();
   });
 
   it('should redirect to login with error when token is missing', async () => {
@@ -67,11 +81,14 @@ describe('MagicLinkVerifyScreen', () => {
 
     render(<MagicLinkVerifyScreen />);
 
-    // Check that it redirects to login with error
+    // Check that it redirects to login with error (immediately — the
+    // no-token branch has no error UI to pause on)
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith({
         pathname: '/login',
-        params: { error: 'No token found. Please try again.' },
+        params: {
+          error: "That link didn't work. Please request a fresh one.",
+        },
       });
     });
   });
@@ -96,6 +113,37 @@ describe('MagicLinkVerifyScreen', () => {
     expect(verifyMagicLinkAndSignIn).toHaveBeenCalledWith('valid-token');
   });
 
+  it('should capture signup_completed after successful verification', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      token: 'valid-token',
+    });
+    (verifyMagicLinkAndSignIn as jest.Mock).mockResolvedValue('app');
+
+    render(<MagicLinkVerifyScreen />);
+
+    await waitFor(() => {
+      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+        method: 'magic_link',
+      });
+    });
+  });
+
+  it('should not capture signup_completed when verification fails', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      token: 'bad-token',
+    });
+    (verifyMagicLinkAndSignIn as jest.Mock).mockRejectedValue(
+      new Error('expired')
+    );
+
+    render(<MagicLinkVerifyScreen />);
+
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalled();
+    });
+    expect(mockPosthogCapture).not.toHaveBeenCalledWith('signup_completed');
+  });
+
   it('should redirect to onboarding when verification returns onboarding target', async () => {
     // Mock params with a valid token
     (useLocalSearchParams as jest.Mock).mockReturnValue({
@@ -116,7 +164,9 @@ describe('MagicLinkVerifyScreen', () => {
     expect(verifyMagicLinkAndSignIn).toHaveBeenCalledWith('valid-token');
   });
 
-  it('should handle verification failure and redirect to login', async () => {
+  it('should sign out, pause, then redirect to login when verification fails', async () => {
+    jest.useFakeTimers();
+
     // Mock params with a token
     (useLocalSearchParams as jest.Mock).mockReturnValue({
       token: 'invalid-token',
@@ -129,24 +179,37 @@ describe('MagicLinkVerifyScreen', () => {
 
     render(<MagicLinkVerifyScreen />);
 
-    // Check that it signs out
-    await waitFor(() => {
-      expect(signOut).toHaveBeenCalled();
+    // Let the rejected verification promise settle
+    await act(async () => {
+      await Promise.resolve();
     });
 
-    // Check that it redirects to login with error
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith({
-        pathname: '/login',
-        params: {
-          error:
-            'Magic link verification failed. The link may have expired. Please try again.',
-        },
-      });
+    // signOut fires as soon as verification fails — before the redirect
+    // is even scheduled
+    expect(signOut).toHaveBeenCalled();
+
+    // The redirect is deliberately delayed so the error state is readable
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    // Advance past the pause
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // Exactly one redirect, carrying the error copy for login's banner
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/login',
+      params: {
+        error:
+          "That link has expired. It's okay — enter your email and we'll send a fresh one.",
+      },
     });
   });
 
-  it('should show error message when verification fails', async () => {
+  it('should show the error state when verification fails', async () => {
+    jest.useFakeTimers();
+
     // Mock params with a token
     (useLocalSearchParams as jest.Mock).mockReturnValue({
       token: 'invalid-token',
@@ -159,18 +222,20 @@ describe('MagicLinkVerifyScreen', () => {
 
     render(<MagicLinkVerifyScreen />);
 
-    // Wait for error message to be shown
-    await waitFor(() => {
-      expect(screen.getByText(/Magic link verification failed/)).toBeTruthy();
+    // Let the rejected verification promise settle
+    await act(async () => {
+      await Promise.resolve();
     });
 
-    // Wait for redirect message to be shown
-    await waitFor(() => {
-      expect(screen.getByText('Redirecting to login...')).toBeTruthy();
-    });
+    // The full error state is visible during the pre-redirect pause
+    expect(screen.getByText('This link has gone cold')).toBeTruthy();
+    expect(screen.getByText(/That link has expired/)).toBeTruthy();
+    expect(screen.getByText('Redirecting to login…')).toBeTruthy();
   });
 
   it('should show specific error message for 409 email already in use', async () => {
+    jest.useFakeTimers();
+
     // Mock params with a token
     (useLocalSearchParams as jest.Mock).mockReturnValue({
       token: 'provisional-token',
@@ -186,35 +251,39 @@ describe('MagicLinkVerifyScreen', () => {
     };
 
     // Mock axios.isAxiosError to return true for our mock error
-    (axios.isAxiosError as jest.Mock).mockReturnValue(true);
+    (axios.isAxiosError as unknown as jest.Mock).mockReturnValue(true);
 
     (verifyMagicLinkAndSignIn as jest.Mock).mockRejectedValue(axiosError);
 
     render(<MagicLinkVerifyScreen />);
 
+    // Let the rejected verification promise settle
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     // Check that it signs out
-    await waitFor(() => {
-      expect(signOut).toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalled();
+
+    // The 409 keeps its distinct email-in-use copy on screen (not merged
+    // into the generic expired-link message)
+    expect(
+      screen.getByText(/This email is already tied to another account/)
+    ).toBeTruthy();
+
+    // Advance past the pause
+    act(() => {
+      jest.advanceTimersByTime(3000);
     });
 
-    // Check that it redirects to login with specific 409 error message
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith({
-        pathname: '/login',
-        params: {
-          error:
-            'This email address is already associated with an account. Please use a different email address.',
-        },
-      });
-    });
-
-    // Wait for specific error message to be shown
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /This email address is already associated with an account/
-        )
-      ).toBeTruthy();
+    // Exactly one redirect, carrying the 409 copy for login's banner
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/login',
+      params: {
+        error:
+          'This email is already tied to another account. Please sign in with a different email.',
+      },
     });
   });
 });

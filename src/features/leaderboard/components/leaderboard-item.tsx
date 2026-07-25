@@ -7,86 +7,116 @@
 
 import { Trophy } from 'lucide-react-native';
 import React from 'react';
-import { Image } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import CHARACTERS from '@/app/data/characters';
-import { Text, View } from '@/components/ui';
-
-import { COLORS, STRINGS, UI_CONFIG } from '@/features/leaderboard/constants/leaderboard-constants';
+import { ListItem } from '@/components/emberglow';
+import {
+  STRINGS,
+  UI_CONFIG,
+} from '@/features/leaderboard/constants/leaderboard-constants';
 import type { LeaderboardItemProps } from '@/features/leaderboard/types/leaderboard-types';
 import { getMetricLabel } from '@/features/leaderboard/utils/leaderboard-utils';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  spacing,
+  withAlpha,
+} from '@/theme';
+
+const CURRENT_USER_HIGHLIGHT = withAlpha(palette.sandy, 0.08);
 
 export function LeaderboardItem({ entry, type }: LeaderboardItemProps) {
   const character = CHARACTERS.find((c) => c.id === entry.characterType);
   const metricLabel = getMetricLabel(type, entry.metric);
 
-  const isTopThree = entry.rank && entry.rank <= 3;
+  const isTopThree = !!entry.rank && entry.rank <= 3;
 
   return (
     <View
-      className="flex-row items-center px-4 py-3"
-      style={
-        entry.isCurrentUser
-          ? { backgroundColor: COLORS.currentUserHighlight }
-          : {}
-      }
+      style={styles.row}
       accessible
       accessibilityLabel={`${entry.rank ? `Rank ${entry.rank}` : 'Your position'}, ${entry.username}${entry.isCurrentUser ? ', you' : ''}${entry.isFriend ? ', friend' : ''}, ${metricLabel}`}
     >
       {/* Rank Number */}
-      <Text
-        className={`${UI_CONFIG.rankWidth} text-lg font-bold`}
-        style={{ color: isTopThree ? COLORS.gold : COLORS.textSecondary }}
-      >
+      <Text style={[styles.rank, isTopThree && styles.rankTop]}>
         {entry.rank || ''}
       </Text>
 
-      {/* Character Avatar */}
-      <Image
-        source={character?.profileImage}
-        className="ml-3 size-10 rounded-full bg-gray-300"
-        accessibilityLabel={`${entry.username}'s character avatar`}
-      />
-
-      {/* Username and Friend Badge */}
-      <View className="ml-3 flex-1">
-        <Text
-          className="font-semibold"
-          style={{
-            color: COLORS.textPrimary,
-          }}
-        >
-          {entry.username}
-          {entry.isCurrentUser && (
-            <Text className="text-sm" style={{ color: COLORS.textSecondary }}>
-              {STRINGS.currentUserSuffix}
-            </Text>
-          )}
-        </Text>
-        {entry.isFriend && !entry.isCurrentUser && (
-          <Text className="text-xs" style={{ color: COLORS.textSecondary }}>
-            {STRINGS.friendLabel}
-          </Text>
-        )}
-      </View>
-
-      {/* Metric Value */}
-      <Text
-        className="text-lg font-bold"
-        style={{ color: COLORS.secondaryAccent }}
-      >
-        {metricLabel}
-      </Text>
-
-      {/* Trophy Icon for First Place */}
-      {entry.rank === 1 && (
-        <Trophy
-          size={UI_CONFIG.iconSizeSmall}
-          color={COLORS.gold}
-          className="ml-2"
-          accessibilityLabel="First place trophy"
+      <View style={styles.itemWrapper}>
+        <ListItem
+          style={entry.isCurrentUser ? styles.currentUserItem : undefined}
+          leading={
+            <Image
+              source={character?.profileImage}
+              style={styles.avatar}
+              accessibilityLabel={`${entry.username}'s character avatar`}
+            />
+          }
+          title={
+            entry.isCurrentUser
+              ? `${entry.username}${STRINGS.currentUserSuffix}`
+              : entry.username
+          }
+          subtitle={
+            entry.isFriend && !entry.isCurrentUser
+              ? STRINGS.friendLabel
+              : undefined
+          }
+          trailing={
+            <View style={styles.trailing}>
+              <Text style={styles.metric}>{metricLabel}</Text>
+              {entry.rank === 1 && (
+                <Trophy
+                  size={UI_CONFIG.iconSizeSmall}
+                  color={palette.sandy}
+                  accessibilityLabel="First place trophy"
+                />
+              )}
+            </View>
+          }
         />
-      )}
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rank: {
+    width: 32,
+    textAlign: 'center',
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
+    color: colors.text.secondary,
+  },
+  rankTop: {
+    color: palette.sandy,
+  },
+  itemWrapper: {
+    flex: 1,
+  },
+  currentUserItem: {
+    backgroundColor: CURRENT_USER_HIGHLIGHT,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radii.md,
+  },
+  trailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  metric: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 18,
+    color: colors.text.secondary,
+  },
+});

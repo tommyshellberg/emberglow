@@ -15,37 +15,14 @@ import { Alert } from 'react-native';
 
 // Mock dependencies
 jest.mock('expo-contacts');
+// react-native's index re-exports Alert as `require('.../Alert').default`
+// (Alert.js is `export default Alert`), so the mock needs a `default` key -
+// a bare `{ alert: jest.fn() }` resolves to `Alert === undefined` under RN 0.79.
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
-  alert: jest.fn(),
+  default: {
+    alert: jest.fn(),
+  },
 }));
-
-// Mock UI components without requireActual to avoid module resolution issues
-jest.mock('@/components/ui', () => {
-  const React = jest.requireActual('react');
-  const RN = jest.requireActual('react-native');
-
-  return {
-    Modal: ({ children, title }: any) =>
-      React.createElement('div', { testID: 'modal', title }, children),
-    useModal: () => ({
-      ref: { current: null },
-      present: jest.fn(),
-      dismiss: jest.fn(),
-    }),
-    View: RN.View,
-    Text: RN.Text,
-    TouchableOpacity: RN.TouchableOpacity,
-    ActivityIndicator: RN.ActivityIndicator,
-    FlatList: RN.FlatList,
-    ScrollView: RN.ScrollView,
-    Button: ({ title, label, onPress }: any) =>
-      React.createElement(
-        RN.TouchableOpacity,
-        { onPress },
-        React.createElement(RN.Text, {}, title || label)
-      ),
-  };
-});
 
 describe('ContactsImportModal Integration Tests', () => {
   let queryClient: QueryClient;

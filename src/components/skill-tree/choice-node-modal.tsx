@@ -1,11 +1,15 @@
 import { Check } from 'lucide-react-native';
-import React from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import * as React from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import type { Perk } from '@/api/skill-tree/types';
-import { Text } from '@/components/ui';
-import { Modal, useModal } from '@/components/ui/modal';
+import {
+  BottomSheet,
+  ListItem,
+  useEmberglowBottomSheet,
+} from '@/components/emberglow';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 interface ChoiceNodeModalProps {
   perk: Perk;
@@ -20,16 +24,11 @@ export function ChoiceNodeModal({
   onSelectChoice,
   isLoading = false,
 }: ChoiceNodeModalProps) {
-  const { ref, present, dismiss } = useModal();
+  const { ref, present } = useEmberglowBottomSheet();
 
   React.useEffect(() => {
     present();
   }, [present]);
-
-  const handleClose = () => {
-    dismiss();
-    onClose();
-  };
 
   const handleSelectChoice = (choiceId: string) => {
     if (isLoading) return;
@@ -37,89 +36,109 @@ export function ChoiceNodeModal({
   };
 
   return (
-    <Modal
-      ref={ref}
-      snapPoints={['70%']}
-      title={perk.name}
-      onDismiss={onClose}
-      backgroundStyle={{
-        backgroundColor: '#2c456b', // cardBackground
-      }}
-      handleIndicatorStyle={{
-        backgroundColor: '#8FA5B2', // neutral-200
-      }}
-    >
-      <View className="flex-1 px-4 pb-6">
-        {/* Perk Description */}
-        <Animated.View entering={FadeIn.duration(300)} className="mb-6">
-          <Text className="text-center text-base leading-6 text-cream-500/80">
-            {perk.description}
-          </Text>
-        </Animated.View>
+    <BottomSheet ref={ref} title={perk.name} onDismiss={onClose}>
+      {/* Perk Description */}
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        style={styles.descriptionBlock}
+      >
+        <Text style={styles.description}>{perk.description}</Text>
+      </Animated.View>
 
-        {/* Instruction */}
-        <Animated.View
-          entering={FadeIn.delay(100).duration(300)}
-          className="mb-4"
-        >
-          <Text className="text-center text-sm font-semibold text-primary-400">
-            Choose Your Path
-          </Text>
-        </Animated.View>
+      {/* Instruction */}
+      <Animated.View
+        entering={FadeIn.delay(100).duration(300)}
+        style={styles.instructionBlock}
+      >
+        <Text style={styles.instruction}>Choose Your Path</Text>
+      </Animated.View>
 
-        {/* Choice Cards */}
-        <View className="gap-4">
-          {perk.choices?.map((choice, index) => (
-            <Animated.View
-              key={choice.id}
-              entering={FadeInDown.delay(200 + index * 100).duration(400)}
-            >
-              <Pressable
-                testID={`choice-button-${choice.id}`}
-                onPress={() => handleSelectChoice(choice.id)}
-                disabled={isLoading}
-                className={`rounded-lg border-2 border-neutral-400/30 bg-background/50 p-4 active:border-primary-400 ${isLoading ? 'opacity-50' : ''}`}
-              >
-                {/* Choice Header */}
-                <View className="mb-3 flex-row items-center justify-between">
-                  <Text className="flex-1 text-lg font-bold text-cream-500">
-                    {choice.name}
-                  </Text>
-                  <View className="ml-3 rounded-full bg-primary-400/20 p-1.5">
-                    <Check size={16} color="#E55838" />
-                  </View>
-                </View>
-
-                {/* Choice Description */}
-                <Text className="text-sm leading-5 text-cream-500/80">
-                  {choice.description}
-                </Text>
-
-                {/* Visual Indicator */}
-                <View className="mt-3 h-1 w-full rounded-full bg-primary-400/20" />
-              </Pressable>
-            </Animated.View>
-          ))}
-        </View>
-
-        {/* Loading Indicator */}
-        {isLoading && (
-          <View className="mt-6 items-center">
-            <ActivityIndicator size="small" color="#E55838" />
-            <Text className="mt-2 text-sm text-cream-500/60">Unlocking...</Text>
-          </View>
-        )}
-
-        {/* Helper Text */}
-        <Animated.View
-          entering={FadeIn.delay(600).duration(300)}
-          className="mt-6"
-        >
-          <Text className="text-center text-xs text-cream-500/40">
-            This choice is permanent unless you reset your skill tree
-          </Text>
-        </Animated.View>
+      {/* Choice Cards */}
+      <View style={styles.choiceList}>
+        {perk.choices?.map((choice, index) => (
+          <Animated.View
+            key={choice.id}
+            entering={FadeInDown.delay(200 + index * 100).duration(400)}
+          >
+            <ListItem
+              testID={`choice-button-${choice.id}`}
+              title={choice.name}
+              subtitle={choice.description}
+              leading={<Check size={16} color={colors.text.accent} />}
+              onPress={() => handleSelectChoice(choice.id)}
+              style={styles.choiceItem}
+            />
+          </Animated.View>
+        ))}
       </View>
-    </Modal>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <View style={styles.loadingBlock}>
+          <ActivityIndicator size="small" color={colors.accent.primary} />
+          <Text style={styles.loadingText}>Unlocking...</Text>
+        </View>
+      )}
+
+      {/* Helper Text */}
+      <Animated.View
+        entering={FadeIn.delay(600).duration(300)}
+        style={styles.helperBlock}
+      >
+        <Text style={styles.helperText}>
+          This choice is permanent unless you reset your skill tree
+        </Text>
+      </Animated.View>
+    </BottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  descriptionBlock: {
+    marginBottom: spacing[5],
+  },
+  description: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  instructionBlock: {
+    marginBottom: spacing[4],
+  },
+  instruction: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 14,
+    color: colors.text.accent,
+    textAlign: 'center',
+  },
+  choiceList: {
+    gap: spacing[4],
+  },
+  choiceItem: {
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.inset,
+  },
+  loadingBlock: {
+    marginTop: spacing[6],
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing[2],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+  },
+  helperBlock: {
+    marginTop: spacing[6],
+  },
+  helperText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    color: colors.text.muted,
+    textAlign: 'center',
+  },
+});

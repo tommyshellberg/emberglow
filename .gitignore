@@ -76,7 +76,13 @@ credentials.json
 CLAUDE.md
 docs/
 
+# Superpowers brainstorming mockups
+.superpowers/
+
 .worktrees/
 
 # TDD Guard local run state (machine/session-specific)
 .claude/tdd-guard/
+
+# Gradle build state inside local Expo modules
+modules/**/android/.gradle/

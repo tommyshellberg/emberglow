@@ -7,11 +7,16 @@
 
 import { Trophy, Users } from 'lucide-react-native';
 import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Text, View } from '@/components/ui';
-
-import { A11Y, COLORS, STRINGS, UI_CONFIG } from '@/features/leaderboard/constants/leaderboard-constants';
+import { Button } from '@/components/emberglow';
+import {
+  A11Y,
+  STRINGS,
+  UI_CONFIG,
+} from '@/features/leaderboard/constants/leaderboard-constants';
 import type { EmptyStateProps } from '@/features/leaderboard/types/leaderboard-types';
+import { colors, fontFamily, radii, shadows, spacing } from '@/theme';
 
 export function EmptyStates({
   scope,
@@ -23,74 +28,57 @@ export function EmptyStates({
   // Friends scope - user needs to sign in
   if (scope === 'friends' && !hasLeaderboardData) {
     return (
-      <Card className="mt-8 p-6">
-        <View className="items-center">
+      <View style={[styles.card, styles.cardSpacedTop]}>
+        <View style={styles.content}>
           <Users
             size={UI_CONFIG.iconSizeEmpty}
-            color={COLORS.iconEmpty}
-            className="mb-3"
+            color={colors.text.muted}
+            style={styles.icon}
           />
-          <Text
-            className="mb-2 text-lg font-bold"
-            style={{ color: COLORS.textPrimary }}
-          >
-            {STRINGS.emptySignInFriends}
-          </Text>
-          <Text className="text-center" style={{ color: COLORS.textSecondary }}>
-            {STRINGS.emptySignInMessage}
-          </Text>
+          <Text style={styles.title}>{STRINGS.emptySignInFriends}</Text>
+          <Text style={styles.message}>{STRINGS.emptySignInMessage}</Text>
         </View>
-      </Card>
+      </View>
     );
   }
 
   // No data yet (either scope)
   if (!hasLeaderboardData) {
     return (
-      <Card className="mt-8 p-6">
-        <View className="items-center">
+      <View style={[styles.card, styles.cardSpacedTop]}>
+        <View style={styles.content}>
           <Trophy
             size={UI_CONFIG.iconSizeEmpty}
-            color={COLORS.iconEmpty}
-            className="mb-3"
+            color={colors.text.muted}
+            style={styles.icon}
           />
-          <Text
-            className="mb-2 text-lg font-bold"
-            style={{ color: COLORS.textPrimary }}
-          >
-            {STRINGS.emptyNoData}
-          </Text>
-          <Text className="text-center" style={{ color: COLORS.textSecondary }}>
+          <Text style={styles.title}>{STRINGS.emptyNoData}</Text>
+          <Text style={styles.message}>
             {scope === 'friends'
               ? STRINGS.emptyNoFriendsStarted
               : STRINGS.emptyCompleteQuests}
           </Text>
         </View>
-      </Card>
+      </View>
     );
   }
 
   // Friends scope - no friends yet, invite them
   if (scope === 'friends' && !hasFriends) {
     return (
-      <Card className="mb-4 p-6">
-        <View className="items-center">
+      <View style={[styles.card, styles.cardSpacedBottom]}>
+        <View style={styles.content}>
           <Users
             size={UI_CONFIG.iconSizeEmpty}
-            color={COLORS.iconEmpty}
-            className="mb-3"
+            color={colors.text.muted}
+            style={styles.icon}
           />
-          <Text
-            className="mb-2 text-lg font-bold"
-            style={{ color: COLORS.textPrimary }}
-          >
-            {STRINGS.emptyInviteFriendsTitle}
-          </Text>
-          <Text className="text-center" style={{ color: COLORS.textSecondary }}>
+          <Text style={styles.title}>{STRINGS.emptyInviteFriendsTitle}</Text>
+          <Text style={styles.message}>
             {STRINGS.emptyInviteFriendsMessage}
           </Text>
         </View>
-      </Card>
+      </View>
     );
   }
 
@@ -110,30 +98,73 @@ export function EmptyStates({
     }
 
     return (
-      <Card className="mb-4 p-6">
-        <View className="items-center">
-          <Text className="text-center" style={{ color: COLORS.textSecondary }}>
-            {message}
-          </Text>
+      <View style={[styles.card, styles.cardSpacedBottom]}>
+        <View style={styles.content}>
+          <Text style={styles.message}>{message}</Text>
         </View>
-      </Card>
+      </View>
     );
   }
 
   // Default: show invite friends button
   return (
-    <View className="mb-6 mt-4">
-      <Button
-        label={
-          hasFriends
-            ? STRINGS.inviteButtonHasFriends
-            : STRINGS.inviteButtonNoFriends
-        }
-        variant="default"
-        onPress={onInviteFriends}
+    <View style={styles.inviteWrapper}>
+      <View
+        accessible
+        accessibilityRole="button"
         accessibilityLabel={A11Y.labelInviteFriends}
         accessibilityHint={A11Y.hintInvite}
-      />
+      >
+        <Button
+          label={
+            hasFriends
+              ? STRINGS.inviteButtonHasFriends
+              : STRINGS.inviteButtonNoFriends
+          }
+          variant="primary"
+          fullWidth
+          onPress={onInviteFriends}
+        />
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[6],
+    ...shadows.card,
+  },
+  cardSpacedTop: {
+    marginTop: spacing[8],
+  },
+  cardSpacedBottom: {
+    marginBottom: spacing[4],
+  },
+  content: {
+    alignItems: 'center',
+  },
+  icon: {
+    marginBottom: spacing[3],
+  },
+  title: {
+    marginBottom: spacing[2],
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+  message: {
+    textAlign: 'center',
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    color: colors.text.secondary,
+  },
+  inviteWrapper: {
+    marginTop: spacing[4],
+    marginBottom: spacing[6],
+  },
+});

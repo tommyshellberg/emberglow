@@ -1,10 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useRef } from 'react';
 import { type Control, Controller } from 'react-hook-form';
-import { Dimensions, ScrollView } from 'react-native';
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-// Import UI components from project
-import { Pressable, Text, View } from '@/components/ui';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 // Category options with icons
 const categoryOptions = [
@@ -21,17 +27,13 @@ const categoryOptions = [
 
 type CategorySliderProps = {
   control: Control<any>;
-  questCategory: string;
 };
 
 const ITEM_WIDTH = 100;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const PADDING = 16;
+const PADDING = spacing[4];
 
-export const CategorySlider = ({
-  control,
-  questCategory,
-}: CategorySliderProps) => {
+export const CategorySlider = ({ control }: CategorySliderProps) => {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const scrollToCategory = (index: number) => {
@@ -45,10 +47,8 @@ export const CategorySlider = ({
   };
 
   return (
-    <View className="mb-4">
-      <Text className="mb-3 px-4 text-base text-neutral-200">
-        What type of activity?
-      </Text>
+    <View style={styles.container}>
+      <Text style={styles.sectionLabel}>What type of activity?</Text>
       <Controller
         control={control}
         render={({ field: { value, onChange } }) => (
@@ -56,10 +56,7 @@ export const CategorySlider = ({
             ref={scrollViewRef}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: PADDING,
-              paddingVertical: 8,
-            }}
+            contentContainerStyle={styles.scrollContent}
           >
             {categoryOptions.map((category, index) => {
               const isSelected = value === category.id;
@@ -67,10 +64,10 @@ export const CategorySlider = ({
                 <Pressable
                   key={category.id}
                   testID={`category-option-${category.id}`}
-                  className={`mx-1 items-center justify-center rounded-xl px-3 py-4 ${
-                    isSelected ? 'bg-primary-400' : 'bg-cardBackground'
-                  }`}
-                  style={{ width: ITEM_WIDTH - 8 }}
+                  style={[
+                    styles.pill,
+                    isSelected ? styles.pillSelected : styles.pillUnselected,
+                  ]}
                   onPress={() => {
                     onChange(category.id);
                     scrollToCategory(index);
@@ -83,13 +80,18 @@ export const CategorySlider = ({
                   <Feather
                     name={category.icon as any}
                     size={24}
-                    color={isSelected ? '#e8dcc7' : '#36B6D3'}
-                    style={{ marginBottom: 4 }}
+                    color={
+                      isSelected ? colors.text.onAccent : colors.text.accent
+                    }
+                    style={styles.icon}
                   />
                   <Text
-                    className={`text-center text-xs ${
-                      isSelected ? 'font-semibold text-white' : 'text-white'
-                    }`}
+                    style={[
+                      styles.label,
+                      isSelected
+                        ? styles.labelSelected
+                        : styles.labelUnselected,
+                    ]}
                     numberOfLines={1}
                   >
                     {category.label}
@@ -104,3 +106,51 @@ export const CategorySlider = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: spacing[4],
+  },
+  sectionLabel: {
+    marginBottom: spacing[3],
+    paddingHorizontal: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    color: colors.text.secondary,
+  },
+  scrollContent: {
+    paddingHorizontal: PADDING,
+    paddingVertical: spacing[2],
+  },
+  pill: {
+    marginHorizontal: spacing[1],
+    width: ITEM_WIDTH - 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[4],
+  },
+  pillSelected: {
+    backgroundColor: colors.accent.primary,
+  },
+  pillUnselected: {
+    backgroundColor: colors.surface.raised,
+  },
+  icon: {
+    marginBottom: spacing[1],
+  },
+  label: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    color: colors.text.primary,
+  },
+  labelSelected: {
+    fontFamily: fontFamily.semibold,
+    color: colors.text.onAccent,
+  },
+  labelUnselected: {
+    color: colors.text.primary,
+  },
+});

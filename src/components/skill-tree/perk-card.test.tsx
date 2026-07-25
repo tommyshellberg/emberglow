@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 import type { Perk } from '@/api/skill-tree/types';
 import { fireEvent, render, screen } from '@/lib/test-utils';
@@ -211,14 +212,16 @@ describe('PerkCard', () => {
       render(<PerkCard perk={mockLockedPerk} currentLevel={3} />);
 
       const card = screen.getByTestId('perk-card-locked');
-      expect(card.props.className).toContain('opacity-50');
+      const flattened = StyleSheet.flatten(card.props.style);
+      expect(flattened.opacity).toBe(0.5);
     });
 
     it('does not apply reduced opacity for unlocked state', () => {
       render(<PerkCard perk={mockUnlockedPerk} currentLevel={5} />);
 
       const card = screen.getByTestId('perk-card-unlocked');
-      expect(card.props.className).not.toContain('opacity-50');
+      const flattened = StyleSheet.flatten(card.props.style);
+      expect(flattened.opacity).toBeUndefined();
     });
   });
 

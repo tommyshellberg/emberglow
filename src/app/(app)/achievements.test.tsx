@@ -1,5 +1,6 @@
 /* eslint-disable max-lines-per-function */
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
@@ -34,17 +35,11 @@ jest.mock('lucide-react-native', () => ({
   Watch: () => null,
 }));
 
-// Mock UI components
+// Mock UI components (layout chrome only — Badge comes from @/components/emberglow
+// and is rendered for real, it has no native dependencies)
 jest.mock('@/components/ui', () => {
   const RN = jest.requireActual('react-native');
   return {
-    View: RN.View,
-    Text: RN.Text,
-    Card: ({ children, ...props }: any) => (
-      <RN.View testID="card" {...props}>
-        {children}
-      </RN.View>
-    ),
     Pressable: RN.Pressable,
     ScrollView: RN.ScrollView,
     FocusAwareStatusBar: () => null,
@@ -56,11 +51,6 @@ jest.mock('@/components/ui', () => {
         <RN.Pressable onPress={onBackPress}>
           <RN.Text>Back</RN.Text>
         </RN.Pressable>
-      </RN.View>
-    ),
-    ProgressBar: ({ initialProgress }: any) => (
-      <RN.View testID="progress-bar">
-        <RN.Text testID="progress-value">{initialProgress}</RN.Text>
       </RN.View>
     ),
   };
@@ -329,15 +319,13 @@ describe('AchievementsScreen', () => {
       render(<AchievementsScreen />);
 
       // For 10-day streak requirement, 5/10 = 50%
-      const progressBars = screen.getAllByTestId('progress-bar');
-      expect(progressBars.length).toBeGreaterThan(0);
+      const fills = screen.getAllByTestId('progress-fill');
+      expect(fills.length).toBeGreaterThan(0);
 
-      // At least one should show 50
-      const progressValues = screen.getAllByTestId('progress-value');
-      const has50Percent = progressValues.some(
-        (el) => el.props.children === 50
+      const widths = fills.map(
+        (el) => StyleSheet.flatten(el.props.style).width
       );
-      expect(has50Percent).toBe(true);
+      expect(widths).toContain('50%');
     });
 
     it('caps progress at 100% when requirement is exceeded', () => {
@@ -358,10 +346,29 @@ describe('AchievementsScreen', () => {
       render(<AchievementsScreen />);
 
       // Even with 150 quests, progress should cap at 100%
-      const progressValues = screen.getAllByTestId('progress-value');
-      progressValues.forEach((el) => {
-        expect(el.props.children).toBeLessThanOrEqual(100);
+      const fills = screen.getAllByTestId('progress-fill');
+      expect(fills.length).toBeGreaterThan(0);
+
+      fills.forEach((el) => {
+        const width = StyleSheet.flatten(el.props.style).width as string;
+        expect(parseFloat(width)).toBeLessThanOrEqual(100);
       });
+    });
+
+    it('does not render a fill for achievements with zero progress', () => {
+      useCharacterStore.setState({ dailyQuestStreak: 0 });
+      useQuestStore.setState({
+        completedQuests: [],
+        getCompletedQuests: jest.fn(() => []),
+      });
+
+      render(<AchievementsScreen />);
+
+      // Every progress track renders, but a fill only appears once progress > 0
+      const tracks = screen.getAllByTestId('progress-track');
+      const fills = screen.queryAllByTestId('progress-fill');
+      expect(tracks.length).toBe(9);
+      expect(fills.length).toBe(0);
     });
   });
 
@@ -379,7 +386,7 @@ describe('AchievementsScreen', () => {
       render(<AchievementsScreen />);
 
       // Total of 9 achievement cards
-      const cards = screen.getAllByTestId('card');
+      const cards = screen.getAllByTestId('achievement-card');
       expect(cards.length).toBeGreaterThanOrEqual(9);
     });
   });
@@ -498,7 +505,7 @@ describe('AchievementsScreen', () => {
     it('renders achievement cards with accessible structure', () => {
       render(<AchievementsScreen />);
 
-      const cards = screen.getAllByTestId('card');
+      const cards = screen.getAllByTestId('achievement-card');
       expect(cards.length).toBeGreaterThan(0);
     });
 

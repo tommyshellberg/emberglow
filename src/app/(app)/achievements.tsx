@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   Award,
@@ -14,27 +15,33 @@ import {
   Watch,
 } from 'lucide-react-native';
 import React, { useRef } from 'react';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
+  type SharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
 
+import { Badge } from '@/components/emberglow';
 import {
-  Card,
   FocusAwareStatusBar,
-  ProgressBar,
   ScreenContainer,
   ScreenHeader,
   ScrollView,
-  Text,
-  View,
 } from '@/components/ui';
-import colors from '@/components/ui/colors';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  shadows,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 type AchievementCategory = 'streak' | 'quests' | 'minutes';
 type AchievementLevel = 1 | 2 | 3;
@@ -56,114 +63,17 @@ const CARD_WIDTH = SCREEN_WIDTH - 80; // 40px padding on each side
 const CARD_HEIGHT = 280; // Fixed height for all cards
 const CARD_SPACING = 16;
 
-// Dummy data
-const achievements: Achievement[] = [
-  // Streak achievements
-  {
-    id: 'streak-1',
-    category: 'streak',
-    level: 1,
-    title: 'First Steps',
-    description: 'Complete quests for 2 days in a row',
-    requirement: 2,
-    currentProgress: 1,
-    isUnlocked: false,
-  },
-  {
-    id: 'streak-2',
-    category: 'streak',
-    level: 2,
-    title: 'Committed',
-    description: 'Complete quests for 10 days in a row',
-    requirement: 10,
-    currentProgress: 1,
-    isUnlocked: false,
-  },
-  {
-    id: 'streak-3',
-    category: 'streak',
-    level: 3,
-    title: 'Unstoppable',
-    description: 'Complete quests for 30 days in a row',
-    requirement: 30,
-    currentProgress: 1,
-    isUnlocked: false,
-  },
-  // Quest achievements
-  {
-    id: 'quests-1',
-    category: 'quests',
-    level: 1,
-    title: 'Quest Beginner',
-    description: 'Complete 3 quests',
-    requirement: 3,
-    currentProgress: 2,
-    isUnlocked: false,
-  },
-  {
-    id: 'quests-2',
-    category: 'quests',
-    level: 2,
-    title: 'Quest Adventurer',
-    description: 'Complete 25 quests',
-    requirement: 25,
-    currentProgress: 2,
-    isUnlocked: false,
-  },
-  {
-    id: 'quests-3',
-    category: 'quests',
-    level: 3,
-    title: 'Quest Master',
-    description: 'Complete 100 quests',
-    requirement: 100,
-    currentProgress: 2,
-    isUnlocked: false,
-  },
-  // Minutes achievements
-  {
-    id: 'minutes-1',
-    category: 'minutes',
-    level: 1,
-    title: 'Time Saver',
-    description: 'Save 10 minutes off your phone',
-    requirement: 10,
-    currentProgress: 15,
-    isUnlocked: true,
-    unlockedAt: new Date('2024-01-15'),
-  },
-  {
-    id: 'minutes-2',
-    category: 'minutes',
-    level: 2,
-    title: 'Time Guardian',
-    description: 'Save 100 minutes off your phone',
-    requirement: 100,
-    currentProgress: 15,
-    isUnlocked: false,
-  },
-  {
-    id: 'minutes-3',
-    category: 'minutes',
-    level: 3,
-    title: 'Time Lord',
-    description: 'Save 1000 minutes off your phone',
-    requirement: 1000,
-    currentProgress: 15,
-    isUnlocked: false,
-  },
-];
-
 const AchievementCard = ({ achievement }: { achievement: Achievement }) => {
   const progress = Math.min(
     achievement.currentProgress / achievement.requirement,
     1
   );
+  const progressPercent = progress * 100;
 
   const getIcon = () => {
     const iconColor = achievement.isUnlocked
-      ? colors.white
-      : colors.neutral[200]; // Warm cream or neutral
+      ? colors.text.accent
+      : colors.text.muted;
     const iconSize = 32;
 
     if (achievement.category === 'streak') {
@@ -197,26 +107,23 @@ const AchievementCard = ({ achievement }: { achievement: Achievement }) => {
   };
 
   return (
-    <Card
-      style={{
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
-        backgroundColor: achievement.isUnlocked
-          ? colors.secondary[500]
-          : colors.cardBackground,
-      }}
-      className="p-6"
+    <View
+      style={[
+        styles.cardGlowWrapper,
+        achievement.isUnlocked && shadows.glowWarm,
+      ]}
     >
-      <View className="flex-1 justify-between">
+      <View
+        testID="achievement-card"
+        style={[styles.card, achievement.isUnlocked && styles.cardUnlocked]}
+      >
         <View>
-          <View className="mb-4 flex-row items-center justify-between">
+          <View style={styles.iconRow}>
             <View
-              style={{
-                backgroundColor: achievement.isUnlocked
-                  ? colors.secondary[300]
-                  : 'rgba(143, 165, 178, 0.25)',
-              }}
-              className="size-16 items-center justify-center rounded-full"
+              style={[
+                styles.iconDisc,
+                achievement.isUnlocked && styles.iconDiscUnlocked,
+              ]}
               accessible
               accessibilityLabel={`${achievement.category} achievement icon, level ${achievement.level}`}
             >
@@ -224,69 +131,94 @@ const AchievementCard = ({ achievement }: { achievement: Achievement }) => {
             </View>
 
             {achievement.isUnlocked && (
-              <View
-                style={{ backgroundColor: colors.secondary[300] }}
-                className="rounded-full px-3 py-1"
-                accessible
-                accessibilityLabel="Achievement unlocked"
-              >
-                <Text
-                  style={{ color: colors.white }}
-                  className="text-sm font-bold"
-                >
-                  Unlocked!
-                </Text>
+              <View accessible accessibilityLabel="Achievement unlocked">
+                <Badge tone="success">Unlocked!</Badge>
               </View>
             )}
           </View>
 
-          <Text style={{ color: colors.white }} className="text-xl font-bold">
-            {achievement.title}
-          </Text>
-
-          <Text style={{ color: colors.neutral[200] }} className="mt-2">
-            {achievement.description}
-          </Text>
+          <Text style={styles.title}>{achievement.title}</Text>
+          <Text style={styles.description}>{achievement.description}</Text>
         </View>
 
         <View>
-          <View className="mb-2 flex-row justify-between">
-            <Text
-              style={{ color: colors.white }}
-              className="text-sm font-semibold"
-            >
-              Progress
-            </Text>
-            <Text
-              style={{ color: colors.secondary[300] }}
-              className="text-sm font-bold"
-            >
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressLabel}>Progress</Text>
+            <Text style={styles.progressValue}>
               {achievement.currentProgress}/{achievement.requirement}
             </Text>
           </View>
 
-          <ProgressBar
-            initialProgress={progress * 100}
-            progressColor={
-              achievement.isUnlocked
-                ? colors.secondary[300]
-                : colors.neutral[200]
-            }
-            backgroundColor="rgba(143, 165, 178, 0.2)"
-          />
+          <View testID="progress-track" style={styles.progressTrack}>
+            {progress > 0 && (
+              <View
+                testID="progress-fill"
+                style={[
+                  styles.progressFillGlow,
+                  { width: `${progressPercent}%` },
+                ]}
+              >
+                <LinearGradient
+                  colors={[palette.cinnabar, palette.sandy]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.progressFillGradient}
+                />
+              </View>
+            )}
+          </View>
 
           {achievement.isUnlocked && achievement.unlockedAt && (
-            <Text
-              style={{ color: colors.neutral[200] }}
-              className="mt-3 text-xs"
-            >
+            <Text style={styles.unlockedDate}>
               Unlocked on {achievement.unlockedAt.toLocaleDateString()}
             </Text>
           )}
         </View>
       </View>
-    </Card>
+    </View>
   );
+};
+
+/**
+ * Extracted so `useAnimatedStyle` runs at a component's top level rather
+ * than inside the parent's `Array.map` callback (a `react-hooks/rules-of-hooks`
+ * violation) — same per-dot scale/opacity animation as before, legal hook call.
+ */
+const AchievementCarouselDot = ({
+  index,
+  scrollX,
+}: {
+  index: number;
+  scrollX: SharedValue<number>;
+}) => {
+  const inputRange = [
+    (index - 1) * (CARD_WIDTH + CARD_SPACING),
+    index * (CARD_WIDTH + CARD_SPACING),
+    (index + 1) * (CARD_WIDTH + CARD_SPACING),
+  ];
+
+  const dotStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.8, 1.4, 0.8],
+      'clamp'
+    );
+
+    const opacity = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.4, 1, 0.4],
+      'clamp'
+    );
+
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
+
+  return <Animated.View style={[styles.dot, dotStyle]} />;
 };
 
 const AchievementSection = ({
@@ -319,29 +251,24 @@ const AchievementSection = ({
   const getCategoryIcon = () => {
     switch (category) {
       case 'streak':
-        return <Target size={24} color={colors.secondary[300]} />;
+        return <Target size={24} color={colors.text.accent} />;
       case 'quests':
-        return <MapPinCheck size={24} color={colors.secondary[300]} />;
+        return <MapPinCheck size={24} color={colors.text.accent} />;
       case 'minutes':
-        return <Timer size={24} color={colors.secondary[300]} />;
+        return <Timer size={24} color={colors.text.accent} />;
     }
   };
 
   return (
-    <View className="mb-12">
+    <View style={styles.section}>
       <View
-        className="mb-4 flex-row items-center px-4"
+        style={styles.sectionHeader}
         accessible
         accessibilityRole="header"
         accessibilityLabel={`${getCategoryTitle()} achievements`}
       >
         {getCategoryIcon()}
-        <Text
-          style={{ color: colors.white }}
-          className="ml-2 text-lg font-bold"
-        >
-          {getCategoryTitle()}
-        </Text>
+        <Text style={styles.sectionTitle}>{getCategoryTitle()}</Text>
       </View>
 
       <Animated.ScrollView
@@ -353,10 +280,10 @@ const AchievementSection = ({
         scrollEventThrottle={16}
         snapToInterval={CARD_WIDTH + CARD_SPACING}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 40 }}
+        contentContainerStyle={styles.carouselContent}
       >
-        {achievements.map((achievement, index) => (
-          <View key={achievement.id} style={{ marginRight: CARD_SPACING }}>
+        {achievements.map((achievement) => (
+          <View key={achievement.id} style={styles.cardSpacer}>
             <AchievementCard achievement={achievement} />
           </View>
         ))}
@@ -364,46 +291,13 @@ const AchievementSection = ({
 
       {/* Page Indicators */}
       <View
-        className="mt-4 flex-row justify-center"
+        style={styles.dotsRow}
         accessible
         accessibilityLabel={`Achievement carousel, ${achievements.length} items`}
       >
-        {achievements.map((_, index) => {
-          const inputRange = [
-            (index - 1) * (CARD_WIDTH + CARD_SPACING),
-            index * (CARD_WIDTH + CARD_SPACING),
-            (index + 1) * (CARD_WIDTH + CARD_SPACING),
-          ];
-
-          const dotStyle = useAnimatedStyle(() => {
-            const scale = interpolate(
-              scrollX.value,
-              inputRange,
-              [0.8, 1.4, 0.8],
-              'clamp'
-            );
-
-            const opacity = interpolate(
-              scrollX.value,
-              inputRange,
-              [0.4, 1, 0.4],
-              'clamp'
-            );
-
-            return {
-              transform: [{ scale }],
-              opacity,
-            };
-          });
-
-          return (
-            <Animated.View
-              key={index}
-              style={[dotStyle]}
-              className="mx-1 size-2 rounded-full bg-primary-500"
-            />
-          );
-        })}
+        {achievements.map((_, index) => (
+          <AchievementCarouselDot key={index} index={index} scrollX={scrollX} />
+        ))}
       </View>
     </View>
   );
@@ -542,7 +436,7 @@ export default function AchievementsScreen() {
   const unlockedAchievements = achievements.filter((a) => a.isUnlocked).length;
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.root}>
       <FocusAwareStatusBar />
 
       <ScreenContainer>
@@ -555,9 +449,9 @@ export default function AchievementsScreen() {
         />
 
         <ScrollView
-          className="-mx-4 flex-1"
+          style={styles.scroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 20 }}
+          contentContainerStyle={styles.scrollContent}
         >
           {/* Achievement Sections */}
           <AchievementSection
@@ -573,9 +467,153 @@ export default function AchievementsScreen() {
             achievements={minutesAchievements}
           />
 
-          <View className="h-8" />
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </ScreenContainer>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface.app,
+  },
+  scroll: {
+    flex: 1,
+    marginHorizontal: -spacing[4],
+  },
+  scrollContent: {
+    paddingTop: spacing[5],
+  },
+  bottomSpacer: {
+    height: spacing[8],
+  },
+
+  section: {
+    marginBottom: spacing[12],
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing[4],
+    paddingHorizontal: spacing[4],
+  },
+  sectionTitle: {
+    marginLeft: spacing[2],
+    fontFamily: fontFamily.bold,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+
+  carouselContent: {
+    paddingHorizontal: 40,
+  },
+  cardSpacer: {
+    marginRight: CARD_SPACING,
+  },
+
+  cardGlowWrapper: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: radii.lg,
+  },
+  card: {
+    flex: 1,
+    ...shadows.card,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[6],
+    justifyContent: 'space-between',
+  },
+  cardUnlocked: {
+    borderColor: withAlpha(palette.sandy, 0.35),
+  },
+
+  iconRow: {
+    marginBottom: spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  iconDisc: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.fill.subtle,
+  },
+  iconDiscUnlocked: {
+    backgroundColor: withAlpha(palette.sandy, 0.18),
+  },
+
+  title: {
+    fontFamily: fontFamily.bold,
+    fontSize: 20,
+    color: colors.text.primary,
+  },
+  description: {
+    marginTop: spacing[2],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+
+  progressHeader: {
+    marginBottom: spacing[2],
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  progressValue: {
+    fontFamily: fontFamily.bold,
+    fontSize: 14,
+    color: colors.text.accent,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.track,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+  },
+  progressFillGlow: {
+    height: 6,
+    borderRadius: radii.pill,
+    shadowColor: palette.sandy,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 12,
+    shadowOpacity: 0.5,
+    elevation: 0,
+  },
+  progressFillGradient: {
+    flex: 1,
+    borderRadius: radii.pill,
+  },
+  unlockedDate: {
+    marginTop: spacing[3],
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    color: colors.text.muted,
+  },
+
+  dotsRow: {
+    marginTop: spacing[4],
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  dot: {
+    marginHorizontal: 4,
+    width: 8,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent.primary,
+  },
+});

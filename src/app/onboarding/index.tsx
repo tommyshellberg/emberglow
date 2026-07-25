@@ -13,7 +13,7 @@ export default function OnboardingIndex() {
     [OnboardingStep.VIEWING_INTRO]: '/onboarding/app-introduction',
     [OnboardingStep.REQUESTING_NOTIFICATIONS]: '/onboarding/app-introduction',
     [OnboardingStep.STARTING_FIRST_QUEST]: '/onboarding/first-quest',
-    [OnboardingStep.VIEWING_SIGNUP_PROMPT]: '/onboarding/signup-prompt',
+    [OnboardingStep.VIEWING_SIGNUP_PROMPT]: '/quest-completed-signup',
     [OnboardingStep.COMPLETED]: '/(app)',
   };
 

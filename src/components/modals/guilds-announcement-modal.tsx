@@ -2,55 +2,60 @@ import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import React, { forwardRef } from 'react';
-import { Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Modal, Text, View } from '@/components/ui';
+import { BottomSheet, Button } from '@/components/emberglow';
 import { GuildIcon } from '@/features/guilds/components/guild-icon';
-import { useSettingsStore } from '@/store/settings-store';
+import { useAnnouncementStore } from '@/store/announcement-store';
+import { colors, fontFamily, palette, radii, spacing } from '@/theme';
 
-/**
- * Sample guild preview to show users what a guild looks like
- */
+const SAMPLE_MEMBERS = [
+  {
+    initials: 'JM',
+    background: colors.accent.primary,
+    color: colors.text.onAccent,
+  },
+  { initials: 'SK', background: palette.sandy, color: palette.richBlack },
+  { initials: 'AL', background: palette.aegean, color: colors.text.primary },
+  {
+    initials: '+2',
+    background: colors.fill.subtle,
+    color: colors.text.primary,
+  },
+];
+
+/** Sample guild preview to show users what a guild looks like. */
 function GuildPreviewCard() {
   return (
-    <Card className="border-guild-300/30 bg-guild-500/40 rounded-2xl border p-4">
-      <View className="flex-row items-center">
-        {/* Guild Icon */}
-        <View className="mr-3">
-          <GuildIcon icon="flame" size={28} showBackground />
-        </View>
-
-        {/* Guild Info */}
-        <View className="flex-1">
-          <Text className="text-lg font-bold text-cream-500">
-            Morning Runners
-          </Text>
-          <Text className="mt-0.5 text-sm italic text-cream-300">
-            "Rise and grind together"
-          </Text>
+    <View style={styles.previewCard}>
+      <View style={styles.previewHeader}>
+        <GuildIcon icon="flame" size={28} showBackground />
+        <View style={styles.previewInfo}>
+          <Text style={styles.previewName}>Morning Runners</Text>
+          <Text style={styles.previewTagline}>"Rise and grind together"</Text>
         </View>
       </View>
 
-      {/* Member Avatars */}
-      <View className="mt-3 flex-row items-center">
-        <View className="flex-row -space-x-2">
-          {/* Overlapping avatar circles */}
-          <View className="border-guild-500 size-8 items-center justify-center rounded-full border-2 bg-primary-400">
-            <Text className="text-xs font-bold text-white">JM</Text>
-          </View>
-          <View className="border-guild-500 bg-guild-300 size-8 items-center justify-center rounded-full border-2">
-            <Text className="text-xs font-bold text-richBlack-500">SK</Text>
-          </View>
-          <View className="border-guild-500 size-8 items-center justify-center rounded-full border-2 bg-secondary-400">
-            <Text className="text-xs font-bold text-white">AL</Text>
-          </View>
-          <View className="border-guild-500 size-8 items-center justify-center rounded-full border-2 bg-neutral-400">
-            <Text className="text-xs font-bold text-white">+2</Text>
-          </View>
+      <View style={styles.membersRow}>
+        <View style={styles.avatarStack}>
+          {SAMPLE_MEMBERS.map((member, index) => (
+            <View
+              key={member.initials}
+              style={[
+                styles.avatar,
+                index > 0 && styles.avatarOverlap,
+                { backgroundColor: member.background },
+              ]}
+            >
+              <Text style={[styles.avatarText, { color: member.color }]}>
+                {member.initials}
+              </Text>
+            </View>
+          ))}
         </View>
-        <Text className="ml-3 text-sm text-cream-300">5 members</Text>
+        <Text style={styles.membersCount}>5 members</Text>
       </View>
-    </Card>
+    </View>
   );
 }
 
@@ -58,7 +63,7 @@ export const GuildsAnnouncementModal = forwardRef<BottomSheetModal>(
   (_, ref) => {
     const router = useRouter();
     const posthog = usePostHog();
-    const setHasSeenGuildsAnnouncement = useSettingsStore(
+    const setHasSeenGuildsAnnouncement = useAnnouncementStore(
       (state) => state.setHasSeenGuildsAnnouncement
     );
 
@@ -73,8 +78,7 @@ export const GuildsAnnouncementModal = forwardRef<BottomSheetModal>(
       setHasSeenGuildsAnnouncement(true);
       // @ts-ignore - ref might be null but we check before calling
       ref?.current?.dismiss();
-      // Navigate to the create guild screen
-      router.push('/guild/create');
+      router.push('/guild/create' as any);
     };
 
     const handleDismiss = () => {
@@ -85,44 +89,111 @@ export const GuildsAnnouncementModal = forwardRef<BottomSheetModal>(
     };
 
     return (
-      <Modal
-        ref={ref}
-        snapPoints={['55%']}
-        title="New: Guilds"
-        onChange={handleModalChange}
-        backgroundStyle={{ backgroundColor: '#2c456b' }}
-      >
-        <View className="px-4 pb-6">
-          {/* Guild Preview Card */}
-          <View className="mb-5">
-            <GuildPreviewCard />
-          </View>
-
-          {/* Main Message - Left aligned */}
-          <Text className="mb-2 text-xl font-bold text-cream-500">
-            Quest Together
-          </Text>
-
-          <Text className="mb-6 text-base leading-relaxed text-cream-300">
-            Create a guild with friends or coworkers. Keep each other
-            accountable and maintain a shared streak.
-          </Text>
-
-          {/* Action Buttons - Centered */}
-          <View className="space-y-3">
-            <Button
-              label="Create a Guild"
-              onPress={handleCreateGuild}
-              className="bg-guild-300"
-              textClassName="text-richBlack-500 font-semibold"
-            />
-
-            <Pressable onPress={handleDismiss} className="py-3">
-              <Text className="text-center text-cream-500">Maybe Later</Text>
-            </Pressable>
-          </View>
+      <BottomSheet ref={ref} title="New: Guilds" onChange={handleModalChange}>
+        <View style={styles.previewWrapper}>
+          <GuildPreviewCard />
         </View>
-      </Modal>
+
+        <Text style={styles.heading}>Quest Together</Text>
+
+        <Text style={styles.body}>
+          Create a guild with friends or coworkers. Keep each other accountable
+          and maintain a shared streak.
+        </Text>
+
+        <View style={styles.actions}>
+          <Button
+            label="Create a Guild"
+            onPress={handleCreateGuild}
+            fullWidth
+          />
+          <Button
+            label="Maybe Later"
+            variant="ghost"
+            onPress={handleDismiss}
+            fullWidth
+          />
+        </View>
+      </BottomSheet>
     );
   }
 );
+
+const styles = StyleSheet.create({
+  previewWrapper: {
+    marginBottom: spacing[5],
+  },
+  previewCard: {
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.fill.faint,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  previewInfo: {
+    flex: 1,
+  },
+  previewName: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 18,
+    color: colors.text.primary,
+  },
+  previewTagline: {
+    fontFamily: fontFamily.regular,
+    fontStyle: 'italic',
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginTop: spacing[1] / 2,
+  },
+  membersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing[3],
+  },
+  avatarStack: {
+    flexDirection: 'row',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface.raised,
+  },
+  avatarOverlap: {
+    marginLeft: -8,
+  },
+  avatarText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 12,
+  },
+  membersCount: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginLeft: spacing[3],
+  },
+  heading: {
+    fontFamily: fontFamily.display,
+    fontSize: 20,
+    color: colors.text.primary,
+    marginBottom: spacing[2],
+  },
+  body: {
+    fontFamily: fontFamily.regular,
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.text.secondary,
+    marginBottom: spacing[6],
+  },
+  actions: {
+    gap: spacing[3],
+  },
+});

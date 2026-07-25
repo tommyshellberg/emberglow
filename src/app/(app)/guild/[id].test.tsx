@@ -243,7 +243,7 @@ describe('GuildDetailScreen', () => {
 
       const { getByText } = render(<GuildDetailScreen />);
 
-      expect(getByText(/Unable to load guild/i)).toBeTruthy();
+      expect(getByText(/out of reach/i)).toBeTruthy();
     });
   });
 
@@ -252,7 +252,8 @@ describe('GuildDetailScreen', () => {
       const { getByTestId } = render(<GuildDetailScreen />);
 
       await waitFor(() => {
-        expect(getByTestId('guild-settings-button')).toBeTruthy();
+        // The owner's edit-guild entry point (invite lives in the members card).
+        expect(getByTestId('edit-guild-button')).toBeTruthy();
       });
     });
   });

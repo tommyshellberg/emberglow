@@ -1,15 +1,19 @@
 import { signIn } from '@/lib/auth';
+import { ExistingAccountConfirmationRequired } from '@/lib/auth/social';
+import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
 import {
   authClient,
+  completeSignIn,
   isAuthenticated,
   logout,
   refreshAccessToken,
   removeTokens,
   requestMagicLink,
+  socialSignIn,
   verifyMagicLink,
   verifyMagicLinkAndSignIn,
 } from './auth';
@@ -316,6 +320,304 @@ describe('auth.ts', () => {
       expect(console.error).toHaveBeenCalledWith(
         'Magic link verification failed:',
         error
+      );
+    });
+  });
+
+  describe('completeSignIn', () => {
+    const mockTokens = {
+      access: { token: 'access-token', expires: '2025-01-01' },
+      refresh: { token: 'refresh-token', expires: '2025-02-01' },
+    };
+
+    it('should sign in, fetch user data, and identify to posthog', async () => {
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+      };
+      const mockSetUser = jest.fn();
+
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: mockSetUser,
+      });
+
+      const result = await completeSignIn(mockTokens);
+
+      expect(signIn).toHaveBeenCalledWith({
+        token: {
+          access: 'access-token',
+          refresh: 'refresh-token',
+        },
+      });
+      expect(getUserDetails).toHaveBeenCalled();
+      expect(mockSetUser).toHaveBeenCalledWith(mockUser);
+      expect(posthogClient.identify).toHaveBeenCalledWith('user-123');
+      expect(result).toBe('app');
+    });
+
+    it('should continue and return app even if user fetch fails', async () => {
+      (getUserDetails as jest.Mock).mockRejectedValue(
+        new Error('User fetch error')
+      );
+
+      const result = await completeSignIn(mockTokens);
+
+      expect(signIn).toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith(
+        'Error fetching user data during verification:',
+        expect.any(Error)
+      );
+      expect(result).toBe('app');
+    });
+  });
+
+  describe('socialSignIn', () => {
+    const credential = {
+      provider: 'google' as const,
+      idToken: 'google-id-token',
+    };
+
+    /**
+     * Build a minimal axios-shaped rejection the way `axios.isAxiosError`
+     * recognises it (the root `__mocks__/axios.ts` keys off `isAxiosError`).
+     */
+    const axiosError = (status: number, data?: unknown) =>
+      Object.assign(new Error(`Request failed with status code ${status}`), {
+        isAxiosError: true,
+        response: { status, data },
+      });
+
+    /** The server's existing-account collision 409 (see resolve-user.js). */
+    const collision409 = (account?: unknown) =>
+      axiosError(409, {
+        code: 409,
+        message: 'Existing account requires confirmation',
+        details: { reason: 'existing-account-confirmation-required', account },
+      });
+
+    const mockTokens = {
+      access: { token: 'access-token', expires: '2025-01-01' },
+      refresh: { token: 'refresh-token', expires: '2025-02-01' },
+    };
+
+    beforeEach(() => {
+      (authClient.post as jest.Mock).mockClear();
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: { tokens: mockTokens, outcome: 'existing' },
+      });
+      (getUserDetails as jest.Mock).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+      });
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+    });
+
+    it('posts the credential without an Authorization header when there is no provisional token', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+
+      await socialSignIn(credential);
+
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...credential, confirmExistingAccount: false },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    it('posts the credential with a provisional Bearer header when a provisional token exists', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+
+      await socialSignIn(credential);
+
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...credential, confirmExistingAccount: false },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer provisional-token-123',
+          },
+        }
+      );
+    });
+
+    it('includes the apple nonce in the posted body when present', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      const appleCredential = {
+        provider: 'apple' as const,
+        idToken: 'apple-id-token',
+        nonce: 'raw-nonce',
+      };
+
+      await socialSignIn(appleCredential);
+
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...appleCredential, confirmExistingAccount: false },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+    it('stores the returned tokens', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+
+      await socialSignIn(credential);
+
+      expect(tokenService.storeTokens).toHaveBeenCalledWith(mockTokens);
+    });
+
+    it('clears provisional storage after a successful sign-in', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+
+      await socialSignIn(credential);
+
+      expect(removeItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalUserId');
+      expect(removeItem).toHaveBeenCalledWith('provisionalEmail');
+    });
+
+    it('returns the completeSignIn target alongside the server outcome', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: { tokens: mockTokens, outcome: 'created' },
+      });
+
+      const result = await socialSignIn(credential);
+
+      expect(result).toEqual({ target: 'app', outcome: 'created' });
+    });
+
+    it('forwards confirmExistingAccount when the caller replays a confirmed credential', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+
+      await socialSignIn(credential, true);
+
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...credential, confirmExistingAccount: true },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer provisional-token-123',
+          },
+        }
+      );
+    });
+
+    it('propagates a raw server 409 that carries no response body', async () => {
+      const error = axiosError(409, undefined);
+      (authClient.post as jest.Mock).mockRejectedValue(error);
+
+      await expect(socialSignIn(credential)).rejects.toBe(error);
+    });
+
+    it('throws a typed error carrying the account summary on the collision 409', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      (authClient.post as jest.Mock).mockRejectedValue(
+        collision409({ name: 'Rowan', level: 12, dailyQuestStreak: 4 })
+      );
+
+      const err = await socialSignIn(credential).catch((e) => e);
+
+      expect(err).toBeInstanceOf(ExistingAccountConfirmationRequired);
+      expect(err).toHaveProperty('account', {
+        name: 'Rowan',
+        level: 12,
+        dailyQuestStreak: 4,
+      });
+    });
+
+    it('keeps the wire name verbatim when the colliding account has no hero', async () => {
+      // The server sends `character?.name || ''`, and a social signup that
+      // never picked a hero has no character — so `''` is a real wire value,
+      // not a bug. Defaulting it here would hide it from the sheet, which is
+      // the layer that decides the fallback copy.
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      (authClient.post as jest.Mock).mockRejectedValue(
+        collision409({ name: '', level: 1, dailyQuestStreak: 0 })
+      );
+
+      await expect(socialSignIn(credential)).rejects.toHaveProperty('account', {
+        name: '',
+        level: 1,
+        dailyQuestStreak: 0,
+      });
+    });
+
+    it('falls back to an empty summary when the collision 409 omits the account', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      (authClient.post as jest.Mock).mockRejectedValue(collision409(undefined));
+
+      // toHaveProperty, not toMatchObject: the latter's subset semantics treat
+      // an empty expected object as matching anything (`Object.keys({}).every`
+      // is vacuously true), so `toMatchObject({ account: {} })` passes even
+      // when `account` is `undefined` — i.e. it cannot see this regression.
+      await expect(socialSignIn(credential)).rejects.toHaveProperty(
+        'account',
+        {}
+      );
+    });
+
+    it('rethrows the generic email-in-use 409 untouched (no details payload)', async () => {
+      // The 409 the magic-link path already owns. Keying on status instead of
+      // details.reason would swallow this one.
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      const generic409 = axiosError(409, {
+        code: 409,
+        message: 'Email address is already in use by another account.',
+      });
+      (authClient.post as jest.Mock).mockRejectedValue(generic409);
+
+      await expect(socialSignIn(credential)).rejects.toBe(generic409);
+    });
+
+    it('rethrows an axios error whose details.reason is some other reason', async () => {
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      const otherReason = axiosError(409, {
+        details: { reason: 'some-other-reason', account: { name: 'Rowan' } },
+      });
+      (authClient.post as jest.Mock).mockRejectedValue(otherReason);
+
+      await expect(socialSignIn(credential)).rejects.toBe(otherReason);
+    });
+
+    it('rethrows a non-axios failure as the very same object', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      const networkError = new Error('Network Error');
+      (authClient.post as jest.Mock).mockRejectedValue(networkError);
+
+      await expect(socialSignIn(credential)).rejects.toBe(networkError);
+    });
+
+    it('leaves provisional storage intact when the collision throws', async () => {
+      // Load-bearing ordering: the confirm re-post has to still carry the
+      // provisional Bearer header (so it lands on the conversion branch), and
+      // dismissing the sheet has to leave the local hero alive.
+      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      (authClient.post as jest.Mock).mockRejectedValue(
+        collision409({ name: 'Rowan', level: 12, dailyQuestStreak: 4 })
+      );
+
+      await expect(socialSignIn(credential)).rejects.toBeInstanceOf(
+        ExistingAccountConfirmationRequired
+      );
+
+      expect(removeItem).not.toHaveBeenCalled();
+    });
+
+    it('propagates a raw completeSignIn failure instead of swallowing it', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      (signIn as jest.Mock).mockImplementation(() => {
+        throw new Error('signIn store update failed');
+      });
+
+      await expect(socialSignIn(credential)).rejects.toThrow(
+        'signIn store update failed'
       );
     });
   });

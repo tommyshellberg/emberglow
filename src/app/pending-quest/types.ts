@@ -1,44 +1,23 @@
 import { type ViewStyle } from 'react-native';
+import { type useAnimatedStyle } from 'react-native-reanimated';
 
 /**
- * Quest mode type - determines quest type and behavior
+ * Return type of `useAnimatedStyle`, which in Reanimated 4 is an opaque
+ * handle (not a plain style object) meant only to be passed to a component's
+ * `style` prop — see https://docs.swmansion.com/react-native-reanimated/docs/core/useAnimatedStyle.
  */
-export type QuestMode = 'story' | 'custom' | 'cooperative';
+type AnimatedStyle = ReturnType<typeof useAnimatedStyle<ViewStyle>>;
 
 /**
- * Pending quest data structure
- */
-export interface PendingQuestData {
-  id: string;
-  title: string;
-  durationMinutes: number;
-  mode?: QuestMode;
-  // Story quest specific
-  poiSlug?: string;
-  story?: string;
-  recap?: string;
-  options?: unknown[];
-  // Custom quest specific
-  category?: string;
-  reward?: {
-    xp: number;
-  };
-}
-
-/**
- * Character data structure
- */
-export interface CharacterData {
-  type: string;
-  name: string;
-}
-
-/**
- * Animation styles returned from the animation hook
+ * Animation styles returned from the animation hook.
+ *
+ * Shared by both `pending-quest.tsx` and `cooperative-pending-quest.tsx` via
+ * `usePendingQuestAnimations` — check both screens before changing this
+ * shape.
  */
 export interface AnimationStyles {
-  headerStyle: ViewStyle;
-  cardStyle: ViewStyle;
-  buttonStyle: ViewStyle;
-  shimmerStyle: ViewStyle;
+  headerStyle: AnimatedStyle;
+  cardStyle: AnimatedStyle;
+  buttonStyle: AnimatedStyle;
+  shimmerStyle: AnimatedStyle;
 }

@@ -21,37 +21,6 @@ jest.mock('expo-contacts', () => ({
   },
 }));
 
-// Mock the UI components without requireActual to avoid module resolution issues
-jest.mock('@/components/ui', () => {
-  const React = jest.requireActual('react');
-  const RN = jest.requireActual('react-native');
-
-  return {
-    Modal: ({ children, title }: any) =>
-      React.createElement('div', { testID: 'modal' }, [
-        React.createElement('div', { key: 'title' }, title),
-        children,
-      ]),
-    useModal: () => ({
-      ref: { current: null },
-      present: jest.fn(),
-      dismiss: jest.fn(),
-    }),
-    View: RN.View,
-    Text: RN.Text,
-    TouchableOpacity: RN.TouchableOpacity,
-    ActivityIndicator: RN.ActivityIndicator,
-    FlatList: RN.FlatList,
-    ScrollView: RN.ScrollView,
-    Button: ({ label, onPress, disabled }: any) =>
-      React.createElement(
-        RN.TouchableOpacity,
-        { onPress, disabled },
-        React.createElement(RN.Text, {}, label)
-      ),
-  };
-});
-
 // Mock child components with proper button text
 jest.mock('../EmptyContactsView', () => ({
   EmptyContactsView: ({ onImportContacts, onManualAdd }: any) => {

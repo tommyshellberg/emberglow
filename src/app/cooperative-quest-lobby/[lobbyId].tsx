@@ -347,8 +347,11 @@ export default function CooperativeQuestLobby() {
       on(`invitation:${lobbyId}:accepted`, handleInvitationAccepted); // Specific invitation event
       on('lobby:ready-status', handleReadyStatus);
 
+      // No lobby:leave here: this cleanup also runs on the transition to the
+      // ready screen (and on any effect re-run), and the server cancels the
+      // whole lobby when the host leaves. Leaving is an explicit user action
+      // handled in handleBackPress.
       return () => {
-        emit('lobby:leave', { lobbyId });
         off('lobby:joined', handleLobbyJoined);
         off('lobby:participant-joined', handleParticipantJoined);
         off('lobby:participant-updated', handleParticipantUpdated);
@@ -393,7 +396,7 @@ export default function CooperativeQuestLobby() {
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     if (hasTransitioned && currentLobby) {
       // Navigate after the flag is set
@@ -593,6 +596,7 @@ export default function CooperativeQuestLobby() {
       {/* Header */}
       <View className="mb-6 mt-2 px-4">
         <TouchableOpacity
+          testID="lobby-back-button"
           onPress={handleBackPress}
           className="mb-4 flex-row items-center"
         >

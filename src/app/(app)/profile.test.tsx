@@ -1,10 +1,12 @@
 /* eslint-disable max-lines-per-function */
 import React from 'react';
 
+import type { Perk } from '@/api/skill-tree/types';
 import * as userService from '@/lib/services/user';
 import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
 
 import ProfileScreen from './profile';
@@ -25,6 +27,7 @@ jest.mock('lucide-react-native', () => ({
   Award: () => null,
   TrendingUp: () => null,
   Sparkles: () => null,
+  ChevronRight: () => null,
 }));
 
 // Mock UI components
@@ -80,17 +83,6 @@ jest.mock('@/components/profile/stats-card', () => {
         <RN.Text testID="quest-count">{questCount}</RN.Text>
         <RN.Text testID="minutes-saved">{minutesSaved}</RN.Text>
         <RN.Text testID="streak-count">{streakCount}</RN.Text>
-      </RN.View>
-    ),
-  };
-});
-
-jest.mock('@/components/profile/experience-card', () => {
-  const RN = jest.requireActual('react-native');
-  return {
-    ExperienceCard: ({ character }: any) => (
-      <RN.View testID="experience-card">
-        <RN.Text>{character?.level}</RN.Text>
       </RN.View>
     ),
   };
@@ -210,6 +202,19 @@ jest.mock('react-native-reanimated', () => {
   return Reanimated;
 });
 
+function makePerk(overrides: Partial<Perk> = {}): Perk {
+  return {
+    id: 'perk-1',
+    name: 'Test Perk',
+    description: 'A test perk',
+    levelRequired: 1,
+    category: 'universal',
+    isUnlocked: false,
+    isChoice: false,
+    ...overrides,
+  };
+}
+
 describe('ProfileScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -240,6 +245,10 @@ describe('ProfileScreen', () => {
         totalMinutesOffPhone: 150,
       },
     });
+
+    // ActionCards (unlike other profile sub-components) isn't mocked, so it
+    // renders for real and reads the Skills & Perks subtitle from here.
+    useSkillTreeStore.setState({ skillTreeData: null });
   });
 
   afterEach(() => {
@@ -276,20 +285,13 @@ describe('ProfileScreen', () => {
       expect(screen.getByTestId('streak-count')).toHaveTextContent('5');
     });
 
-    it('renders experience card', () => {
+    it('renders links card for skills, leaderboard, and achievements', () => {
       render(<ProfileScreen />);
 
-      const experienceCard = screen.getByTestId('experience-card');
-      expect(experienceCard).toBeOnTheScreen();
-      expect(screen.getByText('4')).toBeOnTheScreen();
-    });
-
-    it('renders action cards for leaderboard and achievements', () => {
-      render(<ProfileScreen />);
-
-      expect(screen.getByText('View Leaderboard')).toBeOnTheScreen();
+      expect(screen.getByText('Skills & Perks')).toBeOnTheScreen();
+      expect(screen.getByText('Leaderboard')).toBeOnTheScreen();
       expect(screen.getByText('See how others are doing')).toBeOnTheScreen();
-      expect(screen.getByText('My Achievements')).toBeOnTheScreen();
+      expect(screen.getByText('Achievements')).toBeOnTheScreen();
       expect(screen.getByText('Track your progress')).toBeOnTheScreen();
     });
 
@@ -307,7 +309,7 @@ describe('ProfileScreen', () => {
 
       // Component should not render profile content
       expect(queryByText('Profile')).not.toBeOnTheScreen();
-      expect(queryByText('View Leaderboard')).not.toBeOnTheScreen();
+      expect(queryByText('Leaderboard')).not.toBeOnTheScreen();
     });
   });
 
@@ -361,7 +363,7 @@ describe('ProfileScreen', () => {
     it('navigates to leaderboard when card is pressed', async () => {
       const { user } = setup(<ProfileScreen />);
 
-      const leaderboardButton = screen.getByText('View Leaderboard');
+      const leaderboardButton = screen.getByText('Leaderboard');
       await user.press(leaderboardButton);
 
       await waitFor(() => {
@@ -372,12 +374,76 @@ describe('ProfileScreen', () => {
     it('navigates to achievements when card is pressed', async () => {
       const { user } = setup(<ProfileScreen />);
 
-      const achievementsButton = screen.getByText('My Achievements');
+      const achievementsButton = screen.getByText('Achievements');
       await user.press(achievementsButton);
 
       await waitFor(() => {
         expect(mockRouterPush).toHaveBeenCalledWith('/achievements');
       });
+    });
+
+    it('navigates to the skill tree when Skills & Perks is pressed', async () => {
+      const { user } = setup(<ProfileScreen />);
+
+      const skillsButton = screen.getByText('Skills & Perks');
+      await user.press(skillsButton);
+
+      await waitFor(() => {
+        expect(mockRouterPush).toHaveBeenCalledWith('/skill-tree');
+      });
+    });
+  });
+
+  describe('Skills & Perks subtitle', () => {
+    it('prompts to unlock the first perk when none are unlocked', () => {
+      useSkillTreeStore.setState({ skillTreeData: null });
+
+      render(<ProfileScreen />);
+
+      expect(screen.getByText('Unlock your first perk')).toBeOnTheScreen();
+    });
+
+    it('shows unlocked count once at least one perk is unlocked', () => {
+      useSkillTreeStore.setState({
+        skillTreeData: {
+          currentLevel: 4,
+          characterType: 'knight',
+          unlockedNodes: [],
+          canRespec: false,
+          respecsUsed: 0,
+          lastRespecAt: null,
+          availablePerks: [
+            makePerk({ id: 'a', isUnlocked: true }),
+            makePerk({ id: 'b', isUnlocked: false, levelRequired: 10 }),
+            makePerk({ id: 'c', isUnlocked: false, levelRequired: 10 }),
+          ],
+        },
+      });
+
+      render(<ProfileScreen />);
+
+      expect(screen.getByText('1 of 3 unlocked')).toBeOnTheScreen();
+    });
+
+    it('prioritizes spendable points once at least one perk is unlocked', () => {
+      useSkillTreeStore.setState({
+        skillTreeData: {
+          currentLevel: 4,
+          characterType: 'knight',
+          unlockedNodes: [],
+          canRespec: false,
+          respecsUsed: 0,
+          lastRespecAt: null,
+          availablePerks: [
+            makePerk({ id: 'a', isUnlocked: true, levelRequired: 1 }),
+            makePerk({ id: 'b', isUnlocked: false, levelRequired: 4 }),
+          ],
+        },
+      });
+
+      render(<ProfileScreen />);
+
+      expect(screen.getByText('1 point to spend')).toBeOnTheScreen();
     });
   });
 
@@ -495,8 +561,8 @@ describe('ProfileScreen', () => {
     it('has accessible navigation buttons', () => {
       render(<ProfileScreen />);
 
-      const leaderboardButton = screen.getByText('View Leaderboard');
-      const achievementsButton = screen.getByText('My Achievements');
+      const leaderboardButton = screen.getByText('Leaderboard');
+      const achievementsButton = screen.getByText('Achievements');
 
       expect(leaderboardButton).toBeOnTheScreen();
       expect(achievementsButton).toBeOnTheScreen();
@@ -505,9 +571,9 @@ describe('ProfileScreen', () => {
     it('displays clear descriptive text for action cards', () => {
       render(<ProfileScreen />);
 
-      expect(screen.getByText('View Leaderboard')).toBeOnTheScreen();
+      expect(screen.getByText('Leaderboard')).toBeOnTheScreen();
       expect(screen.getByText('See how others are doing')).toBeOnTheScreen();
-      expect(screen.getByText('My Achievements')).toBeOnTheScreen();
+      expect(screen.getByText('Achievements')).toBeOnTheScreen();
       expect(screen.getByText('Track your progress')).toBeOnTheScreen();
     });
   });

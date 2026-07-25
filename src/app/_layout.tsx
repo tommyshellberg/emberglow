@@ -18,7 +18,7 @@ import { Stack, useNavigationContainerRef, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect } from 'react';
 import { AppState, type AppStateStatus, Platform, View } from 'react-native';
-import BackgroundService from 'react-native-bg-actions';
+import BackgroundService from 'react-native-background-actions';
 import FlashMessage from 'react-native-flash-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -223,6 +223,23 @@ function RootLayout() {
         ) {
           // Handle quest failure notification
           handleQuestFailure(additionalData.questRunId);
+        } else if (
+          additionalData?.questRunId &&
+          [
+            'scheduled_quest_starting_soon',
+            'scheduled_quest_started',
+            'scheduled_quest_cancelled',
+          ].includes(additionalData?.type)
+        ) {
+          // Deep-link into the event screen; it renders lobby / take-part /
+          // cancelled from the fetched run state, so one route serves all three.
+          setTimeout(() => {
+            router.push(`/scheduled-quest/${additionalData.questRunId}`);
+          }, 1000);
+        } else if (additionalData?.type === 'scheduled_quest_kicked') {
+          setTimeout(() => {
+            router.push('/scheduled-quest');
+          }, 1000);
         }
       });
 
@@ -451,6 +468,18 @@ function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="scheduled-quest/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="scheduled-quest/create"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="scheduled-quest/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="auth/magiclink/verify"
           options={{ headerShown: false }}
         />
@@ -479,12 +508,7 @@ function Providers({
         >
           <KeyboardProvider>
             <ThemeProvider value={theme}>
-              <PostHogProviderWrapper
-                apiKey={Env.POSTHOG_API_KEY}
-                options={{
-                  host: 'https://us.i.posthog.com',
-                }}
-              >
+              <PostHogProviderWrapper>
                 <APIProvider>
                   <LazyWebSocketProvider>
                     <BottomSheetModalProvider>

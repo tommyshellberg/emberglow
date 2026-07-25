@@ -4,13 +4,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 
 import QuestTimer from '@/lib/services/quest-timer';
-import {
-  cleanup,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@/lib/test-utils';
+import { cleanup, render, screen, waitFor, within } from '@/lib/test-utils';
 import { useQuestStore } from '@/store/quest-store';
 
 import CustomQuestScreen from './custom-quest';
@@ -374,13 +368,19 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedRouter.push).toHaveBeenCalledWith('/pending-quest');
+        expect(QuestTimer.prepareQuest).toHaveBeenCalledTimes(2);
       });
+      expect(
+        screen.queryByText(/Failed to start quest/i)
+      ).not.toBeOnTheScreen();
     });
   });
 
   describe('Navigation', () => {
-    it('navigates to pending-quest screen on successful quest creation', async () => {
+    it('arms the quest store, leaving the pending-quest push to NavigationGate', async () => {
+      // Arming the store IS the navigation: the resolver turns a pendingQuest
+      // into target 'pending-quest' and the root NavigationGate pushes it.
+      // This screen pushing as well stacked a second identical screen.
       render(<CustomQuestScreen />);
 
       const nameInput = screen.getByPlaceholderText('go for a run');
@@ -390,8 +390,11 @@ describe('CustomQuestScreen', () => {
       fireEvent.press(startButton);
 
       await waitFor(() => {
-        expect(mockedRouter.push).toHaveBeenCalledWith('/pending-quest');
+        expect(mockedPrepareQuest).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Test Quest', mode: 'custom' })
+        );
       });
+      expect(mockedRouter.push).not.toHaveBeenCalledWith('/pending-quest');
     });
   });
 

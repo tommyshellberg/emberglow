@@ -1,6 +1,13 @@
 import { Sparkles } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import {
@@ -9,17 +16,65 @@ import {
   useUnlockPerk,
 } from '@/api/skill-tree';
 import type { Perk } from '@/api/skill-tree/types';
+import { Button, EyebrowLabel } from '@/components/emberglow';
 import { PremiumPaywall } from '@/components/paywall';
-import { Button, Text } from '@/components/ui';
 import { Chip } from '@/components/ui/chip';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
+import {
+  colors,
+  fontFamily,
+  palette,
+  radii,
+  spacing,
+  withAlpha,
+} from '@/theme';
 
 import { ChoiceNodeModal } from './choice-node-modal';
-import { PerkCard } from './perk-card';
+import { getPerkStatus, PerkCard, type PerkStatus } from './perk-card';
 import { UnlockCelebrationModal } from './unlock-celebration-modal';
 
 type FilterType = 'all' | 'unlocked' | 'locked' | 'available';
+
+const FILTERS: { key: FilterType; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'available', label: 'Available' },
+  { key: 'unlocked', label: 'Unlocked' },
+  { key: 'locked', label: 'Locked' },
+];
+
+/** available < unlocked < locked, for the "all" filter's priority sort. */
+const STATUS_PRIORITY: Record<PerkStatus, number> = {
+  available: 0,
+  unlocked: 1,
+  locked: 2,
+};
+
+/**
+ * Emberglow palette hex, hardcoded here since `Chip` (`@/components/ui/chip`)
+ * only accepts NativeWind classNames, not `@/theme`'s JS style tokens — see
+ * plan ground rule 4 ("Filter chips → keep Chip, retint from theme").
+ */
+const CHIP_TINTS: Record<FilterType, { active: string; activeText: string }> = {
+  all: {
+    active: 'border border-[rgba(217,73,40,0.5)] bg-[rgba(217,73,40,0.18)]',
+    activeText: 'text-[#e16d53]',
+  },
+  available: {
+    active: 'border border-[rgba(217,73,40,0.5)] bg-[rgba(217,73,40,0.18)]',
+    activeText: 'text-[#e16d53]',
+  },
+  unlocked: {
+    active: 'border border-[rgba(125,168,123,0.5)] bg-[rgba(125,168,123,0.18)]',
+    activeText: 'text-[#9dc39b]',
+  },
+  locked: {
+    active: 'border border-[rgba(232,220,199,0.3)] bg-[rgba(232,220,199,0.1)]',
+    activeText: 'text-[rgba(232,220,199,0.7)]',
+  },
+};
+const CHIP_INACTIVE_BG = 'bg-[rgba(232,220,199,0.06)]';
+const CHIP_INACTIVE_TEXT = 'text-[rgba(232,220,199,0.45)]';
 
 export function SkillTreeScreen() {
   const { data, isLoading, isError } = useSkillTree();
@@ -47,25 +102,18 @@ export function SkillTreeScreen() {
 
   if (isLoading) {
     return (
-      <View
-        testID="skill-tree-loading"
-        className="flex-1 items-center justify-center bg-background"
-      >
-        <ActivityIndicator size="large" color="#E55838" />
-        <Text className="mt-4 text-cream-500">Loading skill tree...</Text>
+      <View testID="skill-tree-loading" style={styles.centered}>
+        <ActivityIndicator size="large" color={palette.cinnabar} />
+        <Text style={styles.loadingText}>Loading skill tree...</Text>
       </View>
     );
   }
 
   if (isError || !data) {
     return (
-      <View className="flex-1 items-center justify-center bg-background p-6">
-        <Text className="text-center text-lg text-red-300">
-          Error loading skill tree
-        </Text>
-        <Text className="mt-2 text-center text-sm text-cream-500/60">
-          Please try again later
-        </Text>
+      <View style={[styles.centered, styles.errorContainer]}>
+        <Text style={styles.errorTitle}>Error loading skill tree</Text>
+        <Text style={styles.errorSubtitle}>Please try again later</Text>
       </View>
     );
   }
@@ -75,16 +123,10 @@ export function SkillTreeScreen() {
 
     switch (filter) {
       case 'unlocked':
-        filtered = perks.filter((p) => p.isUnlocked);
-        break;
       case 'locked':
-        filtered = perks.filter(
-          (p) => !p.isUnlocked && p.levelRequired > data.currentLevel
-        );
-        break;
       case 'available':
         filtered = perks.filter(
-          (p) => !p.isUnlocked && p.levelRequired <= data.currentLevel
+          (p) => getPerkStatus(p, data.currentLevel) === filter
         );
         break;
       default:
@@ -93,19 +135,11 @@ export function SkillTreeScreen() {
 
     // Sort perks when showing 'all' to prioritize available ones
     if (filter === 'all') {
-      return filtered.sort((a, b) => {
-        const aAvailable = !a.isUnlocked && a.levelRequired <= data.currentLevel;
-        const bAvailable = !b.isUnlocked && b.levelRequired <= data.currentLevel;
-        const aLocked = !a.isUnlocked && a.levelRequired > data.currentLevel;
-        const bLocked = !b.isUnlocked && b.levelRequired > data.currentLevel;
-
-        // Priority: available > unlocked > locked
-        if (aAvailable && !bAvailable) return -1;
-        if (!aAvailable && bAvailable) return 1;
-        if (a.isUnlocked && !b.isUnlocked && !bAvailable) return -1;
-        if (!a.isUnlocked && !aAvailable && b.isUnlocked) return 1;
-        if (aLocked && !bLocked) return 1;
-        if (!aLocked && bLocked) return -1;
+      return [...filtered].sort((a, b) => {
+        const priorityDiff =
+          STATUS_PRIORITY[getPerkStatus(a, data.currentLevel)] -
+          STATUS_PRIORITY[getPerkStatus(b, data.currentLevel)];
+        if (priorityDiff !== 0) return priorityDiff;
 
         // Within same category, sort by level required (ascending)
         return a.levelRequired - b.levelRequired;
@@ -199,7 +233,8 @@ export function SkillTreeScreen() {
                 onError: (error) => {
                   Alert.alert(
                     'Reset Failed',
-                    error.message || 'Failed to reset skill tree. Please try again.'
+                    error.message ||
+                      'Failed to reset skill tree. Please try again.'
                   );
                 },
               });
@@ -211,28 +246,31 @@ export function SkillTreeScreen() {
   };
 
   return (
-    <View className="flex-1">
+    <View style={styles.root}>
       <ScrollView
         testID="skill-tree-scroll-view"
-        className="flex-1"
+        style={styles.root}
         showsVerticalScrollIndicator={false}
       >
         {/* Character Info & Progress */}
-        <Animated.View entering={FadeIn.duration(400)} className="mb-4">
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={styles.headerBlock}
+        >
           {/* Character & Level */}
-          <View className="mb-3 flex-row items-center">
-            <View className="mr-3 rounded-full bg-primary-400/20 p-2">
-              <Sparkles size={24} color="#E55838" />
+          <View style={styles.characterRow}>
+            <View style={styles.characterIcon}>
+              <Sparkles size={24} color={palette.sandy} />
             </View>
-            <Text className="text-sm text-cream-500/60">
+            <EyebrowLabel tone="warm">
               {formatCharacterType(data.characterType)} • Level{' '}
               {data.currentLevel}
-            </Text>
+            </EyebrowLabel>
           </View>
 
           {/* Progress Info */}
-          <View className="flex-row items-center justify-between rounded-lg bg-cardBackground/50 p-3">
-            <Text className="text-sm text-cream-500">
+          <View style={styles.progressRow}>
+            <Text style={styles.progressText}>
               {unlockedCount} of {totalCount} unlocked
             </Text>
             <Button
@@ -241,8 +279,6 @@ export function SkillTreeScreen() {
               size="sm"
               onPress={handleResetSkills}
               disabled={isRespecing}
-              className="border-primary-400/50"
-              textClassName="text-primary-400"
               testID="reset-skills-button"
             />
           </View>
@@ -251,70 +287,34 @@ export function SkillTreeScreen() {
         {/* Filter Chips */}
         <Animated.View
           entering={FadeIn.delay(200).duration(400)}
-          className="mb-4 flex-row flex-wrap gap-2"
+          style={styles.filterRow}
         >
-          <Chip
-            className={
-              filter === 'all'
-                ? 'bg-primary-400/30 border border-primary-400'
-                : 'bg-neutral-400/20'
-            }
-            textClassName={filter === 'all' ? 'text-primary-400' : 'text-cream-500/60'}
-            onPress={() => setFilter('all')}
-          >
-            All
-          </Chip>
-          <Chip
-            className={
-              filter === 'available'
-                ? 'bg-primary-400/30 border border-primary-400'
-                : 'bg-neutral-400/20'
-            }
-            textClassName={
-              filter === 'available' ? 'text-primary-400' : 'text-cream-500/60'
-            }
-            onPress={() => setFilter('available')}
-          >
-            Available
-          </Chip>
-          <Chip
-            className={
-              filter === 'unlocked'
-                ? 'bg-secondary-300/30 border border-secondary-300'
-                : 'bg-neutral-400/20'
-            }
-            textClassName={
-              filter === 'unlocked' ? 'text-secondary-300' : 'text-cream-500/60'
-            }
-            onPress={() => setFilter('unlocked')}
-          >
-            Unlocked
-          </Chip>
-          <Chip
-            className={
-              filter === 'locked'
-                ? 'bg-neutral-400/30 border border-neutral-400'
-                : 'bg-neutral-400/20'
-            }
-            textClassName={
-              filter === 'locked' ? 'text-neutral-200' : 'text-cream-500/60'
-            }
-            onPress={() => setFilter('locked')}
-          >
-            Locked
-          </Chip>
+          {FILTERS.map(({ key, label }) => {
+            const isActive = filter === key;
+            const tint = CHIP_TINTS[key];
+            return (
+              <Chip
+                key={key}
+                className={isActive ? tint.active : CHIP_INACTIVE_BG}
+                textClassName={isActive ? tint.activeText : CHIP_INACTIVE_TEXT}
+                onPress={() => setFilter(key)}
+              >
+                {label}
+              </Chip>
+            );
+          })}
         </Animated.View>
 
         {/* Perks List */}
-        <View className="mb-6">
+        <View style={styles.perksList}>
           {filteredPerks.length === 0 ? (
-            <View className="mt-8 items-center">
-              <Text className="text-center text-cream-500/60">
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
                 No perks in this category
               </Text>
             </View>
           ) : (
-            filteredPerks.map((perk, index) => (
+            filteredPerks.map((perk) => (
               <PerkCard
                 key={perk.id}
                 perk={perk}
@@ -350,7 +350,94 @@ export function SkillTreeScreen() {
         isVisible={showPaywall}
         onClose={handlePaywallClose}
         onSuccess={handlePaywallSuccess}
+        source="skill_tree"
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.app,
+  },
+  loadingText: {
+    marginTop: spacing[4],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  errorContainer: {
+    paddingHorizontal: spacing[6],
+  },
+  errorTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 18,
+    color: colors.status.danger,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    marginTop: spacing[2],
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+    textAlign: 'center',
+  },
+  headerBlock: {
+    marginBottom: spacing[4],
+  },
+  characterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    marginBottom: spacing[3],
+  },
+  characterIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(palette.cinnabar, 0.2),
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[3],
+    backgroundColor: colors.surface.raised,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.hairline,
+    padding: spacing[3],
+  },
+  progressText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  perksList: {
+    marginBottom: spacing[6],
+  },
+  emptyState: {
+    marginTop: spacing[8],
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.muted,
+    textAlign: 'center',
+  },
+});

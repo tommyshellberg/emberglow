@@ -1,6 +1,7 @@
 import React from 'react';
 import Animated, {
   interpolate,
+  type SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
@@ -11,7 +12,7 @@ import { getPerkName } from '@/lib/perks';
 
 interface PerkBadgeProps {
   perkId: string;
-  animationValue: Animated.SharedValue<number>;
+  animationValue: SharedValue<number>;
   iconOnly?: boolean;
 }
 

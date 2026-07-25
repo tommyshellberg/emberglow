@@ -1,7 +1,17 @@
 module.exports = {
   preset: 'jest-expo',
+  // react-native-worklets ships native-only modules that throw when the
+  // native part isn't initialized (as in Jest). Its own resolver strips
+  // `.native.` extensions for requests inside the package so jest falls
+  // back to the platform-agnostic (web-shim) implementation instead.
+  // See node_modules/react-native-worklets/jest/resolver.js.
+  resolver: 'react-native-worklets/jest/resolver.js',
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
+  // Ignore nested git worktrees (created under .worktrees/) so jest doesn't
+  // scan their duplicate test files or collide on their haste module names.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/'],
+  modulePathIgnorePatterns: ['<rootDir>/.worktrees/'],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook } from '@testing-library/react-native';
 
 import { useAuth } from '@/lib/auth';
 import { useNavigationTarget } from '@/lib/navigation/navigation-state-resolver';
@@ -176,6 +176,46 @@ describe('Navigation State Resolver', () => {
     expect(result.current).toEqual({
       type: 'first-quest-result',
       outcome: 'completed',
+    });
+  });
+
+  it('redirects to first-quest-result for completed first quest when provisional user relaunches app (authStatus signIn)', () => {
+    // After an app restart, hydration sets provisional users to signIn
+    // (see auth/index.tsx). They are still mid-onboarding.
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockQuestState.recentCompletedQuest = { id: 'quest-1a' };
+    mockQuestState.completedQuests = [];
+
+    mockGetItem.mockImplementation((key) => {
+      if (key === 'provisionalAccessToken') return 'test-provisional-token';
+      return null;
+    });
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'first-quest-result',
+      outcome: 'completed',
+    });
+  });
+
+  it('redirects to first-quest-result for failed first quest when provisional user relaunches app (authStatus signIn)', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockQuestState.failedQuest = { id: 'quest-1a' };
+    mockQuestState.completedQuests = [];
+
+    mockGetItem.mockImplementation((key) => {
+      if (key === 'provisionalAccessToken') return 'test-provisional-token';
+      return null;
+    });
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'first-quest-result',
+      outcome: 'failed',
     });
   });
 

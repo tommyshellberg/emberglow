@@ -1,12 +1,13 @@
 import type * as Contacts from 'expo-contacts';
 import { Check } from 'lucide-react-native';
 import React from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Text } from '@/components/ui';
+import { Badge, ListItem } from '@/components/emberglow';
+import { colors, palette, radii } from '@/theme';
 
 interface ContactItemProps {
-  contact: Contacts.Contact & { isFriend?: boolean };
+  contact: Contacts.ExistingContact & { isFriend?: boolean };
   isSelected: boolean;
   isFriend: boolean;
   onPress: () => void;
@@ -20,44 +21,50 @@ export const ContactItem: React.FC<ContactItemProps> = ({
 }) => {
   const displayName = contact.name || contact.emails?.[0]?.email || 'Unknown';
   const email = contact.emails?.[0]?.email || '';
+  const showEmailSubtitle = !!(email && contact.name);
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={isFriend}
+    <ListItem
       testID={`contact-item-${contact.id}`}
-      className={`flex-row items-center justify-between bg-background p-4 ${
-        isFriend ? 'opacity-60' : ''
-      }`}
-    >
-      <View className="mr-3 flex-1">
-        <Text
-          className={`text-base font-medium ${isFriend ? 'text-neutral-300' : 'text-white'}`}
-        >
-          {displayName}
-        </Text>
-        {email && contact.name && (
-          <Text className="mt-1 text-sm text-neutral-200">{email}</Text>
-        )}
-      </View>
-
-      <View className="flex-row items-center">
-        {isFriend && (
-          <Text className="mr-3 text-sm text-neutral-200">Already invited</Text>
-        )}
-
-        {!isFriend && (
+      title={displayName}
+      subtitle={showEmailSubtitle ? email : undefined}
+      onPress={isFriend ? undefined : onPress}
+      style={isFriend ? styles.friendRow : undefined}
+      trailing={
+        isFriend ? (
+          <Badge tone="neutral">Already invited</Badge>
+        ) : (
           <View
-            className={`size-6 items-center justify-center rounded-full border-2 ${
-              isSelected
-                ? 'border-primary-400 bg-primary-400'
-                : 'border-neutral-300 bg-background'
-            }`}
+            style={[
+              styles.checkCircle,
+              isSelected && styles.checkCircleSelected,
+            ]}
           >
-            {isSelected && <Check size={14} color="white" strokeWidth={3} />}
+            {isSelected && (
+              <Check size={13} color={palette.richBlack} strokeWidth={3} />
+            )}
           </View>
-        )}
-      </View>
-    </TouchableOpacity>
+        )
+      }
+    />
   );
 };
+
+const styles = StyleSheet.create({
+  friendRow: {
+    opacity: 0.6,
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.border.strong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleSelected: {
+    borderColor: palette.sandy,
+    backgroundColor: palette.sandy,
+  },
+});

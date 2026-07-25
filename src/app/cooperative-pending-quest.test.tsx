@@ -238,6 +238,106 @@ describe('CooperativePendingQuestScreen', () => {
     jest.useRealTimers();
   });
 
+  it('shows the individual-policy countdown copy when completionPolicy is individual', () => {
+    useQuestStore.setState({
+      pendingQuest: mockPendingQuest,
+      cooperativeQuestRun: {
+        ...mockCooperativeQuestRun,
+        completionPolicy: 'individual',
+      },
+      cancelQuest: jest.fn(),
+    });
+
+    const { getByText, queryByText } = render(
+      <CooperativePendingQuestScreen />
+    );
+
+    expect(
+      getByText('Lock your phone to take part - an early unlock only fails you')
+    ).toBeTruthy();
+    expect(queryByText('All companions must lock together')).toBeFalsy();
+  });
+
+  it('keeps the classic countdown copy when there is no individual completionPolicy', () => {
+    const { getByText, queryByText } = render(
+      <CooperativePendingQuestScreen />
+    );
+
+    expect(getByText('All companions must lock together')).toBeTruthy();
+    expect(
+      queryByText(
+        'Lock your phone to take part - an early unlock only fails you'
+      )
+    ).toBeFalsy();
+  });
+
+  it('shows the individual-policy lock-instruction copy on the main screen', async () => {
+    jest.useFakeTimers();
+    useQuestStore.setState({
+      pendingQuest: mockPendingQuest,
+      cooperativeQuestRun: {
+        ...mockCooperativeQuestRun,
+        completionPolicy: 'individual',
+      },
+      cancelQuest: jest.fn(),
+    });
+
+    const { getByText, queryByText } = render(
+      <CooperativePendingQuestScreen />
+    );
+
+    for (let i = 0; i < 5; i++) {
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+    }
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    await waitFor(() => {
+      expect(
+        getByText(
+          'Lock your phone to take part - an early unlock only fails you'
+        )
+      ).toBeTruthy();
+      expect(
+        queryByText('All companions must lock phones to begin')
+      ).toBeFalsy();
+    });
+
+    jest.useRealTimers();
+  });
+
+  it('keeps the classic lock-instruction copy on the main screen when there is no individual completionPolicy', async () => {
+    jest.useFakeTimers();
+    const { getByText, queryByText } = render(
+      <CooperativePendingQuestScreen />
+    );
+
+    for (let i = 0; i < 5; i++) {
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+    }
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    await waitFor(() => {
+      expect(
+        getByText('All companions must lock phones to begin')
+      ).toBeTruthy();
+      expect(
+        queryByText(
+          'Lock your phone to take part - an early unlock only fails you'
+        )
+      ).toBeFalsy();
+    });
+
+    jest.useRealTimers();
+  });
+
   it('displays the companion count and subtitle', async () => {
     jest.useFakeTimers();
     const { getByText } = render(<CooperativePendingQuestScreen />);
@@ -323,8 +423,11 @@ describe('CooperativePendingQuestScreen', () => {
 
     fireEvent.press(getByText('Cancel Quest'));
 
+    // cancelQuest() alone: clearing pendingQuest flips the resolver to target
+    // 'app' and NavigationGate owns the move off this screen. Navigating here
+    // as well raced the gate and churned the (app) tab tree mid-mount.
     expect(mockCancelQuest).toHaveBeenCalled();
-    expect(router.back).toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });

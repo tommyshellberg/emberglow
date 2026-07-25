@@ -1,10 +1,10 @@
 import { Check, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 
 import { Pressable, ScrollView, Text, View } from '@/components/ui';
-import colors from '@/components/ui/colors';
-import { Guild, GuildIcon, useGuilds } from '@/features/guilds';
+import { type Guild, GuildIcon, useGuilds } from '@/features/guilds';
+import { colors, fontFamily, radii, spacing } from '@/theme';
 
 interface GuildSelectorProps {
   /**
@@ -26,7 +26,10 @@ interface GuildSelectorProps {
 
 export function GuildSelector({
   onSelectionChange,
-  maxSelections = 1,
+  // `maxSelections` is part of the public prop contract (callers, e.g.
+  // create-cooperative-quest.tsx, pass it explicitly) but this component has
+  // always been single-select only regardless of its value — pre-existing,
+  // not something this presentation-only pass changes (ground rule 1).
   currentUserId,
 }: GuildSelectorProps) {
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
@@ -66,16 +69,16 @@ export function GuildSelector({
 
   if (isLoading) {
     return (
-      <View className="py-4">
-        <ActivityIndicator />
+      <View style={styles.centeredPad}>
+        <ActivityIndicator color={colors.accent.primary} />
       </View>
     );
   }
 
   if (!guilds || guilds.length === 0) {
     return (
-      <View className="py-4">
-        <Text className="text-center" style={{ color: colors.neutral[200] }}>
+      <View style={styles.centeredPad}>
+        <Text style={styles.emptyText}>
           No guilds to invite. Create or join a guild to invite your guildmates
           to quests!
         </Text>
@@ -85,14 +88,15 @@ export function GuildSelector({
 
   return (
     <View>
-      <ScrollView
-        className="max-h-72 rounded-lg"
-        style={{ backgroundColor: colors.cardBackground }}
-        showsVerticalScrollIndicator={true}
-      >
+      {/* This is a bespoke composition, not `ListItem`: a guild row shows
+          three independently-queried metadata pieces (name, member count,
+          tagline) and `ListItem`'s `subtitle` only accepts one string —
+          merging them would collapse `guild-selector.test.tsx`'s exact-text
+          assertions (e.g. `getByText('A test guild')`) into a single
+          combined string and break that behavioral contract (ground rule 2). */}
+      <ScrollView style={styles.list} showsVerticalScrollIndicator={true}>
         {guilds.map((guild, index) => {
           const isSelected = selectedGuildId === guild.id;
-          const memberCount = guild.members.length;
           const invitableMembers = guild.members.filter(
             (m) => m.id !== currentUserId
           ).length;
@@ -102,49 +106,34 @@ export function GuildSelector({
             <Pressable
               key={guild.id}
               onPress={() => selectGuild(guild.id)}
-              className="flex-row items-center px-4 py-4"
-              style={{
-                backgroundColor: isSelected
-                  ? colors.primary[500]
-                  : 'transparent',
-                borderBottomWidth: isLastItem ? 0 : 1,
-                borderBottomColor: colors.neutral[500],
-              }}
+              style={[
+                styles.row,
+                isSelected && styles.rowSelected,
+                !isLastItem && styles.rowDivider,
+              ]}
             >
               {/* Guild Icon */}
               <GuildIcon
                 icon={guild.icon}
-                size={28}
+                size={18}
                 showBackground
                 backgroundColor={
-                  isSelected ? colors.primary[300] : colors.primary[100]
+                  isSelected ? colors.fill.subtle : colors.fill.faint
                 }
               />
 
               {/* Guild Info */}
-              <View className="ml-3 flex-1">
-                <Text
-                  className="text-base font-semibold text-white"
-                  style={{ fontWeight: '600' }}
-                >
-                  {guild.name}
-                </Text>
-                <View className="mt-1 flex-row items-center">
-                  <Users size={14} color={colors.neutral[200]} />
-                  <Text
-                    className="ml-1 text-sm"
-                    style={{ color: colors.neutral[200] }}
-                  >
+              <View style={styles.info}>
+                <Text style={styles.name}>{guild.name}</Text>
+                <View style={styles.metaRow}>
+                  <Users size={14} color={colors.text.muted} />
+                  <Text style={styles.metaText}>
                     {invitableMembers} member{invitableMembers !== 1 ? 's' : ''}{' '}
                     to invite
                   </Text>
                 </View>
                 {guild.tagline && (
-                  <Text
-                    className="mt-1 text-sm"
-                    style={{ color: colors.neutral[300] }}
-                    numberOfLines={1}
-                  >
+                  <Text style={styles.tagline} numberOfLines={1}>
                     {guild.tagline}
                   </Text>
                 )}
@@ -152,17 +141,19 @@ export function GuildSelector({
 
               {/* Selection indicator - radio style */}
               <View
-                className="size-6 items-center justify-center rounded-full"
-                style={{
-                  backgroundColor: isSelected
-                    ? colors.white
-                    : 'transparent',
-                  borderWidth: isSelected ? 0 : 2,
-                  borderColor: colors.neutral[300],
-                }}
+                style={[
+                  styles.selectionCircle,
+                  isSelected
+                    ? styles.selectionCircleSelected
+                    : styles.selectionCircleUnselected,
+                ]}
               >
                 {isSelected && (
-                  <Check size={16} color={colors.primary[500]} strokeWidth={3} />
+                  <Check
+                    size={13}
+                    color={colors.palette.richBlack}
+                    strokeWidth={3}
+                  />
                 )}
               </View>
             </Pressable>
@@ -172,3 +163,72 @@ export function GuildSelector({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centeredPad: {
+    paddingVertical: spacing[4],
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontFamily: fontFamily.regular,
+    color: colors.text.muted,
+  },
+  list: {
+    maxHeight: 288,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface.raised,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[4],
+  },
+  rowSelected: {
+    backgroundColor: colors.fill.faint,
+  },
+  rowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.hairline,
+  },
+  info: {
+    marginLeft: spacing[3],
+    flex: 1,
+  },
+  name: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+  metaRow: {
+    marginTop: spacing[1],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  metaText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    color: colors.text.muted,
+  },
+  tagline: {
+    marginTop: spacing[1],
+    fontFamily: fontFamily.regular,
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  selectionCircle: {
+    height: 24,
+    width: 24,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionCircleSelected: {
+    backgroundColor: colors.text.accent,
+  },
+  selectionCircleUnselected: {
+    borderWidth: 2,
+    borderColor: colors.border.strong,
+  },
+});

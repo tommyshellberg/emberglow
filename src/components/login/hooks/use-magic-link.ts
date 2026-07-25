@@ -4,6 +4,10 @@ import { useCallback, useState } from 'react';
 
 import { requestMagicLink } from '@/api/auth';
 
+import {
+  EMAIL_IN_USE_ERROR_MESSAGE,
+  GENERIC_SEND_ERROR_MESSAGE,
+} from '../constants';
 import { emailSchema } from '../types';
 
 export type UseMagicLinkReturn = {
@@ -70,21 +74,19 @@ export function useMagicLink(): UseMagicLinkReturn {
               email,
             });
           } else if (err.response.status === 409) {
-            setError(
-              'This email address is already associated with an account. Please use a different email address.'
-            );
+            setError(EMAIL_IN_USE_ERROR_MESSAGE);
             posthog.capture('magic_link_request_failed_email_in_use', {
               email,
             });
           } else {
-            setError('Login link failed to send. Please try again.');
+            setError(GENERIC_SEND_ERROR_MESSAGE);
             posthog.capture('magic_link_request_failed_server_error', {
               email,
               status: err.response.status,
             });
           }
         } else {
-          setError('Login link failed to send. Please try again.');
+          setError(GENERIC_SEND_ERROR_MESSAGE);
           posthog.capture('magic_link_request_failed_unknown', { email });
         }
       } finally {

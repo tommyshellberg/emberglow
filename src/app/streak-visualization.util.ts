@@ -7,58 +7,37 @@ export interface StreakDay {
 }
 
 /**
- * Generates a 5-day streak visualization array based on the current streak count.
+ * Generates a full-week (7-day) streak visualization ending today.
  *
- * Rules:
- * - 0 streak: Shows today and 4 empty days after
- * - 1-4 streak: Shows streak days from left, then empty days
- * - 5+ streak: Shows 5 completed days ending with today
+ * The 7 days shown are always the current calendar week ending today,
+ * regardless of streak length. Days are lit right-to-left from today,
+ * i.e. the rightmost `min(streak, 7)` days are lit — equivalently,
+ * ignition proceeds left-to-right starting from `firstLit`:
+ *
+ *   firstLit = DAYS_TO_SHOW - min(streak, DAYS_TO_SHOW)
  *
  * @param dailyQuestStreak - Current streak count
- * @returns Array of 5 StreakDay objects representing the visualization
+ * @returns Array of 7 StreakDay objects representing the visualization
  */
 export function generateStreakVisualization(
   dailyQuestStreak: number
 ): StreakDay[] {
   const today = new Date().getDay();
+  const litCount = Math.max(0, Math.min(dailyQuestStreak, STREAK.DAYS_TO_SHOW));
+  const firstLit = STREAK.DAYS_TO_SHOW - litCount;
+
   const streakDays: StreakDay[] = [];
+  for (let i = 0; i < STREAK.DAYS_TO_SHOW; i++) {
+    const offsetFromToday = STREAK.DAYS_TO_SHOW - 1 - i;
+    const dayIndex =
+      (((today - offsetFromToday) % DAY_NAMES.length) + DAY_NAMES.length) %
+      DAY_NAMES.length;
 
-  if (dailyQuestStreak === 0) {
-    // No streak, show today and 4 empty days after
-    for (let i = 0; i < STREAK.DAYS_TO_SHOW; i++) {
-      const dayIndex = (today + i) % DAY_NAMES.length;
-      streakDays.push({
-        name: DAY_NAMES[dayIndex],
-        isCompleted: false,
-        isToday: i === 0,
-      });
-    }
-  } else if (dailyQuestStreak >= STREAK.MIN_STREAK_FOR_FULL_VIEW) {
-    // 5+ day streak, show 5 completed days ending with today
-    for (let i = STREAK.DAYS_TO_SHOW - 1; i >= 0; i--) {
-      const dayIndex = (today - i + DAY_NAMES.length) % DAY_NAMES.length;
-      streakDays.push({
-        name: DAY_NAMES[dayIndex],
-        isCompleted: true,
-        isToday: i === 0,
-      });
-    }
-  } else {
-    // 1-4 day streak, show streak days starting from left, then empty days
-    const streakStartDay =
-      (today - dailyQuestStreak + 1 + DAY_NAMES.length) % DAY_NAMES.length;
-
-    for (let i = 0; i < STREAK.DAYS_TO_SHOW; i++) {
-      const dayIndex = (streakStartDay + i) % DAY_NAMES.length;
-      const isCompleted = i < dailyQuestStreak;
-      const isToday = dayIndex === today;
-
-      streakDays.push({
-        name: DAY_NAMES[dayIndex],
-        isCompleted,
-        isToday,
-      });
-    }
+    streakDays.push({
+      name: DAY_NAMES[dayIndex],
+      isCompleted: i >= firstLit,
+      isToday: i === STREAK.DAYS_TO_SHOW - 1,
+    });
   }
 
   return streakDays;

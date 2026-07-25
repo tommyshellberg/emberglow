@@ -1,18 +1,19 @@
 import type * as Contacts from 'expo-contacts';
 import React, { useMemo } from 'react';
-import { SectionList, type SectionListData, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Text } from '@/components/ui';
+import { Button, EyebrowLabel } from '@/components/emberglow';
+import { colors, radii, spacing } from '@/theme';
 
 import { ContactItem } from './ContactItem';
 import { ContactSearchBar } from './ContactSearchBar';
 
 interface ContactsListProps {
-  contacts: (Contacts.Contact & { isFriend?: boolean })[];
+  contacts: (Contacts.ExistingContact & { isFriend?: boolean })[];
   selectedContacts: { [email: string]: { name: string; selected: boolean } };
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onContactSelect: (contact: Contacts.Contact) => void;
+  onContactSelect: (contact: Contacts.ExistingContact) => void;
   onInvite: () => void;
   onManualAdd: () => void;
   selectedCount: number;
@@ -20,8 +21,14 @@ interface ContactsListProps {
 
 interface ContactSection {
   title: string;
-  data: (Contacts.Contact & { isFriend?: boolean })[];
+  data: (Contacts.ExistingContact & { isFriend?: boolean })[];
 }
+
+// The list sits inside Emberglow's BottomSheet, which already provides the
+// sheet's own scroll container — a bounded-height ScrollView here (matching
+// the Invite Friends mockup) avoids nesting a virtualized SectionList inside
+// that outer scroll view.
+const LIST_MAX_HEIGHT = 320;
 
 export const ContactsList: React.FC<ContactsListProps> = ({
   contacts,
@@ -50,7 +57,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
 
     // Group by first letter
     const grouped: {
-      [key: string]: (Contacts.Contact & { isFriend?: boolean })[];
+      [key: string]: (Contacts.ExistingContact & { isFriend?: boolean })[];
     } = {};
 
     sorted.forEach((contact) => {
@@ -74,75 +81,92 @@ export const ContactsList: React.FC<ContactsListProps> = ({
     return sections;
   }, [contacts, searchQuery]);
 
-  const isContactSelected = (contact: Contacts.Contact) => {
+  const isContactSelected = (contact: Contacts.ExistingContact) => {
     if (!contact.emails || contact.emails.length === 0) return false;
     const email = contact.emails[0].email!;
     return selectedContacts[email]?.selected || false;
   };
 
-  const renderSectionHeader = ({
-    section,
-  }: {
-    section: SectionListData<
-      Contacts.Contact & { isFriend?: boolean },
-      ContactSection
-    >;
-  }) => (
-    <View className="border-b border-neutral-300 bg-background px-4 py-2">
-      <Text className="text-sm font-semibold text-neutral-200">
-        {section.title}
-      </Text>
-    </View>
-  );
-
-  const renderItem = ({
-    item,
-  }: {
-    item: Contacts.Contact & { isFriend?: boolean };
-  }) => (
-    <ContactItem
-      contact={item}
-      isSelected={isContactSelected(item)}
-      isFriend={item.isFriend || false}
-      onPress={() => !item.isFriend && onContactSelect(item)}
-    />
-  );
-
-  const keyExtractor = (item: Contacts.Contact) => item.id || '';
-
   return (
-    <View className="flex-1">
+    <View style={styles.container}>
       <ContactSearchBar value={searchQuery} onChangeText={onSearchChange} />
 
-      <SectionList
-        sections={filteredAndGroupedContacts}
-        renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
-        keyExtractor={keyExtractor}
-        ItemSeparatorComponent={() => <View className="h-px bg-neutral-200" />}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        stickySectionHeadersEnabled
-        className="bg-background"
-      />
+      <View style={styles.listBox}>
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          nestedScrollEnabled
+        >
+          {filteredAndGroupedContacts.map((section) => (
+            <View key={section.title}>
+              <View style={styles.sectionHeader}>
+                <EyebrowLabel tone="muted">{section.title}</EyebrowLabel>
+              </View>
+              {section.data.map((contact, index) => (
+                <View key={contact.id}>
+                  {index > 0 && <View style={styles.separator} />}
+                  <ContactItem
+                    contact={contact}
+                    isSelected={isContactSelected(contact)}
+                    isFriend={contact.isFriend || false}
+                    onPress={() =>
+                      !contact.isFriend && onContactSelect(contact)
+                    }
+                  />
+                </View>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
 
-      <View className="absolute inset-x-0 bottom-0 border-t border-neutral-200 bg-background p-4">
+      <View style={styles.actions}>
         <Button
           label={
             selectedCount > 0
-              ? `INVITE ${selectedCount} CONTACT${selectedCount > 1 ? 'S' : ''}`
-              : 'SELECT CONTACTS'
+              ? `Invite ${selectedCount} Contact${selectedCount > 1 ? 's' : ''}`
+              : 'Select Contacts'
           }
           onPress={onInvite}
           disabled={selectedCount === 0}
-          className="mb-2 w-full"
+          fullWidth
         />
         <Button
-          label="ADD MANUAL CONTACT"
+          label="Add Manual Contact"
           onPress={onManualAdd}
           variant="ghost"
-          className="w-full"
+          fullWidth
         />
       </View>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  listBox: {
+    maxHeight: LIST_MAX_HEIGHT,
+    backgroundColor: colors.surface.inset,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radii.lg,
+  },
+  listContent: {
+    paddingVertical: spacing[1],
+  },
+  sectionHeader: {
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[3],
+    paddingBottom: spacing[1],
+  },
+  separator: {
+    height: 1,
+    marginHorizontal: spacing[4],
+    backgroundColor: colors.border.hairline,
+  },
+  actions: {
+    marginTop: spacing[4],
+    gap: spacing[2],
+  },
+});

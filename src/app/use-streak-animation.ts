@@ -1,77 +1,226 @@
-import type LottieView from 'lottie-react-native';
-import { useCallback, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
+import { useCallback } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 import {
+  Easing,
+  runOnJS,
   useSharedValue,
   withDelay,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
-import {
-  ANIMATION_TIMING,
-  SPRING_CONFIG,
-} from './streak-celebration.constants';
+import { durations, easing } from '@/theme';
+
+import { ANIMATION_TIMING, DAY_IGNITE } from './streak-celebration.constants';
 import { type StreakDay } from './streak-visualization.util';
 
+const EMBER_EASE = Easing.bezier(...easing.emberOut);
+const COUNT_EASE = Easing.out(Easing.cubic);
+
+function fireImpactHaptic(isLast: boolean) {
+  Haptics.impactAsync(
+    isLast
+      ? Haptics.ImpactFeedbackStyle.Medium
+      : Haptics.ImpactFeedbackStyle.Light
+  );
+}
+
+function fireSuccessHaptic() {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+}
+
 interface UseStreakAnimationReturn {
-  weekViewOpacity: any;
-  dayAnimations: any[];
-  lottieRef: React.RefObject<LottieView>;
+  discOpacity: SharedValue<number>;
+  discScale: SharedValue<number>;
+  count: SharedValue<number>;
+  titleOpacity: SharedValue<number>;
+  titleTranslateY: SharedValue<number>;
+  weekRowOpacity: SharedValue<number>;
+  weekRowTranslateY: SharedValue<number>;
+  /** One ignition progress value (0 -> 1) per day, driving lit color/glow. */
+  dayLitProgress: SharedValue<number>[];
+  /** One punch-scale value per day, briefly overshooting past 1 on ignite. */
+  dayScale: SharedValue<number>[];
+  buttonsOpacity: SharedValue<number>;
+  buttonsTranslateY: SharedValue<number>;
   playAnimations: () => void;
 }
 
+const RISE_DISTANCE = 14;
+
 /**
- * Custom hook to manage all animations for the streak celebration screen.
+ * Custom hook to manage all animations for the streak celebration screen:
+ * counter disc pop-in -> count-up -> title rise -> week row rise -> day
+ * ignition (staggered, haptic per day) -> buttons rise.
  *
- * @param streakDays - Array of streak days to animate
- * @returns Animation values, ref, and play function
+ * @param streakDays - Array of 7 streak days to animate
+ * @param streak - Current streak count (count-up target)
+ * @returns Animation values and a play function
  */
 export function useStreakAnimation(
-  streakDays: StreakDay[]
+  streakDays: StreakDay[],
+  streak: number
 ): UseStreakAnimationReturn {
-  const lottieRef = useRef<LottieView>(null);
-  const weekViewOpacity = useSharedValue(0);
-  const dayAnimations = streakDays.map(() => useSharedValue(0));
+  const discOpacity = useSharedValue(0);
+  const discScale = useSharedValue(0.6);
+  const count = useSharedValue(1);
+  const titleOpacity = useSharedValue(0);
+  const titleTranslateY = useSharedValue(RISE_DISTANCE);
+  const weekRowOpacity = useSharedValue(0);
+  const weekRowTranslateY = useSharedValue(RISE_DISTANCE);
+  const buttonsOpacity = useSharedValue(0);
+  const buttonsTranslateY = useSharedValue(RISE_DISTANCE);
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const dayLitProgress = streakDays.map(() => useSharedValue(0));
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const dayScale = streakDays.map(() => useSharedValue(1));
+
+  const litCount = streakDays.filter((day) => day.isCompleted).length;
+  const countTarget = Math.max(streak, 1);
 
   const playAnimations = useCallback(() => {
-    // Reset all animation values first
-    weekViewOpacity.value = 0;
-    dayAnimations.forEach((anim) => {
-      anim.value = 0;
+    // Reset all animation values first.
+    discOpacity.value = 0;
+    discScale.value = 0.6;
+    count.value = 1;
+    titleOpacity.value = 0;
+    titleTranslateY.value = RISE_DISTANCE;
+    weekRowOpacity.value = 0;
+    weekRowTranslateY.value = RISE_DISTANCE;
+    buttonsOpacity.value = 0;
+    buttonsTranslateY.value = RISE_DISTANCE;
+    dayLitProgress.forEach((value) => {
+      value.value = 0;
+    });
+    dayScale.forEach((value) => {
+      value.value = 1;
     });
 
-    // Animate the week view entrance
-    weekViewOpacity.value = withDelay(
-      ANIMATION_TIMING.WEEK_VIEW_DELAY,
-      withTiming(1, { duration: ANIMATION_TIMING.WEEK_VIEW_DURATION })
+    // 1 - Counter disc pop-in.
+    discOpacity.value = withDelay(
+      ANIMATION_TIMING.DISC_DELAY,
+      withTiming(1, { duration: durations.base, easing: EMBER_EASE })
+    );
+    discScale.value = withDelay(
+      ANIMATION_TIMING.DISC_DELAY,
+      withTiming(1, { duration: durations.slow, easing: EMBER_EASE })
     );
 
-    // Play the confetti animation with a slight delay to ensure mounting
-    if (lottieRef.current) {
-      setTimeout(() => {
-        lottieRef.current?.play();
-      }, ANIMATION_TIMING.CONFETTI_DELAY);
-    }
+    // 2 - Count-up 1 -> streak, success haptic when it lands.
+    count.value = withDelay(
+      ANIMATION_TIMING.COUNT_START_DELAY,
+      withTiming(
+        countTarget,
+        { duration: ANIMATION_TIMING.COUNT_DURATION, easing: COUNT_EASE },
+        (finished) => {
+          'worklet';
+          if (finished) {
+            runOnJS(fireSuccessHaptic)();
+          }
+        }
+      )
+    );
 
-    // Animate each completed day one by one
+    const countEnd =
+      ANIMATION_TIMING.COUNT_START_DELAY + ANIMATION_TIMING.COUNT_DURATION;
+
+    // 3 - Title rise.
+    const titleDelay = countEnd - ANIMATION_TIMING.TITLE_LEAD;
+    titleOpacity.value = withDelay(
+      titleDelay,
+      withTiming(1, { duration: durations.base, easing: EMBER_EASE })
+    );
+    titleTranslateY.value = withDelay(
+      titleDelay,
+      withTiming(0, { duration: durations.base, easing: EMBER_EASE })
+    );
+
+    // 4 - Week row rise.
+    const weekAt = countEnd + ANIMATION_TIMING.WEEK_ROW_DELAY_AFTER_COUNT;
+    weekRowOpacity.value = withDelay(
+      weekAt,
+      withTiming(1, { duration: durations.base, easing: EMBER_EASE })
+    );
+    weekRowTranslateY.value = withDelay(
+      weekAt,
+      withTiming(0, { duration: durations.base, easing: EMBER_EASE })
+    );
+
+    // 5 - Day-by-day ignition, left to right starting at the first lit day.
+    let ignitedSoFar = 0;
     streakDays.forEach((day, index) => {
-      if (day.isCompleted) {
-        dayAnimations[index].value = withDelay(
-          ANIMATION_TIMING.DAY_ANIMATION_START_DELAY +
-            index * ANIMATION_TIMING.DAY_ANIMATION_STAGGER,
+      if (!day.isCompleted) return;
+
+      const isLast = ignitedSoFar === litCount - 1;
+      const igniteDelay =
+        weekAt +
+        ANIMATION_TIMING.DAY_IGNITE_START_OFFSET +
+        ignitedSoFar * ANIMATION_TIMING.DAY_STAGGER;
+
+      dayLitProgress[index].value = withDelay(
+        igniteDelay,
+        withTiming(1, { duration: durations.base, easing: EMBER_EASE })
+      );
+      dayScale[index].value = withDelay(
+        igniteDelay,
+        withSequence(
+          withTiming(
+            DAY_IGNITE.BOUNCE_SCALE,
+            { duration: DAY_IGNITE.BOUNCE_DURATION, easing: EMBER_EASE },
+            (finished) => {
+              'worklet';
+              if (finished) {
+                runOnJS(fireImpactHaptic)(isLast);
+              }
+            }
+          ),
           withSpring(1, {
-            damping: SPRING_CONFIG.DAMPING,
-            stiffness: SPRING_CONFIG.STIFFNESS,
+            damping: DAY_IGNITE.SPRING_DAMPING,
+            stiffness: DAY_IGNITE.SPRING_STIFFNESS,
           })
-        );
-      }
+        )
+      );
+
+      ignitedSoFar += 1;
     });
-  }, [weekViewOpacity, dayAnimations, streakDays]);
+
+    // 6 - Buttons rise, after the last day ignites.
+    const buttonsDelay =
+      weekAt +
+      ANIMATION_TIMING.DAY_IGNITE_START_OFFSET +
+      litCount * ANIMATION_TIMING.DAY_STAGGER +
+      ANIMATION_TIMING.BUTTONS_DELAY_AFTER_LAST_DAY;
+    buttonsOpacity.value = withDelay(
+      buttonsDelay,
+      withTiming(1, { duration: durations.base, easing: EMBER_EASE })
+    );
+    buttonsTranslateY.value = withDelay(
+      buttonsDelay,
+      withTiming(0, { duration: durations.base, easing: EMBER_EASE })
+    );
+    // Deliberately omit day-circle values from deps: they're stable refs
+    // (created once via useSharedValue) whose .value is mutated, not
+    // replaced, so re-running this effect for their identity would be
+    // both unnecessary and (for the array itself) impossible to satisfy
+    // exhaustive-deps cleanly since the array length is derived from props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streakDays, streak, litCount, countTarget]);
 
   return {
-    weekViewOpacity,
-    dayAnimations,
-    lottieRef,
+    discOpacity,
+    discScale,
+    count,
+    titleOpacity,
+    titleTranslateY,
+    weekRowOpacity,
+    weekRowTranslateY,
+    dayLitProgress,
+    dayScale,
+    buttonsOpacity,
+    buttonsTranslateY,
     playAnimations,
   };
 }

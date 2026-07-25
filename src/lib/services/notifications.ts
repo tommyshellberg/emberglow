@@ -127,7 +127,12 @@ export function setupNotifications() {
 
   ExpoNotifications.setNotificationHandler({
     handleNotification: async () => ({
+      // expo-notifications 0.31 split shouldShowAlert into shouldShowBanner
+      // + shouldShowList (both now required); shouldShowAlert is deprecated
+      // but still honored, so keep it with the same value during migration.
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     }),

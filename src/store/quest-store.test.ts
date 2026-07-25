@@ -542,6 +542,136 @@ describe('QuestStore - refreshAvailableQuests', () => {
   });
 
   describe('completeQuest', () => {
+    test('arms recentCompletedQuest synchronously, before any reward fetching', () => {
+      // Captured on device 2026-07-16: the background task completes a quest
+      // while the phone is locked, and the rewards fetch goes out on a network
+      // the OS has already suspended — with no client timeout the promise
+      // never settles, and the store write behind it never ran. The store
+      // write IS the navigation instruction (NavigationGate routes on
+      // recentCompletedQuest), so it must happen before completeQuest's first
+      // await. Asserting synchronously (no flush) is what pins that down; the
+      // enrichment fetch itself can't run under Jest (dynamic import needs
+      // --experimental-vm-modules) and is device-verified instead.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-123');
+
+      const startTime = Date.now() - 600000; // 10 minutes ago
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime,
+        status: 'active' as const,
+      };
+      useQuestStore.setState({
+        activeQuest,
+        completedQuests: [],
+        lastCompletedQuestTimestamp: null,
+      });
+
+      // Fire-and-forget, exactly like the background task's call site.
+      useQuestStore.getState().completeQuest(true);
+
+      const state = useQuestStore.getState();
+      expect(state.recentCompletedQuest?.id).toBe('quest-1');
+      expect(state.recentCompletedQuest?.questRunId).toBe('run-123');
+      expect(state.activeQuest).toBeNull();
+      expect(state.completedQuests).toHaveLength(1);
+      expect(mockAddXP).toHaveBeenCalledWith(100);
+    });
+
+    test('does not initiate a reward-enrichment fetch for solo quests', () => {
+      // The reward-enrichment fetch only exists to populate participant
+      // rewards for cooperative quests. A solo quest has one participant and
+      // its reward is already known locally, so the fetch is pure waste — and
+      // on a locked phone its dynamic import fails (dev: "Could not load
+      // bundle"; device: suspended network). Gate it on the quest being
+      // cooperative. Observed via the synchronous "Fetching..." log that
+      // precedes the (Jest-unresolvable) dynamic import.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-solo');
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime: Date.now() - 600000, // 10 minutes ago
+        status: 'active' as const,
+      };
+      useQuestStore.setState({
+        activeQuest,
+        completedQuests: [],
+        cooperativeQuestRun: null,
+        lastCompletedQuestTimestamp: null,
+      });
+
+      // Fire-and-forget, exactly like the background task's call site.
+      useQuestStore.getState().completeQuest(true);
+
+      expect(logSpy).not.toHaveBeenCalledWith(
+        '[QuestStore] Fetching quest run data to get rewards:',
+        expect.anything()
+      );
+
+      logSpy.mockRestore();
+    });
+
+    test.each([
+      {
+        label: 'mode "cooperative"',
+        quest: { mode: 'cooperative' as const, category: 'cooperative' },
+      },
+      {
+        label: 'custom quest with cooperative category',
+        quest: { mode: 'custom' as const, category: 'cooperative' },
+      },
+    ])(
+      'still initiates the reward-enrichment fetch for a $label quest',
+      async ({ quest }) => {
+        // Gate is derived from the quest, not cooperativeQuestRun state — so it
+        // must still fire here even with cooperativeQuestRun null, which is the
+        // background-task completion case where that state may be absent.
+        (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-coop');
+        const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const errorSpy = jest
+          .spyOn(console, 'error')
+          .mockImplementation(() => {});
+
+        const activeQuest = {
+          id: 'coop-1',
+          title: 'Test Coop Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 600000, // 10 minutes ago
+          status: 'active' as const,
+          ...quest,
+        };
+        useQuestStore.setState({
+          activeQuest,
+          completedQuests: [],
+          cooperativeQuestRun: null,
+          lastCompletedQuestTimestamp: null,
+        });
+
+        useQuestStore.getState().completeQuest(true);
+
+        expect(logSpy).toHaveBeenCalledWith(
+          '[QuestStore] Fetching quest run data to get rewards:',
+          'run-coop'
+        );
+
+        // Let the (Jest-unresolvable) dynamic import reject and be absorbed so
+        // its async console.error doesn't leak into the next test.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        logSpy.mockRestore();
+        errorSpy.mockRestore();
+      }
+    );
+
     test('should complete quest successfully when duration is met', async () => {
       // Arrange
       const startTime = Date.now() - 600000; // 10 minutes ago
@@ -1170,7 +1300,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       // Complete the quest
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(cancelStreakWarningNotification).toHaveBeenCalled();
@@ -1198,7 +1330,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(completedQuest?.status).toBe('completed');
@@ -1264,7 +1398,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         lastCompletedQuestTimestamp: null,
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockAddXP).toHaveBeenCalledWith(150);
@@ -1288,7 +1424,9 @@ describe('QuestStore - refreshAvailableQuests', () => {
         completedQuests: [],
       });
 
-      const completedQuest = await await useQuestStore.getState().completeQuest();
+      const completedQuest = await await useQuestStore
+        .getState()
+        .completeQuest();
 
       expect(completedQuest).not.toBeNull();
       expect(mockRevealLocation).toHaveBeenCalledWith('test-poi');

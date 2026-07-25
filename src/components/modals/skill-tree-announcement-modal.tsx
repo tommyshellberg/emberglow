@@ -1,17 +1,25 @@
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
+import { Check } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 import React, { forwardRef } from 'react';
-import { Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Button, Modal, Text, View } from '@/components/ui';
-import { useSettingsStore } from '@/store/settings-store';
+import { BottomSheet, Button } from '@/components/emberglow';
+import { useAnnouncementStore } from '@/store/announcement-store';
+import { colors, fontFamily, radii, spacing } from '@/theme';
+
+const PERK_BENEFITS = [
+  'Boost your XP gains',
+  'Unlock special abilities',
+  'Customize your playstyle',
+];
 
 export const SkillTreeAnnouncementModal = forwardRef<BottomSheetModal>(
   (_, ref) => {
     const router = useRouter();
     const posthog = usePostHog();
-    const setHasSeenSkillTreeAnnouncement = useSettingsStore(
+    const setHasSeenSkillTreeAnnouncement = useAnnouncementStore(
       (state) => state.setHasSeenSkillTreeAnnouncement
     );
 
@@ -37,59 +45,88 @@ export const SkillTreeAnnouncementModal = forwardRef<BottomSheetModal>(
     };
 
     return (
-      <Modal
+      <BottomSheet
         ref={ref}
-        snapPoints={['60%']}
         title="New: Skill Trees"
         onChange={handleModalChange}
-        backgroundStyle={{ backgroundColor: '#2c456b' }}
       >
-        <View className="px-4 pb-6">
-          {/* Icon */}
-          <View className="mb-4 items-center">
-            <Text className="text-4xl">✨</Text>
-          </View>
+        <Text style={styles.heading}>Unlock Your First Perk</Text>
 
-          {/* Main Message */}
-          <Text className="mb-2 text-center text-2xl font-bold text-cream-500">
-            Unlock Your First Perk
-          </Text>
+        <Text style={styles.body}>
+          You've leveled up enough to unlock powerful perks that enhance your
+          quest experience. Choose your path and grow stronger!
+        </Text>
 
-          <Text className="mb-6 text-center text-sm text-cream-500">
-            You've leveled up enough to unlock powerful perks that enhance your
-            quest experience. Choose your path and grow stronger!
-          </Text>
-
-          {/* What are Perks? */}
-          <View className="mb-6 rounded-lg border border-primary-300 bg-primary-500/10 p-4">
-            <Text className="mb-2 text-base font-bold text-cream-500">
-              What are Perks?
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Boost your XP gains
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Unlock special abilities
-            </Text>
-            <Text className="text-sm text-cream-300">
-              ✓ Customize your playstyle
-            </Text>
-          </View>
-
-          {/* Action Buttons */}
-          <View className="space-y-3">
-            <Button
-              label="Explore Skill Tree"
-              onPress={handleExplore}
-              className="bg-primary-400"
-            />
-
-            <Pressable onPress={handleDismiss} className="py-3">
-              <Text className="text-center text-cream-500">Maybe Later</Text>
-            </Pressable>
-          </View>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>What are Perks?</Text>
+          {PERK_BENEFITS.map((benefit) => (
+            <View key={benefit} style={styles.benefitRow}>
+              <Check size={16} color={colors.text.accent} strokeWidth={2.5} />
+              <Text style={styles.benefitText}>{benefit}</Text>
+            </View>
+          ))}
         </View>
-      </Modal>
+
+        <View style={styles.actions}>
+          <Button
+            label="Explore Skill Tree"
+            onPress={handleExplore}
+            fullWidth
+          />
+          <Button
+            label="Maybe Later"
+            variant="ghost"
+            onPress={handleDismiss}
+            fullWidth
+          />
+        </View>
+      </BottomSheet>
     );
   }
 );
+
+const styles = StyleSheet.create({
+  heading: {
+    fontFamily: fontFamily.display,
+    fontSize: 22,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  body: {
+    fontFamily: fontFamily.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing[6],
+  },
+  infoCard: {
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.fill.faint,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    marginBottom: spacing[6],
+    gap: spacing[2],
+  },
+  infoTitle: {
+    fontFamily: fontFamily.medium,
+    fontSize: 16,
+    color: colors.text.primary,
+    marginBottom: spacing[1],
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  benefitText: {
+    fontFamily: fontFamily.regular,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  actions: {
+    gap: spacing[3],
+  },
+});

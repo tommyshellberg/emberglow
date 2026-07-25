@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Check, Circle, Clock } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert } from 'react-native';
 
 import { useWebSocket } from '@/components/providers/websocket-provider';
@@ -76,21 +76,10 @@ export default function CooperativeQuestReady() {
   const markUserReady = useCooperativeLobbyStore(
     (state) => state.markUserReady
   );
-  const updateLobbyStatus = useCooperativeLobbyStore(
-    (state) => state.updateLobbyStatus
-  );
-  const updateParticipant = useCooperativeLobbyStore(
-    (state) => state.updateParticipant
-  );
-  const setCountdown = useCooperativeLobbyStore((state) => state.setCountdown);
-  const countdownSeconds = useCooperativeLobbyStore(
-    (state) => state.countdownSeconds
-  );
   const prepareQuest = useQuestStore((state) => state.prepareQuest);
 
   const { emit, on, off } = useWebSocket();
   const [isLoading, setIsLoading] = useState(false);
-  const [hasJoined, setHasJoined] = useState(false);
 
   // Define the quest created handler. Declared here (rather than after the
   // `if (!currentLobby...) return` below) because the effect below lists it
@@ -178,88 +167,93 @@ export default function CooperativeQuestReady() {
       prepareQuest(questTemplate);
 
       // For cooperative quests, pass the quest run ID directly to avoid race conditions
+      // No navigation here: prepareQuest above arms NavigationGate, which owns
+      // the push to /cooperative-pending-quest.
       await QuestTimer.prepareQuest(questTemplate, questRunId);
-
-      // Navigate to cooperative pending quest which will show the countdown
-      // Use push so cancel button can navigate back
-      router.push('/cooperative-pending-quest');
     },
-    [currentLobby, prepareQuest, router]
+    [currentLobby, prepareQuest]
   );
 
+  // The quest-created handler closes over currentLobby, whose identity
+  // changes on every roster/ready update. The socket effect below must not
+  // re-run on those updates (its cleanup would tear down listeners), so the
+  // effect reaches the latest handler through a ref instead of a dependency.
+  const handleQuestCreatedRef = useRef(handleQuestCreatedResponse);
   useEffect(() => {
-    if (!currentLobby) {
+    handleQuestCreatedRef.current = handleQuestCreatedResponse;
+  });
+
+  const lobbyId = currentLobby?.lobbyId;
+  const hasLobby = !!currentLobby;
+
+  useEffect(() => {
+    if (!hasLobby) {
       router.replace('/');
+    }
+  }, [hasLobby, router]);
+
+  useEffect(() => {
+    if (!lobbyId) {
       return;
     }
 
-    // Prevent multiple joins
-    if (hasJoined) {
-      return;
-    }
-
-    // Join the lobby room to receive updates
+    // Join the lobby room to receive updates. Joining is idempotent
+    // server-side, so a remount after the lobby screen simply re-enters the
+    // same room.
     if (__DEV__) {
-      console.log('Ready screen joining lobby:', currentLobby.lobbyId);
+      console.log('Ready screen joining lobby:', lobbyId);
     }
-    emit('lobby:join', { lobbyId: currentLobby.lobbyId });
-    setHasJoined(true);
+    emit('lobby:join', { lobbyId });
 
-    // Listen for lobby joined event to get latest participant data
+    // Handlers read store actions via getState() so the effect needs no
+    // store-derived dependencies and stays mounted for the lobby's lifetime.
     const handleLobbyJoined = (data: any) => {
       if (__DEV__) {
         console.log('Ready screen - lobby joined data:', data);
       }
-      if (data.lobbyId === currentLobby.lobbyId && data.participants) {
-        // Update participant names and ready states from server
+      if (data.lobbyId === lobbyId && data.participants) {
+        const store = useCooperativeLobbyStore.getState();
         data.participants.forEach((p: any) => {
-          updateParticipant(p.userId, {
+          store.updateParticipant(p.userId, {
             username: p.characterName || p.username || p.userId,
           });
-          // Also update ready state from server data
           if (p.ready !== undefined) {
-            markUserReady(p.userId, p.ready);
+            store.markUserReady(p.userId, p.ready);
           }
         });
       }
     };
 
-    // Listen for ready status updates
     const handleReadyStatus = (data: LobbyReadyStatusPayload) => {
       if (__DEV__) {
         console.log('Ready status update:', data);
       }
-      markUserReady(data.userId, data.isReady);
+      useCooperativeLobbyStore
+        .getState()
+        .markUserReady(data.userId, data.isReady);
     };
 
-    // Listen for participant ready events (server sends these)
     const handleParticipantReady = (data: any) => {
-      if (__DEV__) {
-        console.log('Participant ready event:', data);
-      }
       if (data.userId && data.participant) {
-        markUserReady(data.userId, data.participant.ready || false);
+        useCooperativeLobbyStore
+          .getState()
+          .markUserReady(data.userId, data.participant.ready || false);
       }
     };
 
-    // Listen for all participants ready event
     const handleAllReady = (data: any) => {
-      if (__DEV__) {
-        console.log('All participants ready:', data);
-      }
-      if (data.allReady && data.lobbyId === currentLobby.lobbyId) {
-        updateLobbyStatus('ready');
+      if (data.allReady && data.lobbyId === lobbyId) {
+        useCooperativeLobbyStore.getState().updateLobbyStatus('ready');
       }
     };
 
-    // Listen for quest created event
-    const handleQuestCreated = async (data: any) => {
+    const handleQuestCreated = (data: any) => {
       if (__DEV__) {
         console.log('Quest created event received:', data);
       }
       // Server sends { questRun, startCountdown }
       if (data.questRun && data.startCountdown) {
-        handleQuestCreatedResponse(data.questRun);
+        handleQuestCreatedRef.current(data.questRun);
       }
     };
 
@@ -269,42 +263,32 @@ export default function CooperativeQuestReady() {
     on('lobby:all-participants-ready', handleAllReady);
     on('lobby:quest-created', handleQuestCreated);
 
+    // No lobby:leave here: this cleanup also runs when the screen transitions
+    // into the pending-quest flow while the same socket stays connected, and
+    // the server cancels the whole lobby when the host leaves. Leaving is the
+    // explicit user action handled in handleBackPress.
     return () => {
-      if (currentLobby?.lobbyId) {
-        emit('lobby:leave', { lobbyId: currentLobby.lobbyId });
-      }
       off('lobby:joined', handleLobbyJoined);
       off('lobby:ready-status', handleReadyStatus);
       off('lobby:participant-ready', handleParticipantReady);
       off('lobby:all-participants-ready', handleAllReady);
       off('lobby:quest-created', handleQuestCreated);
-      setHasJoined(false);
     };
-  }, [
-    currentLobby?.lobbyId, // Only depend on lobbyId, not the whole object
-    emit,
-    on,
-    off,
-    router,
-    handleQuestCreatedResponse, // Include to avoid stale closure
-  ]);
+  }, [lobbyId, emit, on, off]);
 
-  if (!currentLobby || !currentUser) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  const currentParticipant = currentLobby.participants.find(
-    (p) => p.id === currentUser.id
+  // Derived state and the hooks below must run on every render (including
+  // the loading/null-lobby render) so the hook order never changes.
+  const currentParticipant = currentLobby?.participants.find(
+    (p) => p.id === currentUser?.id
   );
   const isReady = currentParticipant?.isReady || false;
-  const acceptedParticipants = currentLobby.participants.filter(
-    (p) => p.invitationStatus === 'accepted'
-  );
-  const allReady = acceptedParticipants.every((p) => p.isReady);
+  const acceptedParticipants =
+    currentLobby?.participants.filter(
+      (p) => p.invitationStatus === 'accepted'
+    ) ?? [];
+  const allReady =
+    acceptedParticipants.length > 0 &&
+    acceptedParticipants.every((p) => p.isReady);
   const isCreator = currentParticipant?.isCreator || false;
 
   // When all are ready, creator should create the quest
@@ -360,7 +344,7 @@ export default function CooperativeQuestReady() {
         },
       ]
     );
-  }, [currentLobby, currentUser, emit, leaveLobby, router]);
+  }, [currentLobby, currentUser, emit, leaveLobby, posthog, router]);
 
   const handleReadyToggle = () => {
     if (!currentUser || !currentLobby) return;
@@ -394,6 +378,14 @@ export default function CooperativeQuestReady() {
 
     setIsLoading(false);
   };
+
+  if (!currentLobby || !currentUser) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <ScreenContainer fullScreen noPadding>

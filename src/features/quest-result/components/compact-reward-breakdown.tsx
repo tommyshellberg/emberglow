@@ -1,5 +1,4 @@
 import React from 'react';
-import { ScrollView } from 'react-native';
 
 import { PerkIcon } from '@/components/skill-tree/perk-icon';
 import { Text, View } from '@/components/ui';
@@ -46,22 +45,20 @@ export function CompactRewardBreakdown({
         </Text>
       </View>
 
-      {/* Row 2: Horizontally scrollable perk icons */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ alignItems: 'center', gap: 8 }}
-      >
+      {/* One row per perk: name on the left, icon on the right */}
+      <View>
         {perksApplied.map((perk) => (
           <View
             key={perk.id}
             accessibilityLabel={`${perk.name}: +${perk.bonusXP} XP`}
             testID={`perk-badge-${perk.id}`}
+            className="flex-row items-center justify-between py-1"
           >
+            <Text className="text-sm text-white">{perk.name}</Text>
             <PerkIcon perkId={perk.id} isUnlocked size={ICON_SIZE} />
           </View>
         ))}
-      </ScrollView>
+      </View>
     </View>
   );
 }

@@ -1,0 +1,28 @@
+<!-- @dsCard group="Brand" viewport="700x190" subtitle="Lucide (CDN substitute) — thin stroke, Bone or Sandy" name="Iconography" -->
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-body); background: var(--surface-app); color: var(--text-muted); padding: 20px 24px; box-sizing: border-box; }
+  .row { display: flex; gap: 26px; flex-wrap: wrap; }
+  .ic { display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 11px; }
+  .ic svg { width: 26px; height: 26px; color: var(--ember-bone); stroke-width: 1.75; }
+  .ic.hot svg { color: var(--ember-sandy); }
+  .note { margin-top: 16px; font-size: 12px; }
+  a { color: var(--text-accent); } a:hover { color: var(--ember-sandy-80); }
+</style></head><body>
+<div class="row">
+  <div class="ic"><i data-lucide="map"></i>quests</div>
+  <div class="ic hot"><i data-lucide="hourglass"></i>timer</div>
+  <div class="ic"><i data-lucide="scroll"></i>scroll</div>
+  <div class="ic"><i data-lucide="feather"></i>quill</div>
+  <div class="ic hot"><i data-lucide="award"></i>achievement</div>
+  <div class="ic"><i data-lucide="sparkles"></i>orb</div>
+  <div class="ic"><i data-lucide="gift"></i>rewards</div>
+  <div class="ic"><i data-lucide="user"></i>user</div>
+  <div class="ic"><i data-lucide="settings"></i>settings</div>
+  <div class="ic"><i data-lucide="flame"></i>ember</div>
+</div>
+<div class="note">Official colored brand icons live in the PDF (vector, not yet exported) — Lucide stands in until SVGs arrive. No emoji.</div>
+<script>lucide.createIcons();</script>
+</body></html>
