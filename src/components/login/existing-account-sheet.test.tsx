@@ -15,10 +15,15 @@ import { ExistingAccountSheet } from './existing-account-sheet';
  * 1. `present()` / `dismiss()` land on the modal instance — with no ref
  *    attached they are silent no-ops, so deleting either call from the
  *    component would not fail a single assertion.
- * 2. The real `BottomSheetModal.dismiss()` invokes `onDismiss` SYNCHRONOUSLY.
- *    That is the whole reason the component clears its presented flag before
- *    dismissing, and the only way a test can catch the dismiss→onDismiss→
- *    caller-closes→dismiss loop that the wrong ordering produces.
+ * 2. `onDismiss` fires for programmatic closes too, not only user gestures —
+ *    `unmount()` calls it either way (BottomSheetModal.tsx:106-133). The real
+ *    modal usually gets there a full close animation later
+ *    (`runOnUI(animateToPosition)` → `runOnJS(handleOnClose)` → `unmount`,
+ *    :291-293) and synchronously only in the modal-stacking exception at
+ *    :279-289. The `dismiss` below fires it synchronously: that is the tightest
+ *    ordering a real close can take and the one a synchronous test can observe,
+ *    and what the sheet has to get right is telling its own closes apart from
+ *    the user's, not the timing.
  *
  * Everything else mirrors jest-setup.ts's mock so the sheet renders its
  * children exactly as it does elsewhere.
@@ -317,6 +322,31 @@ describe('ExistingAccountSheet', () => {
 
       expect(onDismiss).toHaveBeenCalledTimes(1);
       expect(onConfirm).not.toHaveBeenCalled();
+    });
+
+    // The sheet closed itself, the caller answers by flipping `visible` off,
+    // and there is nothing left to close. A second dismiss() at the unmounted
+    // modal parks @gorhom's status at DISMISSING (its `forceClose` no-ops on a
+    // null inner ref), and `handlePortalRender` then drops every later render —
+    // the sheet silently never opens again. That consequence lives inside the
+    // library, so what is asserted here is the call that causes it.
+    it('does not dismiss again after the sheet closed itself', () => {
+      const { rerender, onConfirm, onDismiss } = renderSheet();
+
+      mockSheetState.onDismiss?.();
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <ExistingAccountSheet
+          visible={false}
+          account={HERO}
+          onConfirm={onConfirm}
+          onDismiss={onDismiss}
+        />
+      );
+
+      expect(mockSheetState.handle).toBeDefined();
+      expect(mockSheetState.handle?.dismiss).not.toHaveBeenCalled();
     });
 
     it('ignores a dismiss callback for a sheet it never presented', () => {

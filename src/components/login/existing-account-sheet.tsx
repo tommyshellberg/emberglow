@@ -92,19 +92,33 @@ export function ExistingAccountSheet({
       present();
       hasPresented.current = true;
     } else if (!visible && hasPresented.current) {
-      // Clear the flag BEFORE dismissing: `dismiss()` fires the sheet's
-      // onDismiss synchronously, and that handler must no-op for a close we
-      // initiated ourselves — otherwise it asks the caller to close, which
-      // re-runs this effect, which dismisses again.
+      // Cleared before `dismiss()` so `handleSheetDismiss` sees a close it
+      // should stay quiet about. Ordering only bites on the library's
+      // synchronous dismiss path (BottomSheetModal.tsx:279-289); the usual path
+      // calls back an animation later, by which time either order has run.
       hasPresented.current = false;
       dismiss();
     }
   }, [visible, present, dismiss]);
 
-  // Fires for the close paths that never touch `visible`: swipe-down and
-  // backdrop tap. Guarded for the same loop as above, from the other side.
+  // Fires for EVERY close, not just the user's: the modal's `unmount()` calls
+  // the provided onDismiss for programmatic dismisses too
+  // (BottomSheetModal.tsx:106-133), normally one close animation later via
+  // `runOnJS`. So this flag is the only thing separating "the user swiped it
+  // away or tapped the backdrop", which the caller must hear about, from "we
+  // closed it ourselves" — which it must not, or the close that follows a
+  // successful `onConfirm` would report a user back-out a few hundred ms after
+  // the sign-in succeeded.
   const handleSheetDismiss = React.useCallback(() => {
     if (hasPresented.current) {
+      // Cleared here too, because this sheet is now closed and the caller
+      // answers by flipping `visible` off: left set, the effect above would
+      // fire a SECOND dismiss() at an unmounted modal. That one takes the async
+      // branch (after `unmount()` the status is INITIAL, not CLOSED), parks the
+      // status at DISMISSING and then no-ops on a null inner ref — after which
+      // `handlePortalRender` (:399-415) drops every later render and the sheet
+      // silently never opens again.
+      hasPresented.current = false;
       onDismiss();
     }
   }, [onDismiss]);
