@@ -533,6 +533,10 @@ export default function ChooseCharacterScreen() {
           )}
 
           <Button
+            // The label is step-dependent (`getButtonText()`), so it is the
+            // one control on this screen that cannot be addressed by text at
+            // all without the flow knowing which step it is on.
+            testID="character-step-continue"
             variant="primary"
             size="lg"
             fullWidth
