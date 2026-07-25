@@ -115,28 +115,45 @@ export function JoinGuildModal({
   }, []);
 
   // Single source of truth for present/dismiss, driven by the controlled
-  // `visible` prop. Every close path (Cancel, gesture, programmatic) flips
-  // `visible` via `onClose` and lets this effect actually close + reset.
+  // `visible` prop. The close paths that leave the sheet open — Cancel, or a
+  // programmatic close — flip `visible` via `onClose` and let this effect do the
+  // actual closing and resetting. A sheet that closed ITSELF is handled in
+  // `handleSheetDismiss` instead, and deliberately does not come back through
+  // here.
   useEffect(() => {
     if (visible && !hasPresented.current) {
       present();
       hasPresented.current = true;
     } else if (!visible && hasPresented.current) {
-      // Clear the flag before dismissing so a synchronous onDismiss no-ops.
       hasPresented.current = false;
       resetForm();
       dismiss();
     }
   }, [visible, present, dismiss, resetForm]);
 
-  // Fires when the sheet is dismissed by swipe-down or backdrop tap (paths that
-  // don't touch `visible`). Sync the store so re-opening works; the effect above
-  // then runs its close branch. Guarded so a programmatic dismiss doesn't loop.
+  // Fires for EVERY close, including the `dismiss()` above: the modal's
+  // `unmount()` calls the provided onDismiss either way
+  // (BottomSheetModal.tsx:106-133), normally one close animation later via
+  // `runOnJS`. The flag is what separates a close the USER performed —
+  // swipe-down or backdrop tap, neither of which touches `visible` — from one we
+  // performed ourselves.
   const handleSheetDismiss = useCallback(() => {
     if (hasPresented.current) {
+      // The sheet is already closed and the store answers this by flipping
+      // `visible` off. Left set, the effect above would then fire a SECOND
+      // dismiss() at an unmounted modal, which parks @gorhom's status at
+      // DISMISSING (`forceClose` no-ops on a null inner ref) and makes
+      // `handlePortalRender` (:399-415) drop every later render — the sheet
+      // silently never opens again. Repro before this line existed: open Join a
+      // Guild, swipe it away, tap Join again.
+      hasPresented.current = false;
+      // The effect's close branch owns the reset and no longer runs for this
+      // path, so reset here — otherwise a swiped-away sheet reopens with the
+      // last typed code (and any validation error) still in the field.
+      resetForm();
       onClose();
     }
-  }, [onClose]);
+  }, [onClose, resetForm]);
 
   const handleCancel = useCallback(() => {
     // Just ask the store to close; the effect owns the actual dismiss + reset.
