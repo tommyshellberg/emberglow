@@ -349,7 +349,7 @@ jest.mock('react-native-edge-to-edge', () => ({
 // Mock expo-apple-authentication for social sign-in
 jest.mock('expo-apple-authentication', () => {
   const React = jest.requireActual('react');
-  const { TouchableOpacity } = jest.requireActual('react-native');
+  const { View } = jest.requireActual('react-native');
 
   return {
     isAvailableAsync: jest.fn().mockResolvedValue(true),
@@ -357,13 +357,24 @@ jest.mock('expo-apple-authentication', () => {
     AppleAuthenticationScope: { EMAIL: 1 },
     // Real component renders Apple's own native button and only accepts
     // `onPress` (plus style/layout props) — not a generic Pressable. This
-    // stub forwards just `onPress` and `testID` onto a real RN
-    // TouchableOpacity so tests can find and press it, instead of the
-    // previous `mockReturnValue(null)`, which made the button untestable.
-    AppleAuthenticationButton: jest.fn(({ onPress, testID, style }) =>
-      React.createElement(TouchableOpacity, { onPress, testID, style })
+    // stub forwards `onPress`, `testID`, `style`, and `buttonType` onto a
+    // real RN `View` (a host component) so tests can find, press, and
+    // inspect it, instead of the previous `mockReturnValue(null)`, which
+    // made the button untestable.
+    //
+    // `fireEvent.press` walks up the element tree — including composite
+    // elements — so it finds the `onPress` passed to this component
+    // regardless of what the stub renders. The host type only matters for
+    // prop visibility: `TouchableOpacity` spreads just its own known props,
+    // dropping `buttonType` before it reaches the node a test can query;
+    // `View` doesn't filter, so `buttonType` survives. `onPress` is still
+    // forwarded here for shape fidelity with the real component's accepted
+    // props, not because press needs it.
+    AppleAuthenticationButton: jest.fn(
+      ({ onPress, testID, style, buttonType }) =>
+        React.createElement(View, { onPress, testID, style, buttonType })
     ),
-    AppleAuthenticationButtonType: { SIGN_IN: 0 },
+    AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 },
     AppleAuthenticationButtonStyle: { WHITE: 1 },
   };
 });
