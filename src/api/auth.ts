@@ -323,13 +323,12 @@ export const socialSignIn = async (
       { headers }
     );
   } catch (error) {
-    // Branch on `details.reason` BEFORE status: the magic-link path already
-    // uses 409 for email-in-use, and that one must keep reaching the generic
-    // error copy untouched.
+    // Branch on `details.reason` INSTEAD OF status — see
+    // `ExistingAccountConfirmationRequired`'s doc for why status can't be it.
     //
     // The payload generic is spelled out because `isAxiosError`'s defaults to
     // `any` — left off, a typo in `reason`/`account` below would read
-    // `undefined` and silently fall through to that generic copy.
+    // `undefined` and silently fall through to the generic error copy.
     const details = axios.isAxiosError<{
       details?: { reason?: string; account?: ExistingAccountSummary };
     }>(error)

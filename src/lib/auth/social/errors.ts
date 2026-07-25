@@ -35,9 +35,11 @@ export type ExistingAccountSummary = {
  * has been mutated server-side — re-post the same credential with
  * `confirmExistingAccount: true` to proceed and abandon the provisional hero.
  *
- * Distinguished from the generic 409 (email-in-use) by the presence of
- * `details.reason`, NOT by status code: both are 409 and the magic-link path
- * already owns that status.
+ * Distinguished from the generic 409 (email-in-use) by `details.reason` being
+ * exactly 'existing-account-confirmation-required', NOT by status code: both
+ * are 409 and the magic-link path already owns that status. Any other reason —
+ * or no `details` at all — is re-thrown untranslated, so it keeps reaching the
+ * caller's generic error copy.
  */
 export class ExistingAccountConfirmationRequired extends Error {
   readonly account: ExistingAccountSummary;

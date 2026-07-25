@@ -509,13 +509,11 @@ describe('auth.ts', () => {
       );
     });
 
-    it('propagates the raw error when the server request fails (e.g. 409 conflict)', async () => {
-      const error = Object.assign(new Error('Conflict'), {
-        response: { status: 409 },
-      });
+    it('propagates a raw server 409 that carries no response body', async () => {
+      const error = axiosError(409, undefined);
       (authClient.post as jest.Mock).mockRejectedValue(error);
 
-      await expect(socialSignIn(credential)).rejects.toThrow('Conflict');
+      await expect(socialSignIn(credential)).rejects.toBe(error);
     });
 
     it('throws a typed error carrying the account summary on the collision 409', async () => {
@@ -524,10 +522,10 @@ describe('auth.ts', () => {
         collision409({ name: 'Rowan', level: 12, dailyQuestStreak: 4 })
       );
 
-      await expect(socialSignIn(credential)).rejects.toBeInstanceOf(
-        ExistingAccountConfirmationRequired
-      );
-      await expect(socialSignIn(credential)).rejects.toHaveProperty('account', {
+      const err = await socialSignIn(credential).catch((e) => e);
+
+      expect(err).toBeInstanceOf(ExistingAccountConfirmationRequired);
+      expect(err).toHaveProperty('account', {
         name: 'Rowan',
         level: 12,
         dailyQuestStreak: 4,
@@ -566,8 +564,8 @@ describe('auth.ts', () => {
     });
 
     it('rethrows the generic email-in-use 409 untouched (no details payload)', async () => {
-      // The discrimination is on details.reason, NOT on status: the magic-link
-      // path already owns 409 and must keep reaching the generic error copy.
+      // The 409 the magic-link path already owns. Keying on status instead of
+      // details.reason would swallow this one.
       (getItem as jest.Mock).mockReturnValue('provisional-token-123');
       const generic409 = axiosError(409, {
         code: 409,
