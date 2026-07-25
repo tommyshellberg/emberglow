@@ -226,6 +226,12 @@ export function StoryOptionButtons({
             // Fresh decision (new quest) -> fresh, unlocked slider instance,
             // matching the two-choice wrapper's identity semantics.
             key={quest.customId}
+            // Static, unlike the two-choice slider's option-derived id below:
+            // e2e needs one stable anchor for "start the offered story quest"
+            // regardless of which quest that is, and this branch renders at
+            // most one slider. The `-orb` child id is the hold target — a
+            // single-choice slider commits on an 800ms LongPress, not a tap.
+            testID="story-start-slider"
             choices={[
               !hasStartedStoryline ? 'Begin your journey' : 'Start Quest',
             ]}

@@ -235,6 +235,7 @@ export default function QuestCompletedSignupScreen() {
         />
         <SocialDivider />
         <Button
+          testID="create-account-button"
           variant="secondary"
           size="lg"
           fullWidth

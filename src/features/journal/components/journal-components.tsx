@@ -243,6 +243,10 @@ export function QuestListItem({ quest }: QuestListItemProps) {
 
   return (
     <ListItem
+      // Static rather than `journal-entry-${quest.id}`: the suite only needs
+      // "at least one entry rendered," and Maestro matches the first hit.
+      // Switch to the per-quest form if a flow ever has to tap a specific row.
+      testID="journal-entry"
       title={quest.title}
       subtitle={subtitle}
       accessibilityLabel={

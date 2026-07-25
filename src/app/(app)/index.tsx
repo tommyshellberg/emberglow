@@ -423,6 +423,7 @@ export default function Home() {
             floating over the background, so the title's flex-1 box shrinks to
             meet it instead of growing underneath it. */}
         <ScreenHeader
+          testID="home-header"
           title="Choose an Adventure"
           rightComponent={<StreakCounter size="small" />}
         />
