@@ -1,14 +1,18 @@
+import * as Linking from 'expo-linking';
 import React from 'react';
 
 import { requestMagicLink } from '@/api/auth';
 import { cleanup, fireEvent, screen, setup, waitFor } from '@/lib/test-utils';
+import { useCharacterStore } from '@/store/character-store';
 
+import { TERMS_URL } from './login/constants';
 import type { LoginFormProps } from './login-form';
 import { LoginForm } from './login-form';
 
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
+  useCharacterStore.setState({ character: null });
 });
 
 const onSubmitMock: jest.Mock<LoginFormProps['onSubmit']> = jest.fn();
@@ -89,6 +93,68 @@ const mockedRequestMagicLink = requestMagicLink as jest.MockedFunction<
   typeof requestMagicLink
 >;
 
+// RNTL 13 sets `defaultIncludeHiddenElements: false`, so a bare `queryBy*`
+// returning null proves absence only from the VISIBLE tree — an earlier task in
+// this plan shipped a "the divider is gone" test that passed with the divider
+// fully present. Every absence assertion below passes this.
+const hidden = { includeHiddenElements: true } as const;
+
+/**
+ * Occurrences of `needle` in the rendered tree's serialized JSON.
+ *
+ * A second, independent read of the same fact: it does not go through RNTL's
+ * query layer at all, so an "absent" or "exactly once" claim does not rest on
+ * the same hidden-element default that has already produced a false "it's gone"
+ * here. Used alongside the query-based assertions, not instead of them.
+ */
+const rawCount = (needle: string): number =>
+  JSON.stringify(screen.toJSON()).split(needle).length - 1;
+
+// The legal line's opening fragment, and it has to be exactly this. Not the
+// whole sentence: the link is a nested <Text>, so the full string never appears
+// contiguously in the serialized tree. Not with a trailing space either — the
+// JSX writes `our{' '}`, and that `{' '}` is a separate child, so the space is
+// its own string in the serialized children array. Both mistakes make the count
+// read 0 no matter what rendered, i.e. they turn this counter vacuous in the
+// dangerous direction. This fragment appears exactly once per instance.
+const LEGAL_LEAD = 'By continuing you agree to our';
+const LEGAL_SENTENCE =
+  'By continuing you agree to our Terms and Privacy Policy.';
+
+// Deliberately not 'your hero': that is `copy.ts`'s missing-name fallback, so a
+// fixture equal to it could not tell "read the store" from "defaulted".
+const HERO_NAME = 'Thornwake';
+
+const giveTheUserAHero = () =>
+  useCharacterStore.setState({
+    character: { type: 'knight', name: HERO_NAME, level: 3, currentXP: 250 },
+  });
+
+/**
+ * Renders and advances to the email step.
+ *
+ * Needed by every test about the email form: `signin` — the default intent —
+ * now starts on the chooser, so `email-input` / `login-button` are one press
+ * away rather than on screen at mount.
+ */
+const setupOnEmailStep = async (props: LoginFormProps = {}) => {
+  const utils = setup(<LoginForm {...props} />);
+  await utils.user.press(screen.getByTestId('continue-with-email-button'));
+  return utils;
+};
+
+/** Reaches the `sent` step from the email step via a successful send. */
+const sendFrom = async (user: ReturnType<typeof setup>['user']) => {
+  const button = screen.getByTestId('login-button');
+  await waitFor(() => {
+    expect(button.props.accessibilityState?.disabled).not.toBe(true);
+  });
+  await user.press(button);
+  await waitFor(() => {
+    expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
+  });
+};
+
 describe('LoginForm Form ', () => {
   beforeEach(() => {
     mockedRequestMagicLink.mockResolvedValue({ success: true });
@@ -100,7 +166,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should disable button when email is empty', async () => {
-    setup(<LoginForm />);
+    await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
 
@@ -109,7 +175,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should disable button when email is invalid', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -121,7 +187,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('Should call onSubmit with correct values when email is valid', async () => {
-    const { user } = setup(<LoginForm onSubmit={onSubmitMock} />);
+    const { user } = await setupOnEmailStep({ onSubmit: onSubmitMock });
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -152,7 +218,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should show success message with email address after sending email', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -183,7 +249,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should return to email form when "Change email" is clicked', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     // First submit the form
     const button = screen.getByTestId('login-button');
@@ -235,7 +301,7 @@ describe('LoginForm Form ', () => {
 
     mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
 
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -279,7 +345,7 @@ describe('LoginForm Form ', () => {
 
     mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
 
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -312,7 +378,7 @@ describe('LoginForm Form ', () => {
 
     mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
 
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -350,7 +416,7 @@ describe('LoginForm Form ', () => {
 
     mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
 
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -378,7 +444,7 @@ describe('LoginForm Form ', () => {
 
     mockedRequestMagicLink.mockRejectedValueOnce(unknownError);
 
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const button = screen.getByTestId('login-button');
     const emailInput = screen.getByTestId('email-input');
@@ -402,7 +468,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should allow sending email again from success screen', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     // First send
     const emailInput = screen.getByTestId('email-input');
@@ -434,7 +500,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should surface a resend error in the sent view without leaving it', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     // Reach the sent view via a successful first send
     const emailInput = screen.getByTestId('email-input');
@@ -483,7 +549,7 @@ describe('LoginForm Form ', () => {
   });
 
   it('should show contact support link after 3 failed attempts', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const emailInput = screen.getByTestId('email-input');
     await user.type(emailInput, 'test@example.com');
@@ -523,12 +589,14 @@ describe('LoginForm Form ', () => {
       expect(screen.getByText(errorMessage)).toBeOnTheScreen();
     });
 
-    // Should be in email input mode (not success mode)
-    expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+    // On the chooser's banner, which is where a returning user starts and
+    // therefore where an expired-link redirect lands them — not the sent view.
+    expect(screen.getByTestId('continue-with-email-button')).toBeOnTheScreen();
+    expect(screen.queryByText(/Check your inbox/i, hidden)).toBeNull();
   });
 
   it('should show error when trying to submit invalid email', async () => {
-    const { user } = setup(<LoginForm />);
+    const { user } = await setupOnEmailStep();
 
     const emailInput = screen.getByTestId('email-input');
     await user.type(emailInput, 'notanemail');
@@ -547,7 +615,7 @@ describe('LoginForm Form ', () => {
 
   describe('Intent framing', () => {
     it('titles the email step for a returning user by default', async () => {
-      setup(<LoginForm />);
+      await setupOnEmailStep();
 
       expect(await screen.findByText('Sign in with email')).toBeOnTheScreen();
       expect(
@@ -572,21 +640,26 @@ describe('LoginForm Form ', () => {
   });
 
   describe('Social sign-in', () => {
-    it('renders the social sign-in options above the email form before the email is sent', async () => {
+    it('renders the social sign-in options on the first step a user reaches', async () => {
       setup(<LoginForm />);
 
       expect(await screen.findByText(/emberglow/i)).toBeOnTheScreen();
       expect(
         screen.getByTestId('mock-social-success-app-login')
       ).toBeOnTheScreen();
-      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+      // The email form is no longer stacked underneath them — it is the next
+      // step, behind "Continue with email".
+      expect(
+        screen.getByTestId('continue-with-email-button')
+      ).toBeOnTheScreen();
+      expect(screen.queryByTestId('email-input', hidden)).toBeNull();
     });
 
-    it('renders the "or" divider separating the social options from the email form', async () => {
+    it('renders the "or" divider separating the social options from the email option', async () => {
       setup(<LoginForm />);
 
       expect(await screen.findByText(/emberglow/i)).toBeOnTheScreen();
-      // `SocialSignInButtons` used to render this divider itself; the screen
+      // `SocialSignInButtons` used to render this divider itself; the chooser
       // owns it now. `includeHiddenElements` is required — the divider is
       // decorative and hides itself from assistive tech, so RNTL's default
       // query would miss it whether or not it rendered.
@@ -597,25 +670,15 @@ describe('LoginForm Form ', () => {
       ).toBeTruthy();
     });
 
-    it('hides the social sign-in options once the email has been sent', async () => {
-      const { user } = setup(<LoginForm />);
+    it('shows neither the social options nor the divider once the email has been sent', async () => {
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
 
-      const button = screen.getByTestId('login-button');
-      const emailInput = screen.getByTestId('email-input');
-      await user.type(emailInput, 'test@example.com');
-
-      await waitFor(() => {
-        expect(button.props.accessibilityState?.disabled).not.toBe(true);
-      });
-      await user.press(button);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Check your inbox/i)).toBeOnTheScreen();
-      });
+      await sendFrom(user);
 
       expect(
-        screen.queryByTestId('mock-social-success-app-login')
-      ).not.toBeOnTheScreen();
+        screen.queryByTestId('mock-social-success-app-login', hidden)
+      ).toBeNull();
       // The divider introduces the social options, so it leaves with them.
       expect(
         screen.queryByTestId('social-signin-divider', {
@@ -712,6 +775,196 @@ describe('LoginForm Form ', () => {
           screen.getByText(/Login link failed to send. Please try again./i)
         ).toBeOnTheScreen();
       });
+    });
+  });
+
+  describe('Step machine', () => {
+    it('starts a returning user on the chooser, with the email form a step away', async () => {
+      setup(<LoginForm intent="signin" />);
+
+      // Positive first: a blank render would satisfy the absence check below.
+      expect(
+        await screen.findByTestId('continue-with-email-button')
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Welcome back')).toBeOnTheScreen();
+      expect(
+        screen.getByTestId('mock-social-success-app-login')
+      ).toBeOnTheScreen();
+
+      expect(screen.queryByTestId('email-input', hidden)).toBeNull();
+      expect(rawCount('email-input')).toBe(0);
+    });
+
+    it('starts a converting user on the email step, since they have already decided to sign up', async () => {
+      setup(<LoginForm intent="convert" />);
+
+      expect(await screen.findByTestId('email-input')).toBeOnTheScreen();
+      expect(screen.getByText('Sign up with email')).toBeOnTheScreen();
+
+      // No chooser: they came from the conversion screen, which already
+      // presented these same three options.
+      expect(
+        screen.queryByTestId('continue-with-email-button', hidden)
+      ).toBeNull();
+      expect(rawCount('continue-with-email-button')).toBe(0);
+    });
+
+    it('moves the chooser to the email step when Continue with email is pressed', async () => {
+      const { user } = setup(<LoginForm intent="signin" />);
+
+      await user.press(screen.getByTestId('continue-with-email-button'));
+
+      expect(screen.getByTestId('email-input')).toBeOnTheScreen();
+      expect(screen.getByText('Sign in with email')).toBeOnTheScreen();
+      // The chooser's own content leaves with it — the social options are the
+      // chooser's, not the shell's.
+      expect(
+        screen.queryByTestId('continue-with-email-button', hidden)
+      ).toBeNull();
+      expect(
+        screen.queryByTestId('mock-social-success-app-login', hidden)
+      ).toBeNull();
+      expect(rawCount('mock-social-success-app-login')).toBe(0);
+    });
+
+    it('moves the email step back to the chooser via the back link', async () => {
+      const { user } = await setupOnEmailStep();
+      expect(screen.getByText('← Other ways to sign in')).toBeOnTheScreen();
+
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+
+      expect(
+        screen.getByTestId('continue-with-email-button')
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Welcome back')).toBeOnTheScreen();
+      expect(screen.queryByTestId('email-input', hidden)).toBeNull();
+      // The link is the email step's, so it leaves with it — a back link on the
+      // chooser would point at nothing.
+      expect(screen.queryByTestId('back-to-chooser-link', hidden)).toBeNull();
+      expect(rawCount('Other ways to sign in')).toBe(0);
+    });
+
+    it('clears an email-step error on the way back to the chooser', async () => {
+      const axiosError = new Error('Request failed with status code 500');
+      Object.assign(axiosError, {
+        response: { status: 500, data: { message: 'Internal server error' } },
+        config: {},
+        isAxiosError: true,
+      });
+      mockedRequestMagicLink.mockRejectedValueOnce(axiosError);
+
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
+      await user.press(screen.getByTestId('login-button'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Login link failed to send. Please try again./i)
+        ).toBeOnTheScreen();
+      });
+
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+
+      // The error belonged to the step being left — a failed send to THAT
+      // address. Carried onto the chooser it would sit above Apple/Google and
+      // read as their failure.
+      expect(
+        screen.queryByText(/Login link failed to send. Please try again./i, {
+          ...hidden,
+        })
+      ).toBeNull();
+      expect(rawCount('Login link failed to send')).toBe(0);
+      expect(screen.queryByTestId('error-message', hidden)).toBeNull();
+    });
+
+    it('replaces the email step with the sent step after a successful send', async () => {
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
+
+      await sendFrom(user);
+
+      expect(screen.queryByTestId('email-input', hidden)).toBeNull();
+      expect(screen.queryByTestId('back-to-chooser-link', hidden)).toBeNull();
+    });
+  });
+
+  describe('Legal consent', () => {
+    // The regression this guards: `ChooserView` was built with the legal line
+    // and never mounted, then the duplicate was removed from `EmailInputView`
+    // on the strength of the chooser carrying it — leaving the rendered screen
+    // with no consent text on any path. The line therefore lives in the shell,
+    // outside the chooser/email switch, so no step can be reached without it.
+    it('states the legal terms on the chooser step, exactly once', async () => {
+      setup(<LoginForm intent="signin" />);
+
+      expect(await screen.findByText(LEGAL_SENTENCE)).toBeOnTheScreen();
+      expect(screen.getAllByTestId('legal-consent', hidden)).toHaveLength(1);
+      expect(rawCount(LEGAL_LEAD)).toBe(1);
+    });
+
+    it('states the legal terms on the email step, where the convert intent starts', async () => {
+      // The step that carried NO consent text under the chooser-only design:
+      // `convert` opens here and can finish a signup without ever going back.
+      setup(<LoginForm intent="convert" />);
+
+      expect(await screen.findByText(LEGAL_SENTENCE)).toBeOnTheScreen();
+      expect(screen.getAllByTestId('legal-consent', hidden)).toHaveLength(1);
+      expect(rawCount(LEGAL_LEAD)).toBe(1);
+    });
+
+    it('keeps exactly one legal line across a chooser → email → chooser round trip', async () => {
+      const { user } = await setupOnEmailStep({ intent: 'signin' });
+
+      expect(screen.getByText(LEGAL_SENTENCE)).toBeOnTheScreen();
+      expect(rawCount(LEGAL_LEAD)).toBe(1);
+
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+
+      // A second copy here is what a `ChooserView`-plus-shell placement would
+      // produce on the chooser step.
+      expect(rawCount(LEGAL_LEAD)).toBe(1);
+    });
+
+    it('links the legal line to the hosted terms document', async () => {
+      const { user } = await setupOnEmailStep();
+
+      await user.press(screen.getByText('Terms and Privacy Policy'));
+
+      expect(Linking.openURL).toHaveBeenCalledWith(TERMS_URL);
+    });
+
+    it('drops the legal line on the sent step, where consent has already been given', async () => {
+      const { user } = await setupOnEmailStep();
+      await user.type(screen.getByTestId('email-input'), 'test@example.com');
+
+      await sendFrom(user);
+
+      expect(screen.queryByTestId('legal-consent', hidden)).toBeNull();
+      expect(rawCount(LEGAL_LEAD)).toBe(0);
+    });
+  });
+
+  describe('Hero name', () => {
+    it('names the hero from the character store in the convert chooser', async () => {
+      giveTheUserAHero();
+
+      const { user } = setup(<LoginForm intent="convert" />);
+      // `convert` starts on the email step, so reach the chooser to see the
+      // subtitle the store feeds.
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+
+      expect(
+        screen.getByText(`Keep ${HERO_NAME} and everything you've earned.`)
+      ).toBeOnTheScreen();
+    });
+
+    it('falls back to the generic name when the store has no character yet', async () => {
+      const { user } = setup(<LoginForm intent="convert" />);
+      await user.press(screen.getByTestId('back-to-chooser-link'));
+
+      expect(
+        screen.getByText("Keep your hero and everything you've earned.")
+      ).toBeOnTheScreen();
     });
   });
 });

@@ -1,17 +1,15 @@
-import * as Linking from 'expo-linking';
 import * as React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/emberglow';
-import { colors, fontFamily, spacing } from '@/theme';
+import { spacing } from '@/theme';
 
-import { TERMS_URL } from './constants';
 import { LOGIN_COPY } from './copy';
 import { ErrorBanner } from './error-banner';
 import { SocialDivider } from './social-divider';
 import type { SocialSignInButtonsProps } from './social-sign-in-buttons';
 import { SocialSignInButtons } from './social-sign-in-buttons';
-import { cardBody, cardMeta, cardTitle } from './text-styles';
+import { cardBody, cardTitle } from './text-styles';
 import type { LoginIntent } from './types';
 
 export type ChooserViewProps = {
@@ -42,7 +40,12 @@ export type ChooserViewProps = {
 
 /**
  * Step one of `/login`: the social-first chooser — Apple (iOS only) and Google,
- * an "or" rule, then the email alternative, with the legal line beneath.
+ * an "or" rule, then the email alternative.
+ *
+ * The legal line is NOT here, though the spec first put it here. `login-form.tsx`
+ * renders it for the whole screen, because `intent=convert` opens straight on the
+ * email step and would otherwise complete a signup having shown no terms at all.
+ * Adding it back here would render it twice on this step.
  *
  * Deliberately has no Cinnabar action. Orange is scarce and meaningful in this
  * brand, and the one primary in the login card is spent on the email step's
@@ -84,28 +87,6 @@ export function ChooserView({
         accessibilityLabel="Continue with email"
         accessibilityHint="Opens the email step, where a sign-in link is sent to your address"
       />
-
-      {/* The consent point for the whole screen: the buttons above are
-          mode-neutral ("Continue with..."), so any of them can create an
-          account, and every user passes through this step before any auth path.
-          That is why the legal line lives here and not on the email step. */}
-      <Text style={styles.terms}>
-        By continuing you agree to our{' '}
-        {/* One link over both names, not two: the document hosted at TERMS_URL
-            IS the combined "Terms of Service and Privacy Policy" (see the
-            landing page's terms route — one page, no separate privacy URL and
-            no anchors to deep-link). Split this in two only once the policies
-            are hosted separately. */}
-        <Text
-          style={styles.termsLink}
-          onPress={() => Linking.openURL(TERMS_URL)}
-          accessibilityRole="link"
-          accessibilityLabel="Terms and Privacy Policy"
-        >
-          Terms and Privacy Policy
-        </Text>
-        .
-      </Text>
     </View>
   );
 }
@@ -121,15 +102,5 @@ const styles = StyleSheet.create({
   },
   emailButton: {
     marginTop: spacing[4],
-  },
-  terms: {
-    ...cardMeta,
-    textAlign: 'center',
-    marginTop: spacing[4],
-  },
-  termsLink: {
-    fontFamily: fontFamily.medium,
-    color: colors.text.secondary,
-    textDecorationLine: 'underline',
   },
 });

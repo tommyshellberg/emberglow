@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
@@ -12,21 +13,23 @@ import {
   type SocialSignInOutcome,
 } from '@/lib/auth/social';
 import { removeItem } from '@/lib/storage';
+import { useCharacterStore } from '@/store/character-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { colors, fontFamily, radii, scrims, shadows, spacing } from '@/theme';
 
+import { ChooserView } from './login/chooser-view';
 import {
   BRAND_NAME,
   EMAIL_IN_USE_ERROR_MESSAGE,
   GENERIC_SEND_ERROR_MESSAGE,
   LOGO_SIZE,
+  TERMS_URL,
 } from './login/constants';
 import { DEFAULT_LOGIN_INTENT, LOGIN_COPY } from './login/copy';
 import { EmailInputView } from './login/email-input-view';
 import { EmailSentView } from './login/email-sent-view';
 import { useMagicLink } from './login/hooks/use-magic-link';
-import { SocialDivider } from './login/social-divider';
-import { SocialSignInButtons } from './login/social-sign-in-buttons';
+import { cardMeta } from './login/text-styles';
 import type { LoginFormProps } from './login/types';
 
 export type { LoginFormProps };
@@ -69,6 +72,22 @@ export const LoginForm = ({
   const posthog = usePostHog();
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
   const signOut = useAuth((state) => state.signOut);
+  // Read here rather than inside `ChooserView` so that view stays a pure
+  // function of its props (see its `heroName` JSDoc) — the shell is the layer
+  // that already talks to stores. `character?.name` goes straight through:
+  // `copy.ts` owns the missing-name fallback.
+  const character = useCharacterStore((state) => state.character);
+
+  // Which of the two user-chosen steps is showing. `sent` is not in here — see
+  // `step` below.
+  //
+  // `convert` opens on the email step: the user arrived from
+  // `quest-completed-signup.tsx`, which already presented Apple, Google and
+  // email, so re-presenting the same three choices would be asking twice. The
+  // back link is how they get to the chooser from there.
+  const [mode, setMode] = useState<'chooser' | 'email'>(
+    intent === 'convert' ? 'email' : 'chooser'
+  );
 
   const {
     isLoading,
@@ -88,10 +107,26 @@ export const LoginForm = ({
     }
   }, [initialError, setError]);
 
+  // Three rendered steps, two pieces of state. `sent` is the send's OUTCOME,
+  // owned by `useMagicLink`, not a step the user navigates to — copying it into
+  // `mode` would give it two homes that have to agree. Deriving it also makes
+  // "Change email" (`resetForm`, which only unsets `emailSent`) land back on the
+  // email step for free.
+  const step: 'chooser' | 'email' | 'sent' = emailSent ? 'sent' : mode;
+
   const handleEmailSubmit = async (email: string) => {
     await sendMagicLink(email, (submittedEmail) => {
       onSubmit?.({ email: submittedEmail });
     });
+  };
+
+  const handleBackToChooser = () => {
+    // Clearing the error is not incidental tidying: `error` at this point is
+    // whatever the email step produced (a failed send, a 409 on that address).
+    // Left set, it would render in the chooser's banner directly above the
+    // Apple and Google buttons and read as their failure.
+    setError('');
+    setMode('chooser');
   };
 
   const handleSocialSignInSuccess = (
@@ -184,9 +219,27 @@ export const LoginForm = ({
 
         {/* Form in bottom half */}
         <View style={styles.formArea}>
+          {/* Above the card, per spec §2: inside `formArea` so it moves with
+              the bottom-anchored card, outside `styles.card` so it reads as a
+              way out of the card rather than an action within it. Belongs to
+              the email step, so it leaves with it — on the chooser it would
+              point at nothing. */}
+          {step === 'email' ? (
+            <TouchableOpacity
+              testID="back-to-chooser-link"
+              onPress={handleBackToChooser}
+              style={styles.backLink}
+              accessibilityRole="button"
+              accessibilityLabel="Other ways to sign in"
+              accessibilityHint="Returns to the Apple, Google and email options"
+            >
+              <Text style={styles.backLinkText}>← Other ways to sign in</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {/* Form card */}
           <View style={styles.card}>
-            {emailSent ? (
+            {step === 'sent' ? (
               <EmailSentView
                 email={submittedEmail}
                 onSendAgain={() => sendMagicLink(submittedEmail, () => {})}
@@ -197,18 +250,58 @@ export const LoginForm = ({
               />
             ) : (
               <>
-                <SocialSignInButtons
-                  onSuccess={handleSocialSignInSuccess}
-                  onError={(kind) => setError(mapError(kind))}
-                />
-                <SocialDivider />
-                <EmailInputView
-                  onSubmit={handleEmailSubmit}
-                  isLoading={isLoading}
-                  error={error}
-                  title={copy.emailTitle}
-                  subtitle={copy.emailSubtitle}
-                />
+                {step === 'chooser' ? (
+                  <ChooserView
+                    intent={intent}
+                    heroName={character?.name}
+                    error={error}
+                    onContinueWithEmail={() => setMode('email')}
+                    onSocialSuccess={handleSocialSignInSuccess}
+                    onSocialError={(kind) => setError(mapError(kind))}
+                  />
+                ) : (
+                  <EmailInputView
+                    onSubmit={handleEmailSubmit}
+                    isLoading={isLoading}
+                    error={error}
+                    title={copy.emailTitle}
+                    subtitle={copy.emailSubtitle}
+                  />
+                )}
+
+                {/* The screen's single consent point, deliberately OUTSIDE the
+                    chooser/email switch.
+
+                    It was on the chooser alone until this was found: `convert`
+                    — the primary signup funnel — opens on the email step and
+                    can complete a signup without ever rendering the chooser, so
+                    "every user passes through the chooser first" was false and
+                    that path showed no terms at all. Placing it here makes
+                    coverage a property of the shell instead of an assumption
+                    about which steps a user visits.
+
+                    Not shown on `sent`: by then the account-creating action has
+                    been taken, and `EmailSentView`'s footnote slot is already
+                    contended by the resend error, the support escalation and
+                    the spam hint. */}
+                <Text testID="legal-consent" style={styles.terms}>
+                  By continuing you agree to our{' '}
+                  {/* One link over both names, not two: the document hosted at
+                      TERMS_URL IS the combined "Terms of Service and Privacy
+                      Policy" (see the landing page's terms route — one page, no
+                      separate privacy URL and no anchors to deep-link). Split
+                      this in two only once the policies are hosted
+                      separately. */}
+                  <Text
+                    style={styles.termsLink}
+                    onPress={() => Linking.openURL(TERMS_URL)}
+                    accessibilityRole="link"
+                    accessibilityLabel="Terms and Privacy Policy"
+                  >
+                    Terms and Privacy Policy
+                  </Text>
+                  .
+                </Text>
               </>
             )}
           </View>
@@ -274,6 +367,17 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginBottom: spacing[12],
   },
+  backLink: {
+    // Same gutter as the card, so the link lines up with its left edge.
+    marginHorizontal: spacing[6],
+    marginBottom: spacing[3],
+    alignSelf: 'flex-start',
+  },
+  backLinkText: {
+    ...cardMeta,
+    // One step brighter than `cardMeta`'s muted default: this one is tappable.
+    color: colors.text.secondary,
+  },
   card: {
     marginHorizontal: spacing[6],
     borderRadius: radii.lg,
@@ -283,6 +387,16 @@ const styles = StyleSheet.create({
     paddingVertical: CARD_PADDING_VERTICAL,
     paddingHorizontal: CARD_PADDING_HORIZONTAL,
     ...shadows.card,
+  },
+  terms: {
+    ...cardMeta,
+    textAlign: 'center',
+    marginTop: spacing[4],
+  },
+  termsLink: {
+    fontFamily: fontFamily.medium,
+    color: colors.text.secondary,
+    textDecorationLine: 'underline',
   },
   createAccountLink: {
     marginTop: spacing[4],

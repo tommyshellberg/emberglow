@@ -1,6 +1,5 @@
 import type { ReactTestRendererJSON } from 'react-test-renderer';
 
-import * as Linking from 'expo-linking';
 import * as React from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -8,9 +7,6 @@ import { fireEvent, render, screen } from '@/lib/test-utils';
 import { colors } from '@/theme';
 
 import { ChooserView } from './chooser-view';
-import { TERMS_URL } from './constants';
-
-jest.mock('expo-linking', () => ({ openURL: jest.fn() }));
 
 // `SocialSignInButtons` is rendered for real — a mocked stand-in would make the
 // "nothing here is primary" assertion below say nothing about the Google
@@ -212,17 +208,28 @@ describe('ChooserView', () => {
     );
   });
 
-  it('states the legal terms and links them to the hosted document', () => {
+  // The legal line moved to `login-form.tsx`'s shell, which renders it for the
+  // chooser AND the email step — `intent=convert` opens on the email step, so a
+  // chooser-only line left the primary signup funnel with no terms at all. Its
+  // copy, its link and its exactly-one-instance guarantee are asserted in
+  // login-form.test.tsx, at the composition that actually ships it. This test
+  // pins the other half: the chooser must not grow a second copy.
+  it('leaves the legal line to the screen shell rather than rendering its own', () => {
     renderChooser();
 
     expect(
-      screen.getByText(
-        'By continuing you agree to our Terms and Privacy Policy.'
+      screen.queryByText(
+        'By continuing you agree to our Terms and Privacy Policy.',
+        hidden
       )
-    ).toBeOnTheScreen();
-
-    fireEvent.press(screen.getByText('Terms and Privacy Policy'));
-
-    expect(Linking.openURL).toHaveBeenCalledWith(TERMS_URL);
+    ).toBeNull();
+    // Independent of RNTL's hidden-element defaults: a bare `queryByText`
+    // returning null has already produced a false "it's gone" in this plan.
+    // No trailing space in the needle — the JSX writes `our{' '}` and that
+    // `{' '}` is a separate child, so a needle ending in a space would never
+    // match and this assertion would pass vacuously.
+    expect(
+      JSON.stringify(screen.toJSON()).includes('By continuing you agree to our')
+    ).toBe(false);
   });
 });
