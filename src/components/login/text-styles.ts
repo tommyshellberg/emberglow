@@ -8,6 +8,7 @@ import type { TextStyle } from 'react-native';
 import { colors, fontFamily } from '@/theme';
 
 const BODY_FONT_SIZE = 14.5;
+const META_FONT_SIZE = 13;
 
 /** Card heading — Erstoria 22 (mockup: font-display, fontSize 22). */
 export const cardTitle = {
@@ -26,4 +27,18 @@ export const cardBody = {
   fontSize: BODY_FONT_SIZE,
   lineHeight: BODY_FONT_SIZE * 1.5,
   color: colors.text.secondary,
+} satisfies TextStyle;
+
+/**
+ * Supporting line one step quieter than `cardBody` — 13 muted. Used for the
+ * login card's footnotes and the existing-account sheet's level/streak line,
+ * which were the same five declarations written twice.
+ *
+ * As with the two above, callers own their own `textAlign` and margins.
+ */
+export const cardMeta = {
+  fontFamily: fontFamily.regular,
+  fontSize: META_FONT_SIZE,
+  lineHeight: META_FONT_SIZE * 1.5,
+  color: colors.text.muted,
 } satisfies TextStyle;

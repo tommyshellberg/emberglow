@@ -7,12 +7,11 @@ import {
   useEmberglowBottomSheet,
 } from '@/components/emberglow';
 import type { ExistingAccountSummary } from '@/lib/auth/social';
-import { colors, fontFamily, radii, spacing } from '@/theme';
+import { colors, radii, spacing } from '@/theme';
 
-import { cardBody, cardTitle } from './text-styles';
+import { cardBody, cardMeta, cardTitle } from './text-styles';
 
 const META_SEPARATOR = ' · ';
-const META_FONT_SIZE = 13;
 
 export type ExistingAccountSheetProps = {
   /** Controlled visibility — the caller flips this; the sheet translates it
@@ -195,10 +194,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   meta: {
-    fontFamily: fontFamily.regular,
-    fontSize: META_FONT_SIZE,
-    lineHeight: META_FONT_SIZE * 1.5,
-    color: colors.text.muted,
+    ...cardMeta,
     textAlign: 'center',
     marginTop: spacing[1],
   },

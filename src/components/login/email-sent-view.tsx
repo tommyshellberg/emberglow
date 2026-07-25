@@ -14,7 +14,7 @@ import {
 } from '@/theme';
 
 import { CONTACT_EMAIL, SEND_ATTEMPTS_THRESHOLD } from './constants';
-import { cardBody, cardTitle } from './text-styles';
+import { cardBody, cardMeta, cardTitle } from './text-styles';
 
 type EmailSentViewProps = {
   email: string;
@@ -150,10 +150,7 @@ const styles = StyleSheet.create({
     marginTop: CHANGE_EMAIL_MARGIN_TOP,
   },
   footnote: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-    lineHeight: 13 * 1.5,
-    color: colors.text.muted,
+    ...cardMeta,
     textAlign: 'center',
     marginTop: FOOTNOTE_MARGIN_TOP,
   },
