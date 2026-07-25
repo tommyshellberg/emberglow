@@ -28,9 +28,10 @@ describe('LOGIN_COPY', () => {
       );
     });
 
-    // A character whose `name` is '' is reachable (nothing validates the
-    // name at creation), and '' survives `??` while failing `||` — the
-    // distinction that has already produced one bug on this branch.
+    // `''` is representable — `Character.name` is typed `string` with no
+    // non-empty constraint — and it survives `??` while failing `||`, the
+    // distinction that has already produced one bug on this branch. This
+    // pins the behaviour, not a claim about which callers can produce it.
     it('falls back for an empty-string hero name, not just a missing one', () => {
       expect(LOGIN_COPY.convert.chooserSubtitle('')).toBe(
         "Keep your hero and everything you've earned."

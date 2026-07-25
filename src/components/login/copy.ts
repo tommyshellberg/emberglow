@@ -51,8 +51,12 @@ export const LOGIN_COPY: Record<LoginIntent, LoginCopy> = {
   },
   convert: {
     chooserTitle: 'Save your progress',
-    // `||`, not `??`: a character with an empty-string name is reachable,
-    // and "Keep  and everything you've earned." is not a sentence.
+    // `||`, not `??`: this is a "no usable name" check, not a "no name"
+    // check. `Character.name` is typed `string` with no non-empty
+    // constraint, so `''` is representable, and `''`, `null` and
+    // `undefined` all want the same fallback — "Keep  and everything
+    // you've earned." is not a sentence. Correct by construction, so it
+    // does not rest on which callers can currently produce an empty name.
     chooserSubtitle: (heroName) =>
       `Keep ${heroName || FALLBACK_HERO_NAME} and everything you've earned.`,
     emailTitle: 'Sign up with email',

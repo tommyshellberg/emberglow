@@ -87,7 +87,12 @@ export default function QuestCompletedSignupScreen() {
     // COMPLETED after successful authentication. `intent=convert` tells that
     // screen the user has a provisional hero to keep, so it frames itself as
     // saving progress rather than as a returning-user sign-in.
-    router.replace('/login?intent=convert');
+    //
+    // Object form, not `'/login?intent=convert'`: under `typedRoutes` only
+    // the object form's `pathname` is checked against the generated route
+    // union, so a path typo fails at compile time instead of at runtime
+    // (same form as auth/magiclink/verify.tsx).
+    router.replace({ pathname: '/login', params: { intent: 'convert' } });
   }, [posthog]);
 
   const handleSocialSignInSuccess = useCallback(

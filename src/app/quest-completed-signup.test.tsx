@@ -132,9 +132,10 @@ describe('QuestCompletedSignupScreen', () => {
       // Wait for async navigation
       await waitFor(
         () => {
-          expect(mockRouterReplace).toHaveBeenCalledWith(
-            '/login?intent=convert'
-          );
+          expect(mockRouterReplace).toHaveBeenCalledWith({
+            pathname: '/login',
+            params: { intent: 'convert' },
+          });
         },
         { timeout: 200 }
       );
@@ -288,7 +289,10 @@ describe('QuestCompletedSignupScreen', () => {
         // The user arriving from here has a provisional hero to keep, so the
         // login screen must frame itself as saving progress rather than as a
         // returning-user sign-in.
-        expect(mockRouterReplace).toHaveBeenCalledWith('/login?intent=convert');
+        expect(mockRouterReplace).toHaveBeenCalledWith({
+          pathname: '/login',
+          params: { intent: 'convert' },
+        });
       });
     });
 
