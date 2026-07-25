@@ -1,7 +1,8 @@
 import * as Linking from 'expo-linking';
 import * as React from 'react';
+import { StyleSheet } from 'react-native';
 
-import { render, screen } from '@/lib/test-utils';
+import { fireEvent, render, screen, setup } from '@/lib/test-utils';
 
 import { EmailInputView } from './email-input-view';
 
@@ -61,6 +62,53 @@ describe('EmailInputView', () => {
     renderView({ error: '' });
 
     expect(screen.queryByTestId('error-message', hidden)).toBeNull();
+  });
+
+  describe('while the link is being sent', () => {
+    /**
+     * A send is only ever in flight for an address that passed validation, so
+     * the field MUST hold a valid one here. With it left empty, `disabled`
+     * is true on the email alone and every assertion below passes for the
+     * wrong reason — the dim and the blocked press would both be the invalid
+     * address talking, with `isLoading` contributing nothing.
+     */
+    const renderSending = () => {
+      const onSubmit = jest.fn();
+      const { user } = setup(
+        <EmailInputView
+          onSubmit={onSubmit}
+          isLoading
+          error=""
+          title="Welcome back"
+          subtitle="Enter your email to get a sign-in link."
+        />
+      );
+      fireEvent.changeText(
+        screen.getByTestId('email-input'),
+        'rowan@ember.app'
+      );
+      return { onSubmit, user };
+    };
+
+    it('keeps the spinner at full strength — dimming it reads as broken, not busy', () => {
+      renderSending();
+
+      const button = screen.getByTestId('login-button');
+      // `disabled` carries a 40% dim (button.tsx's `styles.disabled`), which
+      // it used to apply to this button and therefore to the spinner inside.
+      expect(StyleSheet.flatten(button.props.style).opacity).toBeUndefined();
+      expect(button.props.accessibilityState.busy).toBe(true);
+    });
+
+    it('still refuses a second send while one is in flight', async () => {
+      const { onSubmit, user } = renderSending();
+
+      await user.press(screen.getByTestId('login-button'));
+
+      // The other half of the split: `busy` has to keep blocking presses now
+      // that `disabled` no longer covers the in-flight case.
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
   });
 
   // Spec §3: legal text now lives on the chooser only — every user passes

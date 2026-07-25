@@ -75,7 +75,12 @@ export function EmailInputView({
         fullWidth
         label="Send sign-in link"
         onPress={handleSubmit}
-        disabled={isLoading || !isValidEmail(email)}
+        // Split rather than folded into one `disabled`: both block the press,
+        // but only `disabled` dims to 40% — and the spinner below is the thing
+        // that would be dimmed. An unsendable email really is unavailable;
+        // a send already in flight is working, and should look it.
+        busy={isLoading}
+        disabled={!isValidEmail(email)}
         accessibilityLabel="Send login link"
         accessibilityHint="Sends a magic link to your email for authentication"
       >
