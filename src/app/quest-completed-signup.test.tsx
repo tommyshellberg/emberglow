@@ -132,7 +132,9 @@ describe('QuestCompletedSignupScreen', () => {
       // Wait for async navigation
       await waitFor(
         () => {
-          expect(mockRouterReplace).toHaveBeenCalledWith('/login');
+          expect(mockRouterReplace).toHaveBeenCalledWith(
+            '/login?intent=convert'
+          );
         },
         { timeout: 200 }
       );
@@ -277,13 +279,16 @@ describe('QuestCompletedSignupScreen', () => {
       expect(createAccountIndex).toBeGreaterThan(dividerIndex);
     });
 
-    it('still routes "Sign up with email" to /login', async () => {
+    it('still routes "Sign up with email" to /login, declaring the convert intent', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
       fireEvent.press(getByText('Sign up with email'));
 
       await waitFor(() => {
-        expect(mockRouterReplace).toHaveBeenCalledWith('/login');
+        // The user arriving from here has a provisional hero to keep, so the
+        // login screen must frame itself as saving progress rather than as a
+        // returning-user sign-in.
+        expect(mockRouterReplace).toHaveBeenCalledWith('/login?intent=convert');
       });
     });
 

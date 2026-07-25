@@ -21,6 +21,7 @@ import {
   GENERIC_SEND_ERROR_MESSAGE,
   LOGO_SIZE,
 } from './login/constants';
+import { DEFAULT_LOGIN_INTENT, LOGIN_COPY } from './login/copy';
 import { EmailInputView } from './login/email-input-view';
 import { EmailSentView } from './login/email-sent-view';
 import { useMagicLink } from './login/hooks/use-magic-link';
@@ -57,7 +58,14 @@ function mapError(kind: 'email-in-use' | 'generic'): string {
  * Main login form component
  * Handles magic link authentication with email input and success states
  */
-export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
+export const LoginForm = ({
+  onSubmit,
+  initialError,
+  // A caller that supplies no intent is the returning-user case — the same
+  // default `parseLoginIntent` gives a `/login` URL with no param.
+  intent = DEFAULT_LOGIN_INTENT,
+}: LoginFormProps) => {
+  const copy = LOGIN_COPY[intent];
   const posthog = usePostHog();
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
   const signOut = useAuth((state) => state.signOut);
@@ -198,6 +206,8 @@ export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
                   onSubmit={handleEmailSubmit}
                   isLoading={isLoading}
                   error={error}
+                  title={copy.emailTitle}
+                  subtitle={copy.emailSubtitle}
                 />
               </>
             )}

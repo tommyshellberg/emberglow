@@ -84,8 +84,10 @@ export default function QuestCompletedSignupScreen() {
     posthog.capture('onboarding_trigger_try_create_account');
 
     // Navigate to login - the login flow will handle setting onboarding to
-    // COMPLETED after successful authentication.
-    router.replace('/login');
+    // COMPLETED after successful authentication. `intent=convert` tells that
+    // screen the user has a provisional hero to keep, so it frames itself as
+    // saving progress rather than as a returning-user sign-in.
+    router.replace('/login?intent=convert');
   }, [posthog]);
 
   const handleSocialSignInSuccess = useCallback(

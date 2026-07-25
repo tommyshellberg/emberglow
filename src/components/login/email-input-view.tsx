@@ -22,6 +22,14 @@ type EmailInputViewProps = {
   onSubmit: (email: string) => void;
   isLoading: boolean;
   error: string;
+  /**
+   * Heading and subheading, supplied by the screen: the same email step is
+   * a sign-in for a returning user and a sign-up for someone converting a
+   * provisional account (see `copy.ts`). Required rather than defaulted so
+   * a caller cannot silently get the wrong framing.
+   */
+  title: string;
+  subtitle: string;
 };
 
 const ERROR_ICON_SIZE = 16;
@@ -42,6 +50,8 @@ export function EmailInputView({
   onSubmit,
   isLoading,
   error,
+  title,
+  subtitle,
 }: EmailInputViewProps) {
   const [email, setEmail] = useState('');
 
@@ -55,10 +65,8 @@ export function EmailInputView({
 
   return (
     <View>
-      <Text style={styles.title}>Welcome back</Text>
-      <Text style={styles.body}>
-        We'll send a sign-in link to your email. No password needed.
-      </Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{subtitle}</Text>
 
       {/* Error banner — bespoke composition (no Emberglow alert primitive).
           Renders whatever copy `use-magic-link` / the URL param produces;

@@ -545,6 +545,32 @@ describe('LoginForm Form ', () => {
     expect(mockedRequestMagicLink).not.toHaveBeenCalled();
   });
 
+  describe('Intent framing', () => {
+    it('titles the email step for a returning user by default', async () => {
+      setup(<LoginForm />);
+
+      expect(await screen.findByText('Sign in with email')).toBeOnTheScreen();
+      expect(
+        screen.getByText(
+          "We'll send a sign-in link to your email. No password needed."
+        )
+      ).toBeOnTheScreen();
+    });
+
+    it('titles the email step as a signup when converting a provisional account', async () => {
+      setup(<LoginForm intent="convert" />);
+
+      expect(await screen.findByText('Sign up with email')).toBeOnTheScreen();
+      // The subtitle is shared copy — the framing changes, the mechanic
+      // (a link, no password) does not.
+      expect(
+        screen.getByText(
+          "We'll send a sign-in link to your email. No password needed."
+        )
+      ).toBeOnTheScreen();
+    });
+  });
+
   describe('Social sign-in', () => {
     it('renders the social sign-in options above the email form before the email is sent', async () => {
       setup(<LoginForm />);
