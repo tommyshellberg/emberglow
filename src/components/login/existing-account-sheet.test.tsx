@@ -111,6 +111,23 @@ describe('ExistingAccountSheet', () => {
     expect(useDifferent.backgroundColor).toBe('transparent');
   });
 
+  // The labels say what each button does; only the hints say what it COSTS.
+  // Since confirming discards a hero, that consequence being reachable by a
+  // screen reader is part of the sheet's job, not decoration.
+  it('tells assistive tech what each action costs, not just what it does', () => {
+    renderSheet();
+
+    expect(
+      screen.getByTestId('existing-account-confirm').props.accessibilityHint
+    ).toBe(
+      'Signs into your existing account and discards the hero you just created'
+    );
+    expect(
+      screen.getByTestId('existing-account-use-different').props
+        .accessibilityHint
+    ).toBe('Keeps the hero you just created and closes this sheet');
+  });
+
   // `name: ''` is not hypothetical — the server reads it off a nullable
   // `character` subdocument as `character?.name || ''`, and it creates full
   // accounts with no character at all. A blank name must never leave the sole

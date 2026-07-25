@@ -32,10 +32,13 @@ export type ExistingAccountSheetProps = {
  * the fields the summary actually carries.
  *
  * Every field is optional (see `ExistingAccountSummary`), and a missing one is
- * NOT defaulted: the server already applies its own fallbacks
- * (`character?.level || 1`), so an absent value here means a server that never
- * reported it — inventing "Level 1" would state something about the user's
- * account that nothing has told us. Absent is dropped; present is shown.
+ * NOT defaulted. Today's server always sends all three with its own fallbacks
+ * applied (`resolve-user.js`: `character?.level || 1`, `dailyQuestStreak || 0`),
+ * so the risk being handled is version skew — an older or newer server, or a
+ * client that outlives this payload shape. When that happens, inventing
+ * "Level 1" would state something about the user's account that nothing told us,
+ * and it would be indistinguishable from the server's real `|| 1`. Absent is
+ * dropped; present is shown.
  *
  * Returns null when there is nothing to say, so the caller can skip the line
  * rather than render an empty row.
@@ -53,11 +56,7 @@ function formatAccountMeta(account: ExistingAccountSummary): string | null {
   if (typeof streak === 'number') {
     // 0 is a legitimate value the server sends (`dailyQuestStreak || 0`), not a
     // stand-in for "unknown" — but "0 day streak" reads like a bug.
-    if (streak === 0) {
-      parts.push('No streak yet');
-    } else {
-      parts.push(streak === 1 ? '1 day streak' : `${streak} day streak`);
-    }
+    parts.push(streak === 0 ? 'No streak yet' : `${streak} day streak`);
   }
 
   return parts.length > 0 ? parts.join(META_SEPARATOR) : null;
