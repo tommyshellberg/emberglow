@@ -8,6 +8,8 @@ import { showMessage } from 'react-native-flash-message';
 import { socialSignIn } from '@/api/auth';
 import { Button } from '@/components/emberglow';
 import {
+  ExistingAccountConfirmationRequired,
+  type ExistingAccountSummary,
   getAppleCredential,
   getGoogleCredential,
   SOCIAL_SIGNIN_OUTCOMES,
@@ -16,7 +18,17 @@ import {
 } from '@/lib/auth/social';
 import { colors, fontFamily, radii, spacing } from '@/theme';
 
+import { ExistingAccountSheet } from './existing-account-sheet';
+
 export type SocialProvider = 'google' | 'apple';
+
+/** A credential exactly as the native wrapper produced it. Held in state across
+ * the confirmation sheet so a confirmed collision can be re-posted verbatim —
+ * including Apple's raw `nonce`, which the server needs to verify the token and
+ * which a second `getAppleCredential()` would regenerate. */
+type SocialCredential =
+  | Awaited<ReturnType<typeof getGoogleCredential>>
+  | Awaited<ReturnType<typeof getAppleCredential>>;
 
 export type SocialSignInButtonsProps = {
   /** Called after a successful credential exchange. `target`/`outcome` are
@@ -92,31 +104,102 @@ export function SocialSignInButtons({
   // synchronously at the top of `handleSignIn` (before the first `await`),
   // so a second tap in the same event loop turn still sees it.
   const [isSigningIn, setIsSigningIn] = React.useState(false);
+  // The attempt parked on the confirmation sheet: the credential the user
+  // already produced, so confirming replays it instead of sending them back
+  // through the provider's UI, plus the summary the sheet renders.
+  const [pendingCollision, setPendingCollision] = React.useState<{
+    credential: SocialCredential;
+    provider: SocialProvider;
+    account: ExistingAccountSummary;
+  } | null>(null);
+
+  /**
+   * Everything that follows a successful credential exchange, in one place:
+   * the first attempt and the confirmed replay both land here, so the toast,
+   * the success event and `onSuccess` can't drift apart or fire twice.
+   */
+  const finishSignIn = React.useCallback(
+    (
+      { target, outcome }: Awaited<ReturnType<typeof socialSignIn>>,
+      provider: SocialProvider
+    ) => {
+      posthog.capture('social_signin_success', { provider, outcome });
+
+      if (outcome === SOCIAL_SIGNIN_OUTCOMES.EXISTING_ACCOUNT_LOGIN) {
+        showMessage({
+          message: 'Welcome back',
+          description: 'You signed into your existing account.',
+          type: 'success',
+          duration: 3000,
+        });
+      }
+
+      onSuccess(target, outcome, provider);
+    },
+    [onSuccess, posthog]
+  );
+
+  /**
+   * The failure tail, shared by the first attempt and the confirmed replay for
+   * the same reason as `finishSignIn`: a replay that grew its own copy would be
+   * the one that stops logging, or reports a different `reason`.
+   *
+   * Deliberately has NO `ExistingAccountConfirmationRequired` branch. That is
+   * intercepted before this runs, and a replay that somehow collided again must
+   * not re-open the sheet — the user has already answered, and asking the same
+   * question again is a loop.
+   */
+  const reportFailure = React.useCallback(
+    (error: unknown, provider: SocialProvider) => {
+      // `socialSignIn` (src/api/auth.ts) propagates errors raw — this is
+      // the catch layer. A 409 means the social account is already
+      // linked to a different account (the existing magic-link 409 copy
+      // covers it); everything else collapses to a generic retry
+      // message.
+      const { code, status } = describeFailure(error);
+
+      // This is the ONLY place the error is ever observed. `socialSignIn`
+      // documents that it catches nothing, and every failure below
+      // collapses into one of two retry messages — so without this log a
+      // misconfigured OAuth client (`DEVELOPER_ERROR`), an unreachable API
+      // host, and a server that hasn't been given its client ID (501) are
+      // indistinguishable to whoever is holding the phone.
+      console.error(`[SocialSignIn] ${provider} sign-in failed`, error);
+
+      const isEmailInUse = status === 409;
+
+      posthog.capture('social_signin_failure', {
+        provider,
+        reason: isEmailInUse ? 'email-in-use' : 'generic',
+        ...(code === undefined ? {} : { code }),
+        ...(status === undefined ? {} : { status }),
+      });
+      onError(isEmailInUse ? 'email-in-use' : 'generic');
+    },
+    [onError, posthog]
+  );
 
   const handleSignIn = React.useCallback(
     async (provider: SocialProvider) => {
       if (isSigningIn) return;
       setIsSigningIn(true);
 
+      // Hoisted out of the `try` so the collision branch below can hand it to
+      // the sheet — that branch is the whole reason it lives here.
+      let credential: SocialCredential | undefined;
+      // Set when the attempt parks on the sheet rather than ending: the
+      // `finally` must not re-enable the buttons then. They sit behind the
+      // sheet, and the attempt resumes (or ends) in the confirm/dismiss
+      // handlers, which own the reset for that path.
+      let awaitingConfirmation = false;
+
       try {
-        const credential =
+        credential =
           provider === 'google'
             ? await getGoogleCredential()
             : await getAppleCredential();
-        const { target, outcome } = await socialSignIn(credential);
 
-        posthog.capture('social_signin_success', { provider, outcome });
-
-        if (outcome === SOCIAL_SIGNIN_OUTCOMES.EXISTING_ACCOUNT_LOGIN) {
-          showMessage({
-            message: 'Welcome back',
-            description: 'You signed into your existing account.',
-            type: 'success',
-            duration: 3000,
-          });
-        }
-
-        onSuccess(target, outcome, provider);
+        finishSignIn(await socialSignIn(credential), provider);
       } catch (error) {
         if (error instanceof SocialSignInCancelled) {
           // Cancelling is a routine dismissal, not a failure — it's folded
@@ -129,36 +212,71 @@ export function SocialSignInButtons({
           return;
         }
 
-        // `socialSignIn` (src/api/auth.ts) propagates errors raw — this is
-        // the catch layer. A 409 means the social account is already
-        // linked to a different account (the existing magic-link 409 copy
-        // covers it); everything else collapses to a generic retry
-        // message.
-        const { code, status } = describeFailure(error);
+        // MUST come before `reportFailure`. This error carries no `response`
+        // and no `status`, so `describeFailure` reduces it to `{}` — the
+        // collision would reach the generic retry copy AND fire a
+        // `social_signin_failure` event for a path where nothing failed. It is
+        // also why nothing is logged here: this is an expected branch, and
+        // `reportFailure`'s console line is for things that are actually wrong.
+        //
+        // `credential` is necessarily set (only `socialSignIn` throws this),
+        // but the guard is what lets TypeScript prove it — and if it somehow
+        // weren't, falling through to the generic copy is the right answer.
+        if (
+          error instanceof ExistingAccountConfirmationRequired &&
+          credential
+        ) {
+          posthog.capture('social_signin_existing_account_prompt', {
+            provider,
+          });
+          setPendingCollision({ credential, provider, account: error.account });
+          awaitingConfirmation = true;
+          return;
+        }
 
-        // This is the ONLY place the error is ever observed. `socialSignIn`
-        // documents that it catches nothing, and every failure below
-        // collapses into one of two retry messages — so without this log a
-        // misconfigured OAuth client (`DEVELOPER_ERROR`), an unreachable API
-        // host, and a server that hasn't been given its client ID (501) are
-        // indistinguishable to whoever is holding the phone.
-        console.error(`[SocialSignIn] ${provider} sign-in failed`, error);
-
-        const isEmailInUse = status === 409;
-
-        posthog.capture('social_signin_failure', {
-          provider,
-          reason: isEmailInUse ? 'email-in-use' : 'generic',
-          ...(code === undefined ? {} : { code }),
-          ...(status === undefined ? {} : { status }),
-        });
-        onError(isEmailInUse ? 'email-in-use' : 'generic');
+        reportFailure(error, provider);
       } finally {
-        setIsSigningIn(false);
+        if (!awaitingConfirmation) setIsSigningIn(false);
       }
     },
-    [isSigningIn, onError, onSuccess, posthog]
+    [isSigningIn, finishSignIn, reportFailure, posthog]
   );
+
+  const handleConfirmExistingAccount = React.useCallback(async () => {
+    // Also the narrowing TypeScript needs: `pendingCollision` is only non-null
+    // while the sheet is up, which is the only time this can be pressed.
+    if (!pendingCollision) return;
+    const { credential, provider } = pendingCollision;
+
+    posthog.capture('social_signin_existing_account_confirmed', { provider });
+    // Closed before the re-post, not after: the sheet has no in-flight state of
+    // its own, so leaving it up would show an unresponsive confirm button for
+    // the length of a network round trip.
+    setPendingCollision(null);
+
+    try {
+      finishSignIn(await socialSignIn(credential, true), provider);
+    } catch (error) {
+      reportFailure(error, provider);
+    } finally {
+      // The parked attempt is over either way. Without this the buttons stay
+      // disabled for the rest of the screen's life — which matters most on the
+      // failure path, where retrying is exactly what the user is told to do.
+      setIsSigningIn(false);
+    }
+  }, [finishSignIn, pendingCollision, posthog, reportFailure]);
+
+  const handleDismissExistingAccount = React.useCallback(() => {
+    // Same narrowing as above. The sheet already suppresses the `onDismiss` it
+    // fires for its own programmatic closes, so this is the user backing out.
+    if (!pendingCollision) return;
+
+    posthog.capture('social_signin_existing_account_dismissed', {
+      provider: pendingCollision.provider,
+    });
+    setPendingCollision(null);
+    setIsSigningIn(false);
+  }, [pendingCollision, posthog]);
 
   return (
     <View>
@@ -214,6 +332,19 @@ export function SocialSignInButtons({
           Continue with Google
         </Text>
       </Button>
+
+      {/* Mounted unconditionally, visibility driven by state: the sheet owns a
+          `@gorhom/bottom-sheet` ref internally, and a modal that only mounts
+          once it should already be open has no ref to `present()` on.
+          `account` must never be `undefined` — the sheet reads it on every
+          render — and `{}` is a shape it already handles by rendering no
+          summary card at all. */}
+      <ExistingAccountSheet
+        visible={pendingCollision !== null}
+        account={pendingCollision?.account ?? {}}
+        onConfirm={handleConfirmExistingAccount}
+        onDismiss={handleDismissExistingAccount}
+      />
     </View>
   );
 }
