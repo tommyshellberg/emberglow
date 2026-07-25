@@ -1,94 +1,22 @@
 import * as React from 'react';
 import { StyleSheet } from 'react-native';
 
+import {
+  bottomSheetMock,
+  resetBottomSheetMock,
+} from '@/lib/test-mocks/gorhom-bottom-sheet';
 import { fireEvent, render, screen } from '@/lib/test-utils';
 import { colors } from '@/theme';
 
 import { ExistingAccountSheet } from './existing-account-sheet';
 
-/**
- * Local @gorhom/bottom-sheet mock, replacing the one in jest-setup.ts for this
- * file only. Two things this sheet's contract depends on are invisible through
- * the global mock (`BottomSheetModal: jest.fn(({ children }) => children)`, a
- * plain function component that never attaches a ref):
- *
- * 1. `present()` / `dismiss()` land on the modal instance — with no ref
- *    attached they are silent no-ops, so deleting either call from the
- *    component would not fail a single assertion.
- * 2. `onDismiss` fires for programmatic closes too, not only user gestures —
- *    `unmount()` calls it either way (BottomSheetModal.tsx:106-133). The real
- *    modal usually gets there a full close animation later
- *    (`runOnUI(animateToPosition)` → `runOnJS(handleOnClose)` → `unmount`,
- *    :291-293) and synchronously only in the modal-stacking exception at
- *    :279-289. The `dismiss` below fires it synchronously: that is the tightest
- *    ordering a real close can take and the one a synchronous test can observe,
- *    and what the sheet has to get right is telling its own closes apart from
- *    the user's, not the timing.
- *
- * Everything else mirrors jest-setup.ts's mock so the sheet renders its
- * children exactly as it does elsewhere.
- */
-const mockSheetState: {
-  handle?: { present: jest.Mock; dismiss: jest.Mock };
-  onDismiss?: () => void;
-} = {};
-
-jest.mock('@gorhom/bottom-sheet', () => {
-  const ReactActual = jest.requireActual('react');
-  const RN = jest.requireActual('react-native');
-
-  const BottomSheetModal = ReactActual.forwardRef(
-    (
-      props: { children?: React.ReactNode; onDismiss?: () => void },
-      ref: React.Ref<unknown>
-    ) => {
-      // The imperative handle is built once, but `dismiss` has to reach the
-      // CURRENT onDismiss — hence the ref indirection rather than a closure
-      // over the first render's prop.
-      const onDismissRef = ReactActual.useRef(props.onDismiss);
-      onDismissRef.current = props.onDismiss;
-      mockSheetState.onDismiss = props.onDismiss;
-
-      ReactActual.useImperativeHandle(ref, () => {
-        const handle = {
-          present: jest.fn(),
-          dismiss: jest.fn(() => {
-            onDismissRef.current?.();
-          }),
-        };
-        mockSheetState.handle = handle;
-        return handle;
-      }, []);
-
-      return props.children;
-    }
-  );
-
-  return {
-    BottomSheetModal,
-    BottomSheetModalProvider: jest.fn(({ children }) => children),
-    BottomSheetBackdrop: jest.fn(() => null),
-    BottomSheetScrollView: jest.fn(({ children }) => children),
-    // Unused by this sheet, but reachable through the `@/components/emberglow`
-    // barrel (QuestCard → @/components/ui). Replacing the module wholesale
-    // means covering everything the import graph touches at load time.
-    BottomSheetTextInput: jest.fn((props) =>
-      ReactActual.createElement(RN.TextInput, props)
-    ),
-    BottomSheetFlatList: jest.fn((props) =>
-      ReactActual.createElement(RN.FlatList, props)
-    ),
-    createBottomSheetScrollableComponent: jest.fn(() =>
-      jest.fn(({ children }: { children: React.ReactNode }) => children)
-    ),
-    SCROLLABLE_TYPE: {
-      FLATLIST: 'FlatList',
-      SCROLLVIEW: 'ScrollView',
-      SECTIONLIST: 'SectionList',
-      VIRTUALIZED_LIST: 'VirtualizedList',
-    },
-  };
-});
+// jest-setup.ts's global sheet mock never attaches a ref, so `present()` /
+// `dismiss()` are silent no-ops there and its `onDismiss` prop is unreachable —
+// neither this sheet's opening nor its two close paths would be observable. The
+// helper's docstring covers what it models and why.
+jest.mock('@gorhom/bottom-sheet', () =>
+  require('@/lib/test-mocks/gorhom-bottom-sheet').createBottomSheetMock()
+);
 
 // RNTL skips accessibility-hidden elements by default, so a bare
 // `queryBy*` returning null is not proof of absence. Every absence assertion
@@ -117,10 +45,7 @@ const renderSheet = (
   return { ...view, onConfirm, onDismiss };
 };
 
-beforeEach(() => {
-  mockSheetState.handle = undefined;
-  mockSheetState.onDismiss = undefined;
-});
+beforeEach(resetBottomSheetMock);
 
 describe('ExistingAccountSheet', () => {
   it('titles the sheet so the collision is legible before anything else', () => {
@@ -264,7 +189,7 @@ describe('ExistingAccountSheet', () => {
     it('presents the sheet when it mounts visible', () => {
       renderSheet();
 
-      expect(mockSheetState.handle?.present).toHaveBeenCalledTimes(1);
+      expect(bottomSheetMock.handle?.present).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the sheet closed when it mounts hidden', () => {
@@ -272,8 +197,8 @@ describe('ExistingAccountSheet', () => {
 
       // Without this, `handle` being undefined would make the assertion below
       // pass for the wrong reason (nothing to have been called).
-      expect(mockSheetState.handle).toBeDefined();
-      expect(mockSheetState.handle?.present).not.toHaveBeenCalled();
+      expect(bottomSheetMock.handle).toBeDefined();
+      expect(bottomSheetMock.handle?.present).not.toHaveBeenCalled();
     });
 
     it('dismisses the sheet when the caller flips visible to false', () => {
@@ -288,7 +213,7 @@ describe('ExistingAccountSheet', () => {
         />
       );
 
-      expect(mockSheetState.handle?.dismiss).toHaveBeenCalledTimes(1);
+      expect(bottomSheetMock.handle?.dismiss).toHaveBeenCalledTimes(1);
     });
 
     // The load-bearing ordering: `dismiss()` fires onDismiss synchronously (see
@@ -318,7 +243,7 @@ describe('ExistingAccountSheet', () => {
     it('reports a swipe-down or backdrop dismiss to the caller', () => {
       const { onConfirm, onDismiss } = renderSheet();
 
-      mockSheetState.onDismiss?.();
+      bottomSheetMock.onDismiss?.();
 
       expect(onDismiss).toHaveBeenCalledTimes(1);
       expect(onConfirm).not.toHaveBeenCalled();
@@ -333,7 +258,7 @@ describe('ExistingAccountSheet', () => {
     it('does not dismiss again after the sheet closed itself', () => {
       const { rerender, onConfirm, onDismiss } = renderSheet();
 
-      mockSheetState.onDismiss?.();
+      bottomSheetMock.onDismiss?.();
       expect(onDismiss).toHaveBeenCalledTimes(1);
 
       rerender(
@@ -345,8 +270,8 @@ describe('ExistingAccountSheet', () => {
         />
       );
 
-      expect(mockSheetState.handle).toBeDefined();
-      expect(mockSheetState.handle?.dismiss).not.toHaveBeenCalled();
+      expect(bottomSheetMock.handle).toBeDefined();
+      expect(bottomSheetMock.handle?.dismiss).not.toHaveBeenCalled();
     });
 
     it('ignores a dismiss callback for a sheet it never presented', () => {
@@ -354,8 +279,8 @@ describe('ExistingAccountSheet', () => {
 
       // Same trap: an undefined captured callback would make this pass without
       // ever exercising the guard.
-      expect(mockSheetState.onDismiss).toBeDefined();
-      mockSheetState.onDismiss?.();
+      expect(bottomSheetMock.onDismiss).toBeDefined();
+      bottomSheetMock.onDismiss?.();
 
       expect(onDismiss).not.toHaveBeenCalled();
     });
