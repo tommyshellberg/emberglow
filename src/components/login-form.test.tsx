@@ -2,6 +2,12 @@ import * as Linking from 'expo-linking';
 import React from 'react';
 
 import { requestMagicLink } from '@/api/auth';
+import { useAuth } from '@/lib/auth';
+import { removeItem } from '@/lib/storage';
+import {
+  bottomSheetMock,
+  resetBottomSheetMock,
+} from '@/lib/test-mocks/gorhom-bottom-sheet';
 import {
   act,
   cleanup,
@@ -11,10 +17,40 @@ import {
   waitFor,
 } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
+import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 
 import { TERMS_URL } from './login/constants';
 import type { LoginFormProps } from './login-form';
 import { LoginForm } from './login-form';
+
+// The start-over confirmation is a `@gorhom/bottom-sheet` modal driven by a ref.
+// jest-setup.ts's global mock never attaches one, so `present()` / `dismiss()`
+// are silent no-ops there and deleting the `present()` call outright would fail
+// no test. This replacement mirrors that mock's rendering exactly (so every
+// other test in this file is unaffected) and exposes the imperative handle plus
+// the `onDismiss` prop, which is the only way a synchronous test can stand in
+// for a swipe-down or a backdrop tap.
+jest.mock('@gorhom/bottom-sheet', () =>
+  require('@/lib/test-mocks/gorhom-bottom-sheet').createBottomSheetMock()
+);
+
+// The four provisional keys the start-over wipe deletes are the whole point of
+// the confirmation gate, so they have to be observable. Only `removeItem` is
+// replaced: `storage` itself is read at import time by `lib/i18n` (via the
+// `@/components/ui` barrel this screen reaches), and the two stores' persist
+// middleware uses `getItem`/`setItem`, so a wholesale stub breaks the module
+// graph before any test runs.
+jest.mock('@/lib/storage', () => ({
+  ...jest.requireActual('@/lib/storage'),
+  removeItem: jest.fn(),
+}));
+
+const mockedRemoveItem = removeItem as jest.MockedFunction<typeof removeItem>;
+
+// Swapped into the auth store rather than spied on: the real `signOut` clears
+// tokens, resets PostHog and logs out of RevenueCat, none of which this screen's
+// behaviour depends on and all of which would run for real here.
+const mockSignOut = jest.fn();
 
 afterEach(() => {
   cleanup();
@@ -202,6 +238,13 @@ const sendFrom = async (user: ReturnType<typeof setup>['user']) => {
 describe('LoginForm Form ', () => {
   beforeEach(() => {
     mockedRequestMagicLink.mockResolvedValue({ success: true });
+    resetBottomSheetMock();
+    useAuth.setState({ signOut: mockSignOut });
+    // Deliberately NOT `NOT_STARTED`, which is what `resetOnboarding` writes: a
+    // starting value equal to the outcome could not tell "left alone" from
+    // "reset", so every "the wipe did not run" assertion below would be blind to
+    // the onboarding half of it.
+    useOnboardingStore.setState({ currentStep: OnboardingStep.COMPLETED });
   });
 
   it('renders correctly', async () => {
@@ -1095,6 +1138,178 @@ describe('LoginForm Form ', () => {
 
       expect(screen.queryByTestId('legal-consent', hidden)).toBeNull();
       expect(rawCount(LEGAL_LEAD)).toBe(0);
+    });
+  });
+
+  // The link at the bottom of the card. Its handler signs the user out, deletes
+  // all four provisional keys and resets onboarding — irreversibly, and with
+  // nothing on the link itself to say so. These tests are about who can reach
+  // that, and what has to happen first.
+  describe('Start over link', () => {
+    /**
+     * Every effect the wipe has, asserted absent.
+     *
+     * `currentStep` rather than a spy on `resetOnboarding`: the store's own
+     * action runs for real, so this reads the outcome the user would live with.
+     * The starting value is `COMPLETED` (see the suite's beforeEach), so this
+     * cannot pass by matching what a reset would write.
+     */
+    const expectNothingDiscarded = () => {
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(mockedRemoveItem).not.toHaveBeenCalled();
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.COMPLETED
+      );
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    };
+
+    /**
+     * Renders with a hero in the store and taps the link, leaving the
+     * confirmation open. The store is seeded before `setup` so the render never
+     * sees a character appear underneath it.
+     */
+    const openTheConfirmation = async () => {
+      giveTheUserAHero();
+      const utils = setup(<LoginForm intent="signin" />);
+      await utils.user.press(screen.getByTestId('start-over-link'));
+      // The gate opened rather than the wipe having already run — every test
+      // using this builds on that being true.
+      expect(bottomSheetMock.handle?.present).toHaveBeenCalledTimes(1);
+      return utils;
+    };
+
+    it('names what onboarding actually asks for next, not an account', async () => {
+      setup(<LoginForm intent="signin" />);
+
+      expect(await screen.findByTestId('start-over-link')).toBeOnTheScreen();
+      // The whole line, composed: the accent segment is a nested <Text>, and
+      // asserting only the segment would not notice the lead-in going missing.
+      expect(screen.getByText('New here? Create a hero')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('start-over-link', hidden)).toHaveLength(1);
+      // The old label promised an account, which onboarding does not create
+      // until after the first quest — character selection is what it opens.
+      expect(rawCount('Create account')).toBe(0);
+    });
+
+    // The bug: this link renders under `convert` too, and `convert` is the
+    // screen headlined "Save your progress". Tapping it there destroys exactly
+    // the progress the headline promises to save.
+    it('is absent under the convert framing, whose progress it would destroy', async () => {
+      setup(<LoginForm intent="convert" />);
+
+      // Positive control first: a blank render would satisfy every absence
+      // below, and a bare `queryBy*` has already produced a false "it's gone"
+      // in this plan.
+      expect(await screen.findByText('Sign up with email')).toBeOnTheScreen();
+
+      expect(screen.queryByTestId('start-over-link', hidden)).toBeNull();
+      expect(rawCount('New here?')).toBe(0);
+      expect(rawCount('Create a hero')).toBe(0);
+    });
+
+    // `use-token-refresh-error-handler.ts`, `navigation-gate.tsx` and
+    // `utils/account.ts` all land users on `/login` with the default framing, so
+    // "has a hero" is not implied by the intent either way — presence in the
+    // store is what decides.
+    it('sends a user with no hero straight to onboarding, wiping nothing', async () => {
+      const { user } = setup(<LoginForm intent="signin" />);
+
+      await user.press(screen.getByTestId('start-over-link'));
+
+      expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/welcome');
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(mockedRemoveItem).not.toHaveBeenCalled();
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.COMPLETED
+      );
+      // No confirmation either: there is nothing to confirm losing. Guarded
+      // against `handle` being undefined, which would pass for the wrong reason.
+      expect(bottomSheetMock.handle).toBeDefined();
+      expect(bottomSheetMock.handle?.present).not.toHaveBeenCalled();
+    });
+
+    it('opens the confirmation instead of wiping when there is a hero to lose', async () => {
+      giveTheUserAHero();
+      const { user } = setup(<LoginForm intent="signin" />);
+
+      await user.press(screen.getByTestId('start-over-link'));
+
+      expect(bottomSheetMock.handle?.present).toHaveBeenCalledTimes(1);
+      expectNothingDiscarded();
+    });
+
+    // Threading, not opening: both available sheet mocks render a closed modal's
+    // children, so this text is in the tree either way. What it pins is that the
+    // shell passes the store's hero name down instead of the sheet's fallback.
+    it('names the hero the confirmation would discard', async () => {
+      await openTheConfirmation();
+
+      expect(
+        screen.getByText(
+          `This will discard ${HERO_NAME} and the quest you've finished.`
+        )
+      ).toBeOnTheScreen();
+    });
+
+    it('runs the whole wipe once the user confirms, and only then', async () => {
+      const { user } = await openTheConfirmation();
+      expectNothingDiscarded();
+
+      await user.press(screen.getByTestId('start-over-confirm'));
+
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
+      // All four keys by name: a wipe that misses one leaves the app signed out
+      // with a live provisional credential still on disk.
+      expect(mockedRemoveItem).toHaveBeenCalledWith('provisionalRefreshToken');
+      expect(mockedRemoveItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(mockedRemoveItem).toHaveBeenCalledWith('provisionalUserId');
+      expect(mockedRemoveItem).toHaveBeenCalledWith('provisionalEmail');
+      expect(mockedRemoveItem).toHaveBeenCalledTimes(4);
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.NOT_STARTED
+      );
+      expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/welcome');
+    });
+
+    it('discards nothing when the user chooses to keep their hero', async () => {
+      const { user } = await openTheConfirmation();
+
+      await user.press(screen.getByTestId('start-over-keep-hero'));
+
+      expectNothingDiscarded();
+      // And the sheet actually closed, rather than the ghost button being inert.
+      expect(bottomSheetMock.handle?.dismiss).toHaveBeenCalledTimes(1);
+    });
+
+    // RNTL can drive neither gesture: the swipe lives in the library's native pan
+    // handler and the backdrop tap in its own pressable. Both reach this
+    // component through the single `onDismiss` prop @gorhom calls when the modal
+    // unmounts, so that callback is invoked directly here — the two cases are
+    // enumerated because both are reachable for a user, not because they take
+    // different code paths.
+    it.each([['a swipe-down'], ['a backdrop tap']])(
+      'discards nothing when %s closes the confirmation',
+      async () => {
+        await openTheConfirmation();
+
+        await act(async () => {
+          bottomSheetMock.onDismiss?.();
+        });
+
+        expectNothingDiscarded();
+      }
+    );
+
+    // The gate has to survive being declined: a user who backs out and changes
+    // their mind must get the sheet again, not a dead link.
+    it('reopens the confirmation after the user backed out of it', async () => {
+      const { user } = await openTheConfirmation();
+      await user.press(screen.getByTestId('start-over-keep-hero'));
+
+      await user.press(screen.getByTestId('start-over-link'));
+
+      expect(bottomSheetMock.handle?.present).toHaveBeenCalledTimes(2);
+      expectNothingDiscarded();
     });
   });
 

@@ -24,7 +24,23 @@ const FALLBACK_HERO_NAME = 'your hero';
 const EMAIL_SUBTITLE =
   "We'll send a sign-in link to your email. No password needed.";
 
-type LoginCopy = {
+/**
+ * Spec §4 gives one wording for the start-over link regardless of framing, so
+ * — like `EMAIL_SUBTITLE` — it exists once and both entries point at it. Two
+ * segments because only the second is accent-coloured; the whole line is the
+ * tap target.
+ */
+const START_NEW_LEAD = 'New here?';
+const START_NEW_ACTION = 'Create a hero';
+
+/**
+ * Everything about `/login` that changes with how the user arrived — the four
+ * strings and the one decision. Named "framing" rather than "copy" because
+ * `showStartNewLink` is not a string: it is the same editorial judgement as the
+ * strings around it (does THIS framing offer a way to start over?), and keeping
+ * it here is what makes that judgement compulsory — see `LOGIN_COPY`.
+ */
+type LoginFraming = {
   /** Chooser (social-first) step heading. */
   chooserTitle: string;
   /**
@@ -38,9 +54,25 @@ type LoginCopy = {
   emailTitle: string;
   /** Email step subheading. */
   emailSubtitle: string;
+  /**
+   * Whether the link out to `/onboarding/welcome` belongs on this framing.
+   *
+   * Required, and read as `copy.showStartNewLink` rather than compared as
+   * `intent === 'signin'` at the render site, because of what happens when a
+   * third intent is added: `Record<LoginIntent, LoginFraming>` fails to compile
+   * until someone decides, while an inline comparison would silently withhold
+   * the link — and this link is a user's only route back to the welcome screen
+   * (`welcome.tsx:42` uses `router.replace('/login')`, so there is no back
+   * stack).
+   */
+  showStartNewLink: boolean;
+  /** Muted lead-in of the start-over link. */
+  startNewLead: string;
+  /** Accent-coloured second half, naming what onboarding asks for next. */
+  startNewAction: string;
 };
 
-export const LOGIN_COPY: Record<LoginIntent, LoginCopy> = {
+export const LOGIN_COPY: Record<LoginIntent, LoginFraming> = {
   signin: {
     chooserTitle: 'Welcome back',
     // Takes (and ignores) the hero name so both intents share one call
@@ -48,6 +80,11 @@ export const LOGIN_COPY: Record<LoginIntent, LoginCopy> = {
     chooserSubtitle: () => 'Your hero, quest history, and guild are waiting.',
     emailTitle: 'Sign in with email',
     emailSubtitle: EMAIL_SUBTITLE,
+    // A returning user who has no account yet is exactly who this is for, and
+    // it is the only route back to the welcome screen from here.
+    showStartNewLink: true,
+    startNewLead: START_NEW_LEAD,
+    startNewAction: START_NEW_ACTION,
   },
   convert: {
     chooserTitle: 'Save your progress',
@@ -61,6 +98,18 @@ export const LOGIN_COPY: Record<LoginIntent, LoginCopy> = {
       `Keep ${heroName || FALLBACK_HERO_NAME} and everything you've earned.`,
     emailTitle: 'Sign up with email',
     emailSubtitle: EMAIL_SUBTITLE,
+    // This framing IS "keep what you have". The link's handler signs the user
+    // out, deletes all four provisional keys and resets onboarding, so on a
+    // screen headlined "Save your progress" it destroys exactly the progress the
+    // headline promises to save — and the user arrived here from
+    // `quest-completed-signup.tsx`, one tap into the flow it would restart.
+    showStartNewLink: false,
+    // Carried even though nothing renders it under this framing: the table is
+    // exhaustive by type, and the FLAG is what withholds the link — not the
+    // absence of words for it. Pointed at the same constants, so flipping the
+    // flag on can never surface stale or drifted copy.
+    startNewLead: START_NEW_LEAD,
+    startNewAction: START_NEW_ACTION,
   },
 };
 

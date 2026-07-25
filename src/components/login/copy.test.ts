@@ -57,6 +57,47 @@ describe('LOGIN_COPY', () => {
       );
     });
   });
+
+  describe('start-over link', () => {
+    // Whether the link belongs on a framing is a property OF the framing, and
+    // it lives here rather than as an `intent === 'signin'` test at the render
+    // site for a reason the type system enforces: a third intent added to
+    // `LoginIntent` cannot compile without answering this question, whereas an
+    // inline comparison would silently hide the link for it.
+    it('offers the escape hatch back to onboarding on the returning-user framing', () => {
+      expect(LOGIN_COPY.signin.showStartNewLink).toBe(true);
+    });
+
+    // The link signs the user out, deletes their provisional keys and resets
+    // onboarding. Under `convert` — the framing headlined "Save your progress" —
+    // it destroys exactly the progress that headline promises to save.
+    it('withholds it from the conversion framing, whose progress it would destroy', () => {
+      expect(LOGIN_COPY.convert.showStartNewLink).toBe(false);
+    });
+
+    // "Create account" promised something onboarding does not do: the account is
+    // not created until after quest one. What the link actually opens is
+    // character selection.
+    it('names character creation rather than an account', () => {
+      expect(LOGIN_COPY.signin.startNewLead).toBe('New here?');
+      expect(LOGIN_COPY.signin.startNewAction).toBe('Create a hero');
+    });
+
+    it('uses one wording across both intents rather than two hand-typed copies', () => {
+      // Anchored to a literal first: a `toBe` between two ABSENT fields passes
+      // vacuously (undefined === undefined), which is exactly how a sameness
+      // test goes green while asserting nothing — it did here on first run.
+      expect(LOGIN_COPY.signin.startNewAction).toBe('Create a hero');
+      // Same strings, not second copies of them — the spec gives one wording
+      // regardless of framing, so drift between them should be impossible.
+      expect(LOGIN_COPY.convert.startNewLead).toBe(
+        LOGIN_COPY.signin.startNewLead
+      );
+      expect(LOGIN_COPY.convert.startNewAction).toBe(
+        LOGIN_COPY.signin.startNewAction
+      );
+    });
+  });
 });
 
 describe('parseLoginIntent', () => {

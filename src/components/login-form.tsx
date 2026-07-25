@@ -29,6 +29,7 @@ import { DEFAULT_LOGIN_INTENT, LOGIN_COPY } from './login/copy';
 import { EmailInputView } from './login/email-input-view';
 import { EmailSentView } from './login/email-sent-view';
 import { useMagicLink } from './login/hooks/use-magic-link';
+import { StartOverSheet } from './login/start-over-sheet';
 import { cardMeta } from './login/text-styles';
 import type { LoginFormProps } from './login/types';
 
@@ -80,6 +81,14 @@ export const LoginForm = ({
   // re-render this whole screen for a name that did not change. Passed straight
   // through: `copy.ts` owns the missing-name fallback.
   const heroName = useCharacterStore((state) => state.character?.name);
+  // Presence, selected as a boolean rather than as the `character` object, so
+  // this stays a stable primitive for the same reason `heroName` is: replacing
+  // the character does not re-render the screen. What it gates is the start-over
+  // confirmation below — and it has to be presence in the STORE, not the entry
+  // path: `use-token-refresh-error-handler.ts:36`, `navigation-gate.tsx:66` and
+  // `utils/account.ts:69` all land users on plain `/login` (the `signin`
+  // framing), provisional data and all.
+  const hasHero = useCharacterStore((state) => Boolean(state.character));
 
   // Which of the two user-chosen steps is showing. `sent` is not in here — see
   // `step` below.
@@ -91,6 +100,10 @@ export const LoginForm = ({
   const [mode, setMode] = useState<'chooser' | 'email'>(
     intent === 'convert' ? 'email' : 'chooser'
   );
+
+  // Whether the start-over confirmation is open. State, not a ref, because the
+  // sheet takes a controlled `visible` prop (see its JSDoc).
+  const [isConfirmingStartOver, setIsConfirmingStartOver] = useState(false);
 
   const {
     isLoading,
@@ -170,7 +183,36 @@ export const LoginForm = ({
     router.replace(target === 'app' ? '/(app)/' : '/onboarding');
   };
 
-  const handleCreateAccount = () => {
+  /**
+   * The link out to onboarding.
+   *
+   * A user with no character has nothing to lose here, so they go straight
+   * through: the wipe below would be a no-op for them, and running it anyway
+   * would sign out and clear keys for someone who only asked to see the welcome
+   * screen. A user WITH one loses that hero and the quest they have finished,
+   * irreversibly, so they get asked first.
+   */
+  const handleStartNewPress = () => {
+    if (hasHero) {
+      setIsConfirmingStartOver(true);
+      return;
+    }
+
+    router.replace('/onboarding/welcome');
+  };
+
+  /**
+   * Discards the provisional account. Reachable ONLY from the confirmation
+   * sheet's primary action — every other way that sheet closes (its ghost
+   * button, a swipe, the backdrop) routes to `onDismiss` and leaves all of this
+   * unrun.
+   */
+  const discardHeroAndStartOver = () => {
+    // Closed first so the sheet is gone regardless of what the navigation below
+    // does to this screen, and so its own close never reports back as a
+    // dismissal (see the sheet's `hasPresented` guard).
+    setIsConfirmingStartOver(false);
+
     // Clear all auth data and provisional data
     signOut();
 
@@ -321,19 +363,38 @@ export const LoginForm = ({
             )}
           </View>
 
-          {/* Link to go back to welcome screen */}
-          <TouchableOpacity
-            onPress={handleCreateAccount}
-            style={styles.createAccountLink}
-            accessibilityRole="button"
-            accessibilityLabel="Create a new account"
-          >
-            <Text style={styles.createAccountText}>
-              New here?{' '}
-              <Text style={styles.createAccountAccent}>Create account</Text>
-            </Text>
-          </TouchableOpacity>
+          {/* The way back to the welcome screen — the only one, since
+              `welcome.tsx:42` replaces rather than pushes, leaving no back
+              stack. Whether it belongs on this framing at all is `copy.ts`'s
+              call, read as a flag rather than compared against `intent` here so
+              that a third intent cannot quietly inherit a default. */}
+          {copy.showStartNewLink ? (
+            <TouchableOpacity
+              testID="start-over-link"
+              onPress={handleStartNewPress}
+              style={styles.startNewLink}
+              accessibilityRole="button"
+              accessibilityLabel={`${copy.startNewLead} ${copy.startNewAction}`}
+              accessibilityHint="Goes back to the start of onboarding to create a new hero"
+            >
+              <Text style={styles.startNewText}>
+                {copy.startNewLead}{' '}
+                <Text style={styles.startNewAccent}>{copy.startNewAction}</Text>
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
+
+        {/* Mounted unconditionally, visibility driven by state: the sheet owns a
+            `@gorhom/bottom-sheet` ref internally, and a modal that only mounts
+            once it should already be open has no ref to `present()` on. Closed,
+            it renders nothing. */}
+        <StartOverSheet
+          visible={isConfirmingStartOver}
+          heroName={heroName}
+          onConfirm={discardHeroAndStartOver}
+          onDismiss={() => setIsConfirmingStartOver(false)}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -413,16 +474,16 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textDecorationLine: 'underline',
   },
-  createAccountLink: {
+  startNewLink: {
     marginTop: spacing[4],
     alignItems: 'center',
   },
-  createAccountText: {
+  startNewText: {
     fontFamily: fontFamily.regular,
     fontSize: 14.5,
     color: colors.text.muted,
   },
-  createAccountAccent: {
+  startNewAccent: {
     fontFamily: fontFamily.semibold,
     color: colors.text.accent,
   },
