@@ -28,8 +28,53 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
 };
 
 /**
- * Answers "is the router already showing `target`?" so NavigationGate can skip a
- * redundant redirect.
+ * The screens a user without a full account may move between under their own
+ * steam: the onboarding funnel, `/login`, and the post-first-quest signup
+ * prompt.
+ *
+ * The resolver names exactly one of these at a time, because it derives a
+ * destination from stores and store state cannot express "the user just tapped
+ * 'Have an account? Log in'". Holding it to that single answer is what made
+ * three links inert: the tap navigated, the gate re-ran, the resolver still
+ * named the screen the user had just left, and the gate replaced them back onto
+ * it fast enough to look like a dead button. Every one of `welcome.tsx`'s login
+ * link, `login-form.tsx`'s "Create a hero" link and
+ * `quest-completed-signup.tsx`'s "Create account" button hit this.
+ *
+ * So for these three the resolver's answer is read as a default rather than a
+ * mandate. That is safe precisely here and nowhere else: this zone is the
+ * resolver's LAST branch (Priority 3-4), reached only once streak celebration,
+ * pending quests and quest results have all declined to claim the user. Those
+ * higher-priority screens stay strictly matched below — they are consequences
+ * of state the user cannot opt out of, and a running quest must still evict
+ * someone sitting on `/login`.
+ *
+ * Letting the user actually REACH `/login?intent=convert` exposes that the
+ * `convert` framing withholds its way back on purpose (`copy.ts:105-110` — that
+ * link is destructive, and this screen promises to save the progress it would
+ * destroy). So there is currently no non-destructive route back to the signup
+ * prompt: emberglow#359.
+ *
+ * `Partial`, not `Record`: membership is a subset by design, and the compiler
+ * still rejects a segment that is not resolver-owned. The "did you decide about
+ * this new target?" enforcement lives on `RESOLVER_OWNED_SEGMENTS` above, so it
+ * does not need repeating here.
+ */
+const PRE_ACCOUNT_ZONE: Partial<Record<ResolverOwnedSegment, true>> = {
+  onboarding: true,
+  login: true,
+  'quest-completed-signup': true,
+};
+
+/**
+ * Answers "is where we are good enough for `target`?" so NavigationGate can skip
+ * a redirect.
+ *
+ * For most targets that means exactly "is the router already showing it". The
+ * exception is the pre-account zone, where several screens each satisfy the
+ * others (see `PRE_ACCOUNT_ZONE`) — hence "good enough" rather than "already
+ * there". The name predates that distinction and is kept for now to hold this
+ * fix to one logical change; renaming reaches the gate and both test files.
  *
  * This is the gate's ONLY loop guard, and it must be derivable purely from the
  * router's CURRENT location. It cannot be a ref or state remembering past
@@ -96,16 +141,24 @@ export function isAlreadyAtTarget(
       return pathname === '/quest' && segments[segments.length - 1] === '[id]';
     }
 
+    // The pre-account zone (see PRE_ACCOUNT_ZONE): any member satisfies any
+    // other, so the gate stops policing moves the user made on purpose.
+    //
+    // Empty segments still navigate, and that is the opposite of the 'app' case
+    // above on purpose. There, no location meant "no reason to move". Here it
+    // means the launch redirect has not happened yet, and it is the whole reason
+    // this gate exists — suppressing it would strand a cold start on the root
+    // route. `Object.hasOwn` with `segments[0]` undefined is already false, so
+    // that falls out rather than needing its own branch.
     case 'login':
-      return segments[0] === 'login';
     case 'onboarding':
-      return segments[0] === 'onboarding';
+    case 'quest-completed-signup':
+      return Object.hasOwn(PRE_ACCOUNT_ZONE, segments[0]);
+
     case 'pending-quest':
       return segments[0] === 'pending-quest';
     case 'cooperative-pending-quest':
       return segments[0] === 'cooperative-pending-quest';
-    case 'quest-completed-signup':
-      return segments[0] === 'quest-completed-signup';
     case 'streak-celebration':
       return segments[0] === 'streak-celebration';
     case 'first-quest-result':
