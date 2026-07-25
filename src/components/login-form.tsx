@@ -24,6 +24,7 @@ import {
 import { EmailInputView } from './login/email-input-view';
 import { EmailSentView } from './login/email-sent-view';
 import { useMagicLink } from './login/hooks/use-magic-link';
+import { SocialDivider } from './login/social-divider';
 import { SocialSignInButtons } from './login/social-sign-in-buttons';
 import type { LoginFormProps } from './login/types';
 
@@ -192,6 +193,7 @@ export const LoginForm = ({ onSubmit, initialError }: LoginFormProps) => {
                   onSuccess={handleSocialSignInSuccess}
                   onError={(kind) => setError(mapError(kind))}
                 />
+                <SocialDivider />
                 <EmailInputView
                   onSubmit={handleEmailSubmit}
                   isLoading={isLoading}

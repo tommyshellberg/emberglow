@@ -54,8 +54,8 @@ const mockSocialSignIn = socialSignIn as jest.MockedFunction<
 const noop = () => {};
 
 /** Depth-first walk of the rendered JSON tree collecting testIDs in the
- * order they appear — used to assert Apple-before-Google-before-divider
- * layout order, which query-by-testID alone can't express. */
+ * order they appear — used to assert Apple-before-Google layout order, which
+ * query-by-testID alone can't express. */
 function collectTestIdOrder(
   node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null
 ): string[] {
@@ -82,28 +82,34 @@ describe('SocialSignInButtons', () => {
       Platform.OS = 'ios';
     });
 
-    it('renders the Apple button, then the Google button, then an "or" divider', () => {
+    it('renders the Apple button, then the Google button', () => {
       const view = render(
         <SocialSignInButtons onSuccess={noop} onError={noop} />
       );
 
       expect(screen.getByTestId('apple-sign-in-button')).toBeOnTheScreen();
       expect(screen.getByTestId('google-sign-in-button')).toBeOnTheScreen();
-      // The divider is marked accessibility-hidden (decorative — see the
-      // component), so it has to be queried with `includeHiddenElements`
-      // to still be found by text.
-      expect(
-        screen.getByText('or', { includeHiddenElements: true })
-      ).toBeOnTheScreen();
 
       const order = collectTestIdOrder(view.toJSON());
       const appleIndex = order.indexOf('apple-sign-in-button');
       const googleIndex = order.indexOf('google-sign-in-button');
-      const dividerIndex = order.indexOf('social-signin-divider');
 
       expect(appleIndex).toBeGreaterThanOrEqual(0);
       expect(appleIndex).toBeLessThan(googleIndex);
-      expect(googleIndex).toBeLessThan(dividerIndex);
+    });
+
+    it('no longer renders the divider — callers own it', () => {
+      const view = render(
+        <SocialSignInButtons onSuccess={noop} onError={noop} />
+      );
+
+      // Asserted against the raw rendered tree, not `queryByTestId`: the
+      // divider is accessibility-hidden, and RNTL skips hidden elements by
+      // default, so a query-based absence check passes whether or not the
+      // divider rendered — it would prove nothing.
+      expect(collectTestIdOrder(view.toJSON())).not.toContain(
+        'social-signin-divider'
+      );
     });
   });
 

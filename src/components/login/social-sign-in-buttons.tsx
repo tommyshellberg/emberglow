@@ -211,22 +211,6 @@ export function SocialSignInButtons({
           Continue with Google
         </Text>
       </Button>
-
-      <View
-        style={styles.dividerRow}
-        testID="social-signin-divider"
-        // Purely decorative — "or" between two buttons that are already
-        // individually labeled conveys nothing extra to a screen reader.
-        // Both props are required for cross-platform coverage: iOS reads
-        // `accessibilityElementsHidden`, Android reads
-        // `importantForAccessibility`.
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or</Text>
-        <View style={styles.dividerLine} />
-      </View>
     </View>
   );
 }
@@ -250,21 +234,5 @@ const styles = StyleSheet.create({
     // so it should render at the same size the button would otherwise use.
     fontSize: 17,
     color: colors.text.primary,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[3],
-    marginTop: spacing[4],
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border.hairline,
-  },
-  dividerText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-    color: colors.text.muted,
   },
 });

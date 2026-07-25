@@ -7,6 +7,8 @@ export * from './constants';
 export { EmailInputView } from './email-input-view';
 export { EmailSentView } from './email-sent-view';
 export { useMagicLink } from './hooks/use-magic-link';
+export type { SocialDividerProps } from './social-divider';
+export { SocialDivider } from './social-divider';
 export type {
   SocialProvider,
   SocialSignInButtonsProps,

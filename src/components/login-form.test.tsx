@@ -556,6 +556,21 @@ describe('LoginForm Form ', () => {
       expect(screen.getByTestId('email-input')).toBeOnTheScreen();
     });
 
+    it('renders the "or" divider separating the social options from the email form', async () => {
+      setup(<LoginForm />);
+
+      expect(await screen.findByText(/emberglow/i)).toBeOnTheScreen();
+      // `SocialSignInButtons` used to render this divider itself; the screen
+      // owns it now. `includeHiddenElements` is required — the divider is
+      // decorative and hides itself from assistive tech, so RNTL's default
+      // query would miss it whether or not it rendered.
+      expect(
+        screen.getByTestId('social-signin-divider', {
+          includeHiddenElements: true,
+        })
+      ).toBeTruthy();
+    });
+
     it('hides the social sign-in options once the email has been sent', async () => {
       const { user } = setup(<LoginForm />);
 
@@ -575,6 +590,12 @@ describe('LoginForm Form ', () => {
       expect(
         screen.queryByTestId('mock-social-success-app-login')
       ).not.toBeOnTheScreen();
+      // The divider introduces the social options, so it leaves with them.
+      expect(
+        screen.queryByTestId('social-signin-divider', {
+          includeHiddenElements: true,
+        })
+      ).toBeNull();
     });
 
     it('routes to the app when social sign-in resolves an app target for an ordinary outcome', async () => {

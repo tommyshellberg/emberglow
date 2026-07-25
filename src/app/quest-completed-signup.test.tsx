@@ -238,7 +238,7 @@ describe('QuestCompletedSignupScreen', () => {
   });
 
   describe('Social sign-in', () => {
-    it('renders the social sign-in buttons above the Sign up with email button', () => {
+    it('renders the social sign-in buttons, then the "or" divider it owns, then the Sign up with email button', () => {
       const { getByTestId, getByText, toJSON } = render(
         <QuestCompletedSignupScreen />
       );
@@ -266,10 +266,15 @@ describe('QuestCompletedSignupScreen', () => {
       walk(toJSON());
 
       const socialIndex = order.indexOf('social-sign-in-buttons-mock');
+      const dividerIndex = order.indexOf('social-signin-divider');
       const createAccountIndex = order.indexOf('Sign up with email');
 
       expect(socialIndex).toBeGreaterThanOrEqual(0);
-      expect(createAccountIndex).toBeGreaterThan(socialIndex);
+      // The divider is this screen's to render — `SocialSignInButtons` is
+      // mocked here, so its presence in the tree can only come from the
+      // screen itself.
+      expect(dividerIndex).toBeGreaterThan(socialIndex);
+      expect(createAccountIndex).toBeGreaterThan(dividerIndex);
     });
 
     it('still routes "Sign up with email" to /login', async () => {

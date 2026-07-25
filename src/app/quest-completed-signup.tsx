@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CHARACTERS from '@/app/data/characters';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button, EyebrowLabel } from '@/components/emberglow';
+import { SocialDivider } from '@/components/login/social-divider';
 import {
   type SocialProvider,
   SocialSignInButtons,
@@ -225,6 +226,7 @@ export default function QuestCompletedSignupScreen() {
           onSuccess={handleSocialSignInSuccess}
           onError={handleSocialSignInError}
         />
+        <SocialDivider />
         <Button
           variant="secondary"
           size="lg"
@@ -232,9 +234,9 @@ export default function QuestCompletedSignupScreen() {
           label="Sign up with email"
           accessibilityLabel="Sign up with email"
           onPress={handleCreateAccount}
-          // Balances the gap the "or" divider already has above it, so the
-          // divider reads as centered between Google and this button rather
-          // than flush against it.
+          // Mirrors `SocialDivider`'s own `marginTop`, so the divider sits
+          // equidistant between the Google button above it and this button
+          // below rather than flush against either.
           containerStyle={styles.emailButton}
         />
       </Animated.View>
