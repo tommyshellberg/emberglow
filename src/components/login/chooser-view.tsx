@@ -93,9 +93,9 @@ export function ChooserView({
         By continuing you agree to our{' '}
         {/* One link over both names, not two: the document hosted at TERMS_URL
             IS the combined "Terms of Service and Privacy Policy" (see the
-            settings screen, which labels the same URL that way), and no
-            separate privacy URL exists to point a second link at. Split this
-            in two only once the policies are hosted separately. */}
+            landing page's terms route — one page, no separate privacy URL and
+            no anchors to deep-link). Split this in two only once the policies
+            are hosted separately. */}
         <Text
           style={styles.termsLink}
           onPress={() => Linking.openURL(TERMS_URL)}

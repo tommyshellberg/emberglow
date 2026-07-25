@@ -23,18 +23,19 @@ jest.mock('@/api/auth', () => ({ socialSignIn: jest.fn() }));
 // `variant="primary"` Cinnabar button. Both available sheet mocks render a
 // closed modal's children anyway, which would put that button in this tree and
 // break an honest whole-tree colour assertion over what the user can see. The
-// real library renders nothing until `present()` (`handlePortalRender`), so a
-// closed modal rendering nothing is the faithful model. The rest of the module
-// is kept intact because the `@/components/emberglow` barrel reaches several of
-// its exports at load time.
+// real library gates its whole render on `mount`, which starts false
+// (`BottomSheetModal.tsx`: `INITIAL_STATE = { mount: false }`, then
+// `return mount ? <Portal…> : null`), so a closed modal rendering nothing is
+// the faithful model. The rest of the module is kept intact because the
+// `@/components/emberglow` barrel reaches several of its exports at load time.
 jest.mock('@gorhom/bottom-sheet', () => ({
   ...require('@/lib/test-mocks/gorhom-bottom-sheet').createBottomSheetMock(),
   BottomSheetModal: () => null,
 }));
 
 // RNTL 13 skips accessibility-hidden elements by default, so a bare `queryBy*`
-// returning null is not proof of absence — and the divider is deliberately
-// a11y-hidden, so even finding it needs this.
+// returning null is not proof of absence — it proves absence only from the
+// visible part of the tree.
 const hidden = { includeHiddenElements: true } as const;
 
 // Deliberately not 'your hero': that is `copy.ts`'s missing-name fallback, so a
@@ -193,11 +194,14 @@ describe('ChooserView', () => {
     const view = renderChooser();
     const backgrounds = backgroundColorsOf(view);
 
-    // Positive control: proves the walk is reading painted colours, so the
-    // absence assertion below cannot pass on an empty list. `fill.faint` is
-    // `variant="secondary"`'s background, i.e. the email button's.
-    expect(backgrounds).toContain(colors.fill.faint);
+    // The real assertion first, so an ember leak is what a failure reports —
+    // and it prints the received array, naming the colour that appeared.
     expect(backgrounds).not.toContain(colors.accent.primary);
+    // Positive control second: `not.toContain` over an empty list passes
+    // vacuously, so this is what catches a walk that stopped reading painted
+    // colours at all. `fill.faint` is `variant="secondary"`'s background, i.e.
+    // the email button's.
+    expect(backgrounds).toContain(colors.fill.faint);
 
     // Named per action too, so a failure says which one took the ember.
     expect(backgroundColorOfTestId('google-sign-in-button')).toBe(
