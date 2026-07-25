@@ -1,20 +1,12 @@
 import * as Linking from 'expo-linking';
-import { FlameKindling } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Input } from '@/components/emberglow';
-import {
-  colors,
-  fontFamily,
-  palette,
-  radii,
-  spacing,
-  tints,
-  withAlpha,
-} from '@/theme';
+import { colors, fontFamily, spacing } from '@/theme';
 
 import { TERMS_URL } from './constants';
+import { ErrorBanner } from './error-banner';
 import { cardBody, cardTitle } from './text-styles';
 import { emailSchema } from './types';
 
@@ -32,12 +24,6 @@ type EmailInputViewProps = {
   subtitle: string;
 };
 
-const ERROR_ICON_SIZE = 16;
-// Error banner geometry per the auth-screens.jsx mockup's error row
-// (`gap: 10`, `padding: '10px 12px'`, `marginBottom: 14`).
-const ERROR_BANNER_GAP = 10;
-const ERROR_BANNER_PADDING_VERTICAL = 10;
-const ERROR_BANNER_MARGIN_BOTTOM = 14;
 // Mockup puts `marginTop: 14` on the send button; carried here as the
 // input block's bottom margin (the Terms line sits between them).
 const INPUT_MARGIN_BOTTOM = 14;
@@ -68,19 +54,7 @@ export function EmailInputView({
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{subtitle}</Text>
 
-      {/* Error banner — bespoke composition (no Emberglow alert primitive).
-          Renders whatever copy `use-magic-link` / the URL param produces;
-          this component owns no error strings of its own. */}
-      {error ? (
-        <View style={styles.errorBanner} testID="error-message">
-          <FlameKindling
-            size={ERROR_ICON_SIZE}
-            color={tints.cinnabar80}
-            style={styles.errorIcon}
-          />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
+      <ErrorBanner error={error} />
 
       <Input
         testID="email-input"
@@ -134,28 +108,6 @@ const styles = StyleSheet.create({
   body: {
     ...cardBody,
     marginBottom: spacing[4],
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: ERROR_BANNER_GAP,
-    backgroundColor: withAlpha(palette.cinnabar, 0.12),
-    borderWidth: 1,
-    borderColor: withAlpha(palette.cinnabar, 0.4),
-    borderRadius: radii.md,
-    paddingVertical: ERROR_BANNER_PADDING_VERTICAL,
-    paddingHorizontal: spacing[3],
-    marginBottom: ERROR_BANNER_MARGIN_BOTTOM,
-  },
-  errorIcon: {
-    marginTop: 2,
-  },
-  errorText: {
-    flex: 1,
-    fontFamily: fontFamily.regular,
-    fontSize: 13.5,
-    lineHeight: 13.5 * 1.45,
-    color: colors.text.secondary,
   },
   inputContainer: {
     marginBottom: INPUT_MARGIN_BOTTOM,
