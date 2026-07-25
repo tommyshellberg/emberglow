@@ -68,9 +68,10 @@ describe('LOGIN_COPY', () => {
       expect(LOGIN_COPY.signin.showStartNewLink).toBe(true);
     });
 
-    // The link signs the user out, deletes their provisional keys and resets
-    // onboarding. Under `convert` — the framing headlined "Save your progress" —
-    // it destroys exactly the progress that headline promises to save.
+    // The link leads to a confirmation whose primary action signs the user out,
+    // deletes all four provisional keys and resets onboarding. Under `convert` —
+    // the framing headlined "Save your progress" — that is a route to destroying
+    // exactly the progress the headline promises to save.
     it('withholds it from the conversion framing, whose progress it would destroy', () => {
       expect(LOGIN_COPY.convert.showStartNewLink).toBe(false);
     });

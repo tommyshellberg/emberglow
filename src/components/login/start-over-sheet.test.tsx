@@ -80,8 +80,15 @@ describe('StartOverSheet', () => {
         "This will discard your hero and the quest you've finished."
       )
     ).toBeOnTheScreen();
-    // The fallback replaces the name rather than being appended to a gap.
-    expect(screen.queryByText(/discard {2}/, hidden)).toBeNull();
+    // The fallback REPLACES the name rather than being appended after the gap
+    // the missing name leaves. This is the only assertion that can tell those
+    // apart: RNTL's default normalizer collapses runs of whitespace
+    // (`build/matches.js:22-32`), so "discard  your hero" satisfies the
+    // `getByText` above — and for the same reason this needle needs the identity
+    // normalizer, or it could never match whatever rendered.
+    expect(
+      screen.queryByText(/discard {2}/, { ...hidden, normalizer: (t) => t })
+    ).toBeNull();
   });
 
   it('labels the destructive action "Start over" and the way out "Keep my hero"', () => {

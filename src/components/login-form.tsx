@@ -186,11 +186,15 @@ export const LoginForm = ({
   /**
    * The link out to onboarding.
    *
-   * A user with no character has nothing to lose here, so they go straight
-   * through: the wipe below would be a no-op for them, and running it anyway
-   * would sign out and clear keys for someone who only asked to see the welcome
-   * screen. A user WITH one loses that hero and the quest they have finished,
-   * irreversibly, so they get asked first.
+   * A user with no character has no hero to lose here, so they go straight
+   * through; any stray provisional keys are left alone (see emberglow#357 —
+   * `provisionalEmail` is written before the provisional POST, so
+   * "key on disk, `character === null`" is reachable when that POST fails and
+   * `choose-character.tsx` resets the character). Signing out and clearing keys
+   * for someone who only asked to see the welcome screen is the wrong default;
+   * whether that state needs its own cleanup is #357's question, not this link's.
+   * A user WITH a hero loses it and the quest they have finished, irreversibly,
+   * so they get asked first.
    */
   const handleStartNewPress = () => {
     if (hasHero) {

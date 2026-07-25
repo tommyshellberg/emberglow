@@ -39,6 +39,10 @@ const START_NEW_ACTION = 'Create a hero';
  * `showStartNewLink` is not a string: it is the same editorial judgement as the
  * strings around it (does THIS framing offer a way to start over?), and keeping
  * it here is what makes that judgement compulsory — see `LOGIN_COPY`.
+ *
+ * The module, the export `LOGIN_COPY` and the `copy` variable at each render site
+ * deliberately keep the older "copy" name: renaming them reaches files outside
+ * the ones that needed to change for the flag, and is ticketed separately.
  */
 type LoginFraming = {
   /** Chooser (social-first) step heading. */
@@ -98,11 +102,12 @@ export const LOGIN_COPY: Record<LoginIntent, LoginFraming> = {
       `Keep ${heroName || FALLBACK_HERO_NAME} and everything you've earned.`,
     emailTitle: 'Sign up with email',
     emailSubtitle: EMAIL_SUBTITLE,
-    // This framing IS "keep what you have". The link's handler signs the user
-    // out, deletes all four provisional keys and resets onboarding, so on a
-    // screen headlined "Save your progress" it destroys exactly the progress the
-    // headline promises to save — and the user arrived here from
-    // `quest-completed-signup.tsx`, one tap into the flow it would restart.
+    // This framing IS "keep what you have". The link leads to a confirmation
+    // whose primary action signs the user out, deletes all four provisional keys
+    // and resets onboarding, so on a screen headlined "Save your progress" it
+    // opens the way to destroying exactly the progress the headline promises to
+    // save — and the user arrived here from `quest-completed-signup.tsx`, one tap
+    // into the flow it would restart.
     showStartNewLink: false,
     // Carried even though nothing renders it under this framing: the table is
     // exhaustive by type, and the FLAG is what withholds the link — not the

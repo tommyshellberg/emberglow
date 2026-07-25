@@ -1141,10 +1141,11 @@ describe('LoginForm Form ', () => {
     });
   });
 
-  // The link at the bottom of the card. Its handler signs the user out, deletes
-  // all four provisional keys and resets onboarding — irreversibly, and with
-  // nothing on the link itself to say so. These tests are about who can reach
-  // that, and what has to happen first.
+  // The link at the bottom of the card. It leads to a confirmation whose primary
+  // action signs the user out, deletes all four provisional keys and resets
+  // onboarding — irreversibly. These tests are about who can reach that, and what
+  // has to happen first: the sheet is the only route to it, and only for a user
+  // who has a hero to lose.
   describe('Start over link', () => {
     /**
      * Every effect the wipe has, asserted absent.
