@@ -151,21 +151,19 @@ export function SocialSignInButtons({
    */
   const reportFailure = React.useCallback(
     (error: unknown, provider: SocialProvider) => {
-      // `socialSignIn` (src/api/auth.ts) propagates errors raw — this is
-      // the catch layer. A 409 means the social account is already
-      // linked to a different account (the existing magic-link 409 copy
-      // covers it); everything else collapses to a generic retry
-      // message.
       const { code, status } = describeFailure(error);
 
-      // This is the ONLY place the error is ever observed. `socialSignIn`
-      // documents that it catches nothing, and every failure below
-      // collapses into one of two retry messages — so without this log a
-      // misconfigured OAuth client (`DEVELOPER_ERROR`), an unreachable API
-      // host, and a server that hasn't been given its client ID (501) are
-      // indistinguishable to whoever is holding the phone.
+      // Every error that reaches here is the raw object `socialSignIn`
+      // re-threw: its contract translates exactly one failure (the collision),
+      // and that one is intercepted above. This log is the only place a real
+      // fault is ever observed — every failure below collapses into one of two
+      // retry messages, so without it a misconfigured OAuth client
+      // (`DEVELOPER_ERROR`), an unreachable API host, and a server with no
+      // client ID (501) are indistinguishable to whoever holds the phone.
       console.error(`[SocialSignIn] ${provider} sign-in failed`, error);
 
+      // A 409 that got this far is the social account already being linked to a
+      // different account, which the magic-link flow's existing copy covers.
       const isEmailInUse = status === 409;
 
       posthog.capture('social_signin_failure', {
@@ -243,8 +241,11 @@ export function SocialSignInButtons({
   );
 
   const handleConfirmExistingAccount = React.useCallback(async () => {
-    // Also the narrowing TypeScript needs: `pendingCollision` is only non-null
-    // while the sheet is up, which is the only time this can be pressed.
+    // Also the narrowing TypeScript needs — but load-bearing at runtime too:
+    // the sheet stays mounted and pressable through its whole close animation
+    // (@gorhom unmounts only after it, BottomSheetModal.tsx:287), and this
+    // handler clears `pendingCollision` before the replay it starts has
+    // returned. So this is what swallows a second press during the slide-out.
     if (!pendingCollision) return;
     const { credential, provider } = pendingCollision;
 

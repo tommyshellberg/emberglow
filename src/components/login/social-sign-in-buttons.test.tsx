@@ -678,6 +678,39 @@ describe('SocialSignInButtons', () => {
       });
     });
 
+    it('reopens the sheet when the retry after a failed replay collides again', async () => {
+      mockSocialSignIn.mockReset();
+      mockSocialSignIn
+        .mockRejectedValueOnce(
+          new ExistingAccountConfirmationRequired(COLLIDING_HERO)
+        )
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockRejectedValueOnce(
+          new ExistingAccountConfirmationRequired(COLLIDING_HERO)
+        );
+      const onError = jest.fn();
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+      await waitForSheet();
+
+      fireEvent.press(screen.getByTestId('existing-account-confirm'));
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith('generic');
+      });
+
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      // The sheet has to survive a full open/close/open cycle. It is easy for
+      // one not to: existing-account-sheet.tsx:113-118 documents a
+      // mis-sequenced dismiss that leaves @gorhom parked at DISMISSING, after
+      // which the sheet silently never opens again — and this is the only path
+      // that would reach it, so the failure would be invisible.
+      await waitFor(() => {
+        expect(bottomSheetMock.handle?.present).toHaveBeenCalledTimes(2);
+      });
+      expect(screen.getByText('Continue as Rowan')).toBeOnTheScreen();
+    });
+
     it('leaves the sheet shut for a plain 409 — only the typed collision opens it', async () => {
       mockSocialSignIn.mockReset();
       mockSocialSignIn.mockRejectedValue(
