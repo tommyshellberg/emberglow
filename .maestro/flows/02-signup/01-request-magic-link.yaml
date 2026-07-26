@@ -1,43 +1,154 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# SIGNUP — REQUEST MAGIC LINK
+# SIGNUP E2E TEST — REQUEST MAGIC LINK
 # =============================================================================
-# Prerequisites: flows/01-onboarding/ completed. The provisional user has 1
-# completed quest and is sitting on the quest-completed-signup screen
-# ("Claim Your Legend").
+# Picks up exactly where 01-onboarding/onboarding-part-2.yaml stopped: the
+# claim screen (`quest-completed-signup`), provisional hero at level 2, one
+# quest completed, onboarding step VIEWING_SIGNUP_PROMPT, no signup attempted.
 #
-# This flow taps through to the login screen, enters the test email, requests
-# a magic link, and confirms the "email sent" state. Task 17 then verifies the
-# magic link opens an authenticated session.
+#   1. Leave the claim screen down the email path
+#   2. Enter the run's test address and request a magic link
+#   3. Confirm the link was sent, to that exact address
+#
+# Ends with the link REQUESTED. Opening it and verifying the authenticated
+# session is 02-verify-authenticated.yaml.
+#
+# Anchored on testIDs wherever an anchor only has to identify a screen or a
+# control — the social-signin work left this path a complete testID surface, and
+# Maestro's text matching is case-sensitive full-string regex, so copy anchors
+# break on every visual pass. The one text assertion asserts a *value* (the
+# recipient), which is the point of the flow.
+#
+# -----------------------------------------------------------------------------
+# THE TEST ADDRESS — two constraints on whatever the runner injects
+# -----------------------------------------------------------------------------
+# 1. UNIQUE PER RUN. An address that already has a full account takes a
+#    different path: the server answers the send with 409, LoginForm stays on
+#    the email step and renders `error-message`, and the sent-view wait below
+#    fails.
+#
+# 2. ITS TLD MUST BE IN THE IANA ROOT ZONE. The server validates with
+#    `Joi.string().email()` (unquest-server auth.validation.js:24), whose
+#    default TLD check rejects the RFC 2606 reserved `.test` TLD. Verified
+#    against the running server: a request for `…@unquest.test` returns
+#    400 `"email" must be a valid email` and the card shows "Login link failed
+#    to send. Please try again."
+#
+#    `run-tests.sh:32` still builds `test-${TIMESTAMP}@unquest.test`, so it
+#    must move to a real TLD before this flow can pass under the runner —
+#    `test-${TIMESTAMP}@example.com` satisfies both constraints (example.com is
+#    reserved by RFC 2606, so it can never reach a real mailbox, and `.com`
+#    validates). That is this flow's one contract on the runner rewrite.
+#
+# `${TEST_EMAIL}` rather than re-deriving `test-${TEST_EMAIL_TIMESTAMP}@…`
+# here, which is what this file used to do: the runner already owns the whole
+# address — it prints it and its teardown hint deletes the user by it
+# (run-tests.sh:70,232) — so a second copy of the format in this file is how the
+# two drift, and the drift is silent (poll-magic-link.sh does not filter by
+# recipient; see the last assertion).
+#
+# An unset `${TEST_EMAIL}` interpolates to the literal string "undefined"
+# rather than failing the flow, but "undefined" is not a valid address: the
+# client's own zod check keeps `login-button` disabled, no send happens, and
+# the sent-view wait below is what fails.
 # =============================================================================
 
-# --- Quest-completed signup screen ---
-# Wait for the Create Account button by testID: it has the longest entrance
-# animation on this screen (FadeIn.delay(2600)), and 'Create Account' as a
-# bare text selector collides with a DESTRUCTIVE same-named link on the next
-# (/login) screen that signs the user out. The testID avoids both problems.
-- assertVisible: 'Claim Your Legend'
+# =============================================================================
+# CLAIM SCREEN — TAKE THE EMAIL PATH
+# =============================================================================
+# `create-account-button` ("Sign up with email") sits under the Apple and
+# Google buttons. Social sign-in is deliberately smoke-only — no OAuth
+# automation — so email is the suite's one real auth path.
 - extendedWaitUntil:
     visible:
       id: 'create-account-button'
-    timeout: 10000
+    timeout: 15000
 - tapOn:
     id: 'create-account-button'
 
-# --- Login screen: enter email and request magic link ---
+# =============================================================================
+# EMAIL STEP
+# =============================================================================
+# That button does `router.replace({pathname: '/login', params: {intent:
+# 'convert'}})` (quest-completed-signup.tsx:95), and under that intent
+# LoginForm opens STRAIGHT ON THE EMAIL STEP — `useState(intent === 'convert'
+# ? 'email' : 'chooser')` (login-form.tsx:100-102). There is no chooser step on
+# this path and no `continue-with-email-button` to tap; the chooser is only
+# reachable backwards, through `back-to-chooser-link`.
+#
+# So `email-input` is also the assertion that the intent survived the
+# navigation: under any other intent LoginForm renders ChooserView, which has
+# no `email-input` at all.
+#
+# Do NOT weaken this to `assertVisible: 'Sign up with email'`. That string is
+# the email step's title AND the label of the `create-account-button` we just
+# tapped, so it is already true on the claim screen and would pass whether or
+# not the tap landed — and on iOS a green `tapOn` only means a touch was
+# dispatched at those coordinates, not that the button received it.
 - extendedWaitUntil:
     visible:
       id: 'email-input'
-    timeout: 10000
+    timeout: 15000
+
 - tapOn:
     id: 'email-input'
-- inputText: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
+- inputText: '${TEST_EMAIL}'
+
+# No keyboard dismissal here, deliberately — this is the one screen in the
+# suite where the occlusion trap does not apply, so a `tapOn: {id: 'Return'}`
+# would be a step that proves nothing.
+#
+# LoginForm wraps the card in a KeyboardAvoidingView with `behavior="padding"`
+# (login-form.tsx:237-241), which lifts the whole bottom-anchored card. Measured
+# on device with the keyboard up: `login-button` sits at [45,474][385,528] while
+# the keyboard — including its prediction bar — starts at y=586, clearing it by
+# 58pt. Contrast onboarding-part-1's hero-name step, where the CTA is pinned to
+# the screen bottom and the keyboard really does swallow the tap.
+#
+# The button is disabled until the address passes the client's zod check, and a
+# tap on a disabled button still reports success, so the wait below is what
+# proves the send actually happened.
 - tapOn:
     id: 'login-button'
 
-# --- Email-sent confirmation ---
+# =============================================================================
+# SENT CONFIRMATION
+# =============================================================================
+# This wait is the outcome assertion, not merely a screen anchor: EmailSentView
+# is the ONLY thing that renders `send-again-button`, and every way the send can
+# fail — 409 on a reused address, 400 on a bad TLD, a network error — leaves
+# LoginForm on the email step showing `error-message` instead. Generous timeout:
+# the send round-trips to the server before the view switches.
 - extendedWaitUntil:
-    visible: 'Email sent to'
-    timeout: 10000
-- assertVisible: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
+    visible:
+      id: 'send-again-button'
+    timeout: 20000
+
+# The address the link actually went to.
+#
+# Wildcarded because iOS reports the whole sentence as one accessibility
+# string: the address is a nested <Text> inside "A sign-in link is on its way
+# to …" (email-sent-view.tsx:67-70), and Maestro's selectors are full-string
+# JVM regexes, so the bare address does not match. Confirmed both ways on
+# device — unwrapped fails, wildcarded passes, and a near-miss address fails.
+#
+# This is the flow's only guard against a silently wrong recipient, and it
+# protects the NEXT unit more than this one: .maestro/scripts/poll-magic-link.sh
+# reads Mailpit's /api/v1/message/latest and does NOT filter by recipient, so a
+# send that quietly did nothing would leave an older run's email as "latest" and
+# 02-verify-authenticated would happily sign in as the wrong account.
+- assertVisible: '.*${TEST_EMAIL}.*'
+
+# =============================================================================
+# END OF SIGNUP PART 1
+# =============================================================================
+# The magic link is in Mailpit, addressed to ${TEST_EMAIL}, and the app is on
+# the sent view. The runner now extracts the deep link
+# (scripts/poll-magic-link.sh) and opens it with `xcrun simctl openurl` before
+# running 02-verify-authenticated.yaml.
+#
+# Note there is no non-destructive route back to the claim screen from here —
+# the convert framing withholds the start-over link, and the only thing that
+# would rewind this state signs the user out (emberglow#359). Re-running this
+# flow means rebuilding onboarding.
