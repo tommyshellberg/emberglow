@@ -6,10 +6,35 @@ import {
   type StoryQuestTemplate,
 } from '@/store/types';
 
-// Set quest duration to 2 minutes in development mode
+// Set quest duration to 2 minutes in development mode.
+//
+// This is the THIRD of three copies of the same dev-only knob, and they do not
+// all agree. Do not change one without the others:
+//
+//   1. here (client)                            -> 2
+//   2. server quest-template.controller.js       -> 2   (template SERVED to the
+//        client; this is what QuestTimer measures elapsed lock time against)
+//   3. server quest-run.controller.js            -> 1   (window RECORDED on the
+//        run; this is what the server completes the quest at)
+//
+// (2) and (3) disagreeing is a real dev-only bug: the client times to 120s while
+// the server closes the run at 60s, so unlocking in between yields whichever
+// signal lands first. Tracked separately; not fixable from this file.
+//
+// What this constant actually governs is narrower than it looks. Onboarding does
+// NOT read it — `first-quest.tsx` uses the server's next-available quest and
+// only preloads audio from AVAILABLE_QUESTS. It feeds quests the client builds
+// locally, plus the completion screen's duration badge
+// (`first-quest-result.tsx`), which renders from here rather than from the run
+// that actually executed. Setting it to 2 stops that badge contradicting the
+// served template.
+//
+// Every entry below is `mode: 'story'`, which is the set both server overrides
+// gate on. Production is unaffected — all three overrides are dev-only, and the
+// run otherwise takes its duration straight from the template.
 const isDev = Env.APP_ENV === 'development';
 function questDuration(prod: number): number {
-  return isDev ? 1 : prod;
+  return isDev ? 2 : prod;
 }
 
 export const AVAILABLE_QUESTS: (CustomQuestTemplate | StoryQuestTemplate)[] = [
