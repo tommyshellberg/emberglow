@@ -1,236 +1,481 @@
 #!/bin/bash
-
 # =============================================================================
-# UnQuest Maestro E2E Test Runner
+# Emberglow / unQuest — Maestro E2E test runner
 # =============================================================================
-# Comprehensive test runner with environment setup and validation
-#
 # Usage:
-#   ./run-tests.sh [phase]
+#   .maestro/run-tests.sh [phase]
 #
-# Examples:
-#   ./run-tests.sh            # Run full test suite
-#   ./run-tests.sh onboarding # Run only onboarding tests
-#   ./run-tests.sh regression # Run quick smoke tests
+#   all         every phase, in chain order (default)
+#   onboarding  01-onboarding/*        — fresh install through the first quest
+#   signup      02-signup/*            — magic link + provisional -> full account
+#   fresh       03-fresh-authenticated/* — second quest, tabs, profile numbers
+#   coverage    04-screen-coverage/*
+#   smoke       05-regression/*
+#
+# The suite is ONE user's state chain: each phase inherits the previous phase's
+# end state. Running a later phase on its own only works if an earlier run left
+# the device in the right place.
+#
+# -----------------------------------------------------------------------------
+# WHY THIS SCRIPT LOOKS THE WAY IT DOES — read before changing any of it
+# -----------------------------------------------------------------------------
+#
+# 1. THE TEST ADDRESS IS `@example.com`, NOT `@unquest.test`.
+#    The server validates with `Joi.string().email()`
+#    (unquest-server/src/validations/auth.validation.js:24), whose default TLD
+#    check REJECTS the RFC 2606 reserved `.test` TLD with a 400. The old
+#    `test-${TIMESTAMP}@unquest.test` meant the signup phase had never passed
+#    on any branch. `example.com` is also RFC 2606 reserved — it can never
+#    reach a real mailbox — and it validates.
+#    THE PURGE REGEX BELOW MUST TRACK THIS ADDRESS. If they drift apart the
+#    purge silently stops matching anything.
+#
+# 2. EVERY STORY-QUEST WAIT IS 135 SECONDS. Not 75, not 15.
+#    The served template is `durationMinutes: 2`
+#    (quest-template.controller.js:32/259), so QuestTimer fails the quest on any
+#    unlock before 120s (quest-timer.ts:634/836), while the *recorded* run
+#    window is only 60s (quest-run.controller.js:181 — a third, disagreeing copy
+#    of the same dev-only knob, Linear SHE-28). Unlocking in the 60-120s gap
+#    yields whichever signal lands first and reads as flakiness. 135s is the
+#    only value that clears both clocks. Do not "optimise" it.
+#
+# 3. THE SIGNUP PHASE NEEDS NO SHELL HELP.
+#    02-verify-authenticated.yaml is self-contained: it reads Mailpit itself via
+#    `evalScript` + `http.get` filtered by recipient, and opens the deep link
+#    with `openLink`. There is no poll-magic-link.sh call and no
+#    `xcrun simctl openurl` step. (.maestro/scripts/poll-magic-link.sh still
+#    exists on disk; it is simply no longer part of the run.)
+#
+# 4. PHASE 03 DOES NOT RUN IN FILENAME ORDER.
+#    01-profile-verification.yaml runs LAST despite its `01-` prefix: its
+#    `9 / 150 XP` assertion is only true once the second quest is complete
+#    (after the onboarding quest alone it is `0 / 150 XP`). Verified on device
+#    across units F/H/I. The file's own header says the same. Hence this script
+#    drives an explicit ordered list, never a directory glob.
+#
+# 5. PHASES NEVER SHORT-CIRCUIT, AND KNOWN-STALE FLOWS RUN LAST.
+#    Units G and J-Q are deferred, so some flows are still stale and WILL fail.
+#    They stay wired in — a hidden failure is worse than a red one. But a stale
+#    flow must not take a verified one down with it, and that needs two
+#    properties, not one:
+#      (a) run-and-collect: a failing flow never stops the rest of its phase;
+#      (b) known-unrevived flows run in a labelled tail AFTER the verified ones.
+#    (b) is load-bearing because 03-streak-celebration.yaml is destructive on
+#    failure: it taps into the profile tab, fails its `text: '2'` streak
+#    assertion, and never reaches its return-to-home tap — leaving the app off
+#    the home screen that 04-navigation-tabs and 01-profile-verification both
+#    declare as their entry state.
+#    Once one link in a state chain breaks, later failures are usually cascades
+#    rather than independent defects. The summary says so rather than pretending
+#    each line is a separate bug.
+#
+# 6. THE PURGE ONLY RUNS FOR PHASES THAT CREATE A NEW USER.
+#    See purge_stale_state() for the reasoning.
 # =============================================================================
 
-set -e  # Exit on error
+set -euo pipefail
 
-# Colors for output
+# Run from the repo root regardless of the caller's cwd — every flow path below
+# is repo-relative, and Maestro is invoked with those same relative paths.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "$REPO_ROOT"
+
+# -----------------------------------------------------------------------------
+# Configuration (every value overridable from the environment)
+# -----------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+DIM='\033[2m'
+NC='\033[0m'
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
+BUNDLE_ID="${BUNDLE_ID:-com.vaedros.unquest}"
+BACKEND_URL="${BACKEND_URL:-http://localhost:3001}"
+MAILPIT_URL="${MAILPIT_URL:-http://localhost:8025}"
+# The real dev database. NOT `unquest-dev`: Mongo creates databases lazily, so a
+# `ping` and a `deleteMany` against a misspelled name both succeed silently and
+# the purge appears to work while never touching anything.
+MONGODB_URI="${MONGODB_URI:-mongodb://127.0.0.1:27017/unquest}"
 
-# Generate unique timestamp for this test run
-TIMESTAMP=$(date +%s)
-TEST_EMAIL="test-${TIMESTAMP}@unquest.test"
+# See note 2 in the header. Both story-quest waits use this.
+QUEST_WAIT_SECONDS="${QUEST_WAIT_SECONDS:-135}"
 
-# MongoDB URI - update this for your environment
-if [ -z "$MONGODB_URI" ]; then
-  echo -e "${YELLOW}⚠️  MONGODB_URI not set, using default localhost${NC}"
-  MONGODB_URI="mongodb://localhost:27017/unquest-dev"
-fi
+TIMESTAMP="$(date +%s)"
+# See note 1. Deliberately NOT env-overridable: the TLD is the whole point, and
+# `.test` (the previous value) is rejected by the server's Joi email validator.
+TEST_EMAIL_DOMAIN="example.com"
+TEST_EMAIL="test-${TIMESTAMP}@${TEST_EMAIL_DOMAIN}"
+# Derived from the same domain so the two cannot drift apart — the drift is what
+# made the old purge silently match nothing. The local part is still written
+# twice, which preflight checks.
+TEST_EMAIL_PURGE_REGEX="^test-[0-9]+@${TEST_EMAIL_DOMAIN//./\\.}$"
 
-# =============================================================================
-# VALIDATE ENVIRONMENT
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Flow inventory — one constant per file so preflight can prove each one exists
+# -----------------------------------------------------------------------------
+FLOW_ONBOARDING_1=".maestro/flows/01-onboarding/onboarding-part-1.yaml"
+FLOW_ONBOARDING_2=".maestro/flows/01-onboarding/onboarding-part-2.yaml"
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  UnQuest E2E Test Suite${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
+FLOW_SIGNUP_REQUEST=".maestro/flows/02-signup/01-request-magic-link.yaml"
+FLOW_SIGNUP_VERIFY=".maestro/flows/02-signup/02-verify-authenticated.yaml"
 
-# Check if Maestro is installed
-if ! command -v maestro &> /dev/null; then
-    echo -e "${RED}❌ Maestro is not installed${NC}"
-    echo ""
-    echo "Install with: curl -Ls 'https://get.maestro.mobile.dev' | bash"
+FLOW_QUEST2_PART_1=".maestro/flows/03-fresh-authenticated/02-quest-second-part-1.yaml"
+FLOW_QUEST2_PART_2=".maestro/flows/03-fresh-authenticated/02-quest-second-part-2.yaml"
+FLOW_NAV_TABS=".maestro/flows/03-fresh-authenticated/04-navigation-tabs.yaml"
+FLOW_PROFILE=".maestro/flows/03-fresh-authenticated/01-profile-verification.yaml"
+FLOW_STREAK=".maestro/flows/03-fresh-authenticated/03-streak-celebration.yaml"
+
+FLOW_COVERAGE_PROFILE=".maestro/flows/04-screen-coverage/01-profile-leaderboard-achievements.yaml"
+FLOW_COVERAGE_JOURNAL=".maestro/flows/04-screen-coverage/02-journal.yaml"
+FLOW_COVERAGE_CUSTOM=".maestro/flows/04-screen-coverage/03-custom-quest.yaml"
+FLOW_COVERAGE_MAP=".maestro/flows/04-screen-coverage/04-map.yaml"
+FLOW_COVERAGE_SETTINGS=".maestro/flows/04-screen-coverage/05-settings.yaml"
+FLOW_COVERAGE_COOP=".maestro/flows/04-screen-coverage/06-coop-ui.yaml"
+
+# Unit Q renames 05-regression/ -> 05-smoke/. Until it runs, the phase named
+# `smoke` points at the directory that actually exists. Preflight fails loudly
+# if this ever stops being true.
+FLOW_SMOKE_CRITICAL=".maestro/flows/05-regression/critical-paths.yaml"
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+log_info() { printf '%b%s%b\n' "$BLUE" "$1" "$NC"; }
+log_ok()   { printf '%b✓%b %s\n' "$GREEN" "$NC" "$1"; }
+log_warn() { printf '%b⚠️  %s%b\n' "$YELLOW" "$1" "$NC"; }
+log_fail() { printf '%b❌ %s%b\n' "$RED" "$1" "$NC"; }
+log_dim()  { printf '%b%s%b\n' "$DIM" "$1" "$NC"; }
+rule()     { log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; }
+
+# -----------------------------------------------------------------------------
+# Step table
+#
+# A phase is an ordered list of steps, built before anything runs so that
+# preflight can validate it. Two kinds:
+#   flow|<path>|<revived|unrevived>
+#   wait|<seconds>|<label>
+# bash 3.2 is the /bin/bash on macOS — plain indexed arrays only.
+# -----------------------------------------------------------------------------
+STEPS=()
+RESULTS=()
+
+add_flow()   { STEPS+=("flow|$1|revived"); }
+add_stale()  { STEPS+=("flow|$1|unrevived"); }
+add_wait()   { STEPS+=("wait|$1|$2"); }
+
+build_steps() {
+  local phase="$1"
+
+  if [ "$phase" = "all" ] || [ "$phase" = "onboarding" ]; then
+    add_flow "$FLOW_ONBOARDING_1"
+    add_wait "$QUEST_WAIT_SECONDS" "the onboarding quest"
+    add_flow "$FLOW_ONBOARDING_2"
+  fi
+
+  if [ "$phase" = "all" ] || [ "$phase" = "signup" ]; then
+    # No shell step between these two — see note 3 in the header.
+    add_flow "$FLOW_SIGNUP_REQUEST"
+    add_flow "$FLOW_SIGNUP_VERIFY"
+  fi
+
+  if [ "$phase" = "all" ] || [ "$phase" = "fresh" ]; then
+    # Verified order (units F/H/I on device) — NOT filename order. See note 4.
+    add_flow "$FLOW_QUEST2_PART_1"
+    add_wait "$QUEST_WAIT_SECONDS" "the second story quest"
+    add_flow "$FLOW_QUEST2_PART_2"
+    add_flow "$FLOW_NAV_TABS"
+    add_flow "$FLOW_PROFILE"
+    # Known-unrevived tail — after the verified flows, see note 5.
+    add_stale "$FLOW_STREAK"
+  fi
+
+  if [ "$phase" = "all" ] || [ "$phase" = "coverage" ]; then
+    add_stale "$FLOW_COVERAGE_PROFILE"
+    add_stale "$FLOW_COVERAGE_JOURNAL"
+    add_stale "$FLOW_COVERAGE_CUSTOM"
+    add_stale "$FLOW_COVERAGE_MAP"
+    add_stale "$FLOW_COVERAGE_SETTINGS"
+    add_stale "$FLOW_COVERAGE_COOP"
+  fi
+
+  if [ "$phase" = "all" ] || [ "$phase" = "smoke" ]; then
+    add_stale "$FLOW_SMOKE_CRITICAL"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# Preflight
+# -----------------------------------------------------------------------------
+
+# Every flow path this run will invoke must exist. This is the structural guard
+# against the class of bug that made the old script point at `02-conversion/`
+# (never existed) and the plan's draft point at `05-smoke/` (not renamed yet):
+# a path that resolves to nothing, so the phase silently runs zero flows and
+# reports success.
+check_flow_paths() {
+  local step kind path missing=0
+  for step in ${STEPS[@]+"${STEPS[@]}"}; do
+    kind="${step%%|*}"
+    [ "$kind" = "flow" ] || continue
+    path="${step#flow|}"
+    path="${path%|*}"
+    if [ ! -f "$path" ]; then
+      log_fail "flow file missing: ${path}"
+      missing=$((missing + 1))
+    fi
+  done
+  if [ "$missing" -gt 0 ]; then
+    log_fail "${missing} flow file(s) referenced by phase '${PHASE}' do not exist — refusing to run a phase that would silently skip them"
     exit 1
-fi
+  fi
+  log_ok "all ${#STEPS[@]} step(s) resolve — every flow file exists"
+}
 
-echo -e "${GREEN}✓${NC} Maestro installed: $(maestro --version)"
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    log_fail "$1 not on PATH ($2)"
+    exit 1
+  }
+}
 
-# Check if mongosh is installed (needed for conversion script)
-if ! command -v mongosh &> /dev/null; then
-    echo -e "${YELLOW}⚠️  mongosh is not installed (needed for user conversion)${NC}"
-    echo ""
-    echo "Install with: brew install mongosh"
-    echo ""
-fi
+preflight() {
+  log_info "Preflight..."
 
-# Display test configuration
-echo ""
-echo -e "${BLUE}Test Configuration:${NC}"
-echo "  Test Email: ${TEST_EMAIL}"
-echo "  MongoDB URI: ${MONGODB_URI}"
-echo "  Timestamp: ${TIMESTAMP}"
-echo ""
+  check_flow_paths
 
-# =============================================================================
-# DETERMINE WHICH TESTS TO RUN
-# =============================================================================
+  require_cmd maestro "install: curl -Ls 'https://get.maestro.mobile.dev' | bash"
+  log_ok "maestro installed: $(maestro --version)"
 
+  require_cmd curl "curl ships with macOS — check your PATH"
+  require_cmd xcrun "install Xcode command line tools: xcode-select --install"
+
+  curl -sf "${BACKEND_URL}/v1/health" >/dev/null || {
+    log_fail "backend not reachable at ${BACKEND_URL}/v1/health (run: npm run dev in unquest-server)"
+    exit 1
+  }
+  log_ok "backend reachable at ${BACKEND_URL}"
+
+  curl -sf "${MAILPIT_URL}/api/v1/messages" >/dev/null || {
+    log_fail "Mailpit not reachable at ${MAILPIT_URL} (run: npm run mailpit:start in unquest-server)"
+    exit 1
+  }
+  log_ok "Mailpit reachable at ${MAILPIT_URL}"
+
+  # mongosh is only needed by the purge, so only phases that purge require it.
+  if [ "$DO_PURGE" -eq 1 ]; then
+    require_cmd mongosh "install: brew install mongosh"
+
+    # The purge is worth nothing unless it matches the addresses this runner
+    # actually generates. That pairing has already broken once: the address moved
+    # off `.test` and a hand-written regex would have kept matching `.test`,
+    # deleting nothing while reporting success.
+    if ! printf '%s' "$TEST_EMAIL" | grep -Eq "$TEST_EMAIL_PURGE_REGEX"; then
+      log_fail "TEST_EMAIL (${TEST_EMAIL}) does not match the purge regex /${TEST_EMAIL_PURGE_REGEX}/ — the purge would silently match nothing"
+      exit 1
+    fi
+    log_ok "purge regex matches the generated address"
+
+    mongosh "$MONGODB_URI" --quiet --eval "db.runCommand('ping')" >/dev/null || {
+      log_fail "MongoDB not reachable at ${MONGODB_URI}"
+      exit 1
+    }
+    log_ok "MongoDB reachable at ${MONGODB_URI}"
+  fi
+
+  xcrun simctl list devices booted 2>/dev/null | grep -q "Booted" || {
+    log_fail "no booted iOS simulator (open Simulator.app, or: xcrun simctl boot <udid>)"
+    exit 1
+  }
+  log_ok "iOS simulator booted"
+
+  xcrun simctl get_app_container booted "$BUNDLE_ID" >/dev/null 2>&1 || {
+    log_fail "${BUNDLE_ID} not installed on the booted simulator (run: pnpm e2e:build)"
+    exit 1
+  }
+  log_ok "${BUNDLE_ID} installed"
+}
+
+# -----------------------------------------------------------------------------
+# Purge
+#
+# Only phases that BEGIN the chain purge. `onboarding-part-1.yaml` is the only
+# flow carrying `clearState: true`, so `all` and `onboarding` are the only entry
+# points that create a new user — for them the purge delivers its guarantee
+# ("a crashed run never poisons the next one").
+#
+# `signup`, `fresh`, `coverage` and `smoke` are CONTINUATION phases: they run
+# against the account a previous run left on the device. Purging there would
+# delete exactly the user their own flows need.
+# -----------------------------------------------------------------------------
+purge_stale_state() {
+  log_info "Purging stale e2e state..."
+  curl -sf -X DELETE "${MAILPIT_URL}/api/v1/messages" >/dev/null
+  mongosh "$MONGODB_URI" --quiet \
+    --eval "db.users.deleteMany({email: {\$regex: /${TEST_EMAIL_PURGE_REGEX}/}})" >/dev/null
+  log_ok "purged Mailpit messages and users matching /${TEST_EMAIL_PURGE_REGEX}/"
+}
+
+# -----------------------------------------------------------------------------
+# Execution
+# -----------------------------------------------------------------------------
+
+# TEST_EMAIL is the runner->flow contract (02-signup/*, 03-fresh-authenticated/*).
+# MAILPIT_URL is passed too because 02-verify-authenticated.yaml reads it
+# (with its own localhost:8025 fallback); without this the runner and the flow
+# would disagree the moment anyone overrides MAILPIT_URL.
+run_flow() {
+  maestro test "$1" \
+    --env TEST_EMAIL="$TEST_EMAIL" \
+    --env MAILPIT_URL="$MAILPIT_URL"
+}
+
+execute_steps() {
+  local step kind arg1 arg2 label
+  local last_flow_ok=1
+
+  for step in ${STEPS[@]+"${STEPS[@]}"}; do
+    kind="${step%%|*}"
+    arg1="${step#*|}"
+    arg2="${arg1#*|}"
+    arg1="${arg1%%|*}"
+
+    case "$kind" in
+      wait)
+        if [ "$last_flow_ok" -eq 0 ]; then
+          log_warn "skipping the ${arg1}s wait for ${arg2} — the preceding flow failed, so nothing is running"
+        else
+          log_warn "waiting ${arg1}s for ${arg2} to finish (2-min served duration + buffer; see header note 2)..."
+          sleep "$arg1"
+        fi
+        ;;
+      flow)
+        label="${arg1#.maestro/flows/}"
+        echo ""
+        if [ "$arg2" = "unrevived" ]; then
+          log_info "▶ ${label}"
+          log_warn "KNOWN-UNREVIVED — this flow has not been revived yet and is expected to fail"
+        else
+          log_info "▶ ${label}"
+        fi
+
+        if run_flow "$arg1"; then
+          last_flow_ok=1
+          if [ "$arg2" = "unrevived" ]; then
+            RESULTS+=("XPASS|${label}")
+            log_ok "${label} passed — it is marked known-unrevived, so update the marking"
+          else
+            RESULTS+=("PASS|${label}")
+            log_ok "${label} passed"
+          fi
+        else
+          last_flow_ok=0
+          if [ "$arg2" = "unrevived" ]; then
+            RESULTS+=("XFAIL|${label}")
+            log_fail "${label} failed (known-unrevived)"
+          else
+            RESULTS+=("FAIL|${label}")
+            log_fail "${label} failed"
+          fi
+        fi
+        ;;
+    esac
+  done
+}
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
 PHASE="${1:-all}"
 
 case "$PHASE" in
-  all)
-    echo -e "${BLUE}Running: Full Test Suite${NC}"
-    TEST_PATH=".maestro/"
-    ;;
-  onboarding)
-    echo -e "${BLUE}Running: Onboarding Tests Only${NC}"
-    TEST_PATH=".maestro/flows/01-onboarding/"
-    ;;
-  conversion)
-    echo -e "${BLUE}Running: Conversion Tests Only${NC}"
-    TEST_PATH=".maestro/flows/02-conversion/"
-    ;;
-  fresh)
-    echo -e "${BLUE}Running: Fresh Authenticated User Tests${NC}"
-    TEST_PATH=".maestro/flows/03-fresh-authenticated/"
-    ;;
-  coverage)
-    echo -e "${BLUE}Running: Screen Coverage Tests${NC}"
-    TEST_PATH=".maestro/flows/04-screen-coverage/"
-    ;;
-  regression)
-    echo -e "${BLUE}Running: Regression Tests Only${NC}"
-    TEST_PATH=".maestro/flows/05-regression/"
-    ;;
+  all|onboarding|signup|fresh|coverage|smoke) ;;
   *)
-    echo -e "${RED}❌ Invalid phase: $PHASE${NC}"
-    echo ""
-    echo "Valid phases: all, onboarding, conversion, fresh, coverage, regression"
+    log_fail "invalid phase: ${PHASE}"
+    echo "Valid phases: all, onboarding, signup, fresh, coverage, smoke"
     exit 1
     ;;
 esac
 
-echo ""
-
-# =============================================================================
-# RUN TESTS
-# =============================================================================
-
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  Starting Tests${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-START_TIME=$(date +%s)
-
-# Special handling for "all" and "onboarding" phases which need split tests
-if [ "$PHASE" == "all" ] || [ "$PHASE" == "onboarding" ]; then
-  echo -e "${BLUE}Running Onboarding Part 1...${NC}"
-  maestro test .maestro/flows/01-onboarding/onboarding-part-1.yaml \
-    --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-    --env TEST_EMAIL="$TEST_EMAIL" \
-    --env MONGODB_URI="$MONGODB_URI"
-
-  EXIT_CODE=$?
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo -e "${RED}❌ Onboarding Part 1 Failed${NC}"
-    # Don't continue to part 2 if part 1 failed
-  else
-    echo -e "${GREEN}✓${NC} Onboarding Part 1 Passed"
-    echo ""
-    echo -e "${YELLOW}⏳ Waiting 15 seconds for quest completion (10s quest + 5s buffer)...${NC}"
-    sleep 15
-    echo ""
-
-    echo -e "${BLUE}Running Onboarding Part 2...${NC}"
-    maestro test .maestro/flows/01-onboarding/onboarding-part-2.yaml \
-      --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-      --env TEST_EMAIL="$TEST_EMAIL" \
-      --env MONGODB_URI="$MONGODB_URI"
-
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -ne 0 ]; then
-      echo -e "${RED}❌ Onboarding Part 2 Failed${NC}"
-    else
-      echo -e "${GREEN}✓${NC} Onboarding Part 2 Passed"
-    fi
-  fi
-
-  # If this is the "all" phase, continue with remaining tests
-  if [ "$PHASE" == "all" ] && [ $EXIT_CODE -eq 0 ]; then
-    echo ""
-    echo -e "${BLUE}Running Remaining Test Phases...${NC}"
-    maestro test .maestro/flows/02-conversion/ \
-      --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-      --env TEST_EMAIL="$TEST_EMAIL" \
-      --env MONGODB_URI="$MONGODB_URI"
-
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -ne 0 ]; then
-      echo -e "${RED}❌ Conversion Phase Failed${NC}"
-    else
-      maestro test .maestro/flows/03-fresh-authenticated/ \
-        --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-        --env TEST_EMAIL="$TEST_EMAIL" \
-        --env MONGODB_URI="$MONGODB_URI"
-
-      EXIT_CODE=$?
-      if [ $EXIT_CODE -ne 0 ]; then
-        echo -e "${RED}❌ Fresh Authenticated Phase Failed${NC}"
-      else
-        maestro test .maestro/flows/04-screen-coverage/ \
-          --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-          --env TEST_EMAIL="$TEST_EMAIL" \
-          --env MONGODB_URI="$MONGODB_URI"
-
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
-          echo -e "${RED}❌ Screen Coverage Phase Failed${NC}"
-        fi
-      fi
-    fi
-  fi
+if [ "$PHASE" = "all" ] || [ "$PHASE" = "onboarding" ]; then
+  DO_PURGE=1
 else
-  # For other phases, run normally
-  maestro test "$TEST_PATH" \
-    --env TEST_EMAIL_TIMESTAMP="$TIMESTAMP" \
-    --env TEST_EMAIL="$TEST_EMAIL" \
-    --env MONGODB_URI="$MONGODB_URI"
-
-  EXIT_CODE=$?
+  DO_PURGE=0
 fi
 
-END_TIME=$(date +%s)
+rule
+log_info "  Emberglow E2E — phase: ${PHASE}"
+rule
+echo "  Test email:  ${TEST_EMAIL}"
+echo "  Backend:     ${BACKEND_URL}"
+echo "  Mailpit:     ${MAILPIT_URL}"
+echo "  MongoDB:     ${MONGODB_URI}"
+echo "  Quest wait:  ${QUEST_WAIT_SECONDS}s"
+echo ""
+
+build_steps "$PHASE"
+preflight
+
+if [ "$DO_PURGE" -eq 1 ]; then
+  purge_stale_state
+else
+  log_dim "skipping purge — '${PHASE}' is a continuation phase and runs against the previous run's account"
+fi
+
+START_TIME="$(date +%s)"
+execute_steps
+END_TIME="$(date +%s)"
+
 DURATION=$((END_TIME - START_TIME))
-MINUTES=$((DURATION / 60))
-SECONDS=$((DURATION % 60))
+ELAPSED_MINS=$((DURATION / 60))
+ELAPSED_SECS=$((DURATION % 60))   # NB: `SECONDS` is a bash special variable
+
+# -----------------------------------------------------------------------------
+# Summary
+# -----------------------------------------------------------------------------
+echo ""
+rule
+log_info "  Results — phase: ${PHASE}"
+rule
+
+PASSED=0
+FAILED=0
+FAILED_KNOWN=0
+UNEXPECTED_PASS=0
+
+for result in ${RESULTS[@]+"${RESULTS[@]}"}; do
+  status="${result%%|*}"
+  name="${result#*|}"
+  case "$status" in
+    PASS)  log_ok "$name"; PASSED=$((PASSED + 1)) ;;
+    XPASS) log_ok "$name  (known-unrevived but PASSED — update the marking)"
+           PASSED=$((PASSED + 1)); UNEXPECTED_PASS=$((UNEXPECTED_PASS + 1)) ;;
+    FAIL)  log_fail "$name"; FAILED=$((FAILED + 1)) ;;
+    XFAIL) log_fail "$name  (known-unrevived)"
+           FAILED=$((FAILED + 1)); FAILED_KNOWN=$((FAILED_KNOWN + 1)) ;;
+  esac
+done
 
 echo ""
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo "  ${PASSED} passed, ${FAILED} failed (${FAILED_KNOWN} of them known-unrevived)"
+echo "  Duration:   ${ELAPSED_MINS}m ${ELAPSED_SECS}s"
+echo "  Test email: ${TEST_EMAIL}"
 
-if [ $EXIT_CODE -eq 0 ]; then
-  echo -e "${GREEN}✅ All Tests Passed!${NC}"
-else
-  echo -e "${RED}❌ Tests Failed${NC}"
+if [ "$UNEXPECTED_PASS" -gt 0 ]; then
+  echo ""
+  log_warn "${UNEXPECTED_PASS} flow(s) marked known-unrevived passed — move them out of the tail in build_steps()"
 fi
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Duration: ${MINUTES}m ${SECONDS}s"
-echo "Test User: ${TEST_EMAIL}"
-echo ""
-
-# =============================================================================
-# CLEANUP REMINDER
-# =============================================================================
-
-if [ $EXIT_CODE -eq 0 ] && [ "$PHASE" == "all" ]; then
-  echo -e "${YELLOW}💡 Reminder: Clean up test user from database after testing${NC}"
-  echo ""
-  echo "MongoDB cleanup command:"
-  echo "  mongosh \"$MONGODB_URI\" --eval 'db.users.deleteOne({email: \"$TEST_EMAIL\"})'"
-  echo ""
+if [ "$FAILED" -eq 0 ]; then
+  log_ok "all flows passed"
+  exit 0
 fi
 
-exit $EXIT_CODE
+log_fail "${FAILED} flow(s) failed"
+log_dim "  This suite is a single user's state chain. Once one flow fails, the flows"
+log_dim "  after it inherit the wrong state, so later failures are usually cascades"
+log_dim "  of the first one rather than independent defects. Fix the earliest"
+log_dim "  failure in the list above first, then re-run."
+exit 1
