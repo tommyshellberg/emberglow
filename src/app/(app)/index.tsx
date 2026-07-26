@@ -57,6 +57,34 @@ import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
 import { shadows } from '@/theme';
 
+/**
+ * Refreshes premium entitlement once, on mount.
+ *
+ * Extracted from `Home` because that component sat at exactly the 500-line
+ * `max-lines-per-function` limit, so the next line added anywhere inside it —
+ * a `testID`, in the event — tipped it over. Lifting a self-contained effect
+ * out is a smaller change than reformatting the component, and the effect
+ * reads better named than as an anonymous block halfway down a 500-line body.
+ *
+ * The RevenueCat side is cached and offline-tolerant by the SDK. The server
+ * side is marked TEMPORARY by its original author and is a known nuisance for
+ * provisional users, who 401 on it every time and burn refresh budget doing so
+ * — see SHE-29. It stays for now because `refreshPremiumStatus` has only one
+ * other caller (the post-purchase paywall), so removing it would strand
+ * premium granted out of band. Now that it lives here, guarding it is a
+ * one-line change.
+ */
+function usePremiumRefreshOnMount(refreshPremiumStatus: () => void) {
+  useEffect(() => {
+    refreshPremiumStatus();
+
+    refreshServerPremium().catch((error) => {
+      console.error('[Home] Server premium refresh error:', error);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 export default function Home() {
   const activeQuest = useQuestStore((state) => state.activeQuest);
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
@@ -321,17 +349,7 @@ export default function Home() {
   // Also get hasPremiumAccess without renaming for use in other places
   const { hasPremiumAccess } = usePremiumAccess();
 
-  // Check premium status on mount
-  // RevenueCat SDK handles caching and offline scenarios automatically
-  useEffect(() => {
-    refreshPremiumStatus();
-
-    // TEMPORARY: Force refresh server premium status on app load for testing
-    // TODO: Remove this after testing
-    refreshServerPremium().catch((error) => {
-      console.error('[Home] Server premium refresh error:', error);
-    });
-  }, []);
+  usePremiumRefreshOnMount(refreshPremiumStatus);
 
   // Animated background style based on carousel progress
   const backgroundStyle = useAnimatedStyle(() => {
@@ -423,6 +441,7 @@ export default function Home() {
             floating over the background, so the title's flex-1 box shrinks to
             meet it instead of growing underneath it. */}
         <ScreenHeader
+          testID="home-header"
           title="Choose an Adventure"
           rightComponent={<StreakCounter size="small" />}
         />

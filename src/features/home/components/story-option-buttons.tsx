@@ -226,6 +226,12 @@ export function StoryOptionButtons({
             // Fresh decision (new quest) -> fresh, unlocked slider instance,
             // matching the two-choice wrapper's identity semantics.
             key={quest.customId}
+            // Static, unlike the two-choice slider's option-derived id below:
+            // e2e needs one stable anchor for "start the offered story quest"
+            // regardless of which quest that is, and this branch renders at
+            // most one slider. The `-orb` child id is the hold target — a
+            // single-choice slider commits on an 800ms LongPress, not a tap.
+            testID="story-start-slider"
             choices={[
               !hasStartedStoryline ? 'Begin your journey' : 'Start Quest',
             ]}
@@ -287,6 +293,14 @@ export function StoryOptionButtons({
             // Fresh decision (new option) -> fresh, unlocked slider instance,
             // matching the two-choice wrapper's identity semantics.
             key={option.id}
+            // Static for the same reason as the single-quest branch above: the
+            // one anchor e2e has for "continue the storyline" must not depend
+            // on which option `option.text` happens to be. Without a testID
+            // `childID()` returns undefined, leaving this slider with no
+            // queryable element at all — the choice label is not a commit
+            // target, so the flow would be undriveable. `-orb` is the hold
+            // target; it commits on an 800ms LongPress, not a tap.
+            testID="story-continue-slider"
             choices={[option.text]}
             onCommit={() => onQuestSelect(option.nextQuestId)}
             disabled={!option.nextQuestId}

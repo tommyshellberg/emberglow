@@ -3,152 +3,204 @@ appId: com.vaedros.unquest
 # =============================================================================
 # ONBOARDING E2E TEST - PART 1: UP TO QUEST LOCK
 # =============================================================================
-# This test covers the guest user onboarding flow up to locking the phone:
+# Guest onboarding, from a wiped app container up to locking the phone:
 #   1. Welcome screen
-#   2. Character creation (name + type selection)
-#   3. App introduction screens
-#   4. Notification permissions
-#   5. First quest selection
-#   6. Lock phone to start quest
+#   2. Character creation (hero name, then the character carousel)
+#   3. App introduction (welcome beat, then the notifications beat)
+#   4. First quest — hold the ember to commit
+#   5. Cancel the pending quest and re-commit (edge case)
+#   6. Lock the phone to start the quest
 #
-# After this test completes, run-tests.sh will wait 15 seconds for the
-# 10-second quest to complete (with 5-second buffer), then run part 2.
+# Anchored on testIDs, not copy: the redesign rewrote nearly every string on
+# these screens, and Maestro matches the FULL string, so a partial copy anchor
+# breaks on every visual pass. (Matching is case-INsensitive on 2.0.10/iOS —
+# an earlier version of this comment said the opposite and was wrong.)
+#
+# After this flow, the runner must wait out the quest duration before running
+# part 2. THAT WAIT IS 135 SECONDS. Do not shorten it.
+#
+# An earlier version of this comment claimed the onboarding quest is built
+# client-side from AVAILABLE_QUESTS (`data/quests.ts`) with a 1-minute dev
+# override, so 75s would do. That is wrong and it is the single most expensive
+# error to reintroduce here. `onboarding/first-quest.tsx:94` calls
+# `useNextAvailableQuests()` and `:242` uses `questData.quests[0]` — the quest
+# comes from the SERVER, and the server's dev override serves story quests as
+# 2 minutes (quest-template.controller.js:32/259). AVAILABLE_QUESTS is used
+# only for audio preload. Confirmed on device: the persisted
+# QUEST_TIMER_TEMPLATE carries `durationMinutes: 2`.
+#
+# The 60s figure in the old comment was real but came from a THIRD copy of the
+# knob — quest-run.controller.js:181 hardcodes 1 minute on the embedded run —
+# so the server closes the run at 60s while the client counts to 120s. Unlocking
+# in that gap yields whichever signal lands first, which reads as flakiness.
+# Only a wait past 120s satisfies both clocks. See §2.10 of the handoff doc and
+# Linear SHE-28.
 # =============================================================================
 
-- clearState
-- launchApp
+# =============================================================================
+# ENSURE THE DEVICE IS UNLOCKED
+# =============================================================================
+# Part 1 ends by locking the phone, so a re-run (or a run after part 2) starts
+# against a locked, display-asleep simulator. Launching the app in that state
+# leaves it suspended and the JS bundle never loads. A swipe does NOT wake it;
+# pressing Home does, and it is idempotent — on an already-unlocked device it
+# just drops to the home screen, which launchApp immediately leaves.
+- pressKey: 'Home'
+
+- launchApp:
+    clearState: true
 
 # =============================================================================
-# ENSURE DEVICE IS UNLOCKED
+# DEV CLIENT ONLY — GET PAST EXDevLauncher
 # =============================================================================
-# Unlock the device if it's locked (swipe up from bottom)
-- swipe:
-    start: 50%, 95%
-    end: 50%, 5%
-    duration: 300
-
-# =============================================================================
-# NO DEVELOPMENT ENVIRONMENT SCREENS IN STAGING BUILDS
-# =============================================================================
-# Staging builds are production-like (no expo-dev-client) so no dev menu or
-# dev server selection screens will appear. Tests can proceed directly to app.
+# clearState wipes the whole app container, which on a debug/dev-client build
+# also wipes EXDevLauncher's remembered dev-server URL and its "seen the
+# developer menu" flag. Both screens therefore reappear on every run. A release
+# build (what `pnpm e2e` runs against) has no dev launcher at all: neither
+# condition matches and both blocks are skipped.
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+    commands:
+      - tapOn: 'http://localhost:8081'
+      # The developer-menu sheet is raised once per container, i.e. every run
+      # that goes through the picker. It only appears once Metro has served the
+      # bundle, and clearState wiped the cached copy — that reload has taken
+      # over a minute here, so this wait is deliberately generous. It only
+      # applies to dev-client runs; the whole block is skipped on release.
+      # Maestro text selectors are FULL-string regex matches, not substring
+      # matches — hence the explicit wildcards.
+      - extendedWaitUntil:
+          visible: '.*This is the developer menu.*'
+          timeout: 120000
+      - tapOn: 'Continue'
+      # "Continue" only dismisses the explainer copy — the dev menu itself
+      # stays up over the app until its close button is tapped.
+      - tapOn: 'Close'
 
 # =============================================================================
 # WELCOME SCREEN
 # =============================================================================
-- assertVisible: 'emberglow'
-- assertVisible: 'Level Up By Logging Off'
-- assertVisible: 'Begin New Journey'
-
-- tapOn: 'Begin New Journey'
-
-# =============================================================================
-# CHARACTER NAME SCREEN
-# =============================================================================
-- assertVisible: 'Your Character'
-- assertVisible: 'Character Name'
-
-- tapOn: 'Enter character name'
-- inputText: 'MaestroHero'
-- tapOn: 'Continue'
+- extendedWaitUntil:
+    visible:
+      id: 'get-started-button'
+    timeout: 60000
+- tapOn:
+    id: 'get-started-button'
 
 # =============================================================================
-# CHARACTER TYPE SELECTION
-# =============================================================================
-- assertVisible: "Hello, MaestroHero"
-- assertVisible: 'ALCHEMIST'
-
-# Test carousel by swiping through characters
-- swipe:
-    start: 80%, 50%
-    end: 20%, 50%
-    duration: 500
-
-- assertVisible: 'BARD'
-
-- swipe:
-    start: 80%, 50%
-    end: 20%, 50%
-    duration: 500
-
-- assertVisible: 'DRUID'
-
-# Swipe back to Alchemist
-- swipe:
-    start: 20%, 50%
-    end: 80%, 50%
-    duration: 500
-
-- swipe:
-    start: 20%, 50%
-    end: 80%, 50%
-    duration: 500
-
-- assertVisible: 'ALCHEMIST'
-- tapOn: 'Create Character'
-
-# =============================================================================
-# HANDLE APP INTRO SCREENS
-# =============================================================================
-- runFlow:
-    when:
-      visible: 'emberglow'
-    commands:
-      - tapOn: 'Got it'
-
-- runFlow:
-    when:
-      visible: 'Notifications'
-    commands:
-      - tapOn: 'Enable notifications'
-      # Handle system permission if it appears
-      - runFlow:
-          when:
-            visible: '.*Allow.*'
-          commands:
-            - tapOn: 'Allow'
-
-# =============================================================================
-# FIRST QUEST SCREEN
-# =============================================================================
-- assertVisible: 'Your Journey Begins'
-- assertVisible: 'Wake up'
-
-- tapOn: 'Wake up'
-
-# =============================================================================
-# PENDING QUEST SCREEN
+# CHARACTER CREATION — STEP 1: HERO NAME
 # =============================================================================
 - extendedWaitUntil:
-    visible: 'Start Quest'
-    timeout: 10000
+    visible:
+      id: 'character-name-input'
+    timeout: 15000
+- tapOn:
+    id: 'character-name-input'
+- inputText: 'MaestroHero'
 
-- assertVisible: 'Lock your phone to begin'
+# The Continue button is at y≈841 and the keyboard covers everything below
+# y≈586, so tapping it while the keyboard is up reports success and lands on
+# the keyboard instead (it typed a stray space into the hero name). Dismiss via
+# the keyboard's own Return key — `hideKeyboard` raises iOS's native "Enable
+# Dictation?" alert.
+- tapOn:
+    id: 'Return'
 
-# Test quest cancellation (edge case)
-- assertVisible: 'Cancel Quest'
-- tapOn: 'Cancel Quest'
-
-# Should be back at quest screen
-- assertVisible: 'Your Journey Begins'
-- assertVisible: 'Wake up'
-
-# Start quest again
-- tapOn: 'Wake up'
-
-- assertVisible: 'Start Quest'
+# The Continue button is also disabled until the name validates, and a tap on a
+# disabled button still reports success — the carousel assert below is what
+# proves the step advanced.
+- tapOn:
+    id: 'character-step-continue'
 
 # =============================================================================
-# START QUEST BY LOCKING PHONE
+# CHARACTER CREATION — STEP 2: CHARACTER CAROUSEL
 # =============================================================================
-# Note: Lock command behavior varies by platform:
-# - iOS Simulator: Works reliably
-# - Android Emulator: May not actually lock the screen
-# If lock doesn't work, quest will still start based on app logic
-- pressKey: "Lock"
+# Same testID as step 1 (the label is step-dependent), so this is a second
+# consecutive tap on 'character-step-continue'.
+- extendedWaitUntil:
+    visible:
+      id: 'character-carousel'
+    timeout: 15000
+- tapOn:
+    id: 'character-step-continue'
+
+# =============================================================================
+# APP INTRODUCTION — WELCOME BEAT
+# =============================================================================
+# Creating the character posts a provisional user to the API, so allow for a
+# round trip here.
+- extendedWaitUntil:
+    visible:
+      id: 'intro-continue'
+    timeout: 30000
+- tapOn:
+    id: 'intro-continue'
+
+# =============================================================================
+# APP INTRODUCTION — NOTIFICATIONS BEAT
+# =============================================================================
+# Deliberately taking "Not now" (intro-skip-notifications): the Allow path
+# raises the native OS permission dialog, whose copy and timing vary by iOS
+# version. That path is covered separately — see SHE-24.
+- extendedWaitUntil:
+    visible:
+      id: 'intro-skip-notifications'
+    timeout: 15000
+- tapOn:
+    id: 'intro-skip-notifications'
+
+# =============================================================================
+# FIRST QUEST — HOLD TO COMMIT
+# =============================================================================
+# The quest is started by a DecisionSlider, not a button: an 800ms hold on the
+# orb, plus a 650ms settle before onCommit fires. tapOn can never start it, and
+# a green longPressOn proves nothing on its own — every hold below is followed
+# by a positive assert on a post-commit anchor.
+- extendedWaitUntil:
+    visible:
+      id: 'wake-up-button-orb'
+    timeout: 20000
+
+- longPressOn:
+    id: 'wake-up-button-orb'
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: 'lock-instructions'
+    timeout: 15000
+
+# =============================================================================
+# PENDING QUEST — CANCEL AND RE-COMMIT (EDGE CASE)
+# =============================================================================
+# The back arrow cancels rather than navigating back; clearing pendingQuest
+# drops the resolver to the onboarding first-quest screen.
+- tapOn:
+    id: 'pending-quest-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'wake-up-button-orb'
+    timeout: 15000
+- assertNotVisible:
+    id: 'lock-instructions'
+
+- longPressOn:
+    id: 'wake-up-button-orb'
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: 'lock-instructions'
+    timeout: 15000
+
+# =============================================================================
+# START QUEST BY LOCKING THE PHONE
+# =============================================================================
+# There is no start button: the quest begins when the native lock listener
+# fires (QuestTimer.onPhoneLocked).
+- pressKey: 'Lock'
 
 # =============================================================================
 # END OF PART 1
 # =============================================================================
-# Phone is now locked and quest has started.
-# Shell script will wait 15 seconds for quest completion before running part 2.
+# Phone is locked and the quest is running. The runner waits out the quest
+# duration before running part 2.

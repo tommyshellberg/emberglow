@@ -1,0 +1,284 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SIGNUP E2E TEST — OPEN THE MAGIC LINK AND VERIFY THE CONVERSION
+# =============================================================================
+# Picks up exactly where 01-request-magic-link.yaml stopped: the sent view,
+# link requested, hero still provisional, onboarding step VIEWING_SIGNUP_PROMPT.
+#
+#   1. Pull this run's link out of Mailpit — filtered by recipient, and only
+#      if it is younger than the token that is inside it
+#   2. Open it; that is what converts the provisional user
+#   3. Prove the CONVERSION happened, not merely that a home screen rendered
+#
+# THIS FLOW CLAIMS THE ACCOUNT AND IS ONE-WAY. The provisional user becomes a
+# full account server-side; nothing short of re-running onboarding from a wiped
+# container rewinds it. A second run against the same address would take the
+# already-converted branch instead (passport.js CASE 1, "magic-link-duplicate").
+#
+# -----------------------------------------------------------------------------
+# WHY THE PREVIOUS TWO ASSERTIONS WERE NOT ENOUGH
+# -----------------------------------------------------------------------------
+# This file used to be `new-quest-tab` + `home-header` and nothing else. Both
+# are true of ANY signed-in user, so they cannot tell a converted hero from a
+# brand-new signup on a fresh install — which is the entire claim this flow
+# exists to make. What distinguishes them is that MaestroHero's identity and
+# progression crossed the boundary, and that the account on the far side is
+# keyed to THIS RUN'S ADDRESS. Both are asserted below, on the two screens
+# that render them.
+#
+# -----------------------------------------------------------------------------
+# RUNNER CONTRACT — one required variable, the one 01-request-magic-link.yaml
+# already needs
+# -----------------------------------------------------------------------------
+# `${TEST_EMAIL}`   REQUIRED. Same value the previous flow was run with; it is
+#                   both the Mailpit search key and the expected account email.
+#                   Unset, it evaluates to `undefined` in the script below (it
+#                   does NOT throw), the Mailpit search for `to:undefined`
+#                   returns nothing, and the "found a message" assertion fails.
+# `${MAILPIT_URL}`  OPTIONAL, defaults to http://localhost:8025 — the same
+#                   default .maestro/scripts/poll-magic-link.sh carries.
+#
+# The runner does NOT have to extract the token or shell out to
+# `xcrun simctl openurl` between the two signup flows, which is what plan
+# Task 17 assumed. The flow does it itself, with `evalScript` (Maestro's JS
+# runs on the HOST, so `localhost` here is the machine's Mailpit, not the
+# simulator's) and `openLink`. Three reasons that won over the runner-driven
+# variant:
+#
+#   1. The recipient filter and the freshness check are the guard against
+#      signing in as the wrong account, and they belong next to the assertions
+#      they protect, not in a shell script two files away.
+#   2. It keeps the phase runnable as a unit — `run_flow_files 01,02` is a
+#      complete signup test with no shell in between, which is how these flows
+#      get debugged in practice.
+#   3. `poll-magic-link.sh` reads /api/v1/message/latest and does NOT filter by
+#      recipient at all. Keeping it in the loop would mean either fixing it or
+#      inheriting its hazard (below).
+#
+# The trade-off: this flow now depends on Maestro's JS runtime and on Mailpit's
+# HTTP API rather than on plain YAML commands. If either changes, the failure
+# lands here rather than in run-tests.sh. That is deliberate — it fails inside
+# the test that cares.
+# =============================================================================
+
+# =============================================================================
+# ENTRY STATE — STILL PROVISIONAL, LINK ALREADY REQUESTED
+# =============================================================================
+# `send-again-button` only exists on EmailSentView, so this is the assertion
+# that the previous flow really did leave the app on the sent view — and, with
+# it, that the hero has NOT been claimed yet. Without it the flow would pass
+# just as happily when re-run against an already-authenticated app, proving
+# nothing about conversion.
+- assertVisible:
+    id: 'send-again-button'
+
+# =============================================================================
+# FETCH THIS RUN'S MAGIC LINK FROM MAILPIT
+# =============================================================================
+# Filtered by recipient, newest first (Mailpit returns search hits in
+# descending Created order — verified on device with two messages to the same
+# address).
+#
+# THE RECIPIENT FILTER IS THE POINT. `.maestro/scripts/poll-magic-link.sh`
+# reads /api/v1/message/latest, which is "the newest message in the whole
+# mailbox" — if a send ever silently fails, that is an EARLIER RUN'S link, and
+# opening it authenticates this device as a different account. The assertions
+# below do catch that (mutation-verified), but only after the device has been
+# signed into somebody else's account; filtering by `to:` removes the failure
+# mode instead of catching it downstream.
+#
+# The age check is the second half of the same guard: the token inside the link
+# is a 20-minute JWT (passport.js `ttl` + `expiresIn: '20m'`), so a hit older
+# than that cannot possibly verify. Failing here says "the link is stale",
+# where the alternative is a confusing "the home screen never appeared" 60
+# seconds later.
+#
+# `retry` is belt-and-braces rather than load-bearing: passport.js awaits
+# sendEmail() before answering the send request, so Mailpit has already
+# accepted the message by the time the previous flow saw the sent view. It
+# costs nothing and covers Mailpit's own indexing, so it stays — but a failure
+# here means the mail is genuinely absent, not merely late.
+- retry:
+    maxRetries: 5
+    commands:
+      - evalScript: |
+          ${
+            var base = (typeof MAILPIT_URL !== 'undefined' && MAILPIT_URL) ? MAILPIT_URL : 'http://localhost:8025';
+            var query = encodeURIComponent('to:' + TEST_EMAIL);
+            var hits = json(http.get(base + '/api/v1/search?limit=1&query=' + query).body).messages;
+            output.found = hits.length;
+            output.ageMs = hits.length ? (Date.now() - Date.parse(hits[0].Created)) : -1;
+            var html = hits.length ? json(http.get(base + '/api/v1/message/' + hits[0].ID).body).HTML : '';
+            var hit = /unquest:\/\/auth\/magiclink\/verify\?token=[A-Za-z0-9._\-]+/.exec(html);
+            output.magicLink = hit ? hit[0] : 'NO_LINK';
+          }
+      # A message exists, addressed to this run and nobody else.
+      - assertTrue: ${output.found >= 1}
+      # It is younger than the 20-minute token TTL.
+      - assertTrue: ${output.ageMs >= 0 && output.ageMs < 1200000}
+      # And it actually carries a deep link.
+      - assertTrue: ${output.magicLink != 'NO_LINK'}
+
+# =============================================================================
+# OPEN THE LINK — THIS IS THE CONVERSION
+# =============================================================================
+# `openLink` drives the same `unquest://` scheme the email uses, so the app
+# takes its real deep-link path: expo-router mounts auth/magiclink/verify,
+# which calls verifyMagicLinkAndSignIn(token) — server-side that flips
+# isProvisional to false and moves the address onto the provisional user
+# (passport.js CASE 1), client-side it stores real tokens and removes
+# provisionalAccessToken / provisionalUserId / provisionalEmail from MMKV.
+- openLink: ${output.magicLink}
+
+# =============================================================================
+# LANDING — THE APP SHELL, WHICH ONLY OPENS ONCE PROVISIONAL STATE IS GONE
+# =============================================================================
+# Weak on its own, but not vacuous: the resolver pins a provisional user at
+# VIEWING_SIGNUP_PROMPT to quest-completed-signup and only falls through to
+# `app` once onboarding reads as complete — and the effect that marks it
+# complete for a just-verified user first checks that provisionalUserId,
+# provisionalAccessToken and provisionalEmail are ALL absent
+# (navigation-state-resolver.ts:85-107). Reaching the tab bar from this
+# flow's entry state therefore is the proof that the provisional keys cleared.
+#
+# Generous timeout: verification round-trips to the server, signs in, and then
+# fetches /users/me before the resolver moves.
+- extendedWaitUntil:
+    visible:
+      id: 'new-quest-tab'
+    timeout: 60000
+- assertVisible:
+    id: 'home-header'
+
+# =============================================================================
+# DEV BUILD ONLY — CLEAR THE LogBox TOAST OFF THE TAB BAR
+# =============================================================================
+# Not optional here, and not cosmetic. Home's mount effect fires
+# refreshServerPremium() (index.tsx:326-334, itself marked "TEMPORARY … TODO:
+# Remove this after testing"), which errors in this environment; the resulting
+# LogBox toast lands at [10,844][420,912] and the tab bar occupies
+# [0,842][430,932], so EVERY tab button is underneath it. Mutation-verified on
+# device: with the toast up and this block removed, `tapOn: {id: 'profile-tab'}`
+# reports success and the app does not move — the profile wait below is what
+# fails. Classic iOS occlusion (a green tap only means a touch was dispatched
+# at those coordinates).
+#
+# The X on the toast does not respond to a coordinate tap (§2.11 of the handoff
+# doc says it does; it does not — the count stayed put). Tapping the toast body
+# opens the LogBox inspector, whose "Dismiss" removes one log and closes itself
+# after the last one, hence the guarded loop.
+#
+# Matched on LogBox's own shape rather than on the message: the toast's iOS
+# accessibility string is the count badge joined to the message, and the badge
+# renders `!` for one log and the number beyond that
+# (LogBoxNotificationCountBadge.js:29). A release build has no LogBox at all —
+# nothing matches, the whole block is skipped, exactly like part 1's
+# EXDevLauncher guards.
+- runFlow:
+    when:
+      visible: '(!|\d+), .*'
+    commands:
+      - tapOn: '(!|\d+), .*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Dismiss'
+                commands:
+                  - tapOn: 'Dismiss'
+- assertNotVisible: '(!|\d+), .*'
+
+# =============================================================================
+# THE HERO CROSSED THE BOUNDARY — IDENTITY AND PROGRESSION
+# =============================================================================
+# The profile tab is the only screen in the authenticated app that renders
+# level and XP, so this is where "the progression carried across" can be
+# asserted at all. It is the same anchor pair 03-fresh-authenticated/
+# 01-profile-verification.yaml uses, but not a duplicated assertion: that flow
+# runs two quests later and expects `9 / 150 XP`, this one expects the state
+# the conversion inherited.
+#
+# These read the SERVER's copy of the hero, not the device's: completeSignIn
+# overwrites the character store from /users/me (api/auth.ts:189-219), and the
+# response flattens the character onto the user (`type`, `name`, `level`, `xp`
+# — auth.controller.js transformUserResponse). So they are also a client/server
+# agreement check on the reward the first quest paid out, and they are what
+# fails first if the wrong account's link is opened — mutation-verified below.
+#
+# The wait doubles as the post-condition for the tab tap.
+- tapOn:
+    id: 'profile-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-xp-level'
+    timeout: 15000
+
+# Every number here traces to checked-in data, so a curve or reward change
+# should fail this flow rather than pass quietly:
+#   LEVEL 2       quest-1's flat `reward: {xp: 100}` (data/quests.ts) lands
+#                 exactly on level 2's `totalXPRequired: 100`
+#                 (level-progression.js), compared non-strictly in
+#                 character-store.ts:85.
+#   0 / 150 XP    XPBar renders progress toward the NEXT level, not the
+#                 lifetime total (profile-card.tsx:69-71): 100 total − 100 for
+#                 level 2 = 0, over L3's 250 − L2's 100 = 150.
+# Both readouts render uppercase (XPBar's own style), which is how the iOS
+# accessibility tree reports them. Written as displayed for documentation
+# value — Maestro's matching turned out to be case-INsensitive on 2.0.10, so
+# the casing is not what makes these assertions bite. `Level 3` does fail;
+# `Level 2` does not.
+- assertVisible:
+    id: 'profile-xp-level'
+    text: 'LEVEL 2'
+- assertVisible:
+    id: 'profile-xp-xp'
+    text: '0 / 150 XP'
+
+# The name the hero was created with in onboarding part 1, still on the account
+# after the conversion. Full-string match, so it also catches the trailing
+# space the keyboard used to type into the name field.
+- assertVisible: 'MaestroHero'
+
+# =============================================================================
+# THE ACCOUNT IS REAL, AND IT IS THIS RUN'S ACCOUNT
+# =============================================================================
+# Settings' Account row is the only place the app shows the signed-in address.
+# It reads useUserStore, which is populated exclusively by the /users/me call
+# completeSignIn makes with the NEW access token (api/auth.ts:144-152) — a
+# provisional session never populates it and the row reads "Not signed in".
+#
+# This is the assertion that makes the flow an ACCOUNT test rather than a
+# screen test: it is the only one that names which account was signed into, and
+# the only evidence that the authenticated /users/me call succeeded at all —
+# completeSignIn swallows every failure from that call onward and still
+# resolves 'app' (api/auth.ts:120-124), so without this row a session that
+# authenticated but could not read its own user would look identical.
+#
+# Mutation-verified on device: a second provisional account ("WrongHero") was
+# created through the API, its magic link opened on this device in place of
+# ours, and the flow went red — at `profile-xp-level` first (LEVEL 1, then
+# `0 / 100 XP`, `WrongHero`), and here at the address. That is the
+# wrong-recipient failure mode poll-magic-link.sh's unfiltered
+# /api/v1/message/latest could produce, caught four different ways.
+- tapOn:
+    id: 'settings-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-screen'
+    timeout: 15000
+- assertVisible: '${TEST_EMAIL}'
+
+# =============================================================================
+# END OF SIGNUP — HAND BACK TO THE HOME SCREEN
+# =============================================================================
+# The next phase (03-fresh-authenticated) starts from a story quest on the home
+# screen, so leave the app there rather than on whichever tab the last
+# assertion needed.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000

@@ -207,6 +207,7 @@ export function ProfileCard({ character }: ProfileCardProps) {
 
           {/* XP progress toward next level, in-card per the design */}
           <XPBar
+            testID="profile-xp"
             level={character.level}
             xp={xpProgressTowardNext}
             xpNext={xpRequiredForCurrentToNext}

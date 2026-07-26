@@ -45,8 +45,6 @@
     "e2e:fresh": ".maestro/run-tests.sh fresh",
     "e2e:coverage": ".maestro/run-tests.sh coverage",
     "e2e:regression": ".maestro/run-tests.sh regression",
-    "e2e-test": "maestro test .maestro/ -e APP_ID=com.obytes.development",
-    "e2e-test:quest": ".maestro/run-quest-tests.sh",
     "update": "eas update --channel production --environment production"
   },
   "dependencies": {

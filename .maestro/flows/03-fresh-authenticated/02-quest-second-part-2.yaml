@@ -1,0 +1,219 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SECOND QUEST — PART 2: UNLOCK AND VERIFY THE REWARD
+# =============================================================================
+# Picks up exactly where part 1 stopped — phone locked, quest-1b running:
+#   1. Unlock the phone, which is what makes QuestTimer settle the quest
+#   2. Clear the two screens that intercept the completion (see below)
+#   3. Verify the quest COMPLETED (not failed), on the right quest, for the
+#      right reward
+#   4. Continue back to the home screen for the rest of phase 03
+#
+# Prerequisites:
+#   - part 1 ran to its `pressKey: 'Lock'` and left the device locked
+#   - the runner waited out the quest duration — 135s, see part 1's header
+#
+# TWO SCREENS INTERCEPT THE COMPLETION, IN THIS ORDER. Neither exists in the
+# onboarding equivalent of this flow, and both are DETERMINISTIC here rather
+# than incidental — they are consequences of this being the second quest, so
+# every fresh run of the suite meets them at exactly this point:
+#
+#   1. The streak celebration. navigation-state-resolver.ts:157-161 gives it
+#      Priority 1, above the quest result. quest-store.ts:188-228 shows it when
+#      the streak is >= 1 and it has not been shown today — and it reads
+#      `dailyQuestStreak` from the state snapshot taken BEFORE updateStreak, so
+#      quest 1 (pre-value 0) does not trigger it and quest 2 (pre-value 1)
+#      does. That is why onboarding part 2 never saw it.
+#   2. The branching-storyline announcement, ON TOP of the streak screen.
+#      index.tsx:109 sets `hasCompletedFirstBranch` from a completed quest-1a
+#      or quest-1b, which is precisely what part 1 just finished, and the home
+#      effect presents the sheet 1500ms later.
+#
+# WHY THERE IS NO XP/LEVEL ASSERTION HERE. `profile-xp-level` and
+# `profile-xp-xp` live in the profile tab and are owned by
+# 01-profile-verification.yaml, which asserts the ACCUMULATED total
+# (`LEVEL 2` · `9 / 150 XP` = 100 + 9, over L3's 250 − L2's 100 — both values
+# confirmed on device at this point in the chain). The `+9 XP` badge below
+# asserts a different thing — the reward this quest paid — so repeating the
+# profile pair here would mean two flows failing for one bug without covering
+# anything new. One caveat for the runner: for 01-profile-verification's
+# `9 / 150 XP` to be the true expectation it must run AFTER this pair, not
+# before it as the filename ordering implies.
+# =============================================================================
+
+# =============================================================================
+# UNLOCK THE PHONE
+# =============================================================================
+# Part 1 ends with `pressKey: 'Lock'`, so this flow starts against a locked
+# device whose display has gone to sleep across the 135s wait. A sleeping
+# display takes one Home press to wake and a second to dismiss the lock screen
+# (there is no passcode), but on an already-awake device the first press
+# dismisses it outright — hence the guard rather than two blind presses. Two
+# blind presses would background the app whenever the first one was enough.
+#
+# Both misfires of the guard are loud, not silent: if it fails to fire the
+# device stays locked, and if it fires wrongly the app drops to the
+# springboard. Either way the completion assert below finds nothing.
+- pressKey: 'Home'
+- runFlow:
+    when:
+      visible:
+        id: 'lockscreen-date-view'
+    commands:
+      - pressKey: 'Home'
+
+# =============================================================================
+# INTERCEPTOR 1 OF 2 — THE STREAK CELEBRATION
+# =============================================================================
+# Unlocking settles the quest, and the resolver's Priority 1 sends the app
+# here rather than straight to the quest result. Waiting on the button rather
+# than on the "QUEST STREAK" eyebrow keeps this off copy; the button is
+# `streak-continue-button`, a11y label "Continue to home screen".
+#
+# Generous timeout: settling the quest round-trips to the server first.
+#
+# This flow only drives the screen past — 03-streak-celebration.yaml owns the
+# assertions about what it says.
+- extendedWaitUntil:
+    visible:
+      id: 'streak-continue-button'
+    timeout: 45000
+
+# =============================================================================
+# INTERCEPTOR 2 OF 2 — THE BRANCHING-STORYLINE ANNOUNCEMENT SHEET
+# =============================================================================
+# This one has to be cleared BEFORE the streak button is tapped, not after:
+# the sheet occupies [0,368][430,1018] and `streak-continue-button` sits at
+# [16,811][414,865], entirely underneath it. A tap on the covered button
+# reports success and does nothing — the same iOS occlusion trap as the LogBox
+# toast, which is why the wait above is on the button but the tap is below the
+# dismissal.
+#
+# Unconditional rather than a `runFlow: when:` guard, deliberately. The sheet
+# is presented on a 1500ms timer (index.tsx:275-278), so a guard could be
+# evaluated before it appears, skip, and then have the sheet materialise in
+# time to swallow the tap — an intermittent failure that looks like flake. An
+# explicit wait removes the race, and it is honest: the sheet IS deterministic
+# here, so if it stops appearing this flow should say so rather than adapt.
+#
+# HOW IT IS DISMISSED, AND WHY NOT BY ITS OWN BUTTON. The sheet's contents are
+# INVISIBLE to Maestro on iOS — @gorhom/bottom-sheet exposes only containers
+# with accessibilityText="Bottom Sheet", and every descendant testID is absent
+# from the hierarchy (Linear SHE-26). Its two buttons are therefore reachable
+# only by raw coordinates, and they are 61pt apart with the DESTRUCTIVE one
+# ("Restart at Branching Point" -> useResetStoryline, wipes story progress) on
+# top. A coordinate tap that drifts one button up would silently reset the
+# storyline mid-suite.
+#
+# The backdrop is the safe way out: `bottom-sheet.tsx:107` configures
+# BottomSheetBackdrop with `pressBehavior="close"`. The tap must land above the
+# sheet's top edge — measured at y=368 for this sheet, so 20% (y≈186) clears it
+# with room to spare. Worst case it misses and the assert below catches it,
+# versus worst case destroying story progress.
+#
+# Dismissing this way does NOT call setHasSeenBranchingAnnouncement, but that
+# does not matter: `markAnnouncementShown()` fires when the sheet is PRESENTED,
+# not when it is dismissed (announcement-store.ts:152-157), so the once-per-day
+# cap is already stamped and no announcement can appear again for the rest of
+# the run.
+- extendedWaitUntil:
+    visible: 'Bottom sheet backdrop'
+    timeout: 20000
+- tapOn:
+    point: '50%,20%'
+- waitForAnimationToEnd
+- assertNotVisible: 'Bottom sheet backdrop'
+
+# Now the streak screen is actually reachable.
+- tapOn:
+    id: 'streak-continue-button'
+- waitForAnimationToEnd
+
+# =============================================================================
+# QUEST COMPLETION SCREEN
+# =============================================================================
+# Dismissing the streak screen calls setShouldShowStreakCelebration(false)
+# (streak-celebration.tsx:207), the resolver drops to its quest-result branch
+# and NavigationGate routes to /(app)/quest/[id] — the authenticated
+# equivalent of onboarding's first-quest-result (navigation-gate.tsx:59-61).
+# So this wait is also the post-condition for the tap above.
+#
+# `quest-complete-header` is the OUTCOME assertion, not just a screen anchor:
+# the failure branch of quest/[id].tsx renders `FailedQuest`, which shares no
+# testID with `QuestComplete`. If the quest failed — which is exactly what an
+# unlock inside the 60–120s two-clock gap produces — this wait is what fails,
+# with no dependence on copy.
+- extendedWaitUntil:
+    visible:
+      id: 'quest-complete-header'
+    timeout: 30000
+
+# The quest that completed is the one part 1 chose. Without this, a run where
+# the drag committed the LEFT branch would still show a perfectly valid
+# completion screen with identical badges (both branches are 9 XP / 2 min) and
+# nothing would notice.
+- assertVisible: '.*Searching the Forest for Signs of Life.*'
+
+# Exact reward values, all traceable to checked-in data — a reward or duration
+# change should fail this flow rather than pass quietly.
+#   +9 XP        quest-1b's `reward: { xp: calculateRewardFromDuration(3) }`
+#                = 3 * 3 (data/quests.ts:96, and the same value on the server's
+#                template). `\+` is escaped because these selectors are JVM
+#                regexes and a leading `+` is a dangling quantifier.
+#   2 MIN        the dev-mode story override, rendered from the quest record
+#                the timer actually ran against.
+#   COMPLETE     the success-tone badge, rendered only when `fromJournal` is
+#                false — i.e. only on the post-quest path, not on a journal
+#                re-open of the same quest.
+# Badge uppercases its own text and iOS reports the transformed string, so
+# these are written as the accessibility tree reports them. (Matching turned
+# out to be case-INsensitive on Maestro 2.0.10, so the casing is documentation
+# rather than the thing that makes them bite; the values are.)
+- assertVisible: '\+9 XP'
+- assertVisible: '2 MIN OFFLINE'
+- assertVisible: 'COMPLETE'
+
+# =============================================================================
+# CONTINUE BACK TO HOME
+# =============================================================================
+# The action stack sits below the fold, under the 300pt art header and the
+# story card, and its container is absent from the hierarchy entirely until
+# scrolled into view.
+- scrollUntilVisible:
+    element:
+      id: 'quest-actions-container'
+    direction: DOWN
+    timeout: 15000
+
+# Tap the button, NOT the container. `quest-actions-container` wraps exactly
+# one button during onboarding — QuestCompleteActions suppresses the reflection
+# button for quest-1 — which is why onboarding-part-2.yaml can tap the
+# container itself. That does not hold here: `showReflectionButton` requires a
+# questRunId, completed onboarding, and a quest id other than quest-1
+# (QuestCompleteActions.tsx:101-105), and all three are true for the second
+# quest. Measured here: container [20,792][410,908] wrapping "Add reflection"
+# [20,792][410,847] and "Continue" [20,859][410,908] — the container's centre
+# is (215, 850), inside the 12pt gap between the two.
+#
+# "Continue" is the label QuestComplete defaults `continueText` to, and
+# quest/[id].tsx passes no override. The other button reads "Add reflection",
+# so there is no ambiguity between them under full-string matching.
+- tapOn: 'Continue'
+- waitForAnimationToEnd
+
+# The post-condition for that tap. handleContinue clears recentCompletedQuest
+# and pushes /(app), so the tab bar and the home header come back; a tap that
+# landed on "Add reflection" instead would sit on the reflection form and fail
+# here.
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 20000
+
+# =============================================================================
+# END OF PART 2
+# =============================================================================
+# Two quests completed (quest-1 + quest-1b), 109 XP, still Level 2, streak 1,
+# authenticated, sitting on the home screen with the next story decision armed.
+# That is the entry state the rest of phase 03 inherits.

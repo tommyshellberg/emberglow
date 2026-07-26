@@ -59,6 +59,7 @@ export const ManualEmailView: React.FC<ManualEmailViewProps> = ({
       </View>
 
       <Input
+        testID="invite-email-input"
         label="Email Address"
         value={localEmail}
         onChangeText={setLocalEmail}
@@ -80,6 +81,7 @@ export const ManualEmailView: React.FC<ManualEmailViewProps> = ({
       )}
 
       <Button
+        testID="invite-send-button"
         label={isSubmitting ? 'Sending…' : 'Send Invite'}
         onPress={handleSubmit}
         disabled={!localEmail.trim() || isSubmitting}

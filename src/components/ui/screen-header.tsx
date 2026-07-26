@@ -17,6 +17,7 @@ interface ScreenHeaderProps {
   onBackPress?: () => void;
   animate?: boolean;
   rightComponent?: React.ReactNode;
+  testID?: string;
 }
 
 // Mockup spec: TabHeader (shared.jsx) uses 34, SubHeader (social.jsx,
@@ -50,6 +51,7 @@ export function ScreenHeader({
   onBackPress,
   animate = true,
   rightComponent,
+  testID,
 }: ScreenHeaderProps) {
   const router = useRouter();
   const headerOpacity = useSharedValue(animate ? 0 : 1);
@@ -79,6 +81,7 @@ export function ScreenHeader({
 
   return (
     <HeaderWrapper
+      testID={testID}
       style={[styles.wrapper, animate ? animatedStyle : undefined]}
     >
       <View style={styles.titleRow}>

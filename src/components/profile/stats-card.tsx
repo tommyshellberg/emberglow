@@ -96,6 +96,10 @@ export function StatsCard({
       </View>
 
       <Pressable
+        // Anchors the tile, not the number: the count renders through
+        // `AnimatedNumber`, whose displayed value trails the prop during its
+        // count-up, so a testID on the digits would be read mid-animation.
+        testID="streak-display"
         style={styles.tile}
         onPress={() => router.push('/streak-celebration')}
         accessible={true}

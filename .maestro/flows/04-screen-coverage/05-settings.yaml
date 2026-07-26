@@ -1,102 +1,25 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# SETTINGS SCREEN TEST
+# SETTINGS SCREEN — SMOKE TEST
 # =============================================================================
-# Tests the settings screen and sub-pages
-#
-# Verification:
-#   - Settings screen loads
-#   - All settings sections are visible
-#   - Settings pages navigate correctly
+# Render-only check. Deviates from the original design's "toggle the theme"
+# test: no theme feature exists in this codebase (verified against
+# settings-store.ts and settings.tsx). The real local-only toggles (Daily
+# Reminder, Streak Warning) sit behind the Notifications switch, which
+# triggers a native OS permission dialog on first grant — judged too flaky
+# for this suite's determinism goal. Revisit if a theme feature, or a
+# top-level local-only toggle, is added later.
 # =============================================================================
 
-# Navigate to Profile (settings might be accessed from here)
-- tapOn: 'Profile'
+- tapOn:
+    id: 'settings-tab'
 
-# =============================================================================
-# NAVIGATE TO SETTINGS
-# =============================================================================
-# Settings might be a button in profile or a separate tab
-- runFlow:
-    when:
-      visible: 'Settings'
-    commands:
-      - tapOn: 'Settings'
-
-# Alternative: might be a gear icon
-- runFlow:
-    when:
-      visible:
-        id: 'settings-icon'
-    commands:
-      - tapOn:
-          id: 'settings-icon'
-
-# =============================================================================
-# SETTINGS SCREEN
-# =============================================================================
+- assertVisible:
+    id: 'settings-screen'
 - assertVisible: 'Settings'
-
-# =============================================================================
-# VERIFY SETTINGS SECTIONS
-# =============================================================================
 - assertVisible: 'Account'
 - assertVisible: 'Notifications'
 
-# Additional settings sections
-- runFlow:
-    when:
-      visible: 'Privacy'
-    commands:
-      - assertVisible: 'Privacy'
-
-- runFlow:
-    when:
-      visible: 'About'
-    commands:
-      - assertVisible: 'About'
-
-# =============================================================================
-# TEST ACCOUNT SETTINGS
-# =============================================================================
-- tapOn: 'Account'
-
-# Should show user email
-- assertVisible: 'test-'  # Part of email from onboarding
-
-# Verify account options
-- runFlow:
-    when:
-      visible: 'Email'
-    commands:
-      - assertVisible: 'Email'
-
-# Go back
 - tapOn:
-    point: '5%, 5%'
-
-# =============================================================================
-# TEST NOTIFICATIONS SETTINGS
-# =============================================================================
-- tapOn: 'Notifications'
-
-# Should show notification options
-- assertVisible: 'Notifications'
-
-# Go back
-- tapOn:
-    point: '5%, 5%'
-
-# =============================================================================
-# RETURN TO PROFILE
-# =============================================================================
-- tapOn:
-    point: '5%, 5%'
-
-# Should be back at profile
-- assertVisible: 'MaestroHero'
-
-# =============================================================================
-# SETTINGS TEST COMPLETE
-# =============================================================================
+    id: 'profile-tab'

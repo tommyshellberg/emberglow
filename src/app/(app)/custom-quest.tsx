@@ -87,6 +87,7 @@ export default function CustomQuestScreen() {
           <CategorySlider control={control} />
 
           <Button
+            testID="start-custom-quest-button"
             label={START_BUTTON_LABEL}
             variant="primary"
             size="lg"
