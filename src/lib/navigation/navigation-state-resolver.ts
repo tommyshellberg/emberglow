@@ -5,6 +5,7 @@ import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 export type NavigationTarget =
   | { type: 'pending-quest'; questId: string }
@@ -27,6 +28,7 @@ export function useNavigationTarget(): NavigationTarget {
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const setCurrentStep = useOnboardingStore((s) => s.setCurrentStep);
   const character = useCharacterStore((s) => s.character);
+  const serverUser = useUserStore((s) => s.user);
 
   // Use direct subscription for quest state including completed quests
   const [questState, setQuestState] = useState(() => {
@@ -80,36 +82,56 @@ export function useNavigationTarget(): NavigationTarget {
 
   // Synchronize onboarding state when user is signed in but onboarding appears incomplete
   useEffect(() => {
-    if (authStatus === 'signIn' && !isOnboardingComplete) {
-      // Check if user has provisional data (indicating they're a new user going through onboarding)
-      const hasProvisionalData = !!(
-        getItem('provisionalUserId') ||
-        getItem('provisionalAccessToken') ||
-        getItem('provisionalEmail')
+    if (authStatus !== 'signIn') return;
+
+    // Check if user has provisional data (indicating they're a new user going through onboarding)
+    const hasProvisionalData = !!(
+      getItem('provisionalUserId') ||
+      getItem('provisionalAccessToken') ||
+      getItem('provisionalEmail')
+    );
+    if (hasProvisionalData) return;
+
+    // A social signup (resolveSocialUser branch 4) mints a full, verified
+    // account with no character, so its owner never passes through onboarding.
+    // The server is the authority on that: transformUserResponse reports a null
+    // character as `type: ''` / `name: ''`, so an EMPTY string here means "this
+    // account has no hero", while `serverUser === null` means the post-sign-in
+    // fetch simply hasn't landed yet — a different state, and the one the
+    // force-complete below is for.
+    //
+    // Walk the step back rather than merely declining to complete it: an
+    // earlier run of this effect already force-completed these users and MMKV
+    // persisted that, so they stay stuck across relaunches otherwise.
+    const serverAccountHasNoCharacter =
+      !!serverUser && !(serverUser.type && serverUser.name);
+    if (serverAccountHasNoCharacter && !character) {
+      setCurrentStep(OnboardingStep.SELECTING_CHARACTER);
+      return;
+    }
+
+    // Only from a standing start. This branch exists for a verified user
+    // opening a fresh install, whose persisted step is therefore NOT_STARTED.
+    // Any other step means onboarding is actively in progress — which now
+    // happens to signed-in, non-provisional users too, since the branch above
+    // sends character-less accounts back into it. Completing them mid-flow
+    // would skip the intro and first quest they were sent back for.
+    if (!isOnboardingComplete && currentStep === OnboardingStep.NOT_STARTED) {
+      // User is signed in with no provisional data and no local data
+      // This indicates they're a verified user logging in on a fresh install
+      console.log(
+        '🧭 Detected verified user with no local data - marking onboarding as complete'
       );
 
-      if (!hasProvisionalData) {
-        // User is signed in with no provisional data and no local data
-        // This indicates they're a verified user logging in on a fresh install
-        console.log(
-          '🧭 Detected verified user with no local data - marking onboarding as complete'
-        );
-        console.log(
-          '🧭 Synchronizing onboarding state to COMPLETED for verified user'
-        );
-
-        // Mark onboarding as complete for verified users
-        setCurrentStep(OnboardingStep.COMPLETED);
-
-        console.log(
-          '🧭 Onboarding state synchronized successfully for verified user'
-        );
-      }
+      // Mark onboarding as complete for verified users
+      setCurrentStep(OnboardingStep.COMPLETED);
     }
   }, [
     authStatus,
     isOnboardingComplete,
+    currentStep,
     character,
+    serverUser,
     completedQuests,
     setCurrentStep,
   ]);

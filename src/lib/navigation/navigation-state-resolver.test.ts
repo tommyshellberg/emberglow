@@ -8,6 +8,7 @@ import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep } from '@/store/onboarding-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 // Mock modules
 jest.mock('@/lib/storage');
@@ -15,6 +16,7 @@ jest.mock('@/lib/auth');
 jest.mock('@/store/onboarding-store');
 jest.mock('@/store/character-store');
 jest.mock('@/store/quest-store');
+jest.mock('@/store/user-store');
 
 // Setup mock implementations
 const mockGetItem = getItem as jest.MockedFunction<typeof getItem>;
@@ -45,6 +47,18 @@ const mockOnboardingState = {
 
 const mockCharacterState = {
   character: null as any,
+};
+
+const mockUseUserStore = useUserStore as jest.MockedFunction<
+  typeof useUserStore
+>;
+
+// The server's view of the account. `type`/`name` are '' (not undefined) when
+// the account has no character — see the server's transformUserResponse, whose
+// fallbacks are `character?.type || ''`. `user: null` means the post-sign-in
+// fetch has not landed yet, which is a DIFFERENT state from "has no character".
+const mockUserState = {
+  user: null as any,
 };
 
 const mockQuestState = {
@@ -79,6 +93,8 @@ beforeEach(() => {
     selector(mockCharacterState)
   );
 
+  mockUseUserStore.mockImplementation((selector) => selector(mockUserState));
+
   mockUseQuestStore.mockImplementation((selector) => {
     if (typeof selector === 'function') {
       return selector(mockQuestState);
@@ -92,6 +108,7 @@ beforeEach(() => {
   mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
   mockOnboardingState.setCurrentStep.mockClear();
   mockCharacterState.character = null;
+  mockUserState.user = null;
   mockQuestState.pendingQuest = null;
   mockQuestState.recentCompletedQuest = null;
   mockQuestState.failedQuest = null;
@@ -442,6 +459,85 @@ describe('Navigation State Resolver', () => {
 
     // Should have called setCurrentStep to mark onboarding as complete
     expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
+      OnboardingStep.COMPLETED
+    );
+  });
+
+  // A social signup (resolveSocialUser branch 4) creates a full, verified
+  // account with NO character, so the user never passes through onboarding.
+  // The step below is already COMPLETED because a previous run of the
+  // sync effect force-completed it and MMKV persisted that — so declining to
+  // force-complete is not enough on its own; the step has to be walked back.
+  it('sends a verified user whose server account has no character back to character creation', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+    mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+    mockCharacterState.character = null;
+    mockQuestState.completedQuests = [];
+    // Empty strings, exactly as the server sends them for a null character.
+    mockUserState.user = { id: 'u1', type: '', name: '', email: 'a@b.com' };
+    mockGetItem.mockReturnValue(null); // no provisional data
+
+    renderHook(() => useNavigationTarget());
+
+    expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
+      OnboardingStep.SELECTING_CHARACTER
+    );
+  });
+
+  // The over-application guard for the test above. A returning user on a fresh
+  // install ALSO has `character === null` at this moment — the post-sign-in
+  // fetch has not hydrated the store yet — so keying on the local character
+  // alone would drag them into character creation and overwrite the hero they
+  // already own. Only the server's empty type/name may trigger that.
+  it('still completes onboarding for a returning user whose server account has a character', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
+    mockCharacterState.character = null;
+    mockQuestState.completedQuests = [];
+    mockUserState.user = {
+      id: 'u1',
+      type: 'bard',
+      name: 'Tommy',
+      email: 'a@b.com',
+    };
+    mockGetItem.mockReturnValue(null);
+
+    renderHook(() => useNavigationTarget());
+
+    expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
+      OnboardingStep.COMPLETED
+    );
+    expect(mockOnboardingState.setCurrentStep).not.toHaveBeenCalledWith(
+      OnboardingStep.SELECTING_CHARACTER
+    );
+  });
+
+  // Once the fix above routes a character-less social user into onboarding,
+  // they walk it while ALREADY signed in and non-provisional — the two
+  // conditions the force-complete branch keys on. Without a step check it
+  // fires the moment they pick a hero and skips the intro and first quest,
+  // which is the whole experience they were sent back for.
+  it('does not force-complete onboarding while a verified user is partway through it', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.VIEWING_INTRO;
+    // They have just chosen a hero locally; the server has not been told yet.
+    mockCharacterState.character = {
+      name: 'Tommy',
+      type: 'bard',
+      level: 1,
+      currentXP: 0,
+      xpToNextLevel: 100,
+    };
+    mockQuestState.completedQuests = [];
+    mockUserState.user = { id: 'u1', type: '', name: '', email: 'a@b.com' };
+    mockGetItem.mockReturnValue(null);
+
+    renderHook(() => useNavigationTarget());
+
+    expect(mockOnboardingState.setCurrentStep).not.toHaveBeenCalledWith(
       OnboardingStep.COMPLETED
     );
   });
