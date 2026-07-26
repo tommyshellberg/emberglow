@@ -1,55 +1,231 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# TAB NAVIGATION TEST
+# TAB NAVIGATION
 # =============================================================================
-# Tests navigation between all five bottom tabs via their testIDs, verifying a
-# stable anchor on each destination screen.
+# Walks all five bottom tabs and proves each one actually arrived. Entry state
+# is the authenticated home screen left by 02-quest-second-part-2.yaml: signed
+# in as ${TEST_EMAIL}, MaestroHero / alchemist / Level 2 / 109 XP / streak 1,
+# two completed quests (quest-1, quest-1b), the next story decision armed.
+#
+# This flow is READ-ONLY with respect to that state. It never touches the
+# decision slider and never starts a quest, so units downstream of it inherit
+# the same account unchanged.
+#
+# -----------------------------------------------------------------------------
+# WHAT MAKES A TAB ASSERTION REAL HERE
+# -----------------------------------------------------------------------------
+# Two facts, both established on device, drive every anchor choice below.
+#
+# 1. A green `tapOn` on iOS means a touch was dispatched at those coordinates,
+#    NOT that the tab button received it. The dev-build LogBox toast sits at
+#    [10,844][420,912]; the tab bar occupies [0,842][430,932] and its five
+#    buttons are [0,843][86,898] / [86,…] / [172,…] / [258,…] / [344,843][430,898]
+#    — every button centre (y=870) is inside the toast. A covered tab tap
+#    reports success while the app does not move. Hence the dismissal block
+#    below, and hence every step's post-condition.
+#
+# 2. `assertVisible` also passes against an occluded element, so a
+#    post-condition only proves navigation if it names something that exists
+#    ONLY on the destination. Verified that inactive tabs genuinely detach:
+#    with the map focused, both `journal-entry` and `home-header` are absent
+#    from the hierarchy, and with settings focused both `streak-display` and
+#    'Vaedros Kingdom' are absent. So a unique anchor really does discriminate.
+#
+# Anchor per tab, all confirmed single-hit in `src/`:
+#   new-quest-tab -> home-header      (index.tsx:444)
+#   journal-tab   -> journal-entry    (journal-components.tsx:249)
+#   map-tab       -> see the map block; the map screen has NO testID
+#   profile-tab   -> streak-display   (stats-card.tsx:102)
+#   settings-tab  -> settings-screen  (settings.tsx:824)
+#
+# -----------------------------------------------------------------------------
+# THREE SELECTORS THIS FILE USED TO CARRY, ALL DEAD — do not reinstate
+# -----------------------------------------------------------------------------
+#   `id: level-display`  `grep -rn "level-display" src/` returns nothing. It has
+#                        never existed in this tree.
+#   `'100 XP'`           `experience-card.tsx` was deleted; XP renders through
+#                        `XPBar` (`profile-card.tsx:210`) as `{xp} / {xpNext} XP`
+#                        — progress toward the NEXT level, not a lifetime total.
+#                        It reads `9 / 150 XP` here. Exact XP/level values are
+#                        01-profile-verification.yaml's assertions
+#                        (`profile-xp-level` / `profile-xp-xp`); this flow must
+#                        not duplicate them or one bug fails two flows.
+#   `'Journal'`          Matched the ScreenHeader title only, and proved nothing
+#                        the destination anchor does not prove better.
+#
+# -----------------------------------------------------------------------------
+# HOW THIS FLOW WAS PROVED CAPABLE OF FAILING (2026-07-26)
+# -----------------------------------------------------------------------------
+# Deleting the LogBox block below, with a toast genuinely on screen, fails at
+#   `Assertion is false: id: journal-entry is visible`
+# and restoring it goes green again against the same toast — the guard proven in
+# both directions. Isolated, a single `tapOn: journal-tab` under the toast
+# reports success, does NOT navigate, and opens the full-screen LogBox
+# inspector, whose `Dismiss` [0,850][215,898] / `Minimize` [215,850][430,898]
+# footer then sits on top of the tab-button row. One swallowed tab tap turns
+# every later tab tap into a LogBox button press.
+#
+# Pointing the map step's `tapOn` at `new-quest-tab` instead of `map-tab` fails
+# at `Assertion is false: id: home-header is not visible` — and gets PAST the
+# 'Vaedros Kingdom' wait on the way, which is the direct evidence that the title
+# alone would accept a map tap that never left home.
+#
+# WATCH OUT when repeating either mutation: Metro's watcher covers the whole
+# project directory and a Fast Refresh calls `LogBox.clearAllLogs()`. Editing
+# ANY file — including this one — between confirming the toast and running the
+# flow removes the toast, and the mutation then passes for the wrong reason.
+# Confirm the toast and run with no file edit in between.
 # =============================================================================
 
+# =============================================================================
+# DEV BUILD ONLY — CLEAR THE LogBox TOAST OFF THE TAB BAR
+# =============================================================================
+# Without this every tab tap below can be swallowed silently. Same block as
+# 02-quest-second-part-1.yaml and 02-signup/02-verify-authenticated.yaml.
+#
+# Matched on LogBox's own shape rather than on the message: the toast's iOS
+# accessibility string is the count badge joined to the message, and the badge
+# renders `!` for one log and the number beyond that. A release build has no
+# LogBox at all, so nothing matches and the whole block is skipped.
+#
+# The toast's X does NOT respond to a coordinate tap; tapping the toast body
+# opens the LogBox inspector, whose "Dismiss" removes one log and closes itself
+# after the last one — hence the guarded loop.
+- runFlow:
+    when:
+      visible: '(!|\d+), .*'
+    commands:
+      - tapOn: '(!|\d+), .*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Dismiss'
+                commands:
+                  - tapOn: 'Dismiss'
+- assertNotVisible: '(!|\d+), .*'
+
+# =============================================================================
+# PLAY TAB — ENTRY PRECONDITION, NOT A PROOF
+# =============================================================================
+# The previous flow already leaves the app here, so this pair is honestly
+# vacuous: a swallowed tap would leave us on home and `home-header` would still
+# be visible. It is kept because this file is also the entry point when phase 03
+# is run on its own, where the app may be on any tab. The play tab's REAL proof
+# is the final step, which returns here from settings.
 - tapOn:
     id: 'new-quest-tab'
-- assertVisible:
-    id: 'home-header'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
 
-# --- Journal tab ---
-# The quest-history list loads async ("Loading your quest history..."), so wait
-# for the completed quest to appear rather than asserting immediately.
+# =============================================================================
+# JOURNAL TAB
+# =============================================================================
+# `journal-entry` is the completed-quest row (`journal-components.tsx:249`,
+# deliberately static rather than `journal-entry-${id}`). It is a stronger
+# post-condition than the screen's header for two reasons: nothing outside the
+# journal renders it, and it only appears after `useQuestRuns` has come back
+# from the server — so it covers the async list, which the header would not.
+# `extendedWaitUntil` rather than `assertVisible` for that same reason; the
+# screen shows "Loading your quest history..." first.
+#
+# It does couple this step to the chain having completed at least one quest.
+# That holds by construction in phase 03 (two quests are complete by now), and
+# an empty journal renders `EmptyState` instead, which is the right thing to
+# fail on.
 - tapOn:
     id: 'journal-tab'
-- assertVisible: 'Journal'
 - extendedWaitUntil:
-    visible: 'Wake up'
-    timeout: 10000
+    visible:
+      id: 'journal-entry'
+    timeout: 20000
 
-# --- Map tab ---
-# The map screen's title is the map name. There is currently a single map
-# ('map-1' → 'Vaedros Kingdom', src/app/data/maps.ts), so the title is
-# deterministic. extendedWaitUntil absorbs the brief 'Loading map...' state.
+# =============================================================================
+# MAP TAB — the one screen with no testID to aim at
+# =============================================================================
+# `src/app/(app)/map.tsx` contains no `testID` at all: a loading Text, a title
+# Text, and a ReactNativeZoomableView wrapping an Image. The only anchor
+# available is the title, `getMapNameForQuest(highestQuestId)`. That is
+# deterministic — `MAP_NAMES` (`src/app/data/maps.ts:12-14`) has exactly one
+# entry, 'Vaedros Kingdom' — but it is NOT unique to this screen:
+#
+#   use-home-data.ts:57-64   currentMapName = getMapNameForQuest(...)
+#   use-home-data.ts:132     subtitle: currentMapName        (quest-deck card)
+#   quest-card.tsx:127       <EyebrowLabel>{subtitle}</EyebrowLabel>
+#
+# so HOME renders "VAEDROS KINGDOM" too, and matching is case-insensitive.
+# Measured on the home screen: element [39,412][391,431]. A swallowed map-tab
+# tap that left the app on home would satisfy the title assertion on its own.
+#
+# The `assertNotVisible` is therefore load-bearing, not decoration: title
+# present AND home absent is a conjunction only the map screen satisfies. It
+# also keeps this step honest if the flow is ever reordered so that map
+# directly follows home.
+#
+# extendedWaitUntil absorbs the "Loading map..." state — the screen waits on
+# `useHighestCompletedQuest` plus `Image.resolveAssetSource`.
 - tapOn:
     id: 'map-tab'
 - extendedWaitUntil:
     visible: 'Vaedros Kingdom'
-    timeout: 10000
+    timeout: 20000
+- assertNotVisible:
+    id: 'home-header'
 
-# --- Profile tab ---
+# =============================================================================
+# PROFILE TAB
+# =============================================================================
+# `streak-display` (`stats-card.tsx:102`) is the Day Streak tile. Chosen over
+# the XPBar ids on purpose: `profile-xp-level` / `profile-xp-xp` belong to
+# 01-profile-verification.yaml, and anchoring here on them — or on their parent
+# — would make a single XPBar regression fail two flows while covering nothing
+# extra. `streak-display` is profile-only, is an id rather than copy, and is not
+# used by that flow.
+#
+# Measured at [281,496][397,585] with the screen unscrolled, so no
+# `scrollUntilVisible` is needed. Asserted, never tapped: the tile is a Pressable
+# that pushes /streak-celebration.
 - tapOn:
     id: 'profile-tab'
-- assertVisible: 'MaestroHero'
-- assertVisible:
-    id: 'level-display'
-- assertVisible: '100 XP'
+- extendedWaitUntil:
+    visible:
+      id: 'streak-display'
+    timeout: 15000
 
-# --- Settings tab ---
+# =============================================================================
+# SETTINGS TAB
+# =============================================================================
+# `settings-screen` is the screen's own ScrollView (`settings.tsx:824`) and is
+# the only id in the tree carrying that name. Row-level content assertions
+# ('Account', 'Notifications') are deliberately NOT made here — settings content
+# is the render-only smoke flow's job, and under full-string matching (§2.12)
+# those short strings would bind to whichever element happens to expose exactly
+# that a11y text, which is not a property this flow should depend on.
 - tapOn:
     id: 'settings-tab'
-- assertVisible:
-    id: 'settings-screen'
-- assertVisible: 'Account'
-- assertVisible: 'Notifications'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-screen'
+    timeout: 15000
 
-# --- Back to home ---
+# =============================================================================
+# BACK TO THE PLAY TAB — the real proof of the centre tab, and the end state
+# =============================================================================
+# Unlike the opening pair, this one discriminates: we are on settings, and
+# `home-header` exists nowhere but home. It also leaves the simulator where the
+# next flow expects it, on the home screen with the story decision still armed.
+#
+# VERIFIED 2026-07-26: green at 16 commands on every run, including one from a
+# cold relaunch with the LogBox toast up so the dismissal block did real work.
+# The flow is read-only — after all of them the account is still Level 2 /
+# 109 XP with two completed quests and the two-choice decision armed.
 - tapOn:
     id: 'new-quest-tab'
-- assertVisible:
-    id: 'home-header'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
