@@ -156,11 +156,19 @@ appId: com.vaedros.unquest
 - assertVisible: '.*Searching the Forest for Signs of Life.*'
 
 # Exact reward values, all traceable to checked-in data — a reward or duration
-# change should fail this flow rather than pass quietly.
+# change should fail this flow rather than pass quietly. All three come from one
+# row, `QuestComplete.tsx:74-79`:
+#
+#     <Badge tone="warm">{`+${adjustedXP} XP`}</Badge>
+#     <Badge tone="neutral">{`${quest.durationMinutes} min offline`}</Badge>
+#     {questDate && <Badge tone="neutral">{questDate}</Badge>}
+#     {!fromJournal && <Badge tone="success">Complete</Badge>}
+#
 #   +9 XP        quest-1b's `reward: { xp: calculateRewardFromDuration(3) }`
 #                = 3 * 3 (data/quests.ts:96, and the same value on the server's
-#                template). `\+` is escaped because these selectors are JVM
-#                regexes and a leading `+` is a dangling quantifier.
+#                template). Reaches the badge through
+#                `getCurrentUserAdjustedXP`, so it is read off the quest record
+#                rather than off a constant.
 #   2 MIN        the dev-mode story override, rendered from the quest record
 #                the timer actually ran against.
 #   COMPLETE     the success-tone badge, rendered only when `fromJournal` is
@@ -170,6 +178,38 @@ appId: com.vaedros.unquest
 # these are written as the accessibility tree reports them. (Matching turned
 # out to be case-INsensitive on Maestro 2.0.10, so the casing is documentation
 # rather than the thing that makes them bite; the values are.)
+#
+# -----------------------------------------------------------------------------
+# ALL THREE HAVE NOW BEEN WATCHED FAILING (2026-07-26)
+# -----------------------------------------------------------------------------
+# Each was driven RED against a real screen while the other two were left
+# passing, so each red is attributable to exactly one variable — §2.11a's lesson
+# that a mutation moving two things at once proves nothing.
+#
+#   COMPLETE       Re-opening THIS quest from the journal mounts the identical
+#                  `QuestComplete` with `fromJournal=true`. On that screen the XP
+#                  and duration badges still assert green and this line returns
+#                  `Assertion is false: "COMPLETE" is visible`. So it really does
+#                  discriminate the post-quest path from a journal view.
+#                  (`QuestCompleteHeader.tsx:79` puts the word in the eyebrow too
+#                  — `STORY QUEST · COMPLETE` — but §2.12 matching is full-string,
+#                  so this line binds to the Badge alone.)
+#   +9 XP         Same string against a different real record goes red:
+#                  quest-1's journal detail fails `\+9 XP` and passes
+#                  `\+100 XP`, while quest-1b's passes `\+9 XP` and fails
+#                  `\+8 XP`. It tracks the persisted reward, not the shape.
+#   2 MIN OFFLINE quest-1b's journal detail renders `1 MIN OFFLINE` and fails
+#                  this string — the *run* record carries `durationMinutes: 1`
+#                  (`quest-run.controller.js:181`) while the *template* this
+#                  screen renders carries 2. Same quest, two stored durations,
+#                  and the assertion follows whichever one is on screen. That is
+#                  SHE-28 surfacing somewhere other than the clock; do not
+#                  "reconcile" this to 1 to make some future journal flow pass.
+#
+# `\+` is kept escaped for portability but is NOT what makes these bite: the
+# unescaped `'+9 XP'` matches too on Maestro 2.0.10, so it is not passing a
+# `+`-leading pattern to a JVM regex raw. The digit is what discriminates.
+# -----------------------------------------------------------------------------
 - assertVisible: '\+9 XP'
 - assertVisible: '2 MIN OFFLINE'
 - assertVisible: 'COMPLETE'
