@@ -12,15 +12,29 @@ appId: com.vaedros.unquest
 #   6. Lock the phone to start the quest
 #
 # Anchored on testIDs, not copy: the redesign rewrote nearly every string on
-# these screens (mostly capitalisation) and Maestro's text matching is
-# case-sensitive, so copy anchors break on every visual pass.
+# these screens, and Maestro matches the FULL string, so a partial copy anchor
+# breaks on every visual pass. (Matching is case-INsensitive on 2.0.10/iOS —
+# an earlier version of this comment said the opposite and was wrong.)
 #
-# After this flow, run-tests.sh waits out the quest duration before running
-# part 2. The onboarding quest is built client-side from AVAILABLE_QUESTS
-# (`data/quests.ts`), whose dev override is 1 minute — verified on device: the
-# quest run's expiresAt is startedAt + 60s. The server's 2-minute story override
-# (quest-template.controller.js) applies only to quests fetched from the
-# next-available endpoint, which this one is not.
+# After this flow, the runner must wait out the quest duration before running
+# part 2. THAT WAIT IS 135 SECONDS. Do not shorten it.
+#
+# An earlier version of this comment claimed the onboarding quest is built
+# client-side from AVAILABLE_QUESTS (`data/quests.ts`) with a 1-minute dev
+# override, so 75s would do. That is wrong and it is the single most expensive
+# error to reintroduce here. `onboarding/first-quest.tsx:94` calls
+# `useNextAvailableQuests()` and `:242` uses `questData.quests[0]` — the quest
+# comes from the SERVER, and the server's dev override serves story quests as
+# 2 minutes (quest-template.controller.js:32/259). AVAILABLE_QUESTS is used
+# only for audio preload. Confirmed on device: the persisted
+# QUEST_TIMER_TEMPLATE carries `durationMinutes: 2`.
+#
+# The 60s figure in the old comment was real but came from a THIRD copy of the
+# knob — quest-run.controller.js:181 hardcodes 1 minute on the embedded run —
+# so the server closes the run at 60s while the client counts to 120s. Unlocking
+# in that gap yields whichever signal lands first, which reads as flakiness.
+# Only a wait past 120s satisfies both clocks. See §2.10 of the handoff doc and
+# Linear SHE-28.
 # =============================================================================
 
 # =============================================================================
