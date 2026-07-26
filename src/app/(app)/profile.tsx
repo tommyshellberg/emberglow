@@ -16,6 +16,7 @@ import {
   ScreenContainer,
   ScreenHeader,
   ScrollView,
+  Text,
   View,
 } from '@/components/ui';
 import { GuildsSection } from '@/features/guilds/components/guilds-section';
@@ -81,13 +82,38 @@ export default function ProfileScreen() {
     }
   }, [fetchUserDetails, character]);
 
+  // Must stay ABOVE the early returns. useCharacterSync restores a character
+  // asynchronously, so this component re-renders from the no-character branch
+  // into the full one — and a hook below those returns would go from unmounted
+  // to mounted mid-life, which React rejects with "Rendered more hooks than
+  // during the previous render".
+  const user = useUserStore((state) => state.user);
+
   // Don't render anything while redirecting
-  if (!character || isRedirecting) {
+  if (isRedirecting) {
     return null; // Return empty instead of a loading view
   }
 
-  // Get user from store for server stats
-  const user = useUserStore((state) => state.user);
+  // No hero to show. Reaching here should be rare — the navigation resolver
+  // sends character-less accounts back to onboarding — but this used to
+  // `return null`, which rendered a wholly blank screen that was
+  // indistinguishable from a crash and hid a real defect for three days.
+  // Say what is wrong instead of showing nothing.
+  if (!character) {
+    return (
+      <View
+        className="flex-1 items-center justify-center bg-background px-6"
+        testID="profile-missing-character"
+      >
+        <FocusAwareStatusBar />
+        <Text className="mb-2 text-center text-xl font-bold">No hero yet</Text>
+        <Text className="text-center opacity-70">
+          This account hasn't created a character. Restart the app to pick your
+          hero and begin your journey.
+        </Text>
+      </View>
+    );
+  }
 
   // Calculate total minutes from completed quests
   // Use server stats if available, otherwise calculate from local data

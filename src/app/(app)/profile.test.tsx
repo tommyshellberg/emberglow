@@ -3,7 +3,7 @@ import React from 'react';
 
 import type { Perk } from '@/api/skill-tree/types';
 import * as userService from '@/lib/services/user';
-import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
+import { act, cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
@@ -310,6 +310,41 @@ describe('ProfileScreen', () => {
       // Component should not render profile content
       expect(queryByText('Profile')).not.toBeOnTheScreen();
       expect(queryByText('Leaderboard')).not.toBeOnTheScreen();
+    });
+
+    // useCharacterSync restores a character asynchronously, so this component
+    // can re-render with one MORE hook than its previous render (useUserStore
+    // sits below the early return). React throws "Rendered more hooks than
+    // during the previous render" on exactly that transition.
+    it('survives a character arriving after the first render', () => {
+      useCharacterStore.setState({ character: null });
+      const { queryByTestId } = render(<ProfileScreen />);
+      expect(queryByTestId('profile-missing-character')).toBeOnTheScreen();
+
+      act(() => {
+        useCharacterStore.setState({
+          character: {
+            name: 'Tommy',
+            type: 'bard',
+            level: 1,
+            currentXP: 0,
+            xpToNextLevel: 100,
+          } as any,
+        });
+      });
+
+      expect(queryByTestId('profile-missing-character')).not.toBeOnTheScreen();
+    });
+
+    // A character-less account rendered `return null` here, which is
+    // indistinguishable from a crash: the screen was entirely blank, and the
+    // real defect stayed invisible until the server logs were read.
+    it('explains itself instead of rendering a blank screen when the character is missing', () => {
+      useCharacterStore.setState({ character: null });
+
+      const { getByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-missing-character')).toBeOnTheScreen();
     });
   });
 
