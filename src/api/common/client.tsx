@@ -51,6 +51,18 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = [];
 };
 
+// A provisional user is one who has played through onboarding but not yet
+// claimed an account. Their credentials live under a different storage key and
+// are NOT refreshable through /auth/refresh-tokens, so a 401 on their behalf
+// means "this call needed a real account", never "the session died" — and
+// signing them out discards the only copy of their hero.
+//
+// Local to this module deliberately: the same expression is spelled out at a
+// dozen call sites across services, and unifying those is a wider change than
+// this file. What matters here is that all three sign-out paths below agree.
+const hasProvisionalCredentials = (): boolean =>
+  !!getItem('provisionalAccessToken');
+
 // Check if we should attempt token refresh
 const shouldAttemptRefresh = (): boolean => {
   const now = Date.now();
@@ -128,6 +140,26 @@ apiClient.interceptors.response.use(
           `[API Client] Exceeded max refresh attempts (${MAX_REFRESH_ATTEMPTS})`
         );
 
+        // Never escalate for a provisional user. The escalation below ends in a
+        // `cancelable: false` alert whose only button calls signOut() (see
+        // use-token-refresh-error-handler.ts), which clears the provisional
+        // keys and destroys an unclaimed hero — while the provisional token
+        // itself is still perfectly valid, often for weeks.
+        //
+        // Reaching here needs only three failing authenticated calls inside the
+        // five-minute window, and a provisional user's calls to account-scoped
+        // endpoints 401 every time, so this was reachable on an ordinary cold
+        // start. Reject with the underlying 401 and let the caller decide; the
+        // two refresh-failure branches further down already behave this way.
+        if (hasProvisionalCredentials()) {
+          if (__DEV__) {
+            console.log(
+              '[API Client] Refresh budget exhausted for a provisional user — rejecting without escalating'
+            );
+          }
+          return Promise.reject(error);
+        }
+
         // Create a custom error for the UI to handle
         const exhaustedError = new Error('TOKEN_REFRESH_EXHAUSTED');
         (exhaustedError as any).code = 'TOKEN_REFRESH_EXHAUSTED';
@@ -194,8 +226,7 @@ apiClient.interceptors.response.use(
           processQueue(refreshError);
 
           // Check if this is a provisional user before signing out
-          const hasProvisionalToken = !!getItem('provisionalAccessToken');
-          if (!hasProvisionalToken) {
+          if (!hasProvisionalCredentials()) {
             signOut();
           } else if (__DEV__) {
             console.log(
@@ -209,8 +240,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshError as Error);
 
         // Check if this is a provisional user before signing out
-        const hasProvisionalToken = !!getItem('provisionalAccessToken');
-        if (!hasProvisionalToken) {
+        if (!hasProvisionalCredentials()) {
           signOut();
         } else if (__DEV__) {
           console.log(
