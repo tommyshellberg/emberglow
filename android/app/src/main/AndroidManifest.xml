@@ -42,13 +42,8 @@
         <data android:scheme="exp+unquest-app"/>
       </intent-filter>
     </activity>
-    <service
-      android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask"
-      android:foregroundServiceType="specialUse"
-      tools:replace="android:foregroundServiceType">
-      <property
-        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-        android:value="User-initiated focus-session countdown timer with live progress notification" />
+    <service android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask" android:foregroundServiceType="specialUse" tools:replace="android:foregroundServiceType">
+      <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-initiated focus-session countdown timer with live progress notification"/>
     </service>
   </application>
 </manifest>

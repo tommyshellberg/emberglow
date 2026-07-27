@@ -374,7 +374,7 @@ function LegalSection() {
               color={colors.text.muted}
             />
           }
-          onPress={() => Linking.openURL('https://unquestapp.com/terms')}
+          onPress={() => Linking.openURL('https://emberglowapp.com/terms')}
         />
       </View>
     </>
