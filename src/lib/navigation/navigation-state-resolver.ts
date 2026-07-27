@@ -123,13 +123,21 @@ export function useNavigationTarget(): NavigationTarget {
       return;
     }
 
-    // Only from a standing start. This branch exists for a verified user
-    // opening a fresh install, whose persisted step is therefore NOT_STARTED.
-    // Any other step means onboarding is actively in progress — which now
-    // happens to signed-in, non-provisional users too, since the branch above
-    // sends character-less accounts back into it. Completing them mid-flow
-    // would skip the intro and first quest they were sent back for.
-    if (!isOnboardingComplete && currentStep === OnboardingStep.NOT_STARTED) {
+    // Only from a standing start — or from the very last step. NOT_STARTED
+    // is a verified user opening a fresh install. VIEWING_SIGNUP_PROMPT is a
+    // provisional user whose signup on the claim-your-legend screen just
+    // succeeded: socialSignIn/verifyMagicLink cleared the provisional keys
+    // (so the hasProvisionalData guard above no longer returns early), and
+    // both conversion paths rely on THIS effect to finish onboarding — it is
+    // the last step, so completing from it skips nothing. Every step in
+    // between means onboarding is actively in progress (the no-hero flow runs
+    // it fully authenticated); completing those mid-flow would skip the intro
+    // and first quest the user was sent back for.
+    if (
+      !isOnboardingComplete &&
+      (currentStep === OnboardingStep.NOT_STARTED ||
+        currentStep === OnboardingStep.VIEWING_SIGNUP_PROMPT)
+    ) {
       // User is signed in with no provisional data and no local data
       // This indicates they're a verified user logging in on a fresh install
       console.log(
@@ -186,9 +194,16 @@ export function useNavigationTarget(): NavigationTarget {
   const hasProvisionalSession = !!(
     getItem('provisionalUserId') || getItem('provisionalAccessToken')
   );
+  // A signed-in, non-provisional user can ALSO be mid-onboarding: a social
+  // signup with no hero is routed back through it fully authenticated, and no
+  // provisional session ever exists on that path. Any started-but-unfinished
+  // step therefore counts; NOT_STARTED stays excluded so a verified user on a
+  // fresh install (force-completed by the sync effect above) isn't captured.
   const isInOnboardingFlow =
     !isOnboardingComplete &&
-    (authStatus === 'signOut' || hasProvisionalSession);
+    (authStatus === 'signOut' ||
+      hasProvisionalSession ||
+      currentStep !== OnboardingStep.NOT_STARTED);
 
   // Priority 1: Streak celebration (highest priority to show before quest complete)
   if (shouldShowStreakCelebration) {
