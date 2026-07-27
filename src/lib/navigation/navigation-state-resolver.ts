@@ -89,6 +89,17 @@ export function useNavigationTarget(): NavigationTarget {
   // fetch simply hasn't landed yet — a different state, and the one the
   // force-complete branch below is for. Computed here (not just inside the
   // effect) so the render's return value below can act on it synchronously.
+  //
+  // Checks both `type` and `name`, not just `type`: every user-reachable write
+  // path (createProvisionalUser, PATCH /users/me — user.validation.js) marks
+  // both fields required on the same request, so in ordinary onboarding they
+  // are never set independently. The one exception is the admin-only
+  // PATCH /users/:userId route (`manageUsers` scope), whose validation allows
+  // a partial character object and whose Mongoose update only validates the
+  // paths being $set — so a type-without-name (or vice versa) row isn't
+  // reachable from the app, but isn't impossible in the database either. This
+  // check is this account's last-line safety net, so covering that DB-only
+  // edge case costs nothing.
   const serverAccountHasNoCharacter =
     !!serverUser && !(serverUser.type && serverUser.name);
 

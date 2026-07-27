@@ -164,8 +164,20 @@ export function isAlreadyAtTarget(
       return segments[0] === 'streak-celebration';
     case 'first-quest-result':
       return segments[0] === 'first-quest-result';
+
+    // A hero-less account sitting in the app group must still be evicted to
+    // /no-hero. But tapping the screen's "Choose your hero" button resets
+    // onboarding and navigates to /onboarding/welcome WITHOUT changing any
+    // resolver input — serverUser is unchanged, so the resolver still answers
+    // 'no-hero' on the next render. A strict segments[0] === 'no-hero' match
+    // read that as "not there yet" and replaced the user straight back onto
+    // /no-hero, making the button inert (same dead-link shape as
+    // PRE_ACCOUNT_ZONE above, just not initiated from inside that zone).
     case 'no-hero':
-      return segments[0] === 'no-hero';
+      return (
+        segments[0] === 'no-hero' ||
+        Object.hasOwn(PRE_ACCOUNT_ZONE, segments[0])
+      );
 
     default: {
       const _exhaustive: never = target;
