@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { getAccessToken } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 
@@ -21,6 +22,7 @@ import {
 
 // Mock dependencies
 jest.mock('@/api/common/client');
+jest.mock('@/api/token', () => ({ getAccessToken: jest.fn(() => null) }));
 jest.mock('@/lib/storage');
 jest.mock('uuid');
 
@@ -115,6 +117,18 @@ describe('User Service', () => {
   });
 
   describe('createProvisionalUser', () => {
+    it('refuses to mint a provisional account over an active real session', async () => {
+      // Named bug: Google-first signup → onboarding minted a SECOND server
+      // account, silently splitting quest runs across two identities.
+      (getAccessToken as jest.Mock).mockReturnValueOnce('real-access-token');
+
+      await expect(
+        createProvisionalUser({ type: 'alchemist', name: 'Tester' } as any)
+      ).rejects.toThrow('PROVISIONAL_WITH_ACTIVE_SESSION');
+
+      expect(mockApiClient.post).not.toHaveBeenCalled();
+    });
+
     it('identifies the user in PostHog with the server user id', async () => {
       mockUuidv4.mockReturnValue('test-uuid' as any);
       mockApiClient.post.mockResolvedValue({

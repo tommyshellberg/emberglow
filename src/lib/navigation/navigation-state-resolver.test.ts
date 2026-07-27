@@ -8,6 +8,7 @@ import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep } from '@/store/onboarding-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 // Mock modules
 jest.mock('@/lib/storage');
@@ -15,6 +16,7 @@ jest.mock('@/lib/auth');
 jest.mock('@/store/onboarding-store');
 jest.mock('@/store/character-store');
 jest.mock('@/store/quest-store');
+jest.mock('@/store/user-store');
 
 // Setup mock implementations
 const mockGetItem = getItem as jest.MockedFunction<typeof getItem>;
@@ -37,14 +39,52 @@ const mockAuthState = {
   status: 'idle' as 'idle' | 'signOut' | 'signIn' | 'hydrating',
 };
 
+// Step order, mirrored from the real store so the double below can enforce the
+// same rule. Kept local rather than exported from the store: the point is for
+// this file to encode what the store PROMISES, so a change there fails here.
+const STEP_ORDER: Record<OnboardingStep, number> = {
+  [OnboardingStep.NOT_STARTED]: 0,
+  [OnboardingStep.SELECTING_CHARACTER]: 1,
+  [OnboardingStep.VIEWING_INTRO]: 2,
+  [OnboardingStep.REQUESTING_NOTIFICATIONS]: 3,
+  [OnboardingStep.STARTING_FIRST_QUEST]: 4,
+  [OnboardingStep.VIEWING_SIGNUP_PROMPT]: 5,
+  [OnboardingStep.COMPLETED]: 6,
+};
+
 const mockOnboardingState = {
   isOnboardingComplete: jest.fn(() => false),
   currentStep: OnboardingStep.NOT_STARTED,
-  setCurrentStep: jest.fn(),
+  // NOT a bare jest.fn(). The real setCurrentStep is FORWARD-ONLY: it silently
+  // refuses to move backwards and only logs a warning. A bare spy records the
+  // call and reports success, so a test asserting "we asked for step X" passes
+  // while the app does nothing — which is exactly how a broken fix for the
+  // character-less social account shipped and had to be caught on a device.
+  // Move backwards through resetOnboarding, which set()s directly.
+  setCurrentStep: jest.fn((step: OnboardingStep) => {
+    if (STEP_ORDER[step] >= STEP_ORDER[mockOnboardingState.currentStep]) {
+      mockOnboardingState.currentStep = step;
+    }
+  }),
+  resetOnboarding: jest.fn(() => {
+    mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
+  }),
 };
 
 const mockCharacterState = {
   character: null as any,
+};
+
+const mockUseUserStore = useUserStore as jest.MockedFunction<
+  typeof useUserStore
+>;
+
+// The server's view of the account. `type`/`name` are '' (not undefined) when
+// the account has no character — see the server's transformUserResponse, whose
+// fallbacks are `character?.type || ''`. `user: null` means the post-sign-in
+// fetch has not landed yet, which is a DIFFERENT state from "has no character".
+const mockUserState = {
+  user: null as any,
 };
 
 const mockQuestState = {
@@ -79,6 +119,8 @@ beforeEach(() => {
     selector(mockCharacterState)
   );
 
+  mockUseUserStore.mockImplementation((selector) => selector(mockUserState));
+
   mockUseQuestStore.mockImplementation((selector) => {
     if (typeof selector === 'function') {
       return selector(mockQuestState);
@@ -91,7 +133,9 @@ beforeEach(() => {
   mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
   mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
   mockOnboardingState.setCurrentStep.mockClear();
+  mockOnboardingState.resetOnboarding.mockClear();
   mockCharacterState.character = null;
+  mockUserState.user = null;
   mockQuestState.pendingQuest = null;
   mockQuestState.recentCompletedQuest = null;
   mockQuestState.failedQuest = null;
@@ -216,6 +260,68 @@ describe('Navigation State Resolver', () => {
     expect(result.current).toEqual({
       type: 'first-quest-result',
       outcome: 'failed',
+    });
+  });
+
+  it('redirects to first-quest-result for completed first quest during AUTHENTICATED onboarding (no provisional session)', () => {
+    // Named bug: a Google-first signup runs onboarding fully authenticated —
+    // no provisional session ever exists. The onboarding-flow predicate only
+    // recognized signOut/provisional, so completion routed to the regular
+    // quest-result screen, which cleared the quest WITHOUT advancing the
+    // onboarding step: the user was sent back to the wake-up CTA forever.
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.STARTING_FIRST_QUEST;
+    mockCharacterState.character = { type: 'alchemist', name: 'jeremy' };
+    mockUserState.user = { type: 'alchemist', name: 'jeremy' };
+    mockQuestState.recentCompletedQuest = { id: 'quest-1' };
+    mockGetItem.mockReturnValue(null); // no provisional anything
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'first-quest-result',
+      outcome: 'completed',
+    });
+  });
+
+  it('redirects to first-quest-result for failed first quest during AUTHENTICATED onboarding (no provisional session)', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.STARTING_FIRST_QUEST;
+    mockCharacterState.character = { type: 'alchemist', name: 'jeremy' };
+    mockUserState.user = { type: 'alchemist', name: 'jeremy' };
+    mockQuestState.failedQuest = { id: 'quest-1' };
+    mockGetItem.mockReturnValue(null);
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'first-quest-result',
+      outcome: 'failed',
+    });
+  });
+
+  it('keeps the regular quest-result for a verified user whose onboarding store was reset (NOT_STARTED is not "mid-onboarding")', () => {
+    // Counterpart to the two tests above: the flow predicate must not
+    // over-apply. A verified user with a wiped/reset onboarding store
+    // (legacy migration) is NOT mid-onboarding — their completed quest keeps
+    // the regular result screen, and the sync effect force-completes the
+    // store from NOT_STARTED.
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
+    mockCharacterState.character = { type: 'alchemist', name: 'jeremy' };
+    mockUserState.user = { type: 'alchemist', name: 'jeremy' };
+    mockQuestState.recentCompletedQuest = { id: 'quest-5' };
+    mockGetItem.mockReturnValue(null);
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({
+      type: 'quest-result',
+      questId: 'quest-5',
+      outcome: 'completed',
     });
   });
 
@@ -446,6 +552,86 @@ describe('Navigation State Resolver', () => {
     );
   });
 
+  // A social signup (resolveSocialUser branch 4) creates a full, verified
+  // account with NO character, so the user never passes through onboarding.
+  // The step below is already COMPLETED because a previous run of the
+  // sync effect force-completed it and MMKV persisted that. Routing here is
+  // synchronous (part of the render's return value, not a useEffect side
+  // effect) so the caller never sees an intermediate '/(app)' target — the
+  // silent bounce is the defect this replaces.
+  it('routes a hero-less signed-in account to the explanation, not silently home', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+    mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+    mockCharacterState.character = null;
+    mockQuestState.completedQuests = [];
+    // Empty strings, exactly as the server sends them for a null character.
+    mockUserState.user = { id: 'u1', type: '', name: '', email: 'a@b.com' };
+    mockGetItem.mockReturnValue(null); // no provisional data
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({ type: 'no-hero' });
+    expect(result.current).not.toEqual({ type: 'app' });
+  });
+
+  // The over-application guard for the test above. A returning user on a fresh
+  // install ALSO has `character === null` at this moment — the post-sign-in
+  // fetch has not hydrated the store yet — so keying on the local character
+  // alone would drag them into character creation and overwrite the hero they
+  // already own. Only the server's empty type/name may trigger that.
+  it('still completes onboarding for a returning user whose server account has a character', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
+    mockCharacterState.character = null;
+    mockQuestState.completedQuests = [];
+    mockUserState.user = {
+      id: 'u1',
+      type: 'bard',
+      name: 'Tommy',
+      email: 'a@b.com',
+    };
+    mockGetItem.mockReturnValue(null);
+
+    renderHook(() => useNavigationTarget());
+
+    expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
+      OnboardingStep.COMPLETED
+    );
+    expect(mockOnboardingState.setCurrentStep).not.toHaveBeenCalledWith(
+      OnboardingStep.SELECTING_CHARACTER
+    );
+  });
+
+  // Once the fix above routes a character-less social user into onboarding,
+  // they walk it while ALREADY signed in and non-provisional — the two
+  // conditions the force-complete branch keys on. Without a step check it
+  // fires the moment they pick a hero and skips the intro and first quest,
+  // which is the whole experience they were sent back for.
+  it('does not force-complete onboarding while a verified user is partway through it', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.VIEWING_INTRO;
+    // They have just chosen a hero locally; the server has not been told yet.
+    mockCharacterState.character = {
+      name: 'Tommy',
+      type: 'bard',
+      level: 1,
+      currentXP: 0,
+      xpToNextLevel: 100,
+    };
+    mockQuestState.completedQuests = [];
+    mockUserState.user = { id: 'u1', type: '', name: '', email: 'a@b.com' };
+    mockGetItem.mockReturnValue(null);
+
+    renderHook(() => useNavigationTarget());
+
+    expect(mockOnboardingState.setCurrentStep).not.toHaveBeenCalledWith(
+      OnboardingStep.COMPLETED
+    );
+  });
+
   it('does not synchronize onboarding state for truly new users', () => {
     mockAuthState.status = 'signIn';
     mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
@@ -481,6 +667,29 @@ describe('Navigation State Resolver', () => {
     expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
       OnboardingStep.COMPLETED
     );
+  });
+
+  it('completes onboarding after a successful signup from the signup prompt (provisional conversion)', () => {
+    // Named bug: tapping "Continue with Google" on the claim-your-legend
+    // screen succeeded server-side, socialSignIn cleared the provisional
+    // keys, but the step stayed VIEWING_SIGNUP_PROMPT — the sync effect only
+    // fired from NOT_STARTED, and the VIEWING_SIGNUP_PROMPT special case
+    // routed the user straight back to the signup screen. Both social and
+    // magic-link conversions rely on this effect (see quest-completed-signup
+    // handleSocialSignInSuccess). VIEWING_SIGNUP_PROMPT is the LAST step, so
+    // completing from it skips nothing.
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
+    mockOnboardingState.currentStep = OnboardingStep.VIEWING_SIGNUP_PROMPT;
+    mockCharacterState.character = { type: 'alchemist', name: 'James' };
+    mockUserState.user = { type: 'alchemist', name: 'James' };
+    mockGetItem.mockReturnValue(null); // provisional keys cleared by socialSignIn
+
+    renderHook(() => useNavigationTarget());
+
+    // Assert the resulting STEP, not merely that a setter was called — the
+    // double enforces the store's forward-only rule.
+    expect(mockOnboardingState.currentStep).toBe(OnboardingStep.COMPLETED);
   });
 
   it('does not synchronize onboarding state for users with provisional data', () => {

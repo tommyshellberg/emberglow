@@ -391,6 +391,7 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
     configure: jest.fn(),
     hasPlayServices: jest.fn().mockResolvedValue(true),
+    signOut: jest.fn().mockResolvedValue(undefined),
     signIn: jest.fn(),
   },
   statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },

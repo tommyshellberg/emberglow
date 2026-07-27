@@ -163,6 +163,40 @@ describe('isAlreadyAtTarget', () => {
     });
   });
 
+  describe('the /no-hero eviction loop regression', () => {
+    // Tapping "Choose your hero" on /no-hero calls resetOnboarding() and
+    // router.replace('/onboarding/welcome'), but neither action changes any
+    // resolver input (serverUser is untouched), so the resolver still answers
+    // 'no-hero' on the very next render. A strict segments[0] === 'no-hero'
+    // match read the user's new location (onboarding) as "not there yet" and
+    // replaced them straight back onto /no-hero — the button never worked.
+    it('accepts the onboarding funnel as good enough for target no-hero', () => {
+      expect(
+        isAlreadyAtTarget(
+          { type: 'no-hero' },
+          ['onboarding', 'welcome'],
+          '/onboarding/welcome'
+        )
+      ).toBe(true);
+    });
+
+    // The permissiveness must not swallow the case the screen exists for: a
+    // hero-less account sitting inside the app group still has to be evicted.
+    // This is the guard against over-applying the fix above (an
+    // always-true no-hero case would pass the test above too).
+    it('still evicts a hero-less account sitting in the app group', () => {
+      expect(isAlreadyAtTarget({ type: 'no-hero' }, ['(app)'], '/')).toBe(
+        false
+      );
+    });
+
+    it('reports we are already at no-hero when sitting on /no-hero', () => {
+      expect(
+        isAlreadyAtTarget({ type: 'no-hero' }, ['no-hero'], '/no-hero')
+      ).toBe(true);
+    });
+  });
+
   describe('the failed-quest redirect loop regression', () => {
     // Captured from a real Android SDK 53 session (2026-07-16): with
     // failedQuest armed, usePathname() read bare '/quest' while segments read

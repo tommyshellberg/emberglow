@@ -74,6 +74,24 @@ type LoginFraming = {
   startNewLead: string;
   /** Accent-coloured second half, naming what onboarding asks for next. */
   startNewAction: string;
+  /** Heading of the no-account step. */
+  noAccountTitle: string;
+  /**
+   * Body of the no-account step. A function, like `chooserSubtitle`, so the
+   * empty-address fallback lives with the string that needs it — `api/auth.ts`
+   * resolves a missing `details.email` to `''` rather than failing the sign-in,
+   * so every entry must read correctly with no address.
+   */
+  noAccountBody: (email: string) => string;
+  /** Label of the primary action, which always leads into onboarding. */
+  noAccountPrimaryLabel: string;
+  /**
+   * Whether "Try another account" belongs on this framing. Required and read as
+   * a flag for the same reason as `showStartNewLink`: a third intent must fail
+   * to compile until someone decides, rather than silently inheriting a retry
+   * that cannot succeed.
+   */
+  noAccountShowsRetry: boolean;
 };
 
 export const LOGIN_COPY: Record<LoginIntent, LoginFraming> = {
@@ -89,6 +107,13 @@ export const LOGIN_COPY: Record<LoginIntent, LoginFraming> = {
     showStartNewLink: true,
     startNewLead: START_NEW_LEAD,
     startNewAction: START_NEW_ACTION,
+    noAccountTitle: 'No account yet',
+    noAccountBody: (email) =>
+      email
+        ? `We couldn't find an Emberglow account for ${email}. Every hero starts with a journey — ready to begin?`
+        : "We couldn't find an Emberglow account to sign into. Every hero starts with a journey — ready to begin?",
+    noAccountPrimaryLabel: 'Begin new journey',
+    noAccountShowsRetry: true,
   },
   convert: {
     chooserTitle: 'Save your progress',
@@ -115,6 +140,14 @@ export const LOGIN_COPY: Record<LoginIntent, LoginFraming> = {
     // flag on can never surface stale or drifted copy.
     startNewLead: START_NEW_LEAD,
     startNewAction: START_NEW_ACTION,
+    noAccountTitle: "We couldn't find your progress",
+    // This user HAS a hero locally; what is missing is the provisional record
+    // the server converts. Retrying the same provider cannot produce it, so the
+    // only honest offer is to start the journey again.
+    noAccountBody: () =>
+      "Your quest progress couldn't be linked to an account. Let's start your journey again — it only takes a moment.",
+    noAccountPrimaryLabel: 'Start over',
+    noAccountShowsRetry: false,
   },
 };
 

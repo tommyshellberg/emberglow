@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { getAccessToken } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 import type { Character } from '@/store/types';
@@ -350,6 +351,14 @@ export async function refreshPremiumStatus(): Promise<{
 export async function createProvisionalUser(
   character: Character
 ): Promise<any> {
+  // Invariant: a device must never hold a real session AND mint a provisional
+  // account — every write path prefers the provisional token when it exists,
+  // so the two identities silently split the user's data (empty journal,
+  // zeroed server stats). Callers with a real session must PATCH the
+  // character onto that account (updateUserCharacter) instead.
+  if (getAccessToken()) {
+    throw new Error('PROVISIONAL_WITH_ACTIVE_SESSION');
+  }
   try {
     // Generate a provisional email using UUID
     const provisionalEmail = `${uuidv4()}@unquestapp.com`;

@@ -39,6 +39,14 @@ export async function getGoogleCredential() {
   ensureConfigured();
   await GoogleSignin.hasPlayServices();
 
+  // The SDK caches the last signed-in account and `signIn()` resolves straight
+  // to it, so without this the chooser never appears again and the user cannot
+  // pick a different account without clearing app storage. Clears LOCAL cached
+  // state only — not the OAuth grant (that is `revokeAccess()`) and not any
+  // server session. Nothing depends on the cached state: this app trades the
+  // idToken for its own JWTs immediately and never calls `signInSilently`.
+  await GoogleSignin.signOut();
+
   let result;
   try {
     result = await GoogleSignin.signIn();

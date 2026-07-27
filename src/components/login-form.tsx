@@ -1,7 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -9,7 +8,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import type { SocialProvider } from '@/components/login';
 import { useAuth } from '@/lib/auth';
 import {
-  SOCIAL_SIGNIN_OUTCOMES,
+  NoAccountForIdentity,
   type SocialSignInOutcome,
 } from '@/lib/auth/social';
 import { removeItem } from '@/lib/storage';
@@ -29,6 +28,7 @@ import { DEFAULT_LOGIN_INTENT, LOGIN_COPY } from './login/copy';
 import { EmailInputView } from './login/email-input-view';
 import { EmailSentView } from './login/email-sent-view';
 import { useMagicLink } from './login/hooks/use-magic-link';
+import { NoAccountView } from './login/no-account-view';
 import { StartOverSheet } from './login/start-over-sheet';
 import { cardMeta } from './login/text-styles';
 import type { LoginFormProps } from './login/types';
@@ -70,7 +70,6 @@ export const LoginForm = ({
   intent = DEFAULT_LOGIN_INTENT,
 }: LoginFormProps) => {
   const copy = LOGIN_COPY[intent];
-  const posthog = usePostHog();
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
   const signOut = useAuth((state) => state.signOut);
   // Read here rather than inside `ChooserView` so that view stays a pure
@@ -105,6 +104,12 @@ export const LoginForm = ({
   // sheet takes a controlled `visible` prop (see its JSDoc).
   const [isConfirmingStartOver, setIsConfirmingStartOver] = useState(false);
 
+  // The address from a no-account failure. `null` means "not in that state" —
+  // an empty STRING is a real value here (the server always sends an address,
+  // but api/auth.ts falls back to '' rather than failing the sign-in over a
+  // display string), so presence cannot be tested by truthiness.
+  const [noAccountEmail, setNoAccountEmail] = useState<string | null>(null);
+
   const {
     isLoading,
     error,
@@ -133,7 +138,8 @@ export const LoginForm = ({
   // `isLoading` below): the transition out of `email` is blocked for exactly the
   // window in which `emailSent` can flip, so `mode === 'email'` is guaranteed
   // whenever that happens and the two can never disagree.
-  const step: 'chooser' | 'email' | 'sent' = emailSent ? 'sent' : mode;
+  const step: 'chooser' | 'email' | 'sent' | 'no-account' =
+    noAccountEmail !== null ? 'no-account' : emailSent ? 'sent' : mode;
 
   const handleEmailSubmit = async (email: string) => {
     await sendMagicLink(email, (submittedEmail) => {
@@ -154,33 +160,40 @@ export const LoginForm = ({
 
   const handleSocialSignInSuccess = (
     target: 'onboarding' | 'app',
-    outcome: SocialSignInOutcome | (string & {}),
-    provider: SocialProvider
+    _outcome: SocialSignInOutcome | (string & {}),
+    _provider: SocialProvider
   ) => {
-    // `completeSignIn` (src/api/auth.ts) always resolves target 'app' today
-    // — 'onboarding' is unreachable (see its JSDoc) — so mirroring
-    // verify.tsx's target-only routing would send a brand-new social
-    // signup (`outcome === 'created'`: a full user created directly from
-    // THIS screen, with no character — a state the app never had before
-    // social sign-in) straight into the app shell. Nothing under
-    // `(app)/` checks for a missing character, and the verified-user-on-
-    // fresh-install sync effect in navigation-state-resolver.ts actively
-    // marks onboarding COMPLETED for exactly this signed-in/no-provisional-
-    // data shape — it would never send them to onboarding on its own
-    // either. So `created` is routed to onboarding explicitly here; every
-    // other outcome follows `target`, same as verify.tsx.
-    if (outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED) {
-      // This is a genuinely new full account created directly from the
-      // login screen (as opposed to `login`/`existing-account-login`/
-      // `linked`, all of which sign the user into an account that already
-      // existed) — capture before navigating, same funnel event the
-      // magic-link (verify.tsx) and quest-completed-signup paths fire.
-      posthog.capture('signup_completed', { method: provider });
-      router.replace('/onboarding');
+    router.replace(target === 'app' ? '/(app)/' : '/onboarding');
+  };
+
+  /**
+   * The server reported that the verified identity owns no account —
+   * `/auth/social` no longer creates one. Names the address and hands the
+   * user into onboarding instead of the generic-error path.
+   */
+  const handleSocialSignInError = (error: unknown) => {
+    if (error instanceof NoAccountForIdentity) {
+      setNoAccountEmail(error.email);
       return;
     }
+    // Everything else keeps the existing generic/email-in-use mapping.
+    setError(mapError(error === 'email-in-use' ? 'email-in-use' : 'generic'));
+  };
 
-    router.replace(target === 'app' ? '/(app)/' : '/onboarding');
+  const handleBeginJourney = () => {
+    setNoAccountEmail(null);
+    // resetOnboarding, NOT setCurrentStep: the latter is forward-only and
+    // silently discards a backward move (see f90a968). Only resetOnboarding
+    // set()s the step directly, and NOT_STARTED is what runs the whole funnel.
+    resetOnboarding();
+    router.replace('/onboarding/welcome');
+  };
+
+  const handleTryAnotherAccount = () => {
+    // Clearing this returns the user to the chooser; getGoogleCredential now
+    // signs out of the SDK first, so the next attempt shows the account picker
+    // rather than silently reusing the one that just failed.
+    setNoAccountEmail(null);
   };
 
   /**
@@ -318,7 +331,14 @@ export const LoginForm = ({
                 error={error}
                 onContinueWithEmail={() => goToMode('email')}
                 onSocialSuccess={handleSocialSignInSuccess}
-                onSocialError={(kind) => setError(mapError(kind))}
+                onSocialError={handleSocialSignInError}
+              />
+            ) : step === 'no-account' ? (
+              <NoAccountView
+                intent={intent}
+                email={noAccountEmail ?? ''}
+                onBeginJourney={handleBeginJourney}
+                onTryAnotherAccount={handleTryAnotherAccount}
               />
             ) : (
               <EmailInputView

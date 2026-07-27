@@ -8,6 +8,7 @@ import {
   ExistingAccountConfirmationRequired,
   getAppleCredential,
   getGoogleCredential,
+  NoAccountForIdentity,
   SocialSignInCancelled,
 } from '@/lib/auth/social';
 import {
@@ -42,6 +43,10 @@ jest.mock('@/lib/auth/social', () => ({
   ExistingAccountConfirmationRequired: jest.requireActual(
     '@/lib/auth/social/errors'
   ).ExistingAccountConfirmationRequired,
+  // Same reasoning as `ExistingAccountConfirmationRequired` above: the
+  // component branches on `instanceof NoAccountForIdentity`.
+  NoAccountForIdentity: jest.requireActual('@/lib/auth/social/errors')
+    .NoAccountForIdentity,
   SOCIAL_SIGNIN_OUTCOMES: {
     LOGIN: 'login',
     EXISTING_ACCOUNT_LOGIN: 'existing-account-login',
@@ -255,6 +260,29 @@ describe('SocialSignInButtons', () => {
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith('generic');
       });
+    });
+
+    it('passes a NoAccountForIdentity error through to onError untranslated, and does not log it as a failure', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      const noAccountError = new NoAccountForIdentity('tommy@gmail.com');
+      mockSocialSignIn.mockRejectedValue(noAccountError);
+      const onError = jest.fn();
+
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith(noAccountError);
+      });
+      // Distinct from every other failure: nothing here is a fault to log,
+      // so it must not fire the same event a real failure does.
+      expect(mockCapture).not.toHaveBeenCalledWith(
+        'social_signin_failure',
+        expect.anything()
+      );
     });
 
     it('records the native error code on social_signin_failure, so a DEVELOPER_ERROR is distinguishable from a network failure', async () => {

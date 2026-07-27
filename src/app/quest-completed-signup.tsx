@@ -17,6 +17,7 @@ import {
 } from '@/components/login/social-sign-in-buttons';
 import { FocusAwareStatusBar } from '@/components/ui';
 import {
+  type NoAccountForIdentity,
   SOCIAL_SIGNIN_OUTCOMES,
   type SocialSignInOutcome,
 } from '@/lib/auth/social';
@@ -116,12 +117,9 @@ export default function QuestCompletedSignupScreen() {
       // this device, and their social identity already resolves to an
       // existing full account) — outcomes `login`, `existing-account-login`,
       // and `linked` all mean "signed into an account that already
-      // existed," not a new signup, so only `created`/`converted` (a
-      // genuinely new full account) should count toward the funnel.
-      if (
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED ||
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED
-      ) {
+      // existed," not a new signup, so only `converted` (a genuinely new
+      // full account) should count toward the funnel.
+      if (outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED) {
         posthog.capture('signup_completed', { method: provider });
       }
     },
@@ -129,14 +127,16 @@ export default function QuestCompletedSignupScreen() {
   );
 
   const handleSocialSignInError = useCallback(
-    (kind: 'email-in-use' | 'generic') => {
+    // A `NoAccountForIdentity` here is out of scope for this screen (it has
+    // no no-account step of its own) and is treated the same as any other
+    // failure — falls through with everything but the 409 case.
+    (kind: 'email-in-use' | 'generic' | NoAccountForIdentity) => {
+      const isEmailInUse = kind === 'email-in-use';
       showMessage({
-        message:
-          kind === 'email-in-use' ? 'Email already in use' : 'Sign-in failed',
-        description:
-          kind === 'email-in-use'
-            ? 'This email is already tied to another account.'
-            : 'Please try again.',
+        message: isEmailInUse ? 'Email already in use' : 'Sign-in failed',
+        description: isEmailInUse
+          ? 'This email is already tied to another account.'
+          : 'Please try again.',
         type: 'danger',
         duration: 3000,
       });

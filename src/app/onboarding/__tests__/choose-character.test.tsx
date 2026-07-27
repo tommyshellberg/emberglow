@@ -1,7 +1,11 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ChooseCharacterScreen from '../choose-character';
-import { createProvisionalUser } from '@/lib/services/user';
+import { getAccessToken } from '@/api/token';
+import {
+  createProvisionalUser,
+  updateUserCharacter,
+} from '@/lib/services/user';
 import { Dimensions } from 'react-native';
 import { useOnboardingStore, OnboardingStep } from '@/store/onboarding-store';
 import { useCharacterStore } from '@/store/character-store';
@@ -9,7 +13,12 @@ import { useCharacterStore } from '@/store/character-store';
 // Mock createProvisionalUser so we can simulate both success and failure.
 jest.mock('@/lib/services/user', () => ({
   createProvisionalUser: jest.fn(),
+  updateUserCharacter: jest.fn(),
 }));
+
+// Real-session discriminator: null = onboarding-from-scratch (provisional
+// path), a token = authenticated hero-less account (PATCH path).
+jest.mock('@/api/token', () => ({ getAccessToken: jest.fn(() => null) }));
 
 // Mock UI components
 jest.mock('@/components/ui/focus-aware-status-bar', () => ({
@@ -74,6 +83,8 @@ describe('ChooseCharacterScreen', () => {
     // Stub the store setter:
     useOnboardingStore.getState().setCurrentStep = jest.fn();
     (createProvisionalUser as jest.Mock).mockClear();
+    (updateUserCharacter as jest.Mock).mockClear();
+    (getAccessToken as jest.Mock).mockReset().mockReturnValue(null);
     mockCharacterStore.createCharacter.mockClear();
     mockCharacterStore.resetCharacter.mockClear();
   });
@@ -140,6 +151,47 @@ describe('ChooseCharacterScreen', () => {
       name: 'Arthur',
     });
 
+    expect(mockCharacterStore.createCharacter).toHaveBeenCalledWith(
+      'knight',
+      'Arthur'
+    );
+    expect(useOnboardingStore.getState().setCurrentStep).toHaveBeenCalledWith(
+      OnboardingStep.VIEWING_INTRO
+    );
+  });
+
+  it('PATCHes the character onto the real account (no provisional user) when a session exists', async () => {
+    // Named bug: Google-first signup landed here with a live session;
+    // creating a provisional user split quest data across two accounts.
+    (getAccessToken as jest.Mock).mockReturnValue('real-access-token');
+    (updateUserCharacter as jest.Mock).mockResolvedValue({ success: true });
+
+    const { getByPlaceholderText, getByText, getByTestId } = render(
+      <ChooseCharacterScreen />
+    );
+
+    fireEvent.changeText(getByPlaceholderText('e.g. Rowan'), 'Arthur');
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+    fireEvent.press(getByText('Continue'));
+
+    const flatList = getByTestId('character-carousel');
+    fireEvent(flatList, 'onMomentumScrollEnd', {
+      nativeEvent: { contentOffset: { x: snapInterval } },
+    });
+
+    await act(async () => {
+      fireEvent.press(getByText('Create character'));
+      await Promise.resolve();
+      jest.runAllTimers();
+    });
+
+    expect(updateUserCharacter).toHaveBeenCalledWith({
+      type: 'knight',
+      name: 'Arthur',
+    });
+    expect(createProvisionalUser).not.toHaveBeenCalled();
     expect(mockCharacterStore.createCharacter).toHaveBeenCalledWith(
       'knight',
       'Arthur'
