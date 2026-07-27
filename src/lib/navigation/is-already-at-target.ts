@@ -25,6 +25,7 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
   'quest-completed-signup': true,
   'streak-celebration': true,
   'first-quest-result': true,
+  'no-hero': true,
 };
 
 /**
@@ -163,6 +164,8 @@ export function isAlreadyAtTarget(
       return segments[0] === 'streak-celebration';
     case 'first-quest-result':
       return segments[0] === 'first-quest-result';
+    case 'no-hero':
+      return segments[0] === 'no-hero';
 
     default: {
       const _exhaustive: never = target;

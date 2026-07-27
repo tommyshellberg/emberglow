@@ -493,9 +493,11 @@ describe('Navigation State Resolver', () => {
   // A social signup (resolveSocialUser branch 4) creates a full, verified
   // account with NO character, so the user never passes through onboarding.
   // The step below is already COMPLETED because a previous run of the
-  // sync effect force-completed it and MMKV persisted that — so declining to
-  // force-complete is not enough on its own; the step has to be walked back.
-  it('sends a verified user whose server account has no character back to character creation', () => {
+  // sync effect force-completed it and MMKV persisted that. Routing here is
+  // synchronous (part of the render's return value, not a useEffect side
+  // effect) so the caller never sees an intermediate '/(app)' target — the
+  // silent bounce is the defect this replaces.
+  it('routes a hero-less signed-in account to the explanation, not silently home', () => {
     mockAuthState.status = 'signIn';
     mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
     mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
@@ -505,12 +507,10 @@ describe('Navigation State Resolver', () => {
     mockUserState.user = { id: 'u1', type: '', name: '', email: 'a@b.com' };
     mockGetItem.mockReturnValue(null); // no provisional data
 
-    renderHook(() => useNavigationTarget());
+    const { result } = renderHook(() => useNavigationTarget());
 
-    // Assert the step MOVED, not that a setter was called. setCurrentStep is
-    // forward-only, so "called with SELECTING_CHARACTER" is satisfied by a
-    // request the store silently discards.
-    expect(mockOnboardingState.currentStep).toBe(OnboardingStep.NOT_STARTED);
+    expect(result.current).toEqual({ type: 'no-hero' });
+    expect(result.current).not.toEqual({ type: 'app' });
   });
 
   // The over-application guard for the test above. A returning user on a fresh

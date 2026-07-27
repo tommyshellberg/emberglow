@@ -17,6 +17,7 @@ export type NavigationTarget =
   | { type: 'onboarding' }
   | { type: 'login' }
   | { type: 'app' }
+  | { type: 'no-hero' }
   | { type: 'loading' };
 
 export function useNavigationTarget(): NavigationTarget {
@@ -27,7 +28,6 @@ export function useNavigationTarget(): NavigationTarget {
   );
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const setCurrentStep = useOnboardingStore((s) => s.setCurrentStep);
-  const resetOnboarding = useOnboardingStore((s) => s.resetOnboarding);
   const character = useCharacterStore((s) => s.character);
   const serverUser = useUserStore((s) => s.user);
 
@@ -81,6 +81,17 @@ export function useNavigationTarget(): NavigationTarget {
     shouldShowStreakCelebration,
   } = questState;
 
+  // A social signup (resolveSocialUser branch 4) mints a full, verified
+  // account with no character, so its owner never passes through onboarding.
+  // The server is the authority on that: transformUserResponse reports a null
+  // character as `type: ''` / `name: ''`, so an EMPTY string here means "this
+  // account has no hero", while `serverUser === null` means the post-sign-in
+  // fetch simply hasn't landed yet — a different state, and the one the
+  // force-complete branch below is for. Computed here (not just inside the
+  // effect) so the render's return value below can act on it synchronously.
+  const serverAccountHasNoCharacter =
+    !!serverUser && !(serverUser.type && serverUser.name);
+
   // Synchronize onboarding state when user is signed in but onboarding appears incomplete
   useEffect(() => {
     if (authStatus !== 'signIn') return;
@@ -93,30 +104,11 @@ export function useNavigationTarget(): NavigationTarget {
     );
     if (hasProvisionalData) return;
 
-    // A social signup (resolveSocialUser branch 4) mints a full, verified
-    // account with no character, so its owner never passes through onboarding.
-    // The server is the authority on that: transformUserResponse reports a null
-    // character as `type: ''` / `name: ''`, so an EMPTY string here means "this
-    // account has no hero", while `serverUser === null` means the post-sign-in
-    // fetch simply hasn't landed yet — a different state, and the one the
-    // force-complete below is for.
-    //
-    // Walk the step back rather than merely declining to complete it: an
-    // earlier run of this effect already force-completed these users and MMKV
-    // persisted that, so they stay stuck across relaunches otherwise.
-    //
-    // resetOnboarding, NOT setCurrentStep: the latter is forward-only and
-    // silently discards a backward move with only a console warning, so asking
-    // it for an earlier step leaves the user exactly where they were. Only
-    // resetOnboarding set()s the step directly. NOT_STARTED then runs the whole
-    // funnel from the welcome screen, which is what these users never saw.
-    const serverAccountHasNoCharacter =
-      !!serverUser && !(serverUser.type && serverUser.name);
+    // The hero-less case is handled synchronously below (type: 'no-hero') so
+    // it can't flash the app before this effect runs. resetOnboarding is no
+    // longer called here: it belongs to the '/no-hero' screen's button, which
+    // fires it when the user acts rather than as a side effect of a render.
     if (serverAccountHasNoCharacter && !character) {
-      console.log(
-        '🧭 Signed-in account has no character on the server - restarting onboarding'
-      );
-      resetOnboarding();
       return;
     }
 
@@ -144,7 +136,7 @@ export function useNavigationTarget(): NavigationTarget {
     serverUser,
     completedQuests,
     setCurrentStep,
-    resetOnboarding,
+    serverAccountHasNoCharacter,
   ]);
 
   // Debug current state
@@ -255,6 +247,17 @@ export function useNavigationTarget(): NavigationTarget {
       questId: recentCompletedQuest.id,
       outcome: 'completed',
     };
+  }
+
+  // Priority 2.5: Hero-less signed-in account. Checked synchronously here
+  // (not only inside the sync effect above) so a signed-in account with no
+  // server-side character never renders '/(app)' for a frame before this
+  // fires — that flash-then-correct was the original defect.
+  if (authStatus === 'signIn' && serverAccountHasNoCharacter && !character) {
+    console.log(
+      '🧭 Signed-in account has no character on the server - explaining before onboarding'
+    );
+    return { type: 'no-hero' };
   }
 
   // Priority 3: Onboarding
