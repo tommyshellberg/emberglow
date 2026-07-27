@@ -467,6 +467,7 @@ function RootLayout() {
           name="cooperative-quest-ready"
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="no-hero" options={{ headerShown: false }} />
         <Stack.Screen
           name="scheduled-quest/index"
           options={{ headerShown: false }}
