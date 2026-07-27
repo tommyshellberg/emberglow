@@ -98,13 +98,19 @@ jest.mock('expo-router', () => ({
 // onSuccess/onError scenario LoginForm needs to route or map.
 jest.mock('./login/social-sign-in-buttons', () => {
   const { Pressable } = jest.requireActual('react-native');
+  // Required inside the factory, not via the top-level import: jest.mock is
+  // hoisted above imports, so a reference to an outer `const` here would hit
+  // the temporal-dead-zone rather than the real class.
+  const {
+    NoAccountForIdentity: MockNoAccountForIdentity,
+  } = require('@/lib/auth/social');
   return {
     SocialSignInButtons: ({
       onSuccess,
       onError,
     }: {
       onSuccess: (target: string, outcome: string, provider: string) => void;
-      onError: (kind: 'email-in-use' | 'generic') => void;
+      onError: (kind: 'email-in-use' | 'generic' | Error) => void;
     }) => (
       <>
         <Pressable
@@ -126,6 +132,12 @@ jest.mock('./login/social-sign-in-buttons', () => {
         <Pressable
           testID="mock-social-error-generic"
           onPress={() => onError('generic')}
+        />
+        <Pressable
+          testID="mock-social-error-no-account"
+          onPress={() =>
+            onError(new MockNoAccountForIdentity('tommy@gmail.com'))
+          }
         />
       </>
     ),
@@ -796,48 +808,6 @@ describe('LoginForm Form ', () => {
       });
     });
 
-    it('routes brand-new social signups (outcome "created") to onboarding, not the app shell with no character', async () => {
-      setup(<LoginForm />);
-
-      // `completeSignIn` always resolves target 'app' — routing this by
-      // target alone would drop a brand-new, character-less user into the
-      // app shell. This pins the `created`-outcome override instead.
-      fireEvent.press(screen.getByTestId('mock-social-success-app-created'));
-
-      await waitFor(() => {
-        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
-      });
-    });
-
-    it('fires signup_completed with the provider when a brand-new social account is created', async () => {
-      setup(<LoginForm />);
-
-      fireEvent.press(screen.getByTestId('mock-social-success-app-created'));
-
-      await waitFor(() => {
-        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
-      });
-
-      expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
-        method: 'google',
-      });
-    });
-
-    it('does NOT fire signup_completed for an ordinary login outcome', async () => {
-      setup(<LoginForm />);
-
-      fireEvent.press(screen.getByTestId('mock-social-success-app-login'));
-
-      await waitFor(() => {
-        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
-      });
-
-      expect(mockPosthogCapture).not.toHaveBeenCalledWith(
-        'signup_completed',
-        expect.anything()
-      );
-    });
-
     it('maps a social sign-in email-in-use error to the same copy as the magic-link 409 path', async () => {
       setup(<LoginForm />);
 
@@ -862,6 +832,33 @@ describe('LoginForm Form ', () => {
           screen.getByText(/Login link failed to send. Please try again./i)
         ).toBeOnTheScreen();
       });
+    });
+
+    it('shows the no-account step when the server reports no account', async () => {
+      setup(<LoginForm intent="signin" />);
+
+      fireEvent.press(screen.getByTestId('mock-social-error-no-account'));
+
+      expect(
+        await screen.findByTestId('no-account-begin-button')
+      ).toBeOnTheScreen();
+      expect(screen.getByText(/tommy@gmail\.com/)).toBeOnTheScreen();
+    });
+
+    it('sends the user to onboarding from the no-account step', async () => {
+      setup(<LoginForm intent="signin" />);
+
+      fireEvent.press(screen.getByTestId('mock-social-error-no-account'));
+      fireEvent.press(await screen.findByTestId('no-account-begin-button'));
+
+      // Assert the resulting STEP, not that a setter was called: setCurrentStep
+      // is forward-only and silently discards a backward move, which is
+      // exactly how a shipped fix passed its test while doing nothing on
+      // device (f90a968).
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.NOT_STARTED
+      );
+      expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/welcome');
     });
   });
 
