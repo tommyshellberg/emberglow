@@ -6,7 +6,10 @@ import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
 } from '@/lib/auth/social';
-import { ExistingAccountConfirmationRequired } from '@/lib/auth/social';
+import {
+  ExistingAccountConfirmationRequired,
+  NoAccountForIdentity,
+} from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
@@ -330,12 +333,23 @@ export const socialSignIn = async (
     // `any` — left off, a typo in `reason`/`account` below would read
     // `undefined` and silently fall through to the generic error copy.
     const details = axios.isAxiosError<{
-      details?: { reason?: string; account?: ExistingAccountSummary };
+      details?: {
+        reason?: string;
+        account?: ExistingAccountSummary;
+        email?: string;
+      };
     }>(error)
       ? error.response?.data?.details
       : undefined;
     if (details?.reason === 'existing-account-confirmation-required') {
       throw new ExistingAccountConfirmationRequired(details.account ?? {});
+    }
+    if (details?.reason === 'no-account-for-identity') {
+      // `?? ''` rather than a throw: the screen's copy already handles an empty
+      // address (it drops the "for <email>" clause), and failing the whole
+      // sign-in because a display string is missing would be a worse outcome
+      // than a slightly vaguer sentence.
+      throw new NoAccountForIdentity(details.email ?? '');
     }
     throw error;
   }

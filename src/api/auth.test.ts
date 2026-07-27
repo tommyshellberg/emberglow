@@ -1,5 +1,8 @@
 import { signIn } from '@/lib/auth';
-import { ExistingAccountConfirmationRequired } from '@/lib/auth/social';
+import {
+  ExistingAccountConfirmationRequired,
+  NoAccountForIdentity,
+} from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
@@ -584,6 +587,32 @@ describe('auth.ts', () => {
       (authClient.post as jest.Mock).mockRejectedValue(otherReason);
 
       await expect(socialSignIn(credential)).rejects.toBe(otherReason);
+    });
+
+    it('translates the no-account 404 into NoAccountForIdentity', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+      (authClient.post as jest.Mock).mockRejectedValue(
+        axiosError(404, {
+          code: 404,
+          message: 'User not found',
+          details: {
+            reason: 'no-account-for-identity',
+            email: 'tommy@gmail.com',
+          },
+        })
+      );
+
+      const err = await socialSignIn(credential).catch((e) => e);
+
+      expect(err).toBeInstanceOf(NoAccountForIdentity);
+      expect(err).toMatchObject({ email: 'tommy@gmail.com' });
+    });
+
+    it('re-throws a 404 that carries no details', async () => {
+      const error = axiosError(404, {});
+      (authClient.post as jest.Mock).mockRejectedValue(error);
+
+      await expect(socialSignIn(credential)).rejects.toBe(error);
     });
 
     it('rethrows a non-axios failure as the very same object', async () => {
