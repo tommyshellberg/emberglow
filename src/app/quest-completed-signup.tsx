@@ -117,12 +117,9 @@ export default function QuestCompletedSignupScreen() {
       // this device, and their social identity already resolves to an
       // existing full account) — outcomes `login`, `existing-account-login`,
       // and `linked` all mean "signed into an account that already
-      // existed," not a new signup, so only `created`/`converted` (a
-      // genuinely new full account) should count toward the funnel.
-      if (
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED ||
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED
-      ) {
+      // existed," not a new signup, so only `converted` (a genuinely new
+      // full account) should count toward the funnel.
+      if (outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED) {
         posthog.capture('signup_completed', { method: provider });
       }
     },
