@@ -16,16 +16,22 @@ jest.mock('expo-router', () => ({
   },
 }));
 
-it('resets onboarding and opens the welcome screen', () => {
+it('restarts onboarding at character selection, skipping the welcome tap', () => {
   useOnboardingStore.setState({ currentStep: OnboardingStep.COMPLETED });
 
   render(<NoHeroScreen />);
   fireEvent.press(screen.getByTestId('no-hero-choose-button'));
 
-  // The resulting STEP, not that a setter was called — COMPLETED to
-  // NOT_STARTED is a BACKWARD move, which setCurrentStep silently discards.
+  // The resulting STEP, not that a setter was called — and it must be
+  // SELECTING_CHARACTER, not NOT_STARTED: this screen already collected the
+  // "begin" intent, so landing on welcome would make the user tap it twice.
+  // The move is only legal as reset-then-forward: COMPLETED →
+  // SELECTING_CHARACTER directly is a BACKWARD move that setCurrentStep
+  // silently discards.
   expect(useOnboardingStore.getState().currentStep).toBe(
-    OnboardingStep.NOT_STARTED
+    OnboardingStep.SELECTING_CHARACTER
   );
-  expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/welcome');
+  expect(mockRouterReplace).toHaveBeenCalledWith(
+    '/onboarding/choose-character'
+  );
 });

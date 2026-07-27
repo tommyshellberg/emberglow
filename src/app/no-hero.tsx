@@ -5,7 +5,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { Button, EyebrowLabel } from '@/components/emberglow';
 import { FocusAwareStatusBar } from '@/components/ui';
-import { useOnboardingStore } from '@/store/onboarding-store';
+import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { colors, fontFamily, scrims, spacing } from '@/theme';
 
 // Same welcome.tsx-derived literals: pixel-perfect beats scale purity.
@@ -30,12 +30,18 @@ const BODY_MAX_WIDTH = 264;
  */
 export default function NoHeroScreen() {
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
+  const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
 
   const handleChooseHero = () => {
-    // resetOnboarding, not setCurrentStep: the latter is forward-only and
-    // silently discards a backward move (f90a968).
+    // Straight to character selection — this screen already collected the
+    // "begin" intent, so landing on welcome would demand the same tap twice.
+    // setCurrentStep is forward-only and silently discards backward moves
+    // (f90a968), so the jump has to be reset-then-forward: resetOnboarding()
+    // set()s NOT_STARTED directly, and NOT_STARTED → SELECTING_CHARACTER is
+    // the same legal forward move welcome's own button makes.
     resetOnboarding();
-    router.replace('/onboarding/welcome');
+    setCurrentStep(OnboardingStep.SELECTING_CHARACTER);
+    router.replace('/onboarding/choose-character');
   };
 
   return (
