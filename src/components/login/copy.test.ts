@@ -101,6 +101,32 @@ describe('LOGIN_COPY', () => {
   });
 });
 
+describe('no-account framing', () => {
+  it('names the address on the signin framing and offers a retry', () => {
+    const copy = LOGIN_COPY.signin;
+    expect(copy.noAccountBody('tommy@gmail.com')).toContain('tommy@gmail.com');
+    expect(copy.noAccountPrimaryLabel).toBe('Begin new journey');
+    expect(copy.noAccountShowsRetry).toBe(true);
+  });
+
+  it('omits the address clause when there is no address', () => {
+    // The server always sends one, but api/auth.ts falls back to '' rather than
+    // failing the sign-in over a display string — so the sentence has to read
+    // correctly without it. A fixture of 'unknown@x.com' would assert nothing.
+    expect(LOGIN_COPY.signin.noAccountBody('')).not.toContain('for ');
+    expect(LOGIN_COPY.signin.noAccountBody('')).toMatch(/\S/);
+  });
+
+  it('frames convert as lost progress and offers no retry', () => {
+    const copy = LOGIN_COPY.convert;
+    expect(copy.noAccountTitle).not.toBe(LOGIN_COPY.signin.noAccountTitle);
+    // Retrying cannot succeed here: the account is missing because the
+    // provisional record is gone, not because the wrong provider account was
+    // picked.
+    expect(copy.noAccountShowsRetry).toBe(false);
+  });
+});
+
 describe('parseLoginIntent', () => {
   it('accepts the intents the copy table knows', () => {
     expect(parseLoginIntent('signin')).toBe('signin');
