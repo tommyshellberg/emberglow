@@ -18,10 +18,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { getAccessToken } from '@/api/token';
 import { Button, EyebrowLabel, Input } from '@/components/emberglow';
 import { EmberProgress } from '@/components/onboarding/ember-progress';
 import { FocusAwareStatusBar, Image } from '@/components/ui';
-import { createProvisionalUser } from '@/lib/services/user';
+import {
+  createProvisionalUser,
+  updateUserCharacter,
+} from '@/lib/services/user';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { type Character, type CharacterType } from '@/store/types';
@@ -450,9 +454,18 @@ export default function ChooseCharacterScreen() {
       createCharacter(selected.id as CharacterType, debouncedName.trim());
       posthog.capture('onboarding_update_character_local_store_success');
 
-      // 2. Create a provisional user on the server
-      await createProvisionalUser(newCharacter as Character);
-      posthog.capture('onboarding_create_provisional_user_success');
+      // 2. Persist the hero server-side. A live real session (Google-first
+      // signup routed here via /no-hero) must PATCH its own account —
+      // minting a provisional user here would create a second identity and
+      // silently split quest data across the two (empty journal bug).
+      // createProvisionalUser enforces the same invariant with a throw.
+      if (getAccessToken()) {
+        await updateUserCharacter(newCharacter as Character);
+        posthog.capture('onboarding_update_character_server_success');
+      } else {
+        await createProvisionalUser(newCharacter as Character);
+        posthog.capture('onboarding_create_provisional_user_success');
+      }
 
       // Only proceed if both operations succeeded
       useOnboardingStore
