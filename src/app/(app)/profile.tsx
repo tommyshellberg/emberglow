@@ -12,6 +12,7 @@ import { ProfileCard } from '@/components/profile/profile-card';
 import { RescindInvitationModal } from '@/components/profile/rescind-invitation-modal';
 import { StatsCard } from '@/components/profile/stats-card';
 import {
+  Button,
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
@@ -25,6 +26,7 @@ import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { useProfileData } from '@/lib/hooks/use-profile-data';
 import { useCharacterStore } from '@/store/character-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
 import { colors } from '@/theme';
@@ -35,6 +37,9 @@ export default function ProfileScreen() {
   const completedQuests = useQuestStore((state) => state.getCompletedQuests());
   const streakCount = useCharacterStore((state) => state.dailyQuestStreak);
   const contactsModalRef = React.useRef<ContactsImportModalRef>(null);
+  // resetOnboarding, not setCurrentStep: the latter is forward-only and would
+  // silently discard the move back from COMPLETED, leaving this button inert.
+  const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
 
   // Character sync for users without local character data
   const { isRedirecting } = useCharacterSync();
@@ -107,10 +112,15 @@ export default function ProfileScreen() {
       >
         <FocusAwareStatusBar />
         <Text className="mb-2 text-center text-xl font-bold">No hero yet</Text>
-        <Text className="text-center opacity-70">
-          This account hasn't created a character. Restart the app to pick your
-          hero and begin your journey.
+        <Text className="mb-6 text-center opacity-70">
+          Your account is all set — you just haven't chosen a hero. Pick one to
+          begin your journey.
         </Text>
+        <Button
+          testID="profile-create-hero"
+          label="Choose your hero"
+          onPress={resetOnboarding}
+        />
       </View>
     );
   }

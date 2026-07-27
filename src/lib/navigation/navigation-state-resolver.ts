@@ -27,6 +27,7 @@ export function useNavigationTarget(): NavigationTarget {
   );
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const setCurrentStep = useOnboardingStore((s) => s.setCurrentStep);
+  const resetOnboarding = useOnboardingStore((s) => s.resetOnboarding);
   const character = useCharacterStore((s) => s.character);
   const serverUser = useUserStore((s) => s.user);
 
@@ -103,10 +104,19 @@ export function useNavigationTarget(): NavigationTarget {
     // Walk the step back rather than merely declining to complete it: an
     // earlier run of this effect already force-completed these users and MMKV
     // persisted that, so they stay stuck across relaunches otherwise.
+    //
+    // resetOnboarding, NOT setCurrentStep: the latter is forward-only and
+    // silently discards a backward move with only a console warning, so asking
+    // it for an earlier step leaves the user exactly where they were. Only
+    // resetOnboarding set()s the step directly. NOT_STARTED then runs the whole
+    // funnel from the welcome screen, which is what these users never saw.
     const serverAccountHasNoCharacter =
       !!serverUser && !(serverUser.type && serverUser.name);
     if (serverAccountHasNoCharacter && !character) {
-      setCurrentStep(OnboardingStep.SELECTING_CHARACTER);
+      console.log(
+        '🧭 Signed-in account has no character on the server - restarting onboarding'
+      );
+      resetOnboarding();
       return;
     }
 
@@ -134,6 +144,7 @@ export function useNavigationTarget(): NavigationTarget {
     serverUser,
     completedQuests,
     setCurrentStep,
+    resetOnboarding,
   ]);
 
   // Debug current state

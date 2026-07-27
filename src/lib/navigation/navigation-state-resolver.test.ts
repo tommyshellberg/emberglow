@@ -39,10 +39,36 @@ const mockAuthState = {
   status: 'idle' as 'idle' | 'signOut' | 'signIn' | 'hydrating',
 };
 
+// Step order, mirrored from the real store so the double below can enforce the
+// same rule. Kept local rather than exported from the store: the point is for
+// this file to encode what the store PROMISES, so a change there fails here.
+const STEP_ORDER: Record<OnboardingStep, number> = {
+  [OnboardingStep.NOT_STARTED]: 0,
+  [OnboardingStep.SELECTING_CHARACTER]: 1,
+  [OnboardingStep.VIEWING_INTRO]: 2,
+  [OnboardingStep.REQUESTING_NOTIFICATIONS]: 3,
+  [OnboardingStep.STARTING_FIRST_QUEST]: 4,
+  [OnboardingStep.VIEWING_SIGNUP_PROMPT]: 5,
+  [OnboardingStep.COMPLETED]: 6,
+};
+
 const mockOnboardingState = {
   isOnboardingComplete: jest.fn(() => false),
   currentStep: OnboardingStep.NOT_STARTED,
-  setCurrentStep: jest.fn(),
+  // NOT a bare jest.fn(). The real setCurrentStep is FORWARD-ONLY: it silently
+  // refuses to move backwards and only logs a warning. A bare spy records the
+  // call and reports success, so a test asserting "we asked for step X" passes
+  // while the app does nothing — which is exactly how a broken fix for the
+  // character-less social account shipped and had to be caught on a device.
+  // Move backwards through resetOnboarding, which set()s directly.
+  setCurrentStep: jest.fn((step: OnboardingStep) => {
+    if (STEP_ORDER[step] >= STEP_ORDER[mockOnboardingState.currentStep]) {
+      mockOnboardingState.currentStep = step;
+    }
+  }),
+  resetOnboarding: jest.fn(() => {
+    mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
+  }),
 };
 
 const mockCharacterState = {
@@ -107,6 +133,7 @@ beforeEach(() => {
   mockOnboardingState.isOnboardingComplete.mockReturnValue(false);
   mockOnboardingState.currentStep = OnboardingStep.NOT_STARTED;
   mockOnboardingState.setCurrentStep.mockClear();
+  mockOnboardingState.resetOnboarding.mockClear();
   mockCharacterState.character = null;
   mockUserState.user = null;
   mockQuestState.pendingQuest = null;
@@ -480,9 +507,10 @@ describe('Navigation State Resolver', () => {
 
     renderHook(() => useNavigationTarget());
 
-    expect(mockOnboardingState.setCurrentStep).toHaveBeenCalledWith(
-      OnboardingStep.SELECTING_CHARACTER
-    );
+    // Assert the step MOVED, not that a setter was called. setCurrentStep is
+    // forward-only, so "called with SELECTING_CHARACTER" is satisfied by a
+    // request the store silently discards.
+    expect(mockOnboardingState.currentStep).toBe(OnboardingStep.NOT_STARTED);
   });
 
   // The over-application guard for the test above. A returning user on a fresh
