@@ -65,17 +65,72 @@ describe('isAlreadyAtTarget', () => {
     });
   });
 
+  describe('the dead streak indicator regression', () => {
+    // Reported from a device on 2026-07-28: tapping the flame in the play
+    // screen header flashed the streak screen and bounced straight back to
+    // Play. The logs showed the whole chain — "Default to app", immediately
+    // followed by "navigating to app from /streak-celebration".
+    //
+    // The resolver only names 'streak-celebration' while
+    // shouldShowStreakCelebration is true, so a user who taps in when it is
+    // false gets the Priority 5 fall-through 'app', and a strict
+    // resolver-owns-this match read their deliberate arrival as a stale one.
+    it('leaves the user on the streak screen they tapped into', () => {
+      expect(
+        isAlreadyAtTarget(
+          { type: 'app' },
+          ['streak-celebration'],
+          '/streak-celebration'
+        )
+      ).toBe(true);
+    });
+
+    // The carve-out is scoped to target 'app' — the resolver's "nothing is
+    // happening" answer — and nothing else. This is the guard against
+    // over-applying the fix: a version that always reported a match would pass
+    // the test above too, and would strand a user on their streak screen while
+    // a quest was counting down behind it.
+    // 'quest-result' is the load-bearing one: the resolver deliberately ranks
+    // streak celebration ABOVE quest results (navigation-state-resolver.ts:208
+    // — "highest priority to show before quest complete"), so the auto-shown
+    // celebration hands off to the quest result the moment the flag clears.
+    // That handoff is the gate's, and it runs through this function.
+    it.each([
+      'pending-quest',
+      'cooperative-pending-quest',
+      'quest-result',
+      'first-quest-result',
+      'login',
+      'onboarding',
+      'no-hero',
+    ])('target %s still evicts a user reading their streak', (type) => {
+      expect(
+        isAlreadyAtTarget(
+          { type, questId: 'q1', outcome: 'completed' } as any,
+          ['streak-celebration'],
+          '/streak-celebration'
+        )
+      ).toBe(false);
+    });
+  });
+
   describe('screens the resolver owns are still evacuated on target app', () => {
     // Load-bearing: nothing else moves the user off these. login-form hands off
     // to /onboarding/welcome, and the end of onboarding has no self-navigation
     // at all — the gate is what puts a freshly-onboarded user into the app.
+    //
+    // 'streak-celebration' was in this list and is deliberately not any more.
+    // It was the one entry the rationale above never applied to: that screen
+    // has three user-facing entry points, so membership could not be read as
+    // "the resolver put you here". Its exit is now the screen's own
+    // responsibility rather than the gate's — see the dead streak indicator
+    // regression above, and streak-celebration.test.tsx.
     it.each([
       'login',
       'onboarding',
       'pending-quest',
       'cooperative-pending-quest',
       'quest-completed-signup',
-      'streak-celebration',
       'first-quest-result',
     ])('evacuates /%s', (segment) => {
       expect(isAlreadyAtTarget({ type: 'app' }, [segment], `/${segment}`)).toBe(

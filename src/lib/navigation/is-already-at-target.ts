@@ -68,6 +68,40 @@ const PRE_ACCOUNT_ZONE: Partial<Record<ResolverOwnedSegment, true>> = {
 };
 
 /**
+ * Resolver-owned screens that ALSO have their own entry points, and so must
+ * survive the Priority 5 'app' fall-through.
+ *
+ * `RESOLVER_OWNED_SEGMENTS` encodes "only the resolver puts you here", which
+ * lets target 'app' read any membership as a stale state-driven arrival and
+ * evict. That inference is sound for screens with no other way in. It is false
+ * for `/streak-celebration`: three affordances push it on purpose — the play
+ * screen header and journal (`StreakCounter`) and the profile stats card — and
+ * the resolver only names it while `shouldShowStreakCelebration` is true. Tap
+ * the flame on any other day and the resolver answers 'app', so the gate
+ * replaced the user back onto Play before the screen could be read
+ * (emberglow#365, captured on device 2026-07-28).
+ *
+ * Same defect shape as PRE_ACCOUNT_ZONE above — store state cannot express
+ * "the user just tapped" — but a distinct carve-out, because that zone answers
+ * "which screens satisfy each other" while this one answers "which screens the
+ * absence of a destination is no reason to leave".
+ *
+ * The safety this gives up is real and is paid for elsewhere: the gate used to
+ * be the fallback that landed an auto-shown celebration back home when
+ * `handleContinue` cleared the flag and `router.back()` had nowhere to go. That
+ * screen now guarantees its own exit rather than leaning on eviction, which is
+ * where the guarantee belonged — the gate cannot tell the two arrivals apart,
+ * and the screen does not need to.
+ *
+ * Scoped to target 'app' only. Every higher-priority target still evicts from
+ * here (see the strict cases below): a pending quest outranks reading your
+ * streak, and those are consequences of state the user cannot opt out of.
+ */
+const USER_REACHABLE_SEGMENTS: Partial<Record<ResolverOwnedSegment, true>> = {
+  'streak-celebration': true,
+};
+
+/**
  * Answers "is where we are good enough for `target`?" so NavigationGate can skip
  * a redirect.
  *
@@ -118,6 +152,13 @@ export function isAlreadyAtTarget(
       // a dependency of the gate's effect, so the real decision is only
       // deferred until they populate a tick later.
       if (root === undefined) {
+        return true;
+      }
+
+      // Screens the user can reach on purpose (see USER_REACHABLE_SEGMENTS)
+      // are resolver-owned but not resolver-exclusive: 'app' is the absence of
+      // a destination, which is no reason to take one away from them.
+      if (Object.hasOwn(USER_REACHABLE_SEGMENTS, root)) {
         return true;
       }
 

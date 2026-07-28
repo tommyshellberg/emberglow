@@ -202,11 +202,43 @@ export default function StreakCelebrationScreen() {
     }
   };
 
+  /**
+   * This screen's exit is now its OWN responsibility.
+   *
+   * It used to lean on NavigationGate: clearing the flag made the resolver
+   * answer 'app', and the gate evicted whoever was still sitting here. That
+   * eviction is gone (is-already-at-target.ts, USER_REACHABLE_SEGMENTS) —
+   * it could not tell a user who tapped the flame from a stale auto-show, so
+   * it bounced the tappers straight back to Play. Nothing else will move the
+   * user now, so a `back()` that no-ops strands them.
+   *
+   * Two ways in, and they want different exits:
+   *  - Auto-shown after a streak-extending quest, via router.replace. The back
+   *    stack may be EMPTY (cold start), so back() can be a silent no-op.
+   *  - Tapped in via router.push from the play header, journal, or the profile
+   *    stats card. Back returns them where they were — journal or profile,
+   *    not Play.
+   *
+   * So: go back when there is somewhere to go back to, and fall back to Play
+   * when there is not. Returning a tapper to the journal or profile they came
+   * from beats relocating them to Play, and the accepted trade is that an
+   * auto-show with a non-empty stack returns to whatever preceded it.
+   *
+   * That last case is not left to chance either: the resolver ranks streak
+   * celebration ABOVE quest results (navigation-state-resolver.ts:209 vs 253),
+   * so clearing the flag with a recent completion still armed makes the gate
+   * navigate on to the quest result regardless of where this lands first.
+   */
   const handleContinue = () => {
     // Clear the flag when user clicks continue.
     setShouldShowStreakCelebration(false);
-    // Navigate back to the main app screen.
-    router.back();
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(app)');
   };
 
   return (
