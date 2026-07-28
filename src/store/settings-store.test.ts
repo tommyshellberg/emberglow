@@ -14,3 +14,18 @@ describe('settings-store narratorVoice', () => {
     expect(useSettingsStore.getState().narratorVoice).toBe('female');
   });
 });
+
+describe('settings-store onboardingSoundEnabled', () => {
+  beforeEach(() => {
+    useSettingsStore.setState(useSettingsStore.getInitialState());
+  });
+
+  it('defaults onboardingSoundEnabled to true', () => {
+    expect(useSettingsStore.getState().onboardingSoundEnabled).toBe(true);
+  });
+
+  it('setOnboardingSoundEnabled stores an explicit choice', () => {
+    useSettingsStore.getState().setOnboardingSoundEnabled(false);
+    expect(useSettingsStore.getState().onboardingSoundEnabled).toBe(false);
+  });
+});

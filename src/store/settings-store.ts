@@ -29,6 +29,8 @@ type SettingsState = {
   setHasBeenPromptedForReminder: (value: boolean) => void;
   narratorVoice: NarratorVoice | null;
   setNarratorVoice: (voice: NarratorVoice) => void;
+  onboardingSoundEnabled: boolean;
+  setOnboardingSoundEnabled: (enabled: boolean) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -54,6 +56,9 @@ export const useSettingsStore = create<SettingsState>()(
         set({ hasBeenPromptedForReminder: value }),
       narratorVoice: null,
       setNarratorVoice: (voice) => set({ narratorVoice: voice }),
+      onboardingSoundEnabled: true,
+      setOnboardingSoundEnabled: (enabled) =>
+        set({ onboardingSoundEnabled: enabled }),
     }),
     {
       name: 'unquest-settings',
