@@ -52,6 +52,10 @@ export function StoryNarration({ quest }: Props) {
     let isMounted = true;
 
     const resolveSource = async () => {
+      // Clear any error from a previous resolve attempt so a successful
+      // re-resolve (e.g. narratorVoice changes while the error screen is
+      // showing) isn't permanently masked by a stale error UI.
+      setLoadError(null);
       try {
         // playsInSilentMode: narration is the point of the screen — a muted
         // phone shouldn't silently produce nothing. shouldPlayInBackground is

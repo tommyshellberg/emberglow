@@ -36,7 +36,12 @@ const QUESTS_DATA = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockedPreloadAudio.mockResolvedValue(undefined);
-  useSettingsStore.setState({ narratorVoice: null });
+  // Female, not null: with no character in the store, null ALSO resolves to
+  // 'male' (see getEffectiveNarratorVoice), which would make the "explicit
+  // male" test below pass even if the resolver ignored the explicit setting
+  // entirely. Defaulting to the opposite voice forces that test to prove the
+  // explicit value actually wins.
+  useSettingsStore.setState({ narratorVoice: 'female' });
   mockedUseNextAvailableQuests.mockReturnValue({
     data: QUESTS_DATA,
     isSuccess: true,

@@ -565,11 +565,13 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
     useSettingsStore();
-  // Subscription so the row re-renders when the setting changes; the
-  // effective value itself is derived (explicit choice ?? character
-  // default) via getEffectiveNarratorVoice, which reads getState() and so
-  // does not itself trigger a re-render.
-  useSettingsStore((s) => s.narratorVoice);
+  // No separate narratorVoice subscription needed: the selector-less
+  // useSettingsStore() call above already re-renders this component on any
+  // settings-store change (zustand's set() always produces a new state
+  // object), so the narrator voice row picks up changes through that broad
+  // subscription. The effective value itself is derived (explicit choice ??
+  // character default) via getEffectiveNarratorVoice, which reads
+  // getState() and so does not itself trigger a re-render.
   const effectiveVoice = getEffectiveNarratorVoice();
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);

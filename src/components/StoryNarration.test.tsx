@@ -138,4 +138,40 @@ describe('StoryNarration', () => {
       );
     });
   });
+
+  it('clears a stale load error once a re-resolve after a voice change succeeds', async () => {
+    useSettingsStore.setState({ narratorVoice: 'male' });
+    audioCacheService.getAudioSource.mockResolvedValueOnce(null);
+
+    render(<StoryNarration quest={quest} />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Failed to load audio narration')).toBeTruthy()
+    );
+
+    // Simulate the offline file now being reachable, then trigger a
+    // re-resolve the same way the user would: switching the narrator voice
+    // from Settings while this screen stays mounted.
+    audioCacheService.getAudioSource.mockResolvedValue({
+      uri: 'file:///narration.mp3',
+    });
+    act(() => {
+      useSettingsStore.setState({ narratorVoice: 'female' });
+    });
+
+    // Confirm the re-resolve actually ran (mock-call assertion — doesn't
+    // touch the rendered tree) before inspecting the tree itself, so the
+    // second query below isn't racing the still-in-flight async resolve.
+    await waitFor(() =>
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        expect.stringContaining('-female.mp3'),
+        expect.any(String)
+      )
+    );
+
+    // Finding this text proves loadError is falsy again (the two render
+    // branches are mutually exclusive — see StoryNarration.tsx), i.e. the
+    // stale error was cleared and the narration UI is showing instead.
+    expect(await screen.findByText('Listen to this chapter')).toBeTruthy();
+  });
 });

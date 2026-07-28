@@ -63,7 +63,7 @@ export function getNarrationPaths(
   const malePath = getQuestAudioPath(customId, storylineId);
   if (getEffectiveNarratorVoice() === 'female') {
     return {
-      primaryPath: `storylines/${storylineId}/${customId}-female.mp3`,
+      primaryPath: getQuestAudioPath(`${customId}-female`, storylineId),
       fallbackPath: malePath,
     };
   }
