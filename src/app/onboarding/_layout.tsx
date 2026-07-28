@@ -1,12 +1,19 @@
 import { type Href, Redirect, Slot, usePathname } from 'expo-router';
 import React from 'react';
 
+import { useOnboardingMusic } from '@/hooks/use-onboarding-music';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 
 export default function OnboardingLayout() {
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const isComplete = useOnboardingStore((s) => s.isOnboardingComplete());
   const path = usePathname();
+
+  // Owns the single looping music player for the whole onboarding flow (see
+  // use-onboarding-music.ts). Must sit above both early returns below (rules
+  // of hooks); `!isComplete` keeps it silent on the branch where this layout
+  // is about to redirect away rather than briefly starting playback first.
+  useOnboardingMusic(!isComplete);
 
   // If onboarding is complete, redirect to root for re-evaluation
   if (isComplete) {
