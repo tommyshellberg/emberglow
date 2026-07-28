@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getItem, removeItem, setItem } from '@/lib/storage';
-import { NarratorVoice } from './types';
+
+import { type NarratorVoice } from './types';
 
 type ReminderTime = {
   hour: number;

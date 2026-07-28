@@ -2,7 +2,7 @@ import { useSettingsStore } from './settings-store';
 
 describe('settings-store narratorVoice', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ narratorVoice: null });
+    useSettingsStore.setState(useSettingsStore.getInitialState());
   });
 
   it('defaults narratorVoice to null (never explicitly chosen)', () => {
