@@ -107,9 +107,13 @@ describe('StoryNarration', () => {
     render(<StoryNarration quest={quest} />);
 
     await waitFor(() => {
+      // Exact strings, not a loose pattern: /quest-.*\.mp3$/ would also match
+      // the female path itself (`.*` absorbs `1-female`), so it couldn't
+      // distinguish a correct male fallback from a regression that passed
+      // the primary path as both arguments.
       expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
-        expect.stringContaining('-female.mp3'),
-        expect.stringMatching(/quest-.*\.mp3$/)
+        'storylines/vaedros/quest-1-female.mp3',
+        'storylines/vaedros/quest-1.mp3'
       );
     });
   });
