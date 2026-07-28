@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconButton } from '@/components/emberglow';
 import { useSettingsStore } from '@/store/settings-store';
-import { colors, durations, palette, spacing, withAlpha } from '@/theme';
+import { durations, palette, spacing, withAlpha } from '@/theme';
 
 const BUTTON_SIZE = 40;
 // Ring sits 5pt outside the button on every side, so it reads as a halo
@@ -69,7 +69,6 @@ export function AudioIndicator({ isPlaying }: { isPlaying: boolean }) {
 
   return (
     <View
-      pointerEvents="box-none"
       style={[
         styles.wrapper,
         { top: insets.top + spacing[3], right: insets.right + spacing[4] },
@@ -100,7 +99,6 @@ export function AudioIndicator({ isPlaying }: { isPlaying: boolean }) {
                 : 'audio-indicator-muted'
             }
             name={onboardingSoundEnabled ? 'volume-2' : 'volume-x'}
-            color={colors.text.primary}
           />
         </IconButton>
       </View>
