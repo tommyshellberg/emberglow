@@ -431,4 +431,93 @@ describe('audio-cache.service', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('preloadAudio', () => {
+    it('preloads primary paths with their fallbacks via getAudioSource', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        {
+          primaryPath: 'storylines/vaedros/quest-2-female.mp3',
+          fallbackPath: 'storylines/vaedros/quest-2.mp3',
+        },
+        {
+          primaryPath: 'storylines/vaedros/quest-3-female.mp3',
+          fallbackPath: 'storylines/vaedros/quest-3.mp3',
+        },
+      ]);
+
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-2-female.mp3',
+        'storylines/vaedros/quest-2.mp3'
+      );
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-3-female.mp3',
+        'storylines/vaedros/quest-3.mp3'
+      );
+      spy.mockRestore();
+    });
+
+    it('passes undefined, not null, to getAudioSource when an item has no fallback', async () => {
+      // A raw `null` would violate getAudioSource's `string | undefined`
+      // fallback parameter — this is the ?? undefined conversion the task
+      // brief calls out explicitly.
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+      ]);
+
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-2.mp3',
+        undefined
+      );
+      spy.mockRestore();
+    });
+
+    it('only preloads the first 3 items', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        { primaryPath: 'storylines/vaedros/quest-1.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-3.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-4.mp3', fallbackPath: null },
+      ]);
+
+      expect(spy).toHaveBeenCalledTimes(3);
+      expect(spy).not.toHaveBeenCalledWith(
+        'storylines/vaedros/quest-4.mp3',
+        undefined
+      );
+      spy.mockRestore();
+    });
+
+    it('continues preloading remaining items when one fails', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce({ uri: 'cached' });
+      const localWarnSpy = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+
+      await expect(
+        audioCacheService.preloadAudio([
+          { primaryPath: 'storylines/vaedros/quest-1.mp3', fallbackPath: null },
+          { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+        ])
+      ).resolves.toBeUndefined();
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      localWarnSpy.mockRestore();
+      spy.mockRestore();
+    });
+  });
 });

@@ -5,6 +5,7 @@ import { provisionalApiClient } from '@/api/common/provisional-client';
 import { getToken } from '@/lib/auth/utils';
 import { posthogClient } from '@/lib/posthog';
 import { getItem, setItem } from '@/lib/storage';
+import { type NarrationPaths } from '@/utils/audio-utils';
 import {
   convertLegacyAssetToPath,
   isLegacyAssetId,
@@ -400,18 +401,19 @@ class AudioCacheService {
     this.saveCacheIndex();
   }
 
-  async preloadAudio(audioPaths: (string | number)[]): Promise<void> {
-    // Preload next 3 quests' audio files in the background
-    const preloadPromises = audioPaths
-      .filter((path) => typeof path === 'string') // Skip legacy asset IDs
-      .slice(0, 3)
-      .map(async (audioPath) => {
-        try {
-          await this.getAudioSource(audioPath);
-        } catch (error) {
-          console.warn(`Failed to preload audio: ${audioPath}`, error);
-        }
-      });
+  async preloadAudio(items: NarrationPaths[]): Promise<void> {
+    // Preload the next few quests' narration in the current voice. Fallback
+    // rides along so a missing female file still warms the male one.
+    const preloadPromises = items.slice(0, 3).map(async (item) => {
+      try {
+        await this.getAudioSource(
+          item.primaryPath,
+          item.fallbackPath ?? undefined
+        );
+      } catch (error) {
+        console.warn(`Failed to preload audio: ${item.primaryPath}`, error);
+      }
+    });
 
     await Promise.all(preloadPromises);
   }
