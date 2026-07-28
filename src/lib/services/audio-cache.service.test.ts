@@ -82,6 +82,8 @@ jest.mock('@/lib/storage', () => ({
 
 import { Directory, File } from 'expo-file-system';
 
+import { posthogClient } from '@/lib/posthog';
+
 import { audioCacheService } from './audio-cache.service';
 
 const { createSpy, listSpy, deleteSpy, downloadSpy, fileState } =
@@ -347,6 +349,74 @@ describe('audio-cache.service', () => {
       ).cleanupExpiredFiles();
 
       expect(deleteSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAudioSource fallback', () => {
+    const FEMALE = 'storylines/vaedros/quest-1-female.mp3';
+    const MALE = 'storylines/vaedros/quest-1.mp3';
+    const FEMALE_URI = `${CACHE_DIR}storylines_vaedros_quest_1_female_mp3.mp3`;
+    const MALE_URI = `${CACHE_DIR}storylines_vaedros_quest_1_mp3.mp3`;
+
+    let warnSpy: jest.SpyInstance;
+    let logSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      // The fallback path (and the download failures that provoke it) are
+      // expected to log; silence them here so test output stays pristine
+      // without touching production logging.
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      logSpy.mockRestore();
+    });
+
+    // Makes GET /audio/file reject for the given path(s) (both
+    // downloadAudioFile and downloadToMemory call it with the same
+    // `params.path`, so this fails a path "fully" — both the local-download
+    // and in-memory-streaming attempts).
+    function mockAudioFileRequestFailureFor(...failingPaths: string[]) {
+      apiClient.get.mockImplementation(
+        (_url: string, config: { params: { path: string } }) => {
+          if (failingPaths.includes(config.params.path)) {
+            return Promise.reject(new Error('404: audio file not found'));
+          }
+          return Promise.resolve({ data: { audioUrl: SIGNED_URL } });
+        }
+      );
+    }
+
+    it('does not touch the fallback when the primary succeeds', async () => {
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toEqual({ uri: FEMALE_URI });
+      expect(posthogClient.capture).not.toHaveBeenCalledWith(
+        'narration_voice_fallback',
+        expect.anything()
+      );
+    });
+
+    it('retries the fallback path when the primary fully fails', async () => {
+      mockAudioFileRequestFailureFor(FEMALE);
+
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toEqual({ uri: MALE_URI });
+      expect(posthogClient.capture).toHaveBeenCalledWith(
+        'narration_voice_fallback',
+        { path: FEMALE }
+      );
+    });
+
+    it('returns null when primary and fallback both fail', async () => {
+      mockAudioFileRequestFailureFor(FEMALE, MALE);
+
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toBeNull();
     });
   });
 });

@@ -3,6 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { apiClient } from '@/api/common/client';
 import { provisionalApiClient } from '@/api/common/provisional-client';
 import { getToken } from '@/lib/auth/utils';
+import { posthogClient } from '@/lib/posthog';
 import { getItem, setItem } from '@/lib/storage';
 import {
   convertLegacyAssetToPath,
@@ -260,7 +261,8 @@ class AudioCacheService {
   }
 
   async getAudioSource(
-    audioPath: string | number
+    audioPath: string | number,
+    fallbackPath?: string
   ): Promise<{ uri: string } | null> {
     if (!audioPath) {
       return null;
@@ -347,6 +349,19 @@ class AudioCacheService {
       this.saveCacheIndex();
 
       return { uri: memoryUri };
+    }
+
+    // Female narration files are optional overlays on top of the always-
+    // present male set (see getNarrationPaths in audio-utils.ts). When a
+    // female variant is missing from S3, degrade to the male file rather
+    // than failing playback. Single-level retry: the fallback call passes
+    // no further fallback, so a failing fallback cannot recurse.
+    if (fallbackPath) {
+      console.warn(
+        `Narration file unavailable at ${actualPath}; falling back to ${fallbackPath}`
+      );
+      posthogClient.capture('narration_voice_fallback', { path: actualPath });
+      return this.getAudioSource(fallbackPath);
     }
 
     return null;
