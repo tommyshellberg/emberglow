@@ -34,6 +34,7 @@ import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useAuth } from '@/lib';
 import { TIMEZONES } from '@/lib/constants/timezones';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
+import { posthogClient } from '@/lib/posthog';
 import {
   areNotificationsEnabled,
   cancelDailyReminderNotification,
@@ -44,9 +45,10 @@ import {
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, setItem } from '@/lib/storage';
 import { useSettingsStore } from '@/store/settings-store';
-import type { User } from '@/store/types';
+import type { NarratorVoice, User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 import { colors, fontFamily, radii, spacing } from '@/theme';
+import { getEffectiveNarratorVoice } from '@/utils/audio-utils';
 
 import {
   handleDeleteAccount,
@@ -167,6 +169,8 @@ function TimeSubRow({
 type PreferencesSectionProps = {
   selectedTimezoneLabel: string;
   onTimezonePress: () => void;
+  narratorVoiceLabel: string;
+  onNarratorVoiceToggle: () => void;
   notificationsEnabled: boolean;
   onNotificationsToggle: (value: boolean) => void;
   dailyReminderEnabled: boolean;
@@ -188,6 +192,8 @@ type PreferencesSectionProps = {
 function PreferencesSection({
   selectedTimezoneLabel,
   onTimezonePress,
+  narratorVoiceLabel,
+  onNarratorVoiceToggle,
   notificationsEnabled,
   onNotificationsToggle,
   dailyReminderEnabled,
@@ -224,6 +230,16 @@ function PreferencesSection({
             />
           }
           onPress={onTimezonePress}
+        />
+
+        <View style={styles.divider} />
+        <ListItem
+          leading={
+            <Feather name="mic" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Narrator voice"
+          subtitle={narratorVoiceLabel}
+          onPress={onNarratorVoiceToggle}
         />
 
         <View style={styles.divider} />
@@ -549,6 +565,12 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
     useSettingsStore();
+  // Subscription so the row re-renders when the setting changes; the
+  // effective value itself is derived (explicit choice ?? character
+  // default) via getEffectiveNarratorVoice, which reads getState() and so
+  // does not itself trigger a re-render.
+  useSettingsStore((s) => s.narratorVoice);
+  const effectiveVoice = getEffectiveNarratorVoice();
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
@@ -800,6 +822,12 @@ export default function Settings() {
     updateSettings({ timezone });
   };
 
+  const handleNarratorVoiceToggle = () => {
+    const next: NarratorVoice = effectiveVoice === 'female' ? 'male' : 'female';
+    useSettingsStore.getState().setNarratorVoice(next);
+    posthogClient.capture('settings_narrator_voice_changed', { voice: next });
+  };
+
   // In your render method, handle loading state
   if (isLoading || isLoadingSettings) {
     return (
@@ -838,6 +866,10 @@ export default function Settings() {
                 selectedTimezone
               }
               onTimezonePress={() => timezoneModal.present()}
+              narratorVoiceLabel={
+                effectiveVoice === 'female' ? 'Female' : 'Male'
+              }
+              onNarratorVoiceToggle={handleNarratorVoiceToggle}
               notificationsEnabled={notificationsEnabled}
               onNotificationsToggle={handleNotificationsToggle}
               dailyReminderEnabled={dailyReminder.enabled}
