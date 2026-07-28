@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getItem, removeItem, setItem } from '@/lib/storage';
+import { NarratorVoice } from './types';
 
 type ReminderTime = {
   hour: number;
@@ -25,6 +26,8 @@ type SettingsState = {
   setStreakWarning: (streakWarning: StreakWarning) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
+  narratorVoice: NarratorVoice | null;
+  setNarratorVoice: (voice: NarratorVoice) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -48,6 +51,8 @@ export const useSettingsStore = create<SettingsState>()(
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),
+      narratorVoice: null,
+      setNarratorVoice: (voice) => set({ narratorVoice: voice }),
     }),
     {
       name: 'unquest-settings',

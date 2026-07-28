@@ -85,6 +85,8 @@ export type CharacterType =
   | 'scout'
   | 'wizard';
 
+export type NarratorVoice = 'male' | 'female';
+
 export interface Account {
   id: string;
   created: Timestamp;
