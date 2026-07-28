@@ -10,16 +10,25 @@ import StreakCelebrationScreen from './streak-celebration';
 // Create a shared router mock
 const mockRouterBack = jest.fn();
 const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
+// Defaults to true — the common case is a user who PUSHED here from the play
+// header, journal or profile stats card, so there is somewhere to go back to.
+// Tests covering the auto-shown celebration set this false explicitly.
+const mockRouterCanGoBack = jest.fn(() => true);
 
 // Mock dependencies
 jest.mock('expo-router', () => ({
   router: {
     back: mockRouterBack,
     push: mockRouterPush,
+    replace: mockRouterReplace,
+    canGoBack: mockRouterCanGoBack,
   },
   useRouter: jest.fn(() => ({
     back: mockRouterBack,
     push: mockRouterPush,
+    replace: mockRouterReplace,
+    canGoBack: mockRouterCanGoBack,
   })),
   useFocusEffect: jest.fn((callback) => {
     // Immediately call the callback to simulate screen focus
@@ -230,6 +239,11 @@ describe('StreakCelebrationScreen', () => {
     mockCharacterStore.markStreakCelebrationShown.mockClear();
     mockRouterBack.mockClear();
     mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
+    // jest.clearAllMocks() resets recorded calls but NOT return values, so a
+    // mockReturnValue set inside one test would leak into every test after it.
+    // Restating the default here scopes that override to the test making it.
+    mockRouterCanGoBack.mockReturnValue(true);
     mockCharacterStore.dailyQuestStreak = 1;
 
     mockUseCharacterStore.mockImplementation((selector) =>
@@ -300,6 +314,26 @@ describe('StreakCelebrationScreen', () => {
       fireEvent.press(getByTestId('streak-continue-button'));
 
       expect(mockRouterBack).toHaveBeenCalled();
+    });
+
+    // This screen's exit stopped being NavigationGate's job when
+    // /streak-celebration became user-reachable (is-already-at-target.ts,
+    // USER_REACHABLE_SEGMENTS): the gate could not tell a deliberate tap from
+    // a stale auto-show, so it bounced the tappers back to Play.
+    //
+    // Nothing else moves the user now. The auto-shown celebration arrives via
+    // router.replace, so on a cold start there is no back entry and back() is
+    // a silent no-op — which would strand the user on this screen with the
+    // Continue button visibly doing nothing.
+    it('lands the user on the play screen when there is no back stack', () => {
+      mockRouterCanGoBack.mockReturnValue(false);
+
+      const { getByTestId } = render(<StreakCelebrationScreen />);
+
+      fireEvent.press(getByTestId('streak-continue-button'));
+
+      expect(mockRouterReplace).toHaveBeenCalledWith('/(app)');
+      expect(mockRouterBack).not.toHaveBeenCalled();
     });
 
     it('should call setShouldShowStreakCelebration(false) when Continue is pressed', () => {
