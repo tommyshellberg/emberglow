@@ -1,5 +1,5 @@
-import { type ImageSourcePropType } from 'react-native';
 import { type AudioSource } from 'expo-audio';
+import { type ImageSourcePropType } from 'react-native';
 
 export type Character = {
   id: string;
