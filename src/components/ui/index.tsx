@@ -23,7 +23,6 @@ export * from './segmented-control';
 export * from './select';
 export * from './text';
 export * from './title';
-export * from './update-notification-bar';
 export * from './utils';
 
 // export base components from react-native

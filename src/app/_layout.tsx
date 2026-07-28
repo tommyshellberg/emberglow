@@ -29,7 +29,7 @@ import { APIProvider } from '@/api';
 import { LazyWebSocketProvider } from '@/components/providers/lazy-websocket-provider';
 import { PostHogNavigationTracker } from '@/components/providers/posthog-navigation-tracker';
 import { PostHogProviderWrapper } from '@/components/providers/posthog-provider-wrapper';
-import { SafeAreaView, UpdateNotificationBar } from '@/components/ui';
+import { SafeAreaView } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
@@ -514,7 +514,6 @@ function Providers({
                   <LazyWebSocketProvider>
                     <BottomSheetModalProvider>
                       <ReducedMotionConfig mode={ReduceMotion.Never} />
-                      <UpdateNotificationBar />
                       {children}
                       <FlashMessage position="top" />
                     </BottomSheetModalProvider>
