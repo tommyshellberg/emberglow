@@ -1,6 +1,7 @@
 import { type Href, Redirect, Slot, usePathname } from 'expo-router';
 import React from 'react';
 
+import { AudioIndicator } from '@/components/onboarding/audio-indicator';
 import { useOnboardingMusic } from '@/hooks/use-onboarding-music';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 
@@ -13,7 +14,7 @@ export default function OnboardingLayout() {
   // use-onboarding-music.ts). Must sit above both early returns below (rules
   // of hooks); `!isComplete` keeps it silent on the branch where this layout
   // is about to redirect away rather than briefly starting playback first.
-  useOnboardingMusic(!isComplete);
+  const { isPlaying } = useOnboardingMusic(!isComplete);
 
   // If onboarding is complete, redirect to root for re-evaluation
   if (isComplete) {
@@ -36,5 +37,10 @@ export default function OnboardingLayout() {
     return <Redirect href={target} />;
   }
 
-  return <Slot />;
+  return (
+    <>
+      <Slot />
+      <AudioIndicator isPlaying={isPlaying} />
+    </>
+  );
 }
