@@ -1,6 +1,7 @@
 import React from 'react';
 
-import { render, screen, setup, waitFor } from '@/lib/test-utils';
+import { act, render, screen, setup, waitFor } from '@/lib/test-utils';
+import { useSettingsStore } from '@/store/settings-store';
 import { type StoryQuestTemplate } from '@/store/types';
 
 import { StoryNarration } from './StoryNarration';
@@ -48,6 +49,7 @@ beforeEach(() => {
   audioCacheService.getAudioSource.mockResolvedValue({
     uri: 'file:///narration.mp3',
   });
+  useSettingsStore.setState({ narratorVoice: null });
 });
 
 describe('StoryNarration', () => {
@@ -97,5 +99,39 @@ describe('StoryNarration', () => {
     expect(
       await screen.findByText('Failed to load audio narration')
     ).toBeTruthy();
+  });
+
+  it('requests the female path with male fallback when narratorVoice is female', async () => {
+    useSettingsStore.setState({ narratorVoice: 'female' });
+
+    render(<StoryNarration quest={quest} />);
+
+    await waitFor(() => {
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        expect.stringContaining('-female.mp3'),
+        expect.stringMatching(/quest-.*\.mp3$/)
+      );
+    });
+  });
+
+  it('re-resolves the source when the voice changes while mounted', async () => {
+    useSettingsStore.setState({ narratorVoice: 'male' });
+
+    render(<StoryNarration quest={quest} />);
+    await waitFor(() =>
+      expect(audioCacheService.getAudioSource).toHaveBeenCalled()
+    );
+    (audioCacheService.getAudioSource as jest.Mock).mockClear();
+
+    act(() => {
+      useSettingsStore.setState({ narratorVoice: 'female' });
+    });
+
+    await waitFor(() => {
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        expect.stringContaining('-female.mp3'),
+        expect.any(String)
+      );
+    });
   });
 });

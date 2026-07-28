@@ -25,9 +25,10 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { audioCacheService } from '@/lib/services/audio-cache.service';
+import { useSettingsStore } from '@/store/settings-store';
 import { type StoryQuestTemplate } from '@/store/types';
 import { colors, fontFamily, palette, radii, shadows, spacing } from '@/theme';
-import { getQuestAudioPath } from '@/utils/audio-utils';
+import { getNarrationPaths } from '@/utils/audio-utils';
 
 type Props = {
   quest: StoryQuestTemplate;
@@ -45,6 +46,7 @@ type Props = {
 export function StoryNarration({ quest }: Props) {
   const [source, setSource] = useState<AudioSource | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const narratorVoice = useSettingsStore((s) => s.narratorVoice);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -62,8 +64,10 @@ export function StoryNarration({ quest }: Props) {
 
         // customId (from the server) wins over id (local quests).
         const questId = (quest as any).customId || quest.id;
+        const { primaryPath, fallbackPath } = getNarrationPaths(questId);
         const resolved = await audioCacheService.getAudioSource(
-          getQuestAudioPath(questId)
+          primaryPath,
+          fallbackPath ?? undefined
         );
         if (!resolved) {
           throw new Error('No audio source found for quest');
@@ -85,7 +89,11 @@ export function StoryNarration({ quest }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [quest.id]);
+    // narratorVoice: getNarrationPaths reads settings via getState(), which
+    // doesn't itself trigger a re-render. Subscribing to narratorVoice above
+    // and listing it here is what makes a voice change while mounted
+    // re-resolve the source (see StoryNarration.test.tsx).
+  }, [quest.id, narratorVoice]);
 
   if (loadError) {
     return (
