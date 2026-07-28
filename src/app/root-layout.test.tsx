@@ -204,7 +204,6 @@ jest.mock('@/components/ui', () => ({
   SafeAreaView: ({ children, ...props }: any) => (
     <div {...props}>{children}</div>
   ),
-  UpdateNotificationBar: () => <div>UpdateNotificationBar</div>,
 }));
 
 jest.mock('@gorhom/bottom-sheet', () => ({
