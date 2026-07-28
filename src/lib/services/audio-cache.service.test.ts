@@ -399,12 +399,24 @@ describe('audio-cache.service', () => {
       );
     });
 
-    it('retries the fallback path when the primary fully fails', async () => {
+    // Split into two tests (rather than one test asserting both the
+    // resolved uri and the capture call): a mutation that always takes the
+    // fallback but skips reporting it (or vice versa) must be caught by a
+    // mutation that fails only one of these two independent behaviors, not
+    // both at once — see the mutation-check notes in the task report.
+    it('retries the fallback path and resolves the male source when the primary fully fails', async () => {
       mockAudioFileRequestFailureFor(FEMALE);
 
       const result = await audioCacheService.getAudioSource(FEMALE, MALE);
 
       expect(result).toEqual({ uri: MALE_URI });
+    });
+
+    it('reports narration_voice_fallback to PostHog when the primary fully fails', async () => {
+      mockAudioFileRequestFailureFor(FEMALE);
+
+      await audioCacheService.getAudioSource(FEMALE, MALE);
+
       expect(posthogClient.capture).toHaveBeenCalledWith(
         'narration_voice_fallback',
         { path: FEMALE }
