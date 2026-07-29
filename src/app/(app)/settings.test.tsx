@@ -191,6 +191,59 @@ describe('Settings Screen', () => {
     });
   });
 
+  it('shows the account email and Logout for a full account', async () => {
+    const { getByText } = render(<Settings />);
+    await waitFor(() => {
+      expect(getByText('test@example.com')).toBeTruthy();
+      expect(getByText('Logout')).toBeTruthy();
+    });
+  });
+
+  describe('provisional (guest) user', () => {
+    beforeEach(() => {
+      // A guest's /users/me succeeds since the provisional-token fallback, so
+      // the user store holds their internal placeholder identity.
+      const { getItem } = require('@/lib/storage');
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'prov-access-token' : null
+      );
+      const { useUserStore } = require('@/store/user-store');
+      (useUserStore as jest.Mock).mockImplementation((selector: any) =>
+        selector({
+          user: { email: 'e284edc7-uuid@unquestapp.com' },
+          setUser: jest.fn(),
+        })
+      );
+    });
+
+    afterEach(() => {
+      const { getItem } = require('@/lib/storage');
+      (getItem as jest.Mock).mockReset();
+    });
+
+    it('shows guest copy instead of the internal placeholder email', async () => {
+      const { getByText, queryByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Account')).toBeTruthy();
+      });
+      // The uuid@unquestapp.com address is an implementation detail, not an
+      // identity the user ever chose or could log in with.
+      expect(queryByText(/unquestapp\.com/)).toBeNull();
+      expect(getByText(/Guest/)).toBeTruthy();
+    });
+
+    it('does not offer Logout to a guest', async () => {
+      const { getByText, queryByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Account')).toBeTruthy();
+      });
+      // A guest has no credentials to log back in with — and the session
+      // resurrects on the next cold start anyway (hydrate re-reads the
+      // provisional keys). Offering Logout is a lie both ways.
+      expect(queryByText('Logout')).toBeNull();
+    });
+  });
+
   it('displays EAS Update version when available in production', async () => {
     const { getByText } = render(<Settings />);
 

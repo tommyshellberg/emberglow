@@ -71,6 +71,7 @@ function handleEmailContact() {
 
 type AccountSectionProps = {
   user: User | null;
+  isGuest: boolean;
   hasPremiumAccess: boolean;
   onManageSubscription: () => void;
   onLogout: () => void;
@@ -78,10 +79,23 @@ type AccountSectionProps = {
 
 function AccountSection({
   user,
+  isGuest,
   hasPremiumAccess,
   onManageSubscription,
   onLogout,
 }: AccountSectionProps) {
+  // A guest (provisional user) HAS a user object — /users/me succeeds with
+  // their provisional JWT — but its email is a generated
+  // <uuid>@unquestapp.com placeholder, not an identity they chose or could
+  // sign in with. Show them a guest state instead, and no Logout: a guest has
+  // no credentials to log back in with, and the next cold start re-hydrates
+  // the provisional keys and signs them straight back in anyway. (A "Create
+  // account" entry point here is blocked on emberglow#359 — there is no
+  // non-destructive route back into the signup funnel yet.)
+  const accountSubtitle = isGuest
+    ? 'Guest — progress saved on this device'
+    : user?.email || 'Not signed in';
+
   return (
     <>
       <View style={styles.card}>
@@ -90,7 +104,7 @@ function AccountSection({
             <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
           }
           title="Account"
-          subtitle={user?.email || 'Not signed in'}
+          subtitle={accountSubtitle}
         />
         <View style={styles.divider} />
         <ListItem
@@ -112,7 +126,7 @@ function AccountSection({
         />
       </View>
 
-      {user && (
+      {user && !isGuest && (
         <View style={styles.logoutWrapper}>
           <Button variant="secondary" label="Logout" onPress={onLogout} />
         </View>
@@ -825,6 +839,7 @@ export default function Settings() {
           <View className="px-4">
             <AccountSection
               user={user}
+              isGuest={!!getItem('provisionalAccessToken')}
               hasPremiumAccess={hasPremiumAccess}
               onManageSubscription={() =>
                 handleManageSubscription(setIsLoading)
