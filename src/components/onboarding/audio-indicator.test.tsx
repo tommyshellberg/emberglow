@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { StyleSheet } from 'react-native';
 
 import { fireEvent, render, screen } from '@/lib/test-utils';
 import { useSettingsStore } from '@/store/settings-store';
@@ -86,6 +87,20 @@ describe('AudioIndicator', () => {
     expect(
       screen.getByRole('button', { name: 'Mute onboarding sound' })
     ).toBeOnTheScreen();
+  });
+
+  // The only always-present interactive control in onboarding, so it is also
+  // the one that most has to stay tappable. IconButton documents 44pt as its
+  // minimum hit target and defaults to it; this component used to override
+  // that with 40.
+  it('keeps a 44pt minimum touch target', () => {
+    render(<AudioIndicator isPlaying />);
+
+    const style = StyleSheet.flatten(
+      screen.getByTestId('audio-indicator').props.style
+    );
+    expect(style.width).toBeGreaterThanOrEqual(44);
+    expect(style.height).toBeGreaterThanOrEqual(44);
   });
 
   it('labels the control "Unmute onboarding sound" when sound is off', () => {

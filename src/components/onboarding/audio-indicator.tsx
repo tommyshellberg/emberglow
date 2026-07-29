@@ -13,7 +13,11 @@ import { IconButton } from '@/components/emberglow';
 import { useSettingsStore } from '@/store/settings-store';
 import { durations, palette, spacing, withAlpha } from '@/theme';
 
-const BUTTON_SIZE = 40;
+// IconButton's own documented minimum hit target (and its default). Don't
+// shrink it: this is the only always-present interactive control in
+// onboarding, and it sits in the corner where a small target is hardest to
+// hit. The layout below derives the slot and pulse-ring geometry from it.
+const BUTTON_SIZE = 44;
 // Ring sits 5pt outside the button on every side, so it reads as a halo
 // rather than an outline hugging the icon.
 const PULSE_INSET = -5;
