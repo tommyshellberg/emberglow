@@ -52,11 +52,13 @@ jest.mock('@/store/character-store', () => {
   const mockCreateCharacter = jest.fn();
   const mockUpdateCharacter = jest.fn();
   const mockSetStreak = jest.fn();
+  const mockResetCharacter = jest.fn();
   const mockGetState = jest.fn(() => ({
     character: null,
     createCharacter: mockCreateCharacter,
     updateCharacter: mockUpdateCharacter,
     setStreak: mockSetStreak,
+    resetCharacter: mockResetCharacter,
   }));
 
   return {
@@ -67,8 +69,36 @@ jest.mock('@/store/character-store', () => {
       mockCreateCharacter,
       mockUpdateCharacter,
       mockSetStreak,
+      mockResetCharacter,
       mockGetState,
     },
+  };
+});
+
+// Progress stores wiped by wipeGuestSession
+jest.mock('@/store/quest-store', () => {
+  const mockQuestReset = jest.fn();
+  return {
+    useQuestStore: { getState: jest.fn(() => ({ reset: mockQuestReset })) },
+    __mocks: { mockQuestReset },
+  };
+});
+
+jest.mock('@/store/poi-store', () => {
+  const mockPoiReset = jest.fn();
+  return {
+    usePOIStore: { getState: jest.fn(() => ({ reset: mockPoiReset })) },
+    __mocks: { mockPoiReset },
+  };
+});
+
+jest.mock('@/store/onboarding-store', () => {
+  const mockResetOnboarding = jest.fn();
+  return {
+    useOnboardingStore: {
+      getState: jest.fn(() => ({ resetOnboarding: mockResetOnboarding })),
+    },
+    __mocks: { mockResetOnboarding },
   };
 });
 
@@ -103,6 +133,7 @@ beforeEach(() => {
     createCharacter: characterStoreMocks.mockCreateCharacter,
     updateCharacter: characterStoreMocks.mockUpdateCharacter,
     setStreak: characterStoreMocks.mockSetStreak,
+    resetCharacter: characterStoreMocks.mockResetCharacter,
   });
 });
 
@@ -145,7 +176,11 @@ describe('Auth Store', () => {
   });
 
   describe('endProvisionalSession', () => {
-    it('clears every provisional key, tells the user, and signs out — leaving the local hero untouched', () => {
+    const questStoreMocks = require('@/store/quest-store').__mocks;
+    const poiStoreMocks = require('@/store/poi-store').__mocks;
+    const onboardingStoreMocks = require('@/store/onboarding-store').__mocks;
+
+    it('announces the expired character, then wipes everything on acknowledge', () => {
       const mockClearUser = jest.fn();
       (useUserStore.getState as jest.Mock).mockReturnValue({
         clearUser: mockClearUser,
@@ -156,20 +191,30 @@ describe('Auth Store', () => {
 
       endProvisionalSession();
 
+      // The notice comes first; nothing is wiped until the user acknowledges
+      // it — the wipe must never happen invisibly under a modal.
+      expect(removeItem).not.toHaveBeenCalled();
+      const [, message, buttons] = alertSpy.mock.calls[0];
+      expect(message).toContain('temporary character expired');
+
+      (buttons as any)[0].onPress();
+
+      // Provisional identity gone…
       expect(removeItem).toHaveBeenCalledWith('provisionalAccessToken');
       expect(removeItem).toHaveBeenCalledWith('provisionalRefreshToken');
       expect(removeItem).toHaveBeenCalledWith('provisionalUserId');
       expect(removeItem).toHaveBeenCalledWith('provisionalEmail');
 
-      // Ends the auth session; the navigation resolver then routes to
-      // login (onboarding complete) or the signup funnel (mid-onboarding).
-      expect(useAuth.getState().status).toBe('signOut');
+      // …and ALL local progress with it (Tommy's ruling 2026-07-29: no
+      // salvage branches — a dead guest starts onboarding over).
+      expect(questStoreMocks.mockQuestReset).toHaveBeenCalled();
+      expect(poiStoreMocks.mockPoiReset).toHaveBeenCalled();
+      expect(characterStoreMocks.mockResetCharacter).toHaveBeenCalled();
+      expect(onboardingStoreMocks.mockResetOnboarding).toHaveBeenCalled();
 
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Session Expired',
-        expect.stringContaining('account'),
-        expect.anything()
-      );
+      // Signed out + onboarding reset ⇒ the resolver routes to
+      // /onboarding/welcome by its normal rules; no navigation code here.
+      expect(useAuth.getState().status).toBe('signOut');
 
       alertSpy.mockRestore();
     });
