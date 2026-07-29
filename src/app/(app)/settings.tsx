@@ -212,7 +212,9 @@ export default function Settings() {
 
         setNotificationsEnabled(granted);
       } else {
-        // Disabling notifications
+        // Disabling notifications: stop server pushes at the OneSignal level,
+        // not just local scheduling.
+        await OneSignal.User.pushSubscription.optOut();
         setItem(NOTIFICATIONS_ENABLED_KEY, 'false');
         setNotificationsEnabled(false);
       }
@@ -498,6 +500,7 @@ export default function Settings() {
                 </View>
               </View>
               <Switch
+                accessibilityLabel="Notifications"
                 value={notificationsEnabled}
                 onValueChange={handleNotificationsToggle}
                 trackColor={{ false: '#2A4754', true: '#36B6D3' }}

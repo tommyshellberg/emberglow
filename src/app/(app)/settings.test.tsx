@@ -1,3 +1,5 @@
+import { OneSignal } from 'react-native-onesignal';
+
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 
 import Settings from './settings';
@@ -70,11 +72,13 @@ jest.mock('@/lib', () => ({
 }));
 
 // Mock all notification services to return simple promises
+const mockRequestPermissions = jest.fn().mockResolvedValue(true);
 jest.mock('@/lib/services/notifications', () => ({
   areNotificationsEnabled: jest.fn().mockResolvedValue(true),
   cancelDailyReminderNotification: jest.fn().mockResolvedValue(true),
   cancelStreakWarningNotification: jest.fn().mockResolvedValue(true),
-  requestNotificationPermissions: jest.fn().mockResolvedValue(true),
+  requestNotificationPermissions: (...args: unknown[]) =>
+    mockRequestPermissions(...args),
   scheduleDailyReminderNotification: jest.fn().mockResolvedValue(true),
   scheduleStreakWarningNotification: jest.fn().mockResolvedValue(true),
 }));
@@ -167,6 +171,17 @@ jest.mock('react-native-onesignal', () => ({
     Notifications: {
       requestPermission: jest.fn(),
       hasPermission: jest.fn(() => Promise.resolve(true)),
+      getPermissionAsync: jest.fn(() => Promise.resolve(true)),
+    },
+    User: {
+      getOnesignalId: jest.fn(() => Promise.resolve('onesignal-id')),
+      getExternalId: jest.fn(() => Promise.resolve('external-id')),
+      pushSubscription: {
+        optOut: jest.fn(),
+        getOptedInAsync: jest.fn(() => Promise.resolve(true)),
+        getIdAsync: jest.fn(() => Promise.resolve('subscription-id')),
+        getTokenAsync: jest.fn(() => Promise.resolve('push-token')),
+      },
     },
   },
 }));
@@ -297,5 +312,34 @@ describe('Nudges toggle', () => {
         )
       ).toBe(false);
     });
+  });
+});
+
+describe('master notifications toggle × OneSignal subscription', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+    mockRequestPermissions.mockClear();
+    (OneSignal.User.pushSubscription.optOut as jest.Mock).mockClear();
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('calls pushSubscription.optOut() when toggled off', async () => {
+    render(<Settings />);
+    const master = await screen.findByLabelText('Notifications');
+    fireEvent(master, 'valueChange', false);
+    await waitFor(() =>
+      expect(OneSignal.User.pushSubscription.optOut).toHaveBeenCalled()
+    );
+  });
+
+  it('does NOT call optOut() when toggled on', async () => {
+    render(<Settings />);
+    const master = await screen.findByLabelText('Notifications');
+    fireEvent(master, 'valueChange', true);
+    await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
+    expect(OneSignal.User.pushSubscription.optOut).not.toHaveBeenCalled();
   });
 });
