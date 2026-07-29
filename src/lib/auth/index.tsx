@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
 
@@ -6,8 +7,10 @@ import { storeTokens } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
+import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
+import { usePOIStore } from '@/store/poi-store';
 import { useUserStore } from '@/store/user-store';
 
 import { createSelectors } from '../utils';
@@ -292,3 +295,59 @@ export const signIn = (response: UserLoginResponse) =>
   _useAuth.getState().signIn(response);
 export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
+
+/**
+ * Wipes the guest (provisional) session AND all local progress, then signs
+ * out. With onboarding reset and auth signed out, the navigation resolver
+ * routes to /onboarding/welcome by its normal rules — no navigation code
+ * here, same sanctioned pattern as the no-hero screen's reset button.
+ *
+ * Deliberately no salvage: grafting saved local progress onto a freshly
+ * provisioned account is the split-brain shape that produced the PR #364
+ * bug family (two accounts, divided quest data, empty journal). A dead
+ * guest starts over — one branch, one honest outcome (Tommy, 2026-07-29).
+ *
+ * Device preferences (reminder times etc.) are intentionally left alone;
+ * only identity and progress are wiped.
+ */
+export const wipeGuestSession = () => {
+  removeItem('provisionalAccessToken');
+  removeItem('provisionalRefreshToken');
+  removeItem('provisionalUserId');
+  removeItem('provisionalEmail');
+
+  // Call-time require, not a top-level import: quest-store reaches back to
+  // this module (quest-store → quest-run-service → provisional-client →
+  // lib/auth), and a static import would close that cycle at module init.
+  const { useQuestStore } = require('@/store/quest-store');
+  useQuestStore.getState().reset();
+  usePOIStore.getState().reset();
+  useCharacterStore.getState().resetCharacter();
+  useOnboardingStore.getState().resetOnboarding();
+
+  // Also clears the user store and detaches PostHog/RevenueCat/OneSignal.
+  _useAuth.getState().signOut();
+};
+
+/**
+ * A provisional session is DEFINITIVELY dead: the server rejected its access
+ * token AND its refresh token (or there was none). Nothing sent with those
+ * credentials can ever succeed again, so holding onto them only buys an
+ * endless 401 storm behind a working-looking app — the failure mode this
+ * function exists to end.
+ *
+ * Tells the user, then wipes on acknowledge — never invisibly underneath
+ * the notice, so the screen doesn't reset while they are reading why.
+ *
+ * Only call this on proof (a 401 for the refresh token itself). For plain
+ * network failures the session must be left alone — see
+ * refreshProvisionalTokens' result contract.
+ */
+export const endProvisionalSession = () => {
+  Alert.alert(
+    'Character Expired',
+    'Sorry, but it looks like your temporary character expired — no worries, though, it only takes a couple of minutes to create a new one.',
+    [{ text: 'Start Over', onPress: () => wipeGuestSession() }],
+    { cancelable: false }
+  );
+};

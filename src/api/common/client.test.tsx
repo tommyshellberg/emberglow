@@ -1,10 +1,10 @@
 import { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-import { signOut } from '@/lib/auth';
+import { endProvisionalSession, signOut } from '@/lib/auth';
 import { getToken } from '@/lib/auth/utils';
 import { getItem } from '@/lib/storage';
 
-import { refreshAccessToken } from '../auth';
+import { refreshAccessToken, refreshProvisionalTokens } from '../auth';
 // Import after mocks are set up
 import { __resetRefreshAttempts, apiClient } from './client';
 
@@ -82,6 +82,10 @@ afterAll(() => {
 describe('apiClient', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks clears calls but NOT implementations, so a
+    // mockImplementation set in one test would leak into the next. Every test
+    // starts from "no provisional data"; tests that need it re-mock locally.
+    (getItem as jest.Mock).mockReturnValue(null);
     // Reset refresh attempts counter for each test
     __resetRefreshAttempts();
   });
@@ -117,6 +121,47 @@ describe('apiClient', () => {
       const result = requestInterceptor.onFulfilled(config);
 
       expect(result.headers.Authorization).toBeUndefined();
+    });
+
+    it('should fall back to the provisional access token when no full token exists', () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'provisional-access-token' : null
+      );
+
+      const config: InternalAxiosRequestConfig = {
+        headers: {} as any,
+        method: 'get',
+        url: '/users/me',
+      };
+
+      const result = requestInterceptor.onFulfilled(config);
+
+      expect(result.headers.Authorization).toBe(
+        'Bearer provisional-access-token'
+      );
+    });
+
+    it('should prefer the full-account token when both tokens exist', () => {
+      // Mid-conversion window: socialSignIn/verifyMagicLink store the real
+      // tokens BEFORE clearing the provisional keys, so both briefly coexist.
+      (getToken as jest.Mock).mockReturnValue({
+        access: 'full-access-token',
+        refresh: 'full-refresh-token',
+      });
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'provisional-access-token' : null
+      );
+
+      const config: InternalAxiosRequestConfig = {
+        headers: {} as any,
+        method: 'get',
+        url: '/users/me',
+      };
+
+      const result = requestInterceptor.onFulfilled(config);
+
+      expect(result.headers.Authorization).toBe('Bearer full-access-token');
     });
 
     it('should handle request errors', async () => {
@@ -369,10 +414,16 @@ describe('apiClient', () => {
         const MAX_REFRESH_ATTEMPTS = 3;
 
         // Burn the refresh budget so the NEXT 401 takes the exhaustion branch.
+        // Fails BOTH refresh paths: a provisional caller burns attempts via
+        // refreshProvisionalTokens ('error' keeps the session alive), a
+        // full-account caller via refreshAccessToken.
         const exhaustRefreshBudget = async () => {
           (refreshAccessToken as jest.Mock).mockRejectedValue(
             new Error('Refresh failed')
           );
+          (refreshProvisionalTokens as jest.Mock).mockResolvedValue({
+            status: 'error',
+          });
           for (let i = 0; i < MAX_REFRESH_ATTEMPTS; i++) {
             await expect(
               responseInterceptor.onRejected({
@@ -381,7 +432,7 @@ describe('apiClient', () => {
                 // so reusing one would short-circuit on the second pass.
                 config: { url: `/burn-${i}`, headers: {} },
               } as AxiosError)
-            ).rejects.toThrow('Refresh failed');
+            ).rejects.toBeDefined();
           }
         };
 
@@ -437,43 +488,71 @@ describe('apiClient', () => {
           ).rejects.toMatchObject({ code: 'TOKEN_REFRESH_EXHAUSTED' });
         });
 
-        it('does not sign out a provisional user when the refresh itself fails', async () => {
-          // Guards the existing check at client.tsx:196-219. The neighbouring
-          // "should sign out when refresh fails" tests never mock getItem, so
-          // they pass off the undefined fallback and would keep passing if that
-          // check were deleted.
+        it('refreshes the provisional session and retries the request on a 401', async () => {
           (getItem as jest.Mock).mockImplementation(provisionalStorage);
-          (refreshAccessToken as jest.Mock).mockRejectedValue(
-            new Error('Refresh failed')
-          );
+          (refreshProvisionalTokens as jest.Mock).mockResolvedValue({
+            status: 'refreshed',
+            tokens: {
+              access: { token: 'rotated-access', expires: '2025-01-01' },
+              refresh: { token: 'rotated-refresh', expires: '2025-02-01' },
+            },
+          });
 
-          await expect(
-            responseInterceptor.onRejected({
-              response: { status: 401 },
-              config: { url: '/test', headers: {} },
-            } as AxiosError)
-          ).rejects.toThrow('Refresh failed');
+          const config = { url: '/users/me', headers: {} } as any;
+          const result = await responseInterceptor.onRejected({
+            response: { status: 401 },
+            config,
+          } as AxiosError);
 
+          // The provisional path must NOT touch the full-account refresh: that
+          // one reads the full-account refresh token (absent) and clears the
+          // full-account keys on failure.
+          expect(refreshAccessToken).not.toHaveBeenCalled();
+          expect(refreshProvisionalTokens).toHaveBeenCalled();
+          expect(config.headers.Authorization).toBe('Bearer rotated-access');
+          expect(result).toEqual({ data: 'retry success', config });
           expect(signOut).not.toHaveBeenCalled();
         });
 
-        it('does not sign out a provisional user when the refresh returns no token', async () => {
-          // The sibling branch to the one above: refreshAccessToken resolves,
-          // but without an access token. Its guard (client.tsx:229) was
-          // separately unproven — mutating it to always sign out failed no test
-          // until this one existed.
+        it('ends the provisional session when the refresh proves it dead', async () => {
           (getItem as jest.Mock).mockImplementation(provisionalStorage);
-          (refreshAccessToken as jest.Mock).mockResolvedValue(null);
+          (refreshProvisionalTokens as jest.Mock).mockResolvedValue({
+            status: 'dead',
+          });
+
+          const original = {
+            response: { status: 401 },
+            config: { url: '/users/me', headers: {} },
+          } as AxiosError;
 
           await expect(
-            responseInterceptor.onRejected({
-              response: { status: 401 },
-              config: { url: '/test', headers: {} },
-            } as AxiosError)
-          ).rejects.toThrow(
-            'Token refresh failed: No new access token string received.'
-          );
+            responseInterceptor.onRejected(original)
+          ).rejects.toBe(original);
 
+          expect(endProvisionalSession).toHaveBeenCalled();
+          // endProvisionalSession does its own (ordered) sign-out; the
+          // interceptor must not add a second, direct one.
+          expect(signOut).not.toHaveBeenCalled();
+        });
+
+        it('keeps the provisional session when the refresh merely errors', async () => {
+          // Network flake / 5xx: NOT proof of death. The request fails, the
+          // session survives to retry later.
+          (getItem as jest.Mock).mockImplementation(provisionalStorage);
+          (refreshProvisionalTokens as jest.Mock).mockResolvedValue({
+            status: 'error',
+          });
+
+          const original = {
+            response: { status: 401 },
+            config: { url: '/users/me', headers: {} },
+          } as AxiosError;
+
+          await expect(
+            responseInterceptor.onRejected(original)
+          ).rejects.toBe(original);
+
+          expect(endProvisionalSession).not.toHaveBeenCalled();
           expect(signOut).not.toHaveBeenCalled();
         });
       });

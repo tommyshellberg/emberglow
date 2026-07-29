@@ -1,12 +1,13 @@
 import Constants from 'expo-constants';
+import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 
 import { storeTokens } from '@/api/token';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
+import { getItem, removeItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
-import { useAuth } from './index';
+import { endProvisionalSession, useAuth } from './index';
 import { getToken, removeToken, setToken } from './utils';
 
 // Mock all dependencies
@@ -51,11 +52,13 @@ jest.mock('@/store/character-store', () => {
   const mockCreateCharacter = jest.fn();
   const mockUpdateCharacter = jest.fn();
   const mockSetStreak = jest.fn();
+  const mockResetCharacter = jest.fn();
   const mockGetState = jest.fn(() => ({
     character: null,
     createCharacter: mockCreateCharacter,
     updateCharacter: mockUpdateCharacter,
     setStreak: mockSetStreak,
+    resetCharacter: mockResetCharacter,
   }));
 
   return {
@@ -66,8 +69,36 @@ jest.mock('@/store/character-store', () => {
       mockCreateCharacter,
       mockUpdateCharacter,
       mockSetStreak,
+      mockResetCharacter,
       mockGetState,
     },
+  };
+});
+
+// Progress stores wiped by wipeGuestSession
+jest.mock('@/store/quest-store', () => {
+  const mockQuestReset = jest.fn();
+  return {
+    useQuestStore: { getState: jest.fn(() => ({ reset: mockQuestReset })) },
+    __mocks: { mockQuestReset },
+  };
+});
+
+jest.mock('@/store/poi-store', () => {
+  const mockPoiReset = jest.fn();
+  return {
+    usePOIStore: { getState: jest.fn(() => ({ reset: mockPoiReset })) },
+    __mocks: { mockPoiReset },
+  };
+});
+
+jest.mock('@/store/onboarding-store', () => {
+  const mockResetOnboarding = jest.fn();
+  return {
+    useOnboardingStore: {
+      getState: jest.fn(() => ({ resetOnboarding: mockResetOnboarding })),
+    },
+    __mocks: { mockResetOnboarding },
   };
 });
 
@@ -102,6 +133,7 @@ beforeEach(() => {
     createCharacter: characterStoreMocks.mockCreateCharacter,
     updateCharacter: characterStoreMocks.mockUpdateCharacter,
     setStreak: characterStoreMocks.mockSetStreak,
+    resetCharacter: characterStoreMocks.mockResetCharacter,
   });
 });
 
@@ -140,6 +172,51 @@ describe('Auth Store', () => {
         access: 'access-token',
         refresh: 'refresh-token',
       });
+    });
+  });
+
+  describe('endProvisionalSession', () => {
+    const questStoreMocks = require('@/store/quest-store').__mocks;
+    const poiStoreMocks = require('@/store/poi-store').__mocks;
+    const onboardingStoreMocks = require('@/store/onboarding-store').__mocks;
+
+    it('announces the expired character, then wipes everything on acknowledge', () => {
+      const mockClearUser = jest.fn();
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: mockClearUser,
+      });
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation(() => {});
+
+      endProvisionalSession();
+
+      // The notice comes first; nothing is wiped until the user acknowledges
+      // it — the wipe must never happen invisibly under a modal.
+      expect(removeItem).not.toHaveBeenCalled();
+      const [, message, buttons] = alertSpy.mock.calls[0];
+      expect(message).toContain('temporary character expired');
+
+      (buttons as any)[0].onPress();
+
+      // Provisional identity gone…
+      expect(removeItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalRefreshToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalUserId');
+      expect(removeItem).toHaveBeenCalledWith('provisionalEmail');
+
+      // …and ALL local progress with it (Tommy's ruling 2026-07-29: no
+      // salvage branches — a dead guest starts onboarding over).
+      expect(questStoreMocks.mockQuestReset).toHaveBeenCalled();
+      expect(poiStoreMocks.mockPoiReset).toHaveBeenCalled();
+      expect(characterStoreMocks.mockResetCharacter).toHaveBeenCalled();
+      expect(onboardingStoreMocks.mockResetOnboarding).toHaveBeenCalled();
+
+      // Signed out + onboarding reset ⇒ the resolver routes to
+      // /onboarding/welcome by its normal rules; no navigation code here.
+      expect(useAuth.getState().status).toBe('signOut');
+
+      alertSpy.mockRestore();
     });
   });
 

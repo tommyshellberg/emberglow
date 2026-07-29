@@ -32,6 +32,7 @@ import { background } from '@/components/ui/colors';
 import { Modal, useModal } from '@/components/ui/modal';
 import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useAuth } from '@/lib';
+import { wipeGuestSession } from '@/lib/auth';
 import { TIMEZONES } from '@/lib/constants/timezones';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import { posthogClient } from '@/lib/posthog';
@@ -73,6 +74,7 @@ function handleEmailContact() {
 
 type AccountSectionProps = {
   user: User | null;
+  isGuest: boolean;
   hasPremiumAccess: boolean;
   onManageSubscription: () => void;
   onLogout: () => void;
@@ -80,10 +82,38 @@ type AccountSectionProps = {
 
 function AccountSection({
   user,
+  isGuest,
   hasPremiumAccess,
   onManageSubscription,
   onLogout,
 }: AccountSectionProps) {
+  // A guest (provisional user) HAS a user object — /users/me succeeds with
+  // their provisional JWT — but its email is a generated
+  // <uuid>@unquestapp.com placeholder, not an identity they chose or could
+  // sign in with. A guest reaching this screen at all is an anomaly (the
+  // resolver holds guests at the signup prompt; enforcement proper arrives
+  // with Expo protected routes), so instead of a Logout they can't come back
+  // from — or nothing, which leaves them silently stuck — they get the one
+  // honest exit: start over. Same wipe the dead-session path uses.
+  const accountSubtitle = isGuest
+    ? 'Guest — progress saved on this device'
+    : user?.email || 'Not signed in';
+
+  const handleStartOver = () => {
+    Alert.alert(
+      'Start Over',
+      'This clears your guest character and all progress so you can begin fresh. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Over',
+          style: 'destructive',
+          onPress: () => wipeGuestSession(),
+        },
+      ]
+    );
+  };
+
   return (
     <>
       <View style={styles.card}>
@@ -92,7 +122,7 @@ function AccountSection({
             <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
           }
           title="Account"
-          subtitle={user?.email || 'Not signed in'}
+          subtitle={accountSubtitle}
         />
         <View style={styles.divider} />
         <ListItem
@@ -114,9 +144,18 @@ function AccountSection({
         />
       </View>
 
-      {user && (
+      {user && !isGuest && (
         <View style={styles.logoutWrapper}>
           <Button variant="secondary" label="Logout" onPress={onLogout} />
+        </View>
+      )}
+      {isGuest && (
+        <View style={styles.logoutWrapper}>
+          <Button
+            variant="secondary"
+            label="Start Over"
+            onPress={handleStartOver}
+          />
         </View>
       )}
     </>
@@ -855,6 +894,7 @@ export default function Settings() {
           <View className="px-4">
             <AccountSection
               user={user}
+              isGuest={!!getItem('provisionalAccessToken')}
               hasPremiumAccess={hasPremiumAccess}
               onManageSubscription={() =>
                 handleManageSubscription(setIsLoading)
