@@ -45,9 +45,9 @@ jest.mock('posthog-react-native', () => ({
   }),
 }));
 
-// Mock the characters data. Only two entries — index 1 here is `knight`, NOT
-// `bard` (the real CHARACTERS order is alchemist, bard, druid, knight, scout,
-// wizard, but this screen's tests only ever exercise this two-entry mock).
+// Mock the characters data. Only two entries (the real CHARACTERS order is
+// alchemist, knight, bard, scout, druid, wizard, but this screen's tests only
+// ever exercise this two-entry mock).
 // introAudio sentinels are distinct on purpose: asserting
 // toHaveBeenCalledWith(CHARACTERS[n].introAudio) against a shared/undefined
 // value would pass even if the implementation looked up the wrong character.
