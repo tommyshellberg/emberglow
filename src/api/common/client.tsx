@@ -271,17 +271,17 @@ apiClient.interceptors.response.use(
           return Promise.reject(refreshError);
         }
       } catch (refreshError) {
-        console.error('Token refresh failed catastrophically:', refreshError);
+        console.error('Token refresh failed:', refreshError);
         processQueue(refreshError as Error);
 
-        // Check if this is a provisional user before signing out
-        if (!hasProvisionalCredentials()) {
-          signOut();
-        } else if (__DEV__) {
-          console.log(
-            '[API Client] Not signing out provisional user on catastrophic token refresh failure'
-          );
-        }
+        // A THROW from refreshAccessToken means the failure was
+        // indeterminate — network, 5xx, timeout — and says nothing about the
+        // refresh token's validity (a definitive 401 comes back as `null`
+        // AFTER the tokens were cleared, via the branch above). Signing out
+        // here logged real users out for a tunnel or a Render cold start
+        // (emberglow-server#70). The retry budget and the
+        // TOKEN_REFRESH_EXHAUSTED escalation remain the backstop if the
+        // failure persists.
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -416,9 +416,20 @@ export const refreshAccessToken =
       return newTokens;
     } catch (error) {
       console.error('Error refreshing token:', error);
-      // If refresh fails, clear tokens
-      tokenService.removeTokens();
-      return null;
+      // Only a 401 from /auth/refresh-tokens proves the refresh token itself
+      // is dead — that's the one case where clearing is correct. A network
+      // failure or 5xx says nothing about the token; clearing there signed
+      // real users out for a tunnel or a Render cold-start timeout
+      // (emberglow-server#70). Same discrimination refreshProvisionalTokens
+      // makes below. Rethrow so the caller can tell the two apart: null means
+      // "definitively dead, tokens cleared", a throw means "try again later".
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 401) {
+        tokenService.removeTokens();
+        return null;
+      }
+      throw error;
     }
   };
 
