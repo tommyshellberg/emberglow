@@ -5,7 +5,7 @@ import {
 } from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem, removeItem } from '@/lib/storage';
+import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
 import {
@@ -14,6 +14,7 @@ import {
   isAuthenticated,
   logout,
   refreshAccessToken,
+  refreshProvisionalTokens,
   removeTokens,
   requestMagicLink,
   socialSignIn,
@@ -736,6 +737,119 @@ describe('auth.ts', () => {
       );
       expect(tokenService.removeTokens).toHaveBeenCalled();
       expect(result).toBeNull();
+    });
+  });
+
+  describe('refreshProvisionalTokens', () => {
+    const mockNewTokens = {
+      access: { token: 'new-prov-access', expires: '2025-01-02' },
+      refresh: { token: 'new-prov-refresh', expires: '2025-02-02' },
+    };
+
+    beforeEach(() => {
+      (authClient.post as jest.Mock).mockClear();
+      // clearAllMocks does not clear implementations — pin the default so a
+      // mockImplementation from one test can't leak into the next.
+      (getItem as jest.Mock).mockReturnValue(null);
+    });
+
+    it('refreshes via the provisional refresh token and stores the rotated pair', async () => {
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalRefreshToken' ? 'prov-refresh-token' : null
+      );
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: mockNewTokens,
+      });
+
+      const result = await refreshProvisionalTokens();
+
+      expect(authClient.post).toHaveBeenCalledWith('/auth/refresh-tokens', {
+        refreshToken: 'prov-refresh-token',
+      });
+      expect(setItem).toHaveBeenCalledWith(
+        'provisionalAccessToken',
+        'new-prov-access'
+      );
+      expect(setItem).toHaveBeenCalledWith(
+        'provisionalRefreshToken',
+        'new-prov-refresh'
+      );
+      expect(result).toEqual({ status: 'refreshed', tokens: mockNewTokens });
+    });
+
+    it('reports a dead session when the server answers 401', async () => {
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalRefreshToken' ? 'consumed-or-expired' : null
+      );
+      (authClient.post as jest.Mock).mockRejectedValue({
+        response: { status: 401 },
+      });
+
+      const result = await refreshProvisionalTokens();
+
+      expect(result).toEqual({ status: 'dead' });
+      expect(setItem).not.toHaveBeenCalled();
+    });
+
+    it('reports a dead session when no provisional refresh token exists', async () => {
+      (getItem as jest.Mock).mockReturnValue(null);
+
+      const result = await refreshProvisionalTokens();
+
+      expect(authClient.post).not.toHaveBeenCalled();
+      expect(result).toEqual({ status: 'dead' });
+    });
+
+    it('reports a recoverable error (NOT death) on a network failure', async () => {
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalRefreshToken' ? 'prov-refresh-token' : null
+      );
+      // No `response` property at all — the axios shape of a network error.
+      (authClient.post as jest.Mock).mockRejectedValue(new Error('timeout'));
+
+      const result = await refreshProvisionalTokens();
+
+      expect(result).toEqual({ status: 'error' });
+      expect(setItem).not.toHaveBeenCalled();
+    });
+
+    it('reports a recoverable error on a malformed token response', async () => {
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalRefreshToken' ? 'prov-refresh-token' : null
+      );
+      (authClient.post as jest.Mock).mockResolvedValue({
+        data: { access: {} },
+      });
+
+      const result = await refreshProvisionalTokens();
+
+      expect(result).toEqual({ status: 'error' });
+      expect(setItem).not.toHaveBeenCalled();
+    });
+
+    it('deduplicates concurrent refreshes into a single request', async () => {
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalRefreshToken' ? 'prov-refresh-token' : null
+      );
+      let resolvePost: (value: any) => void;
+      (authClient.post as jest.Mock).mockReturnValue(
+        new Promise((resolve) => {
+          resolvePost = resolve;
+        })
+      );
+
+      const first = refreshProvisionalTokens();
+      const second = refreshProvisionalTokens();
+
+      // The server consumes the refresh token on first use, so a second
+      // in-flight POST would present a deleted token, 401, and misread a
+      // healthy session as dead.
+      expect(authClient.post).toHaveBeenCalledTimes(1);
+
+      resolvePost!({ data: mockNewTokens });
+      const [r1, r2] = await Promise.all([first, second]);
+      expect(r1).toEqual({ status: 'refreshed', tokens: mockNewTokens });
+      expect(r2).toEqual({ status: 'refreshed', tokens: mockNewTokens });
     });
   });
 

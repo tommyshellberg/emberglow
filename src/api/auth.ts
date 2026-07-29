@@ -12,7 +12,7 @@ import {
 } from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem, removeItem } from '@/lib/storage';
+import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -420,6 +420,72 @@ export const refreshAccessToken =
       tokenService.removeTokens();
       return null;
     }
+  };
+
+/**
+ * Result of a provisional-session refresh. Discriminated so callers can tell
+ * "the session is definitively dead" (server rejected the refresh token, or we
+ * never had one) from "the refresh merely failed" (network, 5xx, malformed
+ * response) — only the former may end the session; treating a flaky network as
+ * death would destroy an unclaimed hero's server link over nothing.
+ */
+export type ProvisionalRefreshResult =
+  | { status: 'refreshed'; tokens: tokenService.AuthTokens }
+  | { status: 'dead' }
+  | { status: 'error' };
+
+const doRefreshProvisionalTokens =
+  async (): Promise<ProvisionalRefreshResult> => {
+    const refreshToken = getItem<string>('provisionalRefreshToken');
+    if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+      // The access token was rejected and there is nothing to refresh with:
+      // unrecoverable by construction.
+      return { status: 'dead' };
+    }
+
+    try {
+      const response = await authClient.post('/auth/refresh-tokens', {
+        refreshToken,
+      });
+      const tokens: tokenService.AuthTokens = response.data;
+      if (!tokens?.access?.token || !tokens?.refresh?.token) {
+        return { status: 'error' };
+      }
+
+      // The server rotates refresh tokens (the old doc is deleted on use), so
+      // both halves must be stored back or the NEXT refresh would 401 against
+      // a consumed token and falsely read as a dead session.
+      setItem('provisionalAccessToken', tokens.access.token);
+      setItem('provisionalRefreshToken', tokens.refresh.token);
+      return { status: 'refreshed', tokens };
+    } catch (error) {
+      // Plain property check instead of axios.isAxiosError: the server's
+      // refreshAuth answers 401 for every rejected refresh token, and only a
+      // 401 proves the server itself disowned the session.
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 401) {
+        return { status: 'dead' };
+      }
+      console.error('Provisional token refresh failed:', error);
+      return { status: 'error' };
+    }
+  };
+
+// Single-flight: the server consumes the refresh token on first use, so two
+// concurrent refreshes would have the loser present an already-deleted token,
+// get a 401, and misdiagnose a healthy session as dead. Both axios clients
+// funnel through here, so the deduplication must live at this level.
+let provisionalRefreshInFlight: Promise<ProvisionalRefreshResult> | null = null;
+
+export const refreshProvisionalTokens =
+  (): Promise<ProvisionalRefreshResult> => {
+    if (!provisionalRefreshInFlight) {
+      provisionalRefreshInFlight = doRefreshProvisionalTokens().finally(() => {
+        provisionalRefreshInFlight = null;
+      });
+    }
+    return provisionalRefreshInFlight;
   };
 
 /**
