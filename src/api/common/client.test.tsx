@@ -262,7 +262,12 @@ describe('apiClient', () => {
         expect(refreshAccessToken).not.toHaveBeenCalled();
       });
 
-      it('should sign out when refresh fails', async () => {
+      it('does NOT sign out when the refresh throws (network/5xx) — the session may be fine', async () => {
+        // refreshAccessToken's contract (emberglow-server#70): it THROWS for
+        // indeterminate failures (network, 5xx) and only returns null after
+        // itself clearing tokens on a definitive 401. A throw here must not
+        // sign the user out — the TOKEN_REFRESH_EXHAUSTED escalation is the
+        // backstop if it keeps happening.
         (refreshAccessToken as jest.Mock).mockRejectedValue(
           new Error('Refresh failed')
         );
@@ -280,11 +285,7 @@ describe('apiClient', () => {
         await expect(responseInterceptor.onRejected(error)).rejects.toThrow(
           'Refresh failed'
         );
-        expect(signOut).toHaveBeenCalled();
-        expect(console.error).toHaveBeenCalledWith(
-          'Token refresh failed catastrophically:',
-          expect.any(Error)
-        );
+        expect(signOut).not.toHaveBeenCalled();
       });
 
       it('should sign out when refresh returns no token', async () => {
@@ -404,7 +405,9 @@ describe('apiClient', () => {
         refreshReject!(refreshError);
 
         await expect(promise1).rejects.toThrow('Refresh failed');
-        expect(signOut).toHaveBeenCalled();
+        // Queued requests fail, but an indeterminate refresh error must not
+        // end the session (see the network/5xx test above).
+        expect(signOut).not.toHaveBeenCalled();
       });
 
       describe('provisional users', () => {

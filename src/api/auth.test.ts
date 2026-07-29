@@ -721,22 +721,52 @@ describe('auth.ts', () => {
       expect(result).toBeNull();
     });
 
-    it('should clear tokens and return null on refresh error', async () => {
-      const error = new Error('Refresh failed');
+    it('clears tokens and returns null when the server rejects the refresh token (401)', async () => {
       (tokenService.getRefreshToken as jest.Mock).mockReturnValue(
         'old-refresh-token'
       );
-      (tokenService.removeTokens as jest.Mock).mockImplementation(() => {}); // Reset to not throw
-      (authClient.post as jest.Mock).mockRejectedValue(error);
+      (tokenService.removeTokens as jest.Mock).mockImplementation(() => {});
+      (authClient.post as jest.Mock).mockRejectedValue({
+        response: { status: 401 },
+      });
 
       const result = await refreshAccessToken();
 
-      expect(console.error).toHaveBeenCalledWith(
-        'Error refreshing token:',
-        error
-      );
       expect(tokenService.removeTokens).toHaveBeenCalled();
       expect(result).toBeNull();
+    });
+
+    it('keeps tokens and rethrows on a network error', async () => {
+      // A refresh that dies in transit says NOTHING about the refresh
+      // token's validity. Destroying the tokens here signed real users out
+      // for a tunnel or a Render cold-start timeout (emberglow-server#70).
+      const error = new Error('timeout of 10000ms exceeded');
+      (tokenService.getRefreshToken as jest.Mock).mockReturnValue(
+        'old-refresh-token'
+      );
+      (tokenService.removeTokens as jest.Mock).mockImplementation(() => {});
+      (authClient.post as jest.Mock).mockRejectedValue(error);
+
+      await expect(refreshAccessToken()).rejects.toThrow(
+        'timeout of 10000ms exceeded'
+      );
+      expect(tokenService.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it('keeps tokens and rethrows on a server error (5xx)', async () => {
+      (tokenService.getRefreshToken as jest.Mock).mockReturnValue(
+        'old-refresh-token'
+      );
+      (tokenService.removeTokens as jest.Mock).mockImplementation(() => {});
+      (authClient.post as jest.Mock).mockRejectedValue({
+        response: { status: 503 },
+        message: 'Service Unavailable',
+      });
+
+      await expect(refreshAccessToken()).rejects.toMatchObject({
+        response: { status: 503 },
+      });
+      expect(tokenService.removeTokens).not.toHaveBeenCalled();
     });
   });
 
