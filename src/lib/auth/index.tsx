@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
 
@@ -6,7 +7,7 @@ import { storeTokens } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
+import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -292,3 +293,35 @@ export const signIn = (response: UserLoginResponse) =>
   _useAuth.getState().signIn(response);
 export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
+
+/**
+ * A provisional session is DEFINITIVELY dead: the server rejected its access
+ * token AND its refresh token (or there was none). Nothing sent with those
+ * credentials can ever succeed again, so holding onto them only buys an
+ * endless 401 storm behind a working-looking app — the failure mode this
+ * function exists to end.
+ *
+ * Clears every provisional key and signs out; the navigation resolver then
+ * lands the user on login (onboarding complete) or the signup funnel
+ * (mid-onboarding). The character/quest stores are deliberately untouched:
+ * the hero and journal live on locally, and creating an account from the
+ * login screen is how the user keeps them.
+ *
+ * Only call this on proof (a 401 for the refresh token itself). For plain
+ * network failures the session must be left alone — see
+ * refreshProvisionalTokens' result contract.
+ */
+export const endProvisionalSession = () => {
+  removeItem('provisionalAccessToken');
+  removeItem('provisionalRefreshToken');
+  removeItem('provisionalUserId');
+  removeItem('provisionalEmail');
+
+  Alert.alert(
+    'Session Expired',
+    'Your guest session has expired. Sign in or create an account to keep your hero and continue your journey.',
+    [{ text: 'OK' }]
+  );
+
+  _useAuth.getState().signOut();
+};

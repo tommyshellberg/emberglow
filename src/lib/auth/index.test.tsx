@@ -1,12 +1,13 @@
 import Constants from 'expo-constants';
+import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 
 import { storeTokens } from '@/api/token';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
+import { getItem, removeItem } from '@/lib/storage';
 import { useUserStore } from '@/store/user-store';
 
-import { useAuth } from './index';
+import { endProvisionalSession, useAuth } from './index';
 import { getToken, removeToken, setToken } from './utils';
 
 // Mock all dependencies
@@ -140,6 +141,37 @@ describe('Auth Store', () => {
         access: 'access-token',
         refresh: 'refresh-token',
       });
+    });
+  });
+
+  describe('endProvisionalSession', () => {
+    it('clears every provisional key, tells the user, and signs out — leaving the local hero untouched', () => {
+      const mockClearUser = jest.fn();
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: mockClearUser,
+      });
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation(() => {});
+
+      endProvisionalSession();
+
+      expect(removeItem).toHaveBeenCalledWith('provisionalAccessToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalRefreshToken');
+      expect(removeItem).toHaveBeenCalledWith('provisionalUserId');
+      expect(removeItem).toHaveBeenCalledWith('provisionalEmail');
+
+      // Ends the auth session; the navigation resolver then routes to
+      // login (onboarding complete) or the signup funnel (mid-onboarding).
+      expect(useAuth.getState().status).toBe('signOut');
+
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Session Expired',
+        expect.stringContaining('account'),
+        expect.anything()
+      );
+
+      alertSpy.mockRestore();
     });
   });
 
