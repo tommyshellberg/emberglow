@@ -9,12 +9,25 @@ import {
 import { Dimensions } from 'react-native';
 import { useOnboardingStore, OnboardingStep } from '@/store/onboarding-store';
 import { useCharacterStore } from '@/store/character-store';
+import { useSettingsStore } from '@/store/settings-store';
+import CHARACTERS from '@/app/data/characters';
 
 // Mock createProvisionalUser so we can simulate both success and failure.
 jest.mock('@/lib/services/user', () => ({
   createProvisionalUser: jest.fn(),
   updateUserCharacter: jest.fn(),
 }));
+
+// Manual mock (see __mocks__/expo-audio.ts) — a single module-scoped
+// mockPlayer shared by every useAudioPlayer() call, matching StoryNarration's
+// pattern. __resetAudioMock() must run in beforeEach: mockPlayer is shared
+// module state, so replace/play calls would otherwise leak between tests and
+// poison every not.toHaveBeenCalled() assertion below.
+jest.mock('expo-audio');
+const audioMock = jest.requireMock(
+  'expo-audio'
+) as typeof import('../../../../__mocks__/expo-audio');
+const { mockPlayer, __resetAudioMock } = audioMock;
 
 // Real-session discriminator: null = onboarding-from-scratch (provisional
 // path), a token = authenticated hero-less account (PATCH path).
@@ -32,7 +45,12 @@ jest.mock('posthog-react-native', () => ({
   }),
 }));
 
-// Mock the characters data
+// Mock the characters data. Only two entries (the real CHARACTERS order is
+// alchemist, knight, bard, scout, druid, wizard, but this screen's tests only
+// ever exercise this two-entry mock).
+// introAudio sentinels are distinct on purpose: asserting
+// toHaveBeenCalledWith(CHARACTERS[n].introAudio) against a shared/undefined
+// value would pass even if the implementation looked up the wrong character.
 jest.mock('@/app/data/characters', () => ({
   __esModule: true,
   default: [
@@ -43,6 +61,7 @@ jest.mock('@/app/data/characters', () => ({
       description: 'Turns idle hours into gold.',
       image: 'mock-image-path',
       profileImage: 'mock-profile-path',
+      introAudio: 'mock-alchemist-intro',
     },
     {
       id: 'knight',
@@ -51,6 +70,7 @@ jest.mock('@/app/data/characters', () => ({
       description: 'Holds the line, one quest at a time.',
       image: 'mock-image-path',
       profileImage: 'mock-profile-path',
+      introAudio: 'mock-knight-intro',
     },
   ],
 }));
@@ -87,10 +107,98 @@ describe('ChooseCharacterScreen', () => {
     (getAccessToken as jest.Mock).mockReset().mockReturnValue(null);
     mockCharacterStore.createCharacter.mockClear();
     mockCharacterStore.resetCharacter.mockClear();
+    __resetAudioMock();
+    // Without this, a test that sets onboardingSoundEnabled: false would leak
+    // that value into every later test in the file (assertion-hygiene rule 3
+    // — reset from the real default, not a hand-written literal).
+    useSettingsStore.setState(useSettingsStore.getInitialState());
   });
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  // Types name + advances the debounce + presses Continue, landing on the
+  // character-selection step with CHARACTERS[0] (alchemist) selected.
+  const goToCharacterSelectionStep = async () => {
+    const { getByPlaceholderText, getByText, getByTestId } = render(
+      <ChooseCharacterScreen />
+    );
+    fireEvent.changeText(getByPlaceholderText('e.g. Rowan'), 'Arthur');
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+    fireEvent.press(getByText('Continue'));
+    return { getByText, getByTestId };
+  };
+
+  describe('character intro voice clips', () => {
+    it('plays the initially selected character intro on entering the selection step', async () => {
+      await goToCharacterSelectionStep();
+
+      expect(mockPlayer.replace).toHaveBeenCalledWith(CHARACTERS[0].introAudio);
+      expect(mockPlayer.play).toHaveBeenCalled();
+    });
+
+    it('plays the newly snapped character intro and replaces the previous clip', async () => {
+      const { getByTestId } = await goToCharacterSelectionStep();
+      mockPlayer.replace.mockClear();
+      mockPlayer.play.mockClear();
+
+      fireEvent(getByTestId('character-carousel'), 'onMomentumScrollEnd', {
+        nativeEvent: { contentOffset: { x: snapInterval } }, // index 1 = knight (this mock)
+      });
+
+      expect(mockPlayer.replace).toHaveBeenCalledWith(CHARACTERS[1].introAudio);
+      expect(mockPlayer.play).toHaveBeenCalled();
+    });
+
+    it('does not replay when the carousel settles on the same card', async () => {
+      const { getByTestId } = await goToCharacterSelectionStep();
+      mockPlayer.replace.mockClear();
+
+      fireEvent(getByTestId('character-carousel'), 'onMomentumScrollEnd', {
+        nativeEvent: { contentOffset: { x: 0 } }, // still index 0
+      });
+
+      expect(mockPlayer.replace).not.toHaveBeenCalled();
+    });
+
+    it('plays no intro clip when the user has muted onboarding audio', async () => {
+      useSettingsStore.setState({ onboardingSoundEnabled: false });
+
+      await goToCharacterSelectionStep();
+
+      expect(mockPlayer.replace).not.toHaveBeenCalled();
+    });
+
+    // "One flag governs music AND intro clips" has to hold for the clip that
+    // is already speaking too: playIntroClip reads the flag through
+    // getState(), so on its own it only ever governs the NEXT clip, leaving up
+    // to ~9 seconds of voice-over running after the user hits mute.
+    it('stops a clip that is already speaking when the user mutes', async () => {
+      await goToCharacterSelectionStep();
+      mockPlayer.pause.mockClear();
+
+      act(() => {
+        useSettingsStore.setState({ onboardingSoundEnabled: false });
+      });
+
+      expect(mockPlayer.pause).toHaveBeenCalled();
+    });
+
+    it('leaves a playing clip alone while onboarding sound stays enabled', async () => {
+      const { getByTestId } = await goToCharacterSelectionStep();
+
+      fireEvent(getByTestId('character-carousel'), 'onMomentumScrollEnd', {
+        nativeEvent: { contentOffset: { x: snapInterval } },
+      });
+
+      // Deliberately NOT cleared first: a pause at any point while the flag is
+      // on — mount, re-render, swipe — cuts the voice-over short. Clearing
+      // here would let an unconditional `introPlayer.pause()` pass.
+      expect(mockPlayer.pause).not.toHaveBeenCalled();
+    });
   });
 
   it('should create provisional user with correct data and navigate on success', async () => {

@@ -82,6 +82,8 @@ jest.mock('@/lib/storage', () => ({
 
 import { Directory, File } from 'expo-file-system';
 
+import { posthogClient } from '@/lib/posthog';
+
 import { audioCacheService } from './audio-cache.service';
 
 const { createSpy, listSpy, deleteSpy, downloadSpy, fileState } =
@@ -347,6 +349,175 @@ describe('audio-cache.service', () => {
       ).cleanupExpiredFiles();
 
       expect(deleteSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAudioSource fallback', () => {
+    const FEMALE = 'storylines/vaedros/quest-1-female.mp3';
+    const MALE = 'storylines/vaedros/quest-1.mp3';
+    const FEMALE_URI = `${CACHE_DIR}storylines_vaedros_quest_1_female_mp3.mp3`;
+    const MALE_URI = `${CACHE_DIR}storylines_vaedros_quest_1_mp3.mp3`;
+
+    let warnSpy: jest.SpyInstance;
+    let logSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      // The fallback path (and the download failures that provoke it) are
+      // expected to log; silence them here so test output stays pristine
+      // without touching production logging.
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      logSpy.mockRestore();
+    });
+
+    // Makes GET /audio/file reject for the given path(s) (both
+    // downloadAudioFile and downloadToMemory call it with the same
+    // `params.path`, so this fails a path "fully" — both the local-download
+    // and in-memory-streaming attempts).
+    function mockAudioFileRequestFailureFor(...failingPaths: string[]) {
+      apiClient.get.mockImplementation(
+        (_url: string, config: { params: { path: string } }) => {
+          if (failingPaths.includes(config.params.path)) {
+            return Promise.reject(new Error('404: audio file not found'));
+          }
+          return Promise.resolve({ data: { audioUrl: SIGNED_URL } });
+        }
+      );
+    }
+
+    it('does not touch the fallback when the primary succeeds', async () => {
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toEqual({ uri: FEMALE_URI });
+      expect(posthogClient.capture).not.toHaveBeenCalledWith(
+        'narration_voice_fallback',
+        expect.anything()
+      );
+    });
+
+    // Split into two tests (rather than one test asserting both the
+    // resolved uri and the capture call): a mutation that always takes the
+    // fallback but skips reporting it (or vice versa) must be caught by a
+    // mutation that fails only one of these two independent behaviors, not
+    // both at once — see the mutation-check notes in the task report.
+    it('retries the fallback path and resolves the male source when the primary fully fails', async () => {
+      mockAudioFileRequestFailureFor(FEMALE);
+
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toEqual({ uri: MALE_URI });
+    });
+
+    it('reports narration_voice_fallback to PostHog when the primary fully fails', async () => {
+      mockAudioFileRequestFailureFor(FEMALE);
+
+      await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(posthogClient.capture).toHaveBeenCalledWith(
+        'narration_voice_fallback',
+        { path: FEMALE }
+      );
+    });
+
+    it('returns null when primary and fallback both fail', async () => {
+      mockAudioFileRequestFailureFor(FEMALE, MALE);
+
+      const result = await audioCacheService.getAudioSource(FEMALE, MALE);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('preloadAudio', () => {
+    it('preloads primary paths with their fallbacks via getAudioSource', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        {
+          primaryPath: 'storylines/vaedros/quest-2-female.mp3',
+          fallbackPath: 'storylines/vaedros/quest-2.mp3',
+        },
+        {
+          primaryPath: 'storylines/vaedros/quest-3-female.mp3',
+          fallbackPath: 'storylines/vaedros/quest-3.mp3',
+        },
+      ]);
+
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-2-female.mp3',
+        'storylines/vaedros/quest-2.mp3'
+      );
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-3-female.mp3',
+        'storylines/vaedros/quest-3.mp3'
+      );
+      spy.mockRestore();
+    });
+
+    it('passes undefined, not null, to getAudioSource when an item has no fallback', async () => {
+      // A raw `null` would violate getAudioSource's `string | undefined`
+      // fallback parameter — this is the ?? undefined conversion the task
+      // brief calls out explicitly.
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+      ]);
+
+      expect(spy).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-2.mp3',
+        undefined
+      );
+      spy.mockRestore();
+    });
+
+    it('only preloads the first 3 items', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockResolvedValue({ uri: 'cached' });
+
+      await audioCacheService.preloadAudio([
+        { primaryPath: 'storylines/vaedros/quest-1.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-3.mp3', fallbackPath: null },
+        { primaryPath: 'storylines/vaedros/quest-4.mp3', fallbackPath: null },
+      ]);
+
+      expect(spy).toHaveBeenCalledTimes(3);
+      expect(spy).not.toHaveBeenCalledWith(
+        'storylines/vaedros/quest-4.mp3',
+        undefined
+      );
+      spy.mockRestore();
+    });
+
+    it('continues preloading remaining items when one fails', async () => {
+      const spy = jest
+        .spyOn(audioCacheService, 'getAudioSource')
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce({ uri: 'cached' });
+      const localWarnSpy = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+
+      await expect(
+        audioCacheService.preloadAudio([
+          { primaryPath: 'storylines/vaedros/quest-1.mp3', fallbackPath: null },
+          { primaryPath: 'storylines/vaedros/quest-2.mp3', fallbackPath: null },
+        ])
+      ).resolves.toBeUndefined();
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      localWarnSpy.mockRestore();
+      spy.mockRestore();
     });
   });
 });

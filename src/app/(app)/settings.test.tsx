@@ -1,4 +1,7 @@
+import { posthogClient } from '@/lib/posthog';
 import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { useCharacterStore } from '@/store/character-store';
+import { useSettingsStore } from '@/store/settings-store';
 
 import Settings from './settings';
 
@@ -99,15 +102,22 @@ jest.mock('@/lib/services/user', () => ({
   deleteUserAccount: jest.fn(),
 }));
 
-// Mock the stores used in Settings
-jest.mock('@/store/settings-store', () => ({
-  useSettingsStore: jest.fn(() => ({
+// Mock the stores used in Settings. Backed by a real (non-persisted)
+// zustand store rather than a static jest.fn() so that setState/getState
+// and selector-based subscriptions (used by the narrator voice row) behave
+// like production: the row re-renders when the store changes.
+jest.mock('@/store/settings-store', () => {
+  const { create } = require('zustand');
+  const useSettingsStore = create((set: any) => ({
     dailyReminder: { enabled: false, time: null },
     streakWarning: { enabled: false, time: null },
-    setDailyReminder: jest.fn(),
-    setStreakWarning: jest.fn(),
-  })),
-}));
+    setDailyReminder: (reminder: any) => set({ dailyReminder: reminder }),
+    setStreakWarning: (streakWarning: any) => set({ streakWarning }),
+    narratorVoice: null,
+    setNarratorVoice: (voice: any) => set({ narratorVoice: voice }),
+  }));
+  return { useSettingsStore };
+});
 
 jest.mock('@/store/user-store', () => ({
   useUserStore: jest.fn((selector) =>
@@ -318,5 +328,41 @@ describe('Settings Screen', () => {
       // Should not display update section when updateId is null
       expect(queryByText(/Update:/)).toBeNull();
     });
+  });
+
+  it('toggles narrator voice and persists the explicit choice', async () => {
+    useSettingsStore.setState({ narratorVoice: null });
+    // Bard's default voice is female (see DEFAULT_VOICE_BY_CHARACTER in
+    // audio-utils.ts). Asserting "Female" here only passes if the row
+    // genuinely derives its label from the character default — a row that
+    // hardcodes "Male" (a plausible copy-paste bug) would fail this
+    // assertion instead of coincidentally matching it.
+    useCharacterStore.setState({
+      character: { type: 'bard', name: 'Test', level: 1, currentXP: 0 },
+    });
+
+    const { getByText, findByText } = render(<Settings />);
+
+    const row = await findByText('Narrator voice');
+    expect(getByText('Female')).toBeOnTheScreen();
+
+    fireEvent.press(row);
+
+    expect(useSettingsStore.getState().narratorVoice).toBe('male');
+    expect(await findByText('Male')).toBeOnTheScreen();
+    expect(posthogClient.capture).toHaveBeenCalledWith(
+      'settings_narrator_voice_changed',
+      { voice: 'male' }
+    );
+
+    // Second press must flip back to female. Combined with the first
+    // press (which expected 'male'), this catches a toggle hardcoded to
+    // always set either value: an "always female" bug is already caught by
+    // the first press above; an "always male" bug would coincidentally
+    // match the first press's expectation but fails here.
+    fireEvent.press(getByText('Narrator voice'));
+
+    expect(useSettingsStore.getState().narratorVoice).toBe('female');
+    expect(await findByText('Female')).toBeOnTheScreen();
   });
 });
