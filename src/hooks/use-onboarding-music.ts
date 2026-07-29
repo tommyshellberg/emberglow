@@ -26,11 +26,16 @@ const TRACK_VOLUME = 0.35;
  * `playsInSilentMode: false` is deliberate: unlike narration (which the user
  * explicitly starts by tapping play, see StoryNarration.tsx), this music is
  * ambient audio nobody requested, so the iOS silent switch should mute it.
- * This is the only other `setAudioModeAsync` call site in the app besides
- * StoryNarration's; the two can't be mounted at once (onboarding and
- * first-quest-result are sibling routes — Expo Router unmounts this layout,
- * and this player with it, before narration can ever mount), so there's no
- * last-write-wins conflict between the two calls.
+ *
+ * The audio session is global and last-write-wins, and this hook is NOT the
+ * only writer: StoryNarration sets `playsInSilentMode: true`. The two really
+ * can coexist — the root navigator is a Stack and navigation-gate.tsx pushes
+ * /pending-quest, so the onboarding layout is blurred but stays mounted
+ * underneath while narration plays on /first-quest-result. That is why the
+ * layout gates this hook on `useIsFocused()` (onboarding/_layout.tsx) and why
+ * the mode is re-applied and awaited on every (re)start below rather than
+ * written once on mount: playback must never run under someone else's
+ * session mode.
  */
 export const useOnboardingMusic = (
   enabled: boolean = true
@@ -44,23 +49,42 @@ export const useOnboardingMusic = (
   const status = useAudioPlayerStatus(player);
 
   useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: false,
-      shouldPlayInBackground: false,
-    });
-  }, []);
-
-  useEffect(() => {
     player.loop = true;
     player.volume = TRACK_VOLUME;
   }, [player]);
 
   useEffect(() => {
-    if (enabled && onboardingSoundEnabled) {
-      player.play();
-    } else {
+    if (!enabled || !onboardingSoundEnabled) {
       player.pause();
+      return;
     }
+
+    let cancelled = false;
+
+    const start = async () => {
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: false,
+          shouldPlayInBackground: false,
+        });
+      } catch (error) {
+        // Never let session config block the music: the worst case is a track
+        // playing under the previously configured mode, which is still better
+        // than silent onboarding. StoryNarration.tsx handles its own
+        // setAudioModeAsync rejection the same way.
+        console.warn('Failed to configure the onboarding audio session', error);
+      }
+      // The user can mute (or leave the flow) while the call above is still in
+      // flight; without this the continuation would start the music again
+      // right after the re-run of this effect paused it.
+      if (cancelled) return;
+      player.play();
+    };
+    start();
+
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, onboardingSoundEnabled, player]);
 
   return { isPlaying: status.playing ?? false };
