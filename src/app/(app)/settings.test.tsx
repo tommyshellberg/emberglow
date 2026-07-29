@@ -1,3 +1,5 @@
+import { OneSignal } from 'react-native-onesignal';
+
 import { posthogClient } from '@/lib/posthog';
 import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
@@ -87,11 +89,15 @@ jest.mock('@/lib', () => ({
 }));
 
 // Mock all notification services to return simple promises
+const mockRequestPermissions = jest.fn().mockResolvedValue(true);
+const mockAreNotificationsEnabled = jest.fn().mockResolvedValue(true);
 jest.mock('@/lib/services/notifications', () => ({
-  areNotificationsEnabled: jest.fn().mockResolvedValue(true),
+  areNotificationsEnabled: (...args: unknown[]) =>
+    mockAreNotificationsEnabled(...args),
   cancelDailyReminderNotification: jest.fn().mockResolvedValue(true),
   cancelStreakWarningNotification: jest.fn().mockResolvedValue(true),
-  requestNotificationPermissions: jest.fn().mockResolvedValue(true),
+  requestNotificationPermissions: (...args: unknown[]) =>
+    mockRequestPermissions(...args),
   scheduleDailyReminderNotification: jest.fn().mockResolvedValue(true),
   scheduleStreakWarningNotification: jest.fn().mockResolvedValue(true),
 }));
@@ -185,6 +191,17 @@ jest.mock('react-native-onesignal', () => ({
     Notifications: {
       requestPermission: jest.fn(),
       hasPermission: jest.fn(() => Promise.resolve(true)),
+      getPermissionAsync: jest.fn(() => Promise.resolve(true)),
+    },
+    User: {
+      getOnesignalId: jest.fn(() => Promise.resolve('onesignal-id')),
+      getExternalId: jest.fn(() => Promise.resolve('external-id')),
+      pushSubscription: {
+        optOut: jest.fn(),
+        getOptedInAsync: jest.fn(() => Promise.resolve(true)),
+        getIdAsync: jest.fn(() => Promise.resolve('subscription-id')),
+        getTokenAsync: jest.fn(() => Promise.resolve('push-token')),
+      },
     },
   },
 }));
@@ -432,5 +449,46 @@ describe('Nudges toggle', () => {
         )
       ).toBe(false);
     });
+  });
+});
+
+describe('master notifications toggle × OneSignal subscription', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+    mockRequestPermissions.mockClear();
+    mockAreNotificationsEnabled.mockResolvedValue(true);
+    (OneSignal.User.pushSubscription.optOut as jest.Mock).mockClear();
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('calls pushSubscription.optOut() when toggled off', async () => {
+    render(<Settings />);
+    // The switch starts on (areNotificationsEnabled resolves true), so one
+    // press is the "disable" transition.
+    const master = await screen.findByLabelText('Notifications');
+    await waitFor(() =>
+      expect(master.props.accessibilityState.checked).toBe(true)
+    );
+    fireEvent.press(master);
+    await waitFor(() =>
+      expect(OneSignal.User.pushSubscription.optOut).toHaveBeenCalled()
+    );
+  });
+
+  it('does NOT call optOut() when toggled on', async () => {
+    // Start from the off position so one press is the "enable" transition.
+    mockAreNotificationsEnabled.mockResolvedValue(false);
+
+    render(<Settings />);
+    const master = await screen.findByLabelText('Notifications');
+    await waitFor(() =>
+      expect(master.props.accessibilityState.checked).toBe(false)
+    );
+    fireEvent.press(master);
+    await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
+    expect(OneSignal.User.pushSubscription.optOut).not.toHaveBeenCalled();
   });
 });
