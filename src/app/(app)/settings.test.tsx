@@ -1,6 +1,20 @@
-import { render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, waitFor } from '@/lib/test-utils';
 
 import Settings from './settings';
+
+// The guest Start Over flow delegates the wipe to lib/auth. The module is
+// also consumed by providers in the render tree (websocket provider reads
+// useAuth), so the mock must keep those exports alive.
+jest.mock('@/lib/auth', () => ({
+  wipeGuestSession: jest.fn(),
+  endProvisionalSession: jest.fn(),
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+  hydrateAuth: jest.fn(),
+  useAuth: jest.fn((selector: any) =>
+    selector({ status: 'signIn', token: null })
+  ),
+}));
 
 // Mock lucide-react-native icons as simple mock functions
 jest.mock('lucide-react-native', () => ({
@@ -188,6 +202,88 @@ describe('Settings Screen', () => {
     await waitFor(() => {
       // Look for content that's actually rendered as text, not just passed as props
       expect(getByText('Account')).toBeTruthy();
+    });
+  });
+
+  it('shows the account email and Logout for a full account', async () => {
+    const { getByText } = render(<Settings />);
+    await waitFor(() => {
+      expect(getByText('test@example.com')).toBeTruthy();
+      expect(getByText('Logout')).toBeTruthy();
+    });
+  });
+
+  describe('provisional (guest) user', () => {
+    beforeEach(() => {
+      // A guest's /users/me succeeds since the provisional-token fallback, so
+      // the user store holds their internal placeholder identity.
+      const { getItem } = require('@/lib/storage');
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'prov-access-token' : null
+      );
+      const { useUserStore } = require('@/store/user-store');
+      (useUserStore as jest.Mock).mockImplementation((selector: any) =>
+        selector({
+          user: { email: 'e284edc7-uuid@unquestapp.com' },
+          setUser: jest.fn(),
+        })
+      );
+    });
+
+    afterEach(() => {
+      const { getItem } = require('@/lib/storage');
+      (getItem as jest.Mock).mockReset();
+    });
+
+    it('shows guest copy instead of the internal placeholder email', async () => {
+      const { getByText, queryByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Account')).toBeTruthy();
+      });
+      // The uuid@unquestapp.com address is an implementation detail, not an
+      // identity the user ever chose or could log in with.
+      expect(queryByText(/unquestapp\.com/)).toBeNull();
+      expect(getByText(/Guest/)).toBeTruthy();
+    });
+
+    it('offers Start Over instead of Logout to a guest', async () => {
+      const { getByText, queryByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Account')).toBeTruthy();
+      });
+      // A guest has no credentials to log back in with — and the session
+      // resurrects on the next cold start anyway (hydrate re-reads the
+      // provisional keys). Offering Logout is a lie both ways. But offering
+      // NOTHING leaves them silently stuck (Tommy, 2026-07-29): the honest
+      // exit is starting over.
+      expect(queryByText('Logout')).toBeNull();
+      expect(getByText('Start Over')).toBeTruthy();
+    });
+
+    it('confirms before wiping when a guest chooses Start Over', async () => {
+      const { Alert } = require('react-native');
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation(() => {});
+      const { wipeGuestSession } = require('@/lib/auth');
+
+      const { getByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Start Over')).toBeTruthy();
+      });
+
+      fireEvent.press(getByText('Start Over'));
+
+      // Destructive, so never on a single tap.
+      expect(wipeGuestSession).not.toHaveBeenCalled();
+      const [, , buttons] = alertSpy.mock.calls[0];
+      const confirm = (buttons as any[]).find(
+        (b: any) => b.style === 'destructive'
+      );
+      confirm.onPress();
+
+      expect(wipeGuestSession).toHaveBeenCalled();
+      alertSpy.mockRestore();
     });
   });
 
