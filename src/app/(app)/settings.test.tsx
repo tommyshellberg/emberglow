@@ -110,18 +110,48 @@ jest.mock('@/store/settings-store', () => {
 });
 
 // Mock the notification-settings hook so tests control what "server data"
-// looks like on load and can observe outbound PATCH calls directly, without
-// depending on TanStack Query's async resolution timing.
+// looks like on load and can observe outbound PATCH calls directly. This
+// mirrors TanStack Query's real timing: `settings` is `undefined` and
+// `isLoading` is `true` on the very first render, then resolves
+// asynchronously (next microtask) to whatever the test set
+// `mockNotificationSettingsData` to. That gap between mount and load is
+// exactly the window where the nudges-send effect must not fire.
 const mockUpdateSettings = jest.fn();
 let mockNotificationSettingsData: unknown;
 
-jest.mock('@/hooks/use-notification-settings', () => ({
-  useNotificationSettings: () => ({
-    settings: mockNotificationSettingsData,
-    updateSettings: mockUpdateSettings,
-    isLoading: false,
-  }),
-}));
+jest.mock('@/hooks/use-notification-settings', () => {
+  const { useEffect, useState } = require('react');
+  return {
+    useNotificationSettings: () => {
+      const [state, setState] = useState({
+        settings: undefined,
+        isLoading: true,
+      });
+
+      useEffect(() => {
+        let cancelled = false;
+        Promise.resolve().then(() => {
+          if (!cancelled) {
+            setState({
+              settings: mockNotificationSettingsData,
+              isLoading: false,
+            });
+          }
+        });
+        return () => {
+          cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+
+      return {
+        settings: state.settings,
+        updateSettings: mockUpdateSettings,
+        isLoading: state.isLoading,
+      };
+    },
+  };
+});
 
 jest.mock('@/store/user-store', () => ({
   useUserStore: jest.fn((selector) =>
@@ -296,15 +326,17 @@ describe('Nudges toggle', () => {
     );
   });
 
-  it('does not echo server state back as an update on load', async () => {
-    mockNotificationSettingsData = { nudges: { enabled: true } };
+  it('does not sync nudges to server before settings have loaded', async () => {
+    // Server has the user opted OUT (e.g. a reinstall where the local store
+    // defaults back to enabled: true). If the send-effect fires before this
+    // resolves, it PATCHes the local default and clobbers the real opt-out.
+    mockNotificationSettingsData = { nudges: { enabled: false } };
 
     render(<Settings />);
     await screen.findByLabelText('Nudges');
 
-    // Give the sync effects a chance to run; nothing should be sent because
-    // the server value matches the store's default and the user never
-    // touched the toggle.
+    // Give the async load + sync effects a chance to run; nothing should be
+    // sent because the user never touched the toggle.
     await waitFor(() => {
       expect(
         mockUpdateSettings.mock.calls.some(
