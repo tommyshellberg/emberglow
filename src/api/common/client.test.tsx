@@ -82,6 +82,10 @@ afterAll(() => {
 describe('apiClient', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks clears calls but NOT implementations, so a
+    // mockImplementation set in one test would leak into the next. Every test
+    // starts from "no provisional data"; tests that need it re-mock locally.
+    (getItem as jest.Mock).mockReturnValue(null);
     // Reset refresh attempts counter for each test
     __resetRefreshAttempts();
   });
@@ -117,6 +121,47 @@ describe('apiClient', () => {
       const result = requestInterceptor.onFulfilled(config);
 
       expect(result.headers.Authorization).toBeUndefined();
+    });
+
+    it('should fall back to the provisional access token when no full token exists', () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'provisional-access-token' : null
+      );
+
+      const config: InternalAxiosRequestConfig = {
+        headers: {} as any,
+        method: 'get',
+        url: '/users/me',
+      };
+
+      const result = requestInterceptor.onFulfilled(config);
+
+      expect(result.headers.Authorization).toBe(
+        'Bearer provisional-access-token'
+      );
+    });
+
+    it('should prefer the full-account token when both tokens exist', () => {
+      // Mid-conversion window: socialSignIn/verifyMagicLink store the real
+      // tokens BEFORE clearing the provisional keys, so both briefly coexist.
+      (getToken as jest.Mock).mockReturnValue({
+        access: 'full-access-token',
+        refresh: 'full-refresh-token',
+      });
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'provisional-access-token' : null
+      );
+
+      const config: InternalAxiosRequestConfig = {
+        headers: {} as any,
+        method: 'get',
+        url: '/users/me',
+      };
+
+      const result = requestInterceptor.onFulfilled(config);
+
+      expect(result.headers.Authorization).toBe('Bearer full-access-token');
     });
 
     it('should handle request errors', async () => {

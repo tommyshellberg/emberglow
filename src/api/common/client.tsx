@@ -85,11 +85,18 @@ const recordRefreshAttempt = () => {
 apiClient.interceptors.request.use(
   (config) => {
     const tokenData = getToken();
-    const accessToken = tokenData?.access;
+    // A provisional user has no full-account token, but their provisional JWT
+    // authenticates the same server endpoints (a provisional user is a real
+    // User server-side). Without this fallback every account-scoped request
+    // from a provisional session went out with NO Authorization header at all,
+    // 401'd as anonymous, and burned the refresh budget — the "suddenly logged
+    // out" 401 storm on Settings/Profile. The full token wins when both exist
+    // (brief window mid-conversion, before the provisional keys are cleared).
+    const accessToken =
+      tokenData?.access ?? getItem<string>('provisionalAccessToken');
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
-    } else {
     }
 
     // Log invitation-related requests in development only
