@@ -32,6 +32,7 @@ import { background } from '@/components/ui/colors';
 import { Modal, useModal } from '@/components/ui/modal';
 import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useAuth } from '@/lib';
+import { wipeGuestSession } from '@/lib/auth';
 import { TIMEZONES } from '@/lib/constants/timezones';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
 import {
@@ -87,14 +88,29 @@ function AccountSection({
   // A guest (provisional user) HAS a user object — /users/me succeeds with
   // their provisional JWT — but its email is a generated
   // <uuid>@unquestapp.com placeholder, not an identity they chose or could
-  // sign in with. Show them a guest state instead, and no Logout: a guest has
-  // no credentials to log back in with, and the next cold start re-hydrates
-  // the provisional keys and signs them straight back in anyway. (A "Create
-  // account" entry point here is blocked on emberglow#359 — there is no
-  // non-destructive route back into the signup funnel yet.)
+  // sign in with. A guest reaching this screen at all is an anomaly (the
+  // resolver holds guests at the signup prompt; enforcement proper arrives
+  // with Expo protected routes), so instead of a Logout they can't come back
+  // from — or nothing, which leaves them silently stuck — they get the one
+  // honest exit: start over. Same wipe the dead-session path uses.
   const accountSubtitle = isGuest
     ? 'Guest — progress saved on this device'
     : user?.email || 'Not signed in';
+
+  const handleStartOver = () => {
+    Alert.alert(
+      'Start Over',
+      'This clears your guest character and all progress so you can begin fresh. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Over',
+          style: 'destructive',
+          onPress: () => wipeGuestSession(),
+        },
+      ]
+    );
+  };
 
   return (
     <>
@@ -129,6 +145,15 @@ function AccountSection({
       {user && !isGuest && (
         <View style={styles.logoutWrapper}>
           <Button variant="secondary" label="Logout" onPress={onLogout} />
+        </View>
+      )}
+      {isGuest && (
+        <View style={styles.logoutWrapper}>
+          <Button
+            variant="secondary"
+            label="Start Over"
+            onPress={handleStartOver}
+          />
         </View>
       )}
     </>

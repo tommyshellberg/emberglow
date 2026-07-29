@@ -1,6 +1,20 @@
-import { render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, waitFor } from '@/lib/test-utils';
 
 import Settings from './settings';
+
+// The guest Start Over flow delegates the wipe to lib/auth. The module is
+// also consumed by providers in the render tree (websocket provider reads
+// useAuth), so the mock must keep those exports alive.
+jest.mock('@/lib/auth', () => ({
+  wipeGuestSession: jest.fn(),
+  endProvisionalSession: jest.fn(),
+  signIn: jest.fn(),
+  signOut: jest.fn(),
+  hydrateAuth: jest.fn(),
+  useAuth: jest.fn((selector: any) =>
+    selector({ status: 'signIn', token: null })
+  ),
+}));
 
 // Mock lucide-react-native icons as simple mock functions
 jest.mock('lucide-react-native', () => ({
@@ -232,15 +246,44 @@ describe('Settings Screen', () => {
       expect(getByText(/Guest/)).toBeTruthy();
     });
 
-    it('does not offer Logout to a guest', async () => {
+    it('offers Start Over instead of Logout to a guest', async () => {
       const { getByText, queryByText } = render(<Settings />);
       await waitFor(() => {
         expect(getByText('Account')).toBeTruthy();
       });
       // A guest has no credentials to log back in with — and the session
       // resurrects on the next cold start anyway (hydrate re-reads the
-      // provisional keys). Offering Logout is a lie both ways.
+      // provisional keys). Offering Logout is a lie both ways. But offering
+      // NOTHING leaves them silently stuck (Tommy, 2026-07-29): the honest
+      // exit is starting over.
       expect(queryByText('Logout')).toBeNull();
+      expect(getByText('Start Over')).toBeTruthy();
+    });
+
+    it('confirms before wiping when a guest chooses Start Over', async () => {
+      const { Alert } = require('react-native');
+      const alertSpy = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementation(() => {});
+      const { wipeGuestSession } = require('@/lib/auth');
+
+      const { getByText } = render(<Settings />);
+      await waitFor(() => {
+        expect(getByText('Start Over')).toBeTruthy();
+      });
+
+      fireEvent.press(getByText('Start Over'));
+
+      // Destructive, so never on a single tap.
+      expect(wipeGuestSession).not.toHaveBeenCalled();
+      const [, , buttons] = alertSpy.mock.calls[0];
+      const confirm = (buttons as any[]).find(
+        (b: any) => b.style === 'destructive'
+      );
+      confirm.onPress();
+
+      expect(wipeGuestSession).toHaveBeenCalled();
+      alertSpy.mockRestore();
     });
   });
 
