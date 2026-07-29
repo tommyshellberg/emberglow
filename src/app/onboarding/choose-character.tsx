@@ -337,6 +337,20 @@ export default function ChooseCharacterScreen() {
   // is still speaking — rapid swipes therefore can't queue clips.
   const introPlayer = useAudioPlayer();
 
+  // Subscribed (unlike the getState() read in playIntroClip below) so muting
+  // mid-clip silences the voice that is speaking right now, not just the next
+  // one — the mute control is a single flag over onboarding audio, and a clip
+  // runs up to ~9 seconds.
+  const onboardingSoundEnabled = useSettingsStore(
+    (s) => s.onboardingSoundEnabled
+  );
+
+  useEffect(() => {
+    if (!onboardingSoundEnabled) {
+      introPlayer.pause();
+    }
+  }, [onboardingSoundEnabled, introPlayer]);
+
   const playIntroClip = useCallback(
     (characterId: string) => {
       // One flag governs music and intro clips alike: a user who muted the

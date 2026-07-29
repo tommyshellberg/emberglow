@@ -171,6 +171,34 @@ describe('ChooseCharacterScreen', () => {
 
       expect(mockPlayer.replace).not.toHaveBeenCalled();
     });
+
+    // "One flag governs music AND intro clips" has to hold for the clip that
+    // is already speaking too: playIntroClip reads the flag through
+    // getState(), so on its own it only ever governs the NEXT clip, leaving up
+    // to ~9 seconds of voice-over running after the user hits mute.
+    it('stops a clip that is already speaking when the user mutes', async () => {
+      await goToCharacterSelectionStep();
+      mockPlayer.pause.mockClear();
+
+      act(() => {
+        useSettingsStore.setState({ onboardingSoundEnabled: false });
+      });
+
+      expect(mockPlayer.pause).toHaveBeenCalled();
+    });
+
+    it('leaves a playing clip alone while onboarding sound stays enabled', async () => {
+      const { getByTestId } = await goToCharacterSelectionStep();
+
+      fireEvent(getByTestId('character-carousel'), 'onMomentumScrollEnd', {
+        nativeEvent: { contentOffset: { x: snapInterval } },
+      });
+
+      // Deliberately NOT cleared first: a pause at any point while the flag is
+      // on — mount, re-render, swipe — cuts the voice-over short. Clearing
+      // here would let an unconditional `introPlayer.pause()` pass.
+      expect(mockPlayer.pause).not.toHaveBeenCalled();
+    });
   });
 
   it('should create provisional user with correct data and navigate on success', async () => {
