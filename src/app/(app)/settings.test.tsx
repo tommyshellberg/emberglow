@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 
 import Settings from './settings';
 
@@ -85,16 +85,38 @@ jest.mock('@/lib/services/user', () => ({
   deleteUserAccount: jest.fn(),
 }));
 
-// Mock the stores used in Settings
-jest.mock('@/store/settings-store', () => ({
-  useSettingsStore: jest.fn(() => ({
-    dailyReminder: { enabled: false, time: null },
-    streakWarning: { enabled: false, time: null },
-    reEngagement: { enabled: true },
-    setDailyReminder: jest.fn(),
-    setStreakWarning: jest.fn(),
-    setReEngagement: jest.fn(),
-  })),
+// Mock the stores used in Settings. `nudges` is backed by real React state so
+// that toggling the switch actually re-renders the component with the new
+// value, letting tests observe the resulting server-sync effect.
+jest.mock('@/store/settings-store', () => {
+  const { useState } = require('react');
+  return {
+    useSettingsStore: jest.fn(() => {
+      const [nudges, setNudges] = useState({ enabled: true });
+      return {
+        dailyReminder: { enabled: false, time: null },
+        streakWarning: { enabled: false, time: null },
+        nudges,
+        setDailyReminder: jest.fn(),
+        setStreakWarning: jest.fn(),
+        setNudges,
+      };
+    }),
+  };
+});
+
+// Mock the notification-settings hook so tests control what "server data"
+// looks like on load and can observe outbound PATCH calls directly, without
+// depending on TanStack Query's async resolution timing.
+const mockUpdateSettings = jest.fn();
+let mockNotificationSettingsData: unknown;
+
+jest.mock('@/hooks/use-notification-settings', () => ({
+  useNotificationSettings: () => ({
+    settings: mockNotificationSettingsData,
+    updateSettings: mockUpdateSettings,
+    isLoading: false,
+  }),
 }));
 
 jest.mock('@/store/user-store', () => ({
@@ -227,41 +249,53 @@ describe('Settings Screen', () => {
   });
 });
 
-describe('Settings — re-engagement toggle', () => {
+describe('Nudges toggle', () => {
   beforeEach(() => {
     global.__DEV__ = false;
+    mockUpdateSettings.mockClear();
+    mockNotificationSettingsData = undefined;
   });
 
   afterEach(() => {
     global.__DEV__ = true;
   });
 
-  it('renders the re-engagement toggle reflecting the store value', async () => {
-    const { getByLabelText } = render(<Settings />);
-    await waitFor(() => {
-      const toggle = getByLabelText(/re-engagement reminders/i);
-      expect(toggle.props.value).toBe(true);
-    });
+  it('renders the Nudges row with its description', async () => {
+    render(<Settings />);
+    expect(await screen.findByText('Nudges')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        "Occasional reminders to pick your journey back up when you've been away."
+      )
+    ).toBeOnTheScreen();
   });
 
-  it('calls setReEngagement and the update mutation when toggled off', async () => {
-    const mockSetReEngagement = jest.fn();
+  it('sends { nudges: { enabled: false } } to the server when toggled off', async () => {
+    render(<Settings />);
+    const toggle = await screen.findByLabelText('Nudges');
+    fireEvent(toggle, 'valueChange', false);
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        nudges: { enabled: false },
+      })
+    );
+  });
 
-    const { useSettingsStore } = require('@/store/settings-store');
-    useSettingsStore.mockReturnValue({
-      dailyReminder: { enabled: false, time: null },
-      streakWarning: { enabled: false, time: null },
-      reEngagement: { enabled: true },
-      setDailyReminder: jest.fn(),
-      setStreakWarning: jest.fn(),
-      setReEngagement: mockSetReEngagement,
-    });
+  it('does not echo server state back as an update on load', async () => {
+    mockNotificationSettingsData = { nudges: { enabled: true } };
 
-    const { getByLabelText } = render(<Settings />);
+    render(<Settings />);
+    await screen.findByLabelText('Nudges');
+
+    // Give the sync effects a chance to run; nothing should be sent because
+    // the server value matches the store's default and the user never
+    // touched the toggle.
     await waitFor(() => {
-      const toggle = getByLabelText(/re-engagement reminders/i);
-      fireEvent(toggle, 'valueChange', false);
-      expect(mockSetReEngagement).toHaveBeenCalledWith({ enabled: false });
+      expect(
+        mockUpdateSettings.mock.calls.some(
+          ([payload]) => payload && 'nudges' in payload
+        )
+      ).toBe(false);
     });
   });
 });

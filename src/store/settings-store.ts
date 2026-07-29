@@ -18,17 +18,17 @@ type StreakWarning = {
   time: ReminderTime;
 };
 
-type ReEngagement = {
+type Nudges = {
   enabled: boolean;
 };
 
 type SettingsState = {
   dailyReminder: DailyReminder;
   streakWarning: StreakWarning;
-  reEngagement: ReEngagement;
+  nudges: Nudges;
   setDailyReminder: (reminder: DailyReminder) => void;
   setStreakWarning: (streakWarning: StreakWarning) => void;
-  setReEngagement: (reEngagement: ReEngagement) => void;
+  setNudges: (nudges: Nudges) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
   hasSeenBranchingAnnouncement: boolean;
@@ -55,12 +55,12 @@ export const useSettingsStore = create<SettingsState>()(
         enabled: true,
         time: { hour: 18, minute: 0 },
       },
-      reEngagement: {
+      nudges: {
         enabled: true,
       },
       setDailyReminder: (reminder) => set({ dailyReminder: reminder }),
       setStreakWarning: (streakWarning) => set({ streakWarning }),
-      setReEngagement: (reEngagement) => set({ reEngagement }),
+      setNudges: (nudges) => set({ nudges }),
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),

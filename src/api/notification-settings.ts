@@ -9,7 +9,7 @@ export interface NotificationSettings {
       minute: number;
     };
   };
-  reEngagement: {
+  nudges: {
     enabled: boolean;
   };
 }

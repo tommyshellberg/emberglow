@@ -65,8 +65,8 @@ export default function Settings() {
     setDailyReminder,
     streakWarning,
     setStreakWarning,
-    reEngagement,
-    setReEngagement,
+    nudges,
+    setNudges,
   } = useSettingsStore();
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
@@ -74,7 +74,7 @@ export default function Settings() {
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
   const lastSentStreakSettings = useRef<string>('');
-  const lastSentReEngagementSettings = useRef<string | null>(null);
+  const lastSentNudgesSettings = useRef<string | null>(null);
   const {
     settings: notificationSettings,
     updateSettings,
@@ -146,7 +146,7 @@ export default function Settings() {
     }
   }, [notificationSettings]);
 
-  // Update local streak warning and re-engagement state when server data loads
+  // Update local streak warning and nudges state when server data loads
   useEffect(() => {
     if (notificationSettings?.streakWarning) {
       setStreakWarning(notificationSettings.streakWarning);
@@ -155,14 +155,14 @@ export default function Settings() {
         notificationSettings.streakWarning
       );
     }
-    if (notificationSettings?.reEngagement) {
-      setReEngagement(notificationSettings.reEngagement);
+    if (notificationSettings?.nudges) {
+      setNudges(notificationSettings.nudges);
       // Initialize the ref so we don't send an update immediately
-      lastSentReEngagementSettings.current = JSON.stringify(
-        notificationSettings.reEngagement
+      lastSentNudgesSettings.current = JSON.stringify(
+        notificationSettings.nudges
       );
     }
-  }, [notificationSettings, setStreakWarning, setReEngagement]);
+  }, [notificationSettings, setStreakWarning, setNudges]);
 
   // Send update to server when streak settings change
   useEffect(() => {
@@ -184,13 +184,13 @@ export default function Settings() {
     }
   }, [streakWarning, updateSettings]);
 
-  // Send update to server when re-engagement settings change
+  // Send update to server when nudges settings change
   useEffect(() => {
-    const serialized = JSON.stringify(reEngagement);
-    if (lastSentReEngagementSettings.current === serialized) return;
-    lastSentReEngagementSettings.current = serialized;
-    updateSettings({ reEngagement });
-  }, [reEngagement, updateSettings]);
+    const serialized = JSON.stringify(nudges);
+    if (lastSentNudgesSettings.current === serialized) return;
+    lastSentNudgesSettings.current = serialized;
+    updateSettings({ nudges });
+  }, [nudges, updateSettings]);
 
   // Handle notification toggle
   const handleNotificationsToggle = async (value: boolean) => {
@@ -320,8 +320,8 @@ export default function Settings() {
     await cancelStreakWarningNotification();
   };
 
-  const handleToggleReEngagement = (value: boolean) => {
-    setReEngagement({ enabled: value });
+  const handleToggleNudges = (value: boolean) => {
+    setNudges({ enabled: value });
   };
 
   const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
@@ -629,7 +629,7 @@ export default function Settings() {
                   </View>
                 )}
 
-                {/* Re-engagement Reminders */}
+                {/* Nudges */}
                 <View className="mb-4 flex-row items-center justify-between">
                   <View className="flex-row items-center">
                     <View
@@ -639,18 +639,18 @@ export default function Settings() {
                     </View>
                     <View className="flex-1 pr-4">
                       <Text className="text-xl font-medium text-white">
-                        Re-engagement reminders
+                        Nudges
                       </Text>
                       <Text className="text-neutral-200">
-                        Get nudged when you've been away from Vaedros for a few
-                        days.
+                        Occasional reminders to pick your journey back up when
+                        you&apos;ve been away.
                       </Text>
                     </View>
                   </View>
                   <Switch
-                    accessibilityLabel="Re-engagement reminders"
-                    value={reEngagement.enabled}
-                    onValueChange={handleToggleReEngagement}
+                    accessibilityLabel="Nudges"
+                    value={nudges.enabled}
+                    onValueChange={handleToggleNudges}
                     trackColor={{ false: '#2A4754', true: '#36B6D3' }}
                   />
                 </View>
