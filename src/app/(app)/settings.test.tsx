@@ -1,5 +1,5 @@
 import { posthogClient } from '@/lib/posthog';
-import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -105,21 +105,37 @@ jest.mock('@/lib/services/user', () => ({
 // Mock the stores used in Settings. Backed by a real (non-persisted)
 // zustand store rather than a static jest.fn() so that setState/getState
 // and selector-based subscriptions (used by the narrator voice row) behave
-// like production: the row re-renders when the store changes.
+// like production: the row re-renders when the store changes. `nudges` in
+// particular must re-render on change so tests can observe the resulting
+// server-sync effect.
 jest.mock('@/store/settings-store', () => {
   const { create } = require('zustand');
   const useSettingsStore = create((set: any) => ({
     dailyReminder: { enabled: false, time: null },
     streakWarning: { enabled: false, time: null },
-    reEngagement: { enabled: true },
+    nudges: { enabled: true },
     setDailyReminder: (reminder: any) => set({ dailyReminder: reminder }),
     setStreakWarning: (streakWarning: any) => set({ streakWarning }),
-    setReEngagement: (reEngagement: any) => set({ reEngagement }),
+    setNudges: (nudges: any) => set({ nudges }),
     narratorVoice: null,
     setNarratorVoice: (voice: any) => set({ narratorVoice: voice }),
   }));
   return { useSettingsStore };
 });
+
+// Mock the notification-settings hook so tests control what "server data"
+// looks like on load and can observe outbound PATCH calls directly, without
+// depending on TanStack Query's async resolution timing.
+const mockUpdateSettings = jest.fn();
+let mockNotificationSettingsData: unknown;
+
+jest.mock('@/hooks/use-notification-settings', () => ({
+  useNotificationSettings: () => ({
+    settings: mockNotificationSettingsData,
+    updateSettings: mockUpdateSettings,
+    isLoading: false,
+  }),
+}));
 
 jest.mock('@/store/user-store', () => ({
   useUserStore: jest.fn((selector) =>
@@ -367,34 +383,54 @@ describe('Settings Screen', () => {
   });
 });
 
-describe('Settings — re-engagement toggle', () => {
+describe('Nudges toggle', () => {
   beforeEach(() => {
     global.__DEV__ = false;
-    useSettingsStore.setState({ reEngagement: { enabled: true } });
+    useSettingsStore.setState({ nudges: { enabled: true } });
+    mockUpdateSettings.mockClear();
+    mockNotificationSettingsData = undefined;
   });
 
   afterEach(() => {
     global.__DEV__ = true;
   });
 
-  it('renders the re-engagement toggle reflecting the store value', async () => {
-    const { getByLabelText } = render(<Settings />);
-    await waitFor(() => {
-      const toggle = getByLabelText(/re-engagement reminders/i);
-      expect(toggle.props.accessibilityState.checked).toBe(true);
-    });
+  it('renders the Nudges row with its description', async () => {
+    render(<Settings />);
+    expect(await screen.findByText('Nudges')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        "Occasional reminders to pick your journey back up when you've been away."
+      )
+    ).toBeOnTheScreen();
   });
 
-  it('calls setReEngagement and the update mutation when toggled off', async () => {
-    const { getByLabelText } = render(<Settings />);
-    const toggle = await waitFor(() =>
-      getByLabelText(/re-engagement reminders/i)
-    );
+  it('sends { nudges: { enabled: false } } to the server when toggled off', async () => {
+    render(<Settings />);
+    const toggle = await screen.findByLabelText('Nudges');
     fireEvent.press(toggle);
     await waitFor(() =>
-      expect(useSettingsStore.getState().reEngagement).toEqual({
-        enabled: false,
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        nudges: { enabled: false },
       })
     );
+  });
+
+  it('does not echo server state back as an update on load', async () => {
+    mockNotificationSettingsData = { nudges: { enabled: true } };
+
+    render(<Settings />);
+    await screen.findByLabelText('Nudges');
+
+    // Give the sync effects a chance to run; nothing should be sent because
+    // the server value matches the store's default and the user never
+    // touched the toggle.
+    await waitFor(() => {
+      expect(
+        mockUpdateSettings.mock.calls.some(
+          ([payload]) => payload && 'nudges' in payload
+        )
+      ).toBe(false);
+    });
   });
 });
