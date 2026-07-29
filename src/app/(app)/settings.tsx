@@ -745,10 +745,21 @@ export default function Settings() {
 
   // Send update to server when nudges settings change
   useEffect(() => {
+    // Don't sync until the server settings have loaded — otherwise this
+    // fires on mount with the local/persisted default and can clobber a
+    // real server-side opt-out before we've had a chance to read it.
+    if (isLoadingSettings) return;
+
     const serialized = JSON.stringify(nudges);
     if (lastSentNudgesSettings.current === serialized) return;
     lastSentNudgesSettings.current = serialized;
     updateSettings({ nudges });
+    // isLoadingSettings intentionally excluded: including it re-runs this
+    // effect on the exact render the server settings arrive, before the
+    // load-sync effect's setNudges() has been applied, which would send the
+    // still-stale local value instead of skipping (same class of bug this
+    // guard exists to prevent).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nudges, updateSettings]);
 
   // Handle notification toggle
