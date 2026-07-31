@@ -17,6 +17,7 @@ import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
+import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
 import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
@@ -115,6 +116,7 @@ export default function Home() {
   const branchingModal = useModal();
   const skillTreeModal = useModal();
   const guildsModal = useModal();
+  const narratorVoiceModal = useModal();
 
   const hasSeenBranchingAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenBranchingAnnouncement
@@ -124,6 +126,9 @@ export default function Home() {
   );
   const hasSeenGuildsAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenGuildsAnnouncement
+  );
+  const hasSeenNarratorVoiceAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenNarratorVoiceAnnouncement
   );
   const lastAnnouncementShownAt = useAnnouncementStore(
     (state) => state.lastAnnouncementShownAt
@@ -280,6 +285,7 @@ export default function Home() {
         hasSeenBranchingAnnouncement,
         hasSeenSkillTreeAnnouncement,
         hasSeenGuildsAnnouncement,
+        hasSeenNarratorVoiceAnnouncement,
         lastAnnouncementShownAt,
       },
       {
@@ -296,6 +302,7 @@ export default function Home() {
       branching: branchingModal,
       skillTree: skillTreeModal,
       guilds: guildsModal,
+      narratorVoice: narratorVoiceModal,
     };
 
     // Delay slightly to let the screen settle, then present and stamp the
@@ -310,6 +317,7 @@ export default function Home() {
     hasSeenBranchingAnnouncement,
     hasSeenSkillTreeAnnouncement,
     hasSeenGuildsAnnouncement,
+    hasSeenNarratorVoiceAnnouncement,
     lastAnnouncementShownAt,
     hasCompletedFirstBranch,
     user,
@@ -318,6 +326,7 @@ export default function Home() {
     branchingModal,
     skillTreeModal,
     guildsModal,
+    narratorVoiceModal,
     markAnnouncementShown,
   ]);
 
@@ -573,6 +582,9 @@ export default function Home() {
 
       {/* Guilds Announcement Modal */}
       <GuildsAnnouncementModal ref={guildsModal.ref} />
+
+      {/* Narrator Voice Announcement Modal */}
+      <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
     </View>
   );
 }
