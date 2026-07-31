@@ -16,7 +16,15 @@ const baseSeen = {
   hasSeenBranchingAnnouncement: false,
   hasSeenSkillTreeAnnouncement: false,
   hasSeenGuildsAnnouncement: false,
+  hasSeenNarratorVoiceAnnouncement: false,
   lastAnnouncementShownAt: null,
+};
+
+// narratorVoice has no engagement precondition, so tests that isolate OTHER
+// branches' gating must mark it seen or it wins by default.
+const narratorSeen = {
+  ...baseSeen,
+  hasSeenNarratorVoiceAnnouncement: true,
 };
 
 describe('parseLegacyAnnouncementFlags', () => {
@@ -79,6 +87,7 @@ describe('useAnnouncementStore', () => {
     expect(state.hasSeenBranchingAnnouncement).toBe(false);
     expect(state.hasSeenSkillTreeAnnouncement).toBe(false);
     expect(state.hasSeenGuildsAnnouncement).toBe(false);
+    expect(state.hasSeenNarratorVoiceAnnouncement).toBe(false);
     expect(state.lastAnnouncementShownAt).toBeNull();
   });
 
@@ -102,6 +111,14 @@ describe('useAnnouncementStore', () => {
     expect(useAnnouncementStore.getState().hasSeenGuildsAnnouncement).toBe(
       true
     );
+  });
+
+  it('setHasSeenNarratorVoiceAnnouncement flips only the narrator flag', () => {
+    useAnnouncementStore.getState().setHasSeenNarratorVoiceAnnouncement(true);
+    const state = useAnnouncementStore.getState();
+    expect(state.hasSeenNarratorVoiceAnnouncement).toBe(true);
+    expect(state.hasSeenBranchingAnnouncement).toBe(false);
+    expect(state.hasSeenGuildsAnnouncement).toBe(false);
   });
 
   it('markAnnouncementShown stamps a numeric timestamp', () => {
@@ -136,8 +153,8 @@ describe('getAnnouncementToShow (pure selector)', () => {
     availablePerksCount: 3,
   };
 
-  it('returns null when nothing is eligible', () => {
-    expect(getAnnouncementToShow(baseSeen, baseCtx, TODAY)).toBeNull();
+  it('returns null when nothing is eligible and narratorVoice was already seen', () => {
+    expect(getAnnouncementToShow(narratorSeen, baseCtx, TODAY)).toBeNull();
   });
 
   it('returns branching when it is unseen and its precondition is met', () => {
@@ -153,7 +170,7 @@ describe('getAnnouncementToShow (pure selector)', () => {
   it('gates skillTree behind registration', () => {
     expect(
       getAnnouncementToShow(
-        baseSeen,
+        narratorSeen,
         { ...baseCtx, availablePerksCount: 2 },
         TODAY
       )
@@ -170,7 +187,7 @@ describe('getAnnouncementToShow (pure selector)', () => {
   it('gates guilds behind registration and >= 3 completed quests', () => {
     expect(
       getAnnouncementToShow(
-        baseSeen,
+        narratorSeen,
         { ...baseCtx, isRegistered: true, completedQuestCount: 2 },
         TODAY
       )
@@ -211,7 +228,7 @@ describe('getAnnouncementToShow (pure selector)', () => {
   it('never returns an announcement the user has already seen', () => {
     expect(
       getAnnouncementToShow(
-        { ...baseSeen, hasSeenBranchingAnnouncement: true },
+        { ...narratorSeen, hasSeenBranchingAnnouncement: true },
         { ...baseCtx, hasCompletedFirstBranch: true },
         TODAY
       )
@@ -236,6 +253,41 @@ describe('getAnnouncementToShow (pure selector)', () => {
         TODAY
       )
     ).toBe('branching');
+  });
+
+  it('returns narratorVoice for any unseen user — no engagement precondition', () => {
+    // baseCtx is all-false/zero: not registered, no quests, no perks.
+    expect(getAnnouncementToShow(baseSeen, baseCtx, TODAY)).toBe(
+      'narratorVoice'
+    );
+  });
+
+  it('checks narratorVoice LAST: a user eligible for guilds AND narratorVoice gets guilds today', () => {
+    expect(
+      getAnnouncementToShow(
+        {
+          ...baseSeen,
+          hasSeenBranchingAnnouncement: true,
+          hasSeenSkillTreeAnnouncement: true,
+        },
+        allEligibleCtx,
+        TODAY
+      )
+    ).toBe('guilds');
+  });
+
+  it('narratorVoice respects the once-per-day cap', () => {
+    expect(
+      getAnnouncementToShow(
+        { ...baseSeen, lastAnnouncementShownAt: EARLIER_TODAY },
+        baseCtx,
+        TODAY
+      )
+    ).toBeNull();
+  });
+
+  it('never re-shows narratorVoice once seen', () => {
+    expect(getAnnouncementToShow(narratorSeen, baseCtx, TODAY)).toBeNull();
   });
 });
 
