@@ -270,8 +270,17 @@ jest.mock('@gorhom/bottom-sheet', () => {
   const React = jest.requireActual('react');
   const RN = jest.requireActual('react-native');
 
+  // Mocked BottomSheetModal that supports refs with dismiss method
+  const MockedBottomSheetModal = React.forwardRef(({ children }: any, ref: any) => {
+    React.useImperativeHandle(ref, () => ({
+      dismiss: jest.fn(),
+      present: jest.fn(),
+    }));
+    return React.createElement(RN.View, { testID: 'bottom-sheet-modal' }, children);
+  });
+
   return {
-    BottomSheetModal: jest.fn(({ children }) => children),
+    BottomSheetModal: MockedBottomSheetModal,
     BottomSheetModalProvider: jest.fn(({ children }) => children),
     BottomSheetBackdrop: jest.fn(() => null),
     BottomSheetScrollView: jest.fn(({ children }) => children),

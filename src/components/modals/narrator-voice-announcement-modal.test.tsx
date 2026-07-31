@@ -20,32 +20,6 @@ jest.mock('posthog-react-native', () => ({
   }),
 }));
 
-// Mock emberglow BottomSheet to properly forward refs in tests
-jest.mock('@/components/emberglow', () => {
-  const React = require('react');
-  const RN = require('react-native');
-
-  return {
-    BottomSheet: React.forwardRef(({ children, title }: any, ref: any) => {
-      // Ensure the ref passed in is properly exposed
-      if (ref && ref.current) {
-        // The ref.current already has dismiss, just ensure it's accessible
-      }
-      return (
-        <RN.View>
-          {title && <RN.Text>{title}</RN.Text>}
-          {children}
-        </RN.View>
-      );
-    }),
-    Button: ({ label, onPress, variant }: any) => (
-      <RN.TouchableOpacity onPress={onPress} testID={`button-${label}`}>
-        <RN.Text>{label}</RN.Text>
-      </RN.TouchableOpacity>
-    ),
-  };
-});
-
 describe('NarratorVoiceAnnouncementModal', () => {
   let mockRef: any;
 
