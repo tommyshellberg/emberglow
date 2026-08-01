@@ -18,7 +18,11 @@ import { getItem, removeItem, setItem } from '@/lib/storage';
  * user from getting all three stacked in one session.
  */
 
-export type AnnouncementKey = 'branching' | 'skillTree' | 'guilds';
+export type AnnouncementKey =
+  | 'branching'
+  | 'skillTree'
+  | 'guilds'
+  | 'narratorVoice';
 
 /**
  * Preconditions the store cannot read itself — supplied by the home screen from
@@ -36,6 +40,7 @@ export type AnnouncementSeenState = {
   hasSeenBranchingAnnouncement: boolean;
   hasSeenSkillTreeAnnouncement: boolean;
   hasSeenGuildsAnnouncement: boolean;
+  hasSeenNarratorVoiceAnnouncement: boolean;
   lastAnnouncementShownAt: number | null;
 };
 
@@ -102,12 +107,13 @@ export function parseLegacyAnnouncementFlags(
  *      shows today.
  *   2. Priority order — because of the day-cap, whichever is checked first is
  *      the one that shows *today*; the rest wait for a later day. Order is
- *      branching → skillTree → guilds (story progression first, social last).
+ *      branching → skillTree → guilds → narratorVoice (story progression first, social/narrator last).
  *
- * Preconditions (from `ctx`) match the three effects this replaced verbatim:
+ * Preconditions (from `ctx`) match the effects this replaced verbatim:
  *   - branching : ctx.hasCompletedFirstBranch
  *   - skillTree : ctx.isRegistered && ctx.availablePerksCount > 0
  *   - guilds    : ctx.isRegistered && ctx.completedQuestCount >= 3
+ *   - narratorVoice: none (always eligible if unseen)
  */
 export function getAnnouncementToShow(
   state: AnnouncementSeenState,
@@ -142,6 +148,14 @@ export function getAnnouncementToShow(
     return 'guilds';
   }
 
+  // narratorVoice: no engagement precondition — any user who hasn't seen it.
+  // Deliberately LAST so it never preempts the engagement announcements above;
+  // with the day-cap, users with several pending announcements see this one
+  // only after the others have had their day.
+  if (!state.hasSeenNarratorVoiceAnnouncement) {
+    return 'narratorVoice';
+  }
+
   return null;
 }
 
@@ -149,6 +163,7 @@ type AnnouncementStore = AnnouncementSeenState & {
   setHasSeenBranchingAnnouncement: (value: boolean) => void;
   setHasSeenSkillTreeAnnouncement: (value: boolean) => void;
   setHasSeenGuildsAnnouncement: (value: boolean) => void;
+  setHasSeenNarratorVoiceAnnouncement: (value: boolean) => void;
   /**
    * Stamp the once-per-day throttle. Fires when a sheet is *presented*, not when
    * it is dismissed — a user who force-quits without dismissing has still used
@@ -177,6 +192,7 @@ export const useAnnouncementStore = create<AnnouncementStore>()(
       hasSeenBranchingAnnouncement: legacySeed.hasSeenBranchingAnnouncement,
       hasSeenSkillTreeAnnouncement: legacySeed.hasSeenSkillTreeAnnouncement,
       hasSeenGuildsAnnouncement: legacySeed.hasSeenGuildsAnnouncement,
+      hasSeenNarratorVoiceAnnouncement: false,
       lastAnnouncementShownAt: null,
       setHasSeenBranchingAnnouncement: (value) =>
         set({ hasSeenBranchingAnnouncement: value }),
@@ -184,6 +200,8 @@ export const useAnnouncementStore = create<AnnouncementStore>()(
         set({ hasSeenSkillTreeAnnouncement: value }),
       setHasSeenGuildsAnnouncement: (value) =>
         set({ hasSeenGuildsAnnouncement: value }),
+      setHasSeenNarratorVoiceAnnouncement: (value) =>
+        set({ hasSeenNarratorVoiceAnnouncement: value }),
       markAnnouncementShown: () => set({ lastAnnouncementShownAt: Date.now() }),
       getAnnouncementToShow: (ctx) => getAnnouncementToShow(get(), ctx),
     }),

@@ -17,6 +17,7 @@ import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
+import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
 import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
@@ -54,6 +55,7 @@ import {
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
+import type { User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 import { shadows } from '@/theme';
 
@@ -85,6 +87,110 @@ function usePremiumRefreshOnMount(refreshPremiumStatus: () => void) {
   }, []);
 }
 
+/**
+ * Feature-announcement modal refs plus the once-per-day gating effect that
+ * decides which (if any) to present.
+ *
+ * Extracted from `Home` for the same reason as `usePremiumRefreshOnMount`
+ * above: the component crept past the 500-line `max-lines-per-function`
+ * limit again once the narrator-voice announcement wiring landed. This block
+ * is self-contained — it reads only what its caller passes in and returns
+ * only the four modal refs `Home` renders. Gating and the once-per-day
+ * throttle itself still live in the announcement store (see
+ * `getAnnouncementToShow`).
+ */
+function useFeatureAnnouncementSheets({
+  hasCompletedFirstBranch,
+  user,
+  completedQuestsLength,
+  availablePerksLength,
+}: {
+  hasCompletedFirstBranch: boolean;
+  user: User | null;
+  completedQuestsLength: number;
+  availablePerksLength: number;
+}) {
+  const branchingModal = useModal();
+  const skillTreeModal = useModal();
+  const guildsModal = useModal();
+  const narratorVoiceModal = useModal();
+
+  const hasSeenBranchingAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenBranchingAnnouncement
+  );
+  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenSkillTreeAnnouncement
+  );
+  const hasSeenGuildsAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenGuildsAnnouncement
+  );
+  const hasSeenNarratorVoiceAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenNarratorVoiceAnnouncement
+  );
+  const lastAnnouncementShownAt = useAnnouncementStore(
+    (state) => state.lastAnnouncementShownAt
+  );
+  const markAnnouncementShown = useAnnouncementStore(
+    (state) => state.markAnnouncementShown
+  );
+
+  // Decide which feature announcement (if any) to surface, honoring the
+  // once-per-day cap. Previously three independent effects that could stack all
+  // three sheets in one session; now a single selector-driven effect.
+  useEffect(() => {
+    const which = getAnnouncementToShow(
+      {
+        hasSeenBranchingAnnouncement,
+        hasSeenSkillTreeAnnouncement,
+        hasSeenGuildsAnnouncement,
+        hasSeenNarratorVoiceAnnouncement,
+        lastAnnouncementShownAt,
+      },
+      {
+        hasCompletedFirstBranch,
+        isRegistered: !!user && !user.isProvisional,
+        completedQuestCount: completedQuestsLength,
+        availablePerksCount: availablePerksLength,
+      }
+    );
+
+    if (!which) return;
+
+    const modalByKey = {
+      branching: branchingModal,
+      skillTree: skillTreeModal,
+      guilds: guildsModal,
+      narratorVoice: narratorVoiceModal,
+    };
+
+    // Delay slightly to let the screen settle, then present and stamp the
+    // throttle so nothing else shows today.
+    const timer = setTimeout(() => {
+      modalByKey[which].present();
+      markAnnouncementShown();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [
+    hasSeenBranchingAnnouncement,
+    hasSeenSkillTreeAnnouncement,
+    hasSeenGuildsAnnouncement,
+    hasSeenNarratorVoiceAnnouncement,
+    lastAnnouncementShownAt,
+    hasCompletedFirstBranch,
+    user,
+    completedQuestsLength,
+    availablePerksLength,
+    branchingModal,
+    skillTreeModal,
+    guildsModal,
+    narratorVoiceModal,
+    markAnnouncementShown,
+  ]);
+
+  return { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal };
+}
+
 export default function Home() {
   const activeQuest = useQuestStore((state) => state.activeQuest);
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
@@ -109,29 +215,6 @@ export default function Home() {
     },
   });
 
-  // Home-screen feature announcements. Gating + the once-per-day throttle live
-  // in the announcement store (see getAnnouncementToShow); these three refs are
-  // the sheets this screen presents.
-  const branchingModal = useModal();
-  const skillTreeModal = useModal();
-  const guildsModal = useModal();
-
-  const hasSeenBranchingAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenBranchingAnnouncement
-  );
-  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenSkillTreeAnnouncement
-  );
-  const hasSeenGuildsAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenGuildsAnnouncement
-  );
-  const lastAnnouncementShownAt = useAnnouncementStore(
-    (state) => state.lastAnnouncementShownAt
-  );
-  const markAnnouncementShown = useAnnouncementStore(
-    (state) => state.markAnnouncementShown
-  );
-
   const completedQuests = useQuestStore((state) => state.completedQuests);
   // First branching quest (quest-1a or quest-1b) unlocks the restart offer.
   const hasCompletedFirstBranch = completedQuests.some(
@@ -141,6 +224,18 @@ export default function Home() {
   const availablePerks = useSkillTreeStore((state) =>
     state.getAvailablePerksToUnlock()
   );
+
+  // Home-screen feature announcements. Gating + the once-per-day throttle live
+  // in the announcement store (see getAnnouncementToShow); useFeatureAnnouncementSheets
+  // owns the modal refs and the selection effect, and returns the refs this
+  // screen presents.
+  const { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal } =
+    useFeatureAnnouncementSheets({
+      hasCompletedFirstBranch,
+      user,
+      completedQuestsLength: completedQuests.length,
+      availablePerksLength: availablePerks.length,
+    });
 
   // Use server-driven quests
   const {
@@ -270,56 +365,6 @@ export default function Home() {
       }
     }
   }, [activeQuest]);
-
-  // Decide which feature announcement (if any) to surface, honoring the
-  // once-per-day cap. Previously three independent effects that could stack all
-  // three sheets in one session; now a single selector-driven effect.
-  useEffect(() => {
-    const which = getAnnouncementToShow(
-      {
-        hasSeenBranchingAnnouncement,
-        hasSeenSkillTreeAnnouncement,
-        hasSeenGuildsAnnouncement,
-        lastAnnouncementShownAt,
-      },
-      {
-        hasCompletedFirstBranch,
-        isRegistered: !!user && !user.isProvisional,
-        completedQuestCount: completedQuests.length,
-        availablePerksCount: availablePerks.length,
-      }
-    );
-
-    if (!which) return;
-
-    const modalByKey = {
-      branching: branchingModal,
-      skillTree: skillTreeModal,
-      guilds: guildsModal,
-    };
-
-    // Delay slightly to let the screen settle, then present and stamp the
-    // throttle so nothing else shows today.
-    const timer = setTimeout(() => {
-      modalByKey[which].present();
-      markAnnouncementShown();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [
-    hasSeenBranchingAnnouncement,
-    hasSeenSkillTreeAnnouncement,
-    hasSeenGuildsAnnouncement,
-    lastAnnouncementShownAt,
-    hasCompletedFirstBranch,
-    user,
-    completedQuests.length,
-    availablePerks.length,
-    branchingModal,
-    skillTreeModal,
-    guildsModal,
-    markAnnouncementShown,
-  ]);
 
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
@@ -573,6 +618,9 @@ export default function Home() {
 
       {/* Guilds Announcement Modal */}
       <GuildsAnnouncementModal ref={guildsModal.ref} />
+
+      {/* Narrator Voice Announcement Modal */}
+      <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
     </View>
   );
 }
