@@ -1,11 +1,19 @@
 import React from 'react';
 
-import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { OnboardingStep } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useSettingsStore } from '@/store/settings-store';
 
 import FirstQuestResultScreen from './first-quest-result';
+
+// The reminder opt-in screen (phase 2 of this celebration) renders the real
+// ReminderOptIn, which renders the native DateTimePicker. Its iOS module
+// wraps onChange into a single-arg handler that fireEvent's two-arg
+// convention can't satisfy, so it's stubbed to a plain host component —
+// same pattern as reminder-opt-in.test.tsx.
+jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
 
 // Create shared mock functions at module level
 const mockRouterReplace = jest.fn();
@@ -71,24 +79,16 @@ jest.mock('@/app/data/quests', () => ({
 }));
 
 // Mock stores
-const mockOnboardingStore = {
-  setCurrentStep: jest.fn(),
-  isOnboardingComplete: jest.fn(() => false),
-};
-
+// onboarding-store is kept REAL (not jest.mock'd): its setCurrentStep is
+// forward-only, so a bare jest.fn() double would silently accept backward
+// moves the real store blocks, hiding bugs in the phase-2 gating below.
+// settings-store is real for the same reason (hasBeenPromptedForReminder is
+// the gate the new phase logic reads and writes).
 const mockQuestStore = {
   resetFailedQuest: jest.fn(),
   clearRecentCompletedQuest: jest.fn(),
   recentCompletedQuest: null,
 };
-
-jest.mock('@/store/onboarding-store', () => ({
-  useOnboardingStore: jest.fn(),
-  OnboardingStep: {
-    VIEWING_SIGNUP_PROMPT: 'VIEWING_SIGNUP_PROMPT',
-    COMPLETED: 'COMPLETED',
-  },
-}));
 
 const mockAuthState = { status: 'signOut' as 'signOut' | 'signIn' };
 jest.mock('@/lib/auth', () => ({
@@ -99,9 +99,6 @@ jest.mock('@/store/quest-store', () => ({
   useQuestStore: jest.fn(),
 }));
 
-const mockUseOnboardingStore = useOnboardingStore as jest.MockedFunction<
-  typeof useOnboardingStore
->;
 const mockUseQuestStore = useQuestStore as jest.MockedFunction<
   typeof useQuestStore
 >;
@@ -112,12 +109,22 @@ describe('FirstQuestResultScreen', () => {
     // Default to the onboarding-era case: an unauthenticated first-quest run.
     mockAuthState.status = 'signOut';
 
-    mockUseOnboardingStore.mockImplementation((selector) =>
-      selector(mockOnboardingStore as any)
-    );
     mockUseQuestStore.mockImplementation((selector) =>
       selector(mockQuestStore as any)
     );
+
+    useOnboardingStore.setState({
+      currentStep: OnboardingStep.STARTING_FIRST_QUEST,
+    });
+    // Default to "already prompted" so pre-existing tests (written before
+    // phase 2 existed) keep exercising today's immediate-release behavior on
+    // Continue. The new "daily reminder phase 2" describe block below
+    // overrides this back to false in its own beforeEach.
+    useSettingsStore.setState({
+      hasBeenPromptedForReminder: true,
+      reminderPromptedAt: null,
+      dailyReminder: { enabled: false, time: null },
+    });
   });
 
   describe('Quest Completion Flow', () => {
@@ -129,10 +136,10 @@ describe('FirstQuestResultScreen', () => {
 
       render(<FirstQuestResultScreen />);
 
-      expect(mockOnboardingStore.setCurrentStep).not.toHaveBeenCalledWith(
+      expect(useOnboardingStore.getState().currentStep).not.toBe(
         OnboardingStep.VIEWING_SIGNUP_PROMPT
       );
-      expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+      expect(useOnboardingStore.getState().currentStep).toBe(
         OnboardingStep.COMPLETED
       );
     });
@@ -143,7 +150,6 @@ describe('FirstQuestResultScreen', () => {
       const continueButton = getByTestId('continue-button');
       fireEvent.press(continueButton);
 
-      // This test will FAIL because clearRecentCompletedQuest is not called in the current implementation
       expect(mockQuestStore.clearRecentCompletedQuest).toHaveBeenCalled();
     });
 
@@ -153,7 +159,7 @@ describe('FirstQuestResultScreen', () => {
       const continueButton = getByTestId('continue-button');
       fireEvent.press(continueButton);
 
-      expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+      expect(useOnboardingStore.getState().currentStep).toBe(
         OnboardingStep.VIEWING_SIGNUP_PROMPT
       );
     });
@@ -180,7 +186,7 @@ describe('FirstQuestResultScreen', () => {
 
       // Verify both state updates are called (NavigationGate will handle routing)
       expect(mockQuestStore.clearRecentCompletedQuest).toHaveBeenCalled();
-      expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+      expect(useOnboardingStore.getState().currentStep).toBe(
         OnboardingStep.VIEWING_SIGNUP_PROMPT
       );
     });
@@ -208,6 +214,64 @@ describe('FirstQuestResultScreen', () => {
       fireEvent.press(retryButton);
 
       expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/first-quest');
+    });
+  });
+
+  describe('daily reminder phase 2', () => {
+    const renderCompletedOutcome = () => {
+      mockUseLocalSearchParams.mockReturnValue({ outcome: 'completed' });
+      return render(<FirstQuestResultScreen />);
+    };
+    const renderFailedOutcome = () => {
+      mockUseLocalSearchParams.mockReturnValue({ outcome: 'failed' });
+      return render(<FirstQuestResultScreen />);
+    };
+
+    beforeEach(() => {
+      useSettingsStore.setState({
+        hasBeenPromptedForReminder: false,
+        reminderPromptedAt: null,
+        dailyReminder: { enabled: false, time: null },
+      });
+      useOnboardingStore.setState({
+        currentStep: OnboardingStep.STARTING_FIRST_QUEST,
+      });
+    });
+
+    it('shows the reminder step after Continue and stamps the prompt flags', () => {
+      renderCompletedOutcome();
+      fireEvent.press(screen.getByText('Continue Your Journey'));
+
+      expect(screen.getByText('When will you quest each day?')).toBeTruthy();
+      expect(useSettingsStore.getState().hasBeenPromptedForReminder).toBe(true);
+      expect(useSettingsStore.getState().reminderPromptedAt).not.toBeNull();
+      // Screen NOT released yet: releaseScreen has not run.
+      expect(mockQuestStore.clearRecentCompletedQuest).not.toHaveBeenCalled();
+    });
+
+    it('releases the screen after skipping the reminder', () => {
+      renderCompletedOutcome();
+      fireEvent.press(screen.getByText('Continue Your Journey'));
+      fireEvent.press(screen.getByText('Skip for now'));
+
+      expect(mockQuestStore.clearRecentCompletedQuest).toHaveBeenCalled();
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.VIEWING_SIGNUP_PROMPT
+      );
+    });
+
+    it('releases immediately when already prompted', () => {
+      useSettingsStore.setState({ hasBeenPromptedForReminder: true });
+      renderCompletedOutcome();
+      fireEvent.press(screen.getByText('Continue Your Journey'));
+
+      expect(screen.queryByText('When will you quest each day?')).toBeNull();
+      expect(mockQuestStore.clearRecentCompletedQuest).toHaveBeenCalled();
+    });
+
+    it('never shows the reminder step for a failed outcome', () => {
+      renderFailedOutcome();
+      expect(screen.queryByText('When will you quest each day?')).toBeNull();
     });
   });
 });

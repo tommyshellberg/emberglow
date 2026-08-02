@@ -5,10 +5,12 @@ import React from 'react';
 import { AVAILABLE_QUESTS } from '@/app/data/quests'; // Assuming quest-1 details come from here
 import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
+import { ReminderOptInScreen } from '@/components/reminder/reminder-opt-in-screen';
 import { Button, FocusAwareStatusBar, Text, View } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { type Quest } from '@/store/types'; // Import Quest type for better type safety
 
 export default function FirstQuestResultScreen() {
@@ -33,6 +35,14 @@ export default function FirstQuestResultScreen() {
   );
   const posthog = usePostHog();
 
+  // Phase 2 of this celebration screen: the daily-reminder opt-in. Route
+  // stays first-quest-result the whole time — the resolver keeps targeting
+  // it while recentCompletedQuest is set, so NavigationGate has nothing to
+  // evict.
+  const [phase, setPhase] = React.useState<'celebration' | 'reminder'>(
+    'celebration'
+  );
+
   // Find quest-1 details (assuming it has a fixed ID like 'quest-1')
   const firstQuestData = AVAILABLE_QUESTS.find((q) => q.id === 'quest-1');
 
@@ -44,13 +54,28 @@ export default function FirstQuestResultScreen() {
     // No specific onboarding step for failure here, as retrying might loop back
   }, [outcome, setOnboardingStep, stepAfterFirstQuest]);
 
-  const handleCompletedContinue = () => {
+  const releaseScreen = React.useCallback(() => {
     // Clear the completed quest state to prevent stale state issues
     clearRecentCompletedQuest();
-
     // Update onboarding step - NavigationGate will handle the actual navigation
     // This prevents race conditions from duplicate navigation calls
     setOnboardingStep(stepAfterFirstQuest);
+  }, [clearRecentCompletedQuest, setOnboardingStep, stepAfterFirstQuest]);
+
+  const handleCompletedContinue = () => {
+    const { hasBeenPromptedForReminder } = useSettingsStore.getState();
+    if (!hasBeenPromptedForReminder) {
+      // Stamp on present, not on dismiss — a force-quit mid-prompt still
+      // counts as this user's one onboarding touch (announcement-store rule).
+      useSettingsStore.getState().setHasBeenPromptedForReminder(true);
+      useSettingsStore.getState().setReminderPromptedAt(Date.now());
+      posthog.capture('daily_reminder_prompt_viewed', {
+        surface: 'onboarding',
+      });
+      setPhase('reminder');
+      return;
+    }
+    releaseScreen();
   };
 
   if (!firstQuestData) {
@@ -69,6 +94,15 @@ export default function FirstQuestResultScreen() {
     startTime: Date.now(), // Add a default startTime
     // heroName can be added if available from a character store, or QuestComplete can use its own default
   };
+
+  if (outcome === 'completed' && phase === 'reminder') {
+    return (
+      <View className="flex-1 bg-background">
+        <FocusAwareStatusBar />
+        <ReminderOptInScreen onDone={releaseScreen} />
+      </View>
+    );
+  }
 
   if (outcome === 'completed') {
     const completedQuestForDisplay: Quest = {
