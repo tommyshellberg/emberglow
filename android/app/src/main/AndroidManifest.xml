@@ -41,6 +41,12 @@
         <data android:scheme="com.vaedros.unquest"/>
         <data android:scheme="exp+unquest-app"/>
       </intent-filter>
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="emberglowapp.com" android:pathPrefix="/i/"/>
+      </intent-filter>
     </activity>
     <service android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask" android:foregroundServiceType="specialUse" tools:replace="android:foregroundServiceType">
       <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-initiated focus-session countdown timer with live progress notification"/>

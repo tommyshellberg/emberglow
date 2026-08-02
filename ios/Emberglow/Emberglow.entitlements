@@ -12,5 +12,9 @@
     <array>
       <string>group.com.vaedros.unquest.onesignal</string>
     </array>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+      <string>applinks:emberglowapp.com</string>
+    </array>
   </dict>
 </plist>
