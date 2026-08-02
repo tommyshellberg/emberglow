@@ -34,6 +34,7 @@ import colors from '@/components/ui/colors';
 import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
+import { getSentryConfig } from '@/lib/sentry-config';
 import { scheduleStreakWarningNotification } from '@/lib/services/notifications';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
@@ -50,14 +51,15 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: !isRunningInExpoGo(),
 });
 
+const sentryConfig = getSentryConfig(Env.APP_ENV);
+
 const integrations =
   Env.APP_ENV === 'production'
     ? [
+        // Masking uses SDK defaults (maskAllText/Images/Vectors: true).
+        // Replays previously recorded login emails and journal content in cleartext.
         Sentry.mobileReplayIntegration({
           enableExperimentalViewRenderer: true,
-          maskAllText: false,
-          maskAllImages: false,
-          maskAllVectors: false,
         }),
         Sentry.reactNativeTracingIntegration(),
         navigationIntegration,
@@ -66,10 +68,14 @@ const integrations =
 
 Sentry.init({
   dsn: 'https://6d85dbe3783d343a049b93fa8afaf144@o4508966745997312.ingest.us.sentry.io/4508966747570176',
-  replaysSessionSampleRate: 1.0,
-  replaysOnErrorSampleRate: 1.0,
-  integrations: integrations,
-  tracesSampleRate: 1.0,
+  enabled: sentryConfig.enabled,
+  environment: Env.APP_ENV,
+  replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
+  replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
+  tracesSampleRate: sentryConfig.tracesSampleRate,
+  integrations,
+  // Known network-blip noise; extend once prod volume shows what dominates.
+  ignoreErrors: ['Network request failed', 'AbortError'],
 });
 
 // Keep the splash screen visible until we explicitly hide it
