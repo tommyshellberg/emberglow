@@ -1,6 +1,7 @@
 import {
   aggregateDailyMinutes,
   formatMinutes,
+  getWeeklyActivityLabel,
   getWeeklySummary,
 } from './daily-stats';
 
@@ -89,5 +90,35 @@ describe('formatMinutes', () => {
     expect(formatMinutes(120)).toBe('2h');
     expect(formatMinutes(125)).toBe('2h 5m');
     expect(formatMinutes(0)).toBe('0m');
+  });
+});
+
+describe('getWeeklyActivityLabel', () => {
+  it('uses singular "day" for a single active day', () => {
+    const stats = aggregateDailyMinutes([quest(NOW, 42)], 7, NOW);
+    // Sole active day is today (2026-08-02, a Sunday), so it's also the
+    // best day.
+    expect(getWeeklyActivityLabel(stats)).toBe(
+      '42m across 1 day this week, best day Sun'
+    );
+  });
+
+  it('uses plural "days" for multiple active days', () => {
+    const stats = aggregateDailyMinutes(
+      [
+        quest(new Date(2026, 7, 1, 10, 0).getTime(), 50), // Sat
+        quest(new Date(2026, 7, 2, 10, 0).getTime(), 20), // Sun
+      ],
+      7,
+      NOW
+    );
+    expect(getWeeklyActivityLabel(stats)).toBe(
+      '1h 10m across 2 days this week, best day Sat'
+    );
+  });
+
+  it('returns the no-activity fallback for an all-zero week, with no best-day suffix', () => {
+    const stats = aggregateDailyMinutes([], 7, NOW);
+    expect(getWeeklyActivityLabel(stats)).toBe('No quest time this week yet');
   });
 });

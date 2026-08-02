@@ -38,7 +38,7 @@ describe('WeeklyActivityCard', () => {
     render(<WeeklyActivityCard onPress={jest.fn()} />);
     const card = screen.getByTestId('weekly-activity-card');
     expect(card.props.accessibilityLabel).toContain(
-      '42m across 1 days this week'
+      '42m across 1 day this week'
     );
   });
 });

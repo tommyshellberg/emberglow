@@ -77,8 +77,9 @@ export function getWeeklyActivityLabel(stats: DailyStat[]): string {
   const { totalMinutes, bestDay } = getWeeklySummary(stats);
   if (totalMinutes === 0) return 'No quest time this week yet';
   const activeDays = stats.filter((s) => s.minutes > 0).length;
+  const dayNoun = activeDays === 1 ? 'day' : 'days';
   return (
-    `${formatMinutes(totalMinutes)} across ${activeDays} days this week` +
+    `${formatMinutes(totalMinutes)} across ${activeDays} ${dayNoun} this week` +
     (bestDay ? `, best day ${bestDay.dayShort}` : '')
   );
 }
