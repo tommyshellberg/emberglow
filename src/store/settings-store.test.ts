@@ -29,3 +29,18 @@ describe('settings-store onboardingSoundEnabled', () => {
     expect(useSettingsStore.getState().onboardingSoundEnabled).toBe(false);
   });
 });
+
+describe('settings-store reminder prompt tracking', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ reminderPromptedAt: null });
+  });
+
+  it('defaults reminderPromptedAt to null', () => {
+    expect(useSettingsStore.getState().reminderPromptedAt).toBeNull();
+  });
+
+  it('setReminderPromptedAt stores the timestamp', () => {
+    useSettingsStore.getState().setReminderPromptedAt(1754000000000);
+    expect(useSettingsStore.getState().reminderPromptedAt).toBe(1754000000000);
+  });
+});

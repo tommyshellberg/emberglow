@@ -27,6 +27,8 @@ type SettingsState = {
   setStreakWarning: (streakWarning: StreakWarning) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
+  reminderPromptedAt: number | null;
+  setReminderPromptedAt: (value: number) => void;
   narratorVoice: NarratorVoice | null;
   setNarratorVoice: (voice: NarratorVoice) => void;
   onboardingSoundEnabled: boolean;
@@ -54,6 +56,8 @@ export const useSettingsStore = create<SettingsState>()(
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),
+      reminderPromptedAt: null,
+      setReminderPromptedAt: (value) => set({ reminderPromptedAt: value }),
       narratorVoice: null,
       setNarratorVoice: (voice) => set({ narratorVoice: voice }),
       onboardingSoundEnabled: true,
