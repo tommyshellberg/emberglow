@@ -37,6 +37,7 @@ jest.mock('lucide-react-native', () => ({
   TrendingUp: () => null,
   Sparkles: () => null,
   ChevronRight: () => null,
+  Share2: () => null,
 }));
 
 // Mock UI components

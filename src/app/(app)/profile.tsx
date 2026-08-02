@@ -8,6 +8,7 @@ import {
 } from '@/components/profile/contact-import';
 import { DeleteFriendModal } from '@/components/profile/delete-friend-modal';
 import { FriendsList } from '@/components/profile/friends-list';
+import { InviteLinkButton } from '@/components/profile/invite-link-button';
 import { ProfileCard } from '@/components/profile/profile-card';
 import { RescindInvitationModal } from '@/components/profile/rescind-invitation-modal';
 import { StatsCard } from '@/components/profile/stats-card';
@@ -176,6 +177,11 @@ export default function ProfileScreen() {
 
           {/* Guilds Section */}
           <GuildsSection />
+
+          {/* Invite Link Button */}
+          <View style={{ marginHorizontal: 16, marginTop: 24 }}>
+            <InviteLinkButton />
+          </View>
 
           {/* Friends Section */}
           <FriendsList
