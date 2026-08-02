@@ -20,7 +20,7 @@ import {
 
 import {
   type DailyStat,
-  formatMinutes,
+  getWeeklyActivityLabel,
   getWeeklySummary,
 } from '../lib/daily-stats';
 
@@ -89,16 +89,10 @@ export function WeeklyActivityChart({
   emptyMessage,
   testID,
 }: WeeklyActivityChartProps) {
-  const { totalMinutes, bestDay } = getWeeklySummary(stats);
+  const { totalMinutes } = getWeeklySummary(stats);
   const maxMinutes = Math.max(...stats.map((s) => s.minutes), 0);
   const areaHeight = BAR_AREA_HEIGHT[variant];
-  const activeDays = stats.filter((s) => s.minutes > 0).length;
-
-  const accessibilityLabel =
-    totalMinutes === 0
-      ? 'No quest time this week yet'
-      : `${formatMinutes(totalMinutes)} across ${activeDays} days this week` +
-        (bestDay ? `, best day ${bestDay.dayShort}` : '');
+  const accessibilityLabel = getWeeklyActivityLabel(stats);
 
   return (
     <View

@@ -68,3 +68,17 @@ export function formatMinutes(minutes: number): string {
   const rest = minutes % 60;
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
+
+// Shared between WeeklyActivityChart (its own accessibilityLabel) and
+// WeeklyActivityCard (the outer Pressable's accessibilityLabel) so the two
+// stay worded identically — see weekly-activity-card.tsx for why the card
+// needs its own copy of this string rather than relying on the chart's.
+export function getWeeklyActivityLabel(stats: DailyStat[]): string {
+  const { totalMinutes, bestDay } = getWeeklySummary(stats);
+  if (totalMinutes === 0) return 'No quest time this week yet';
+  const activeDays = stats.filter((s) => s.minutes > 0).length;
+  return (
+    `${formatMinutes(totalMinutes)} across ${activeDays} days this week` +
+    (bestDay ? `, best day ${bestDay.dayShort}` : '')
+  );
+}
