@@ -1,7 +1,15 @@
 // Import after mocking
+import * as Sentry from '@sentry/react-native';
+
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types';
+
+jest.mock('@sentry/react-native', () => ({
+  addBreadcrumb: jest.fn(),
+  setTag: jest.fn(),
+  setUser: jest.fn(),
+}));
 
 // Mock the dependencies
 jest.mock('@/lib/services/quest-timer', () => {
@@ -1575,6 +1583,102 @@ describe('QuestStore - refreshAvailableQuests', () => {
       // Also check that availableQuests is populated with client format
       expect(state.availableQuests.length).toBe(1);
       expect(state.availableQuests[0].id).toBe('quest-1');
+    });
+  });
+});
+
+describe('quest lifecycle breadcrumbs', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('startQuest leaves a quest.start breadcrumb with the quest id', () => {
+    const quest = {
+      id: 'quest-77',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+
+    useQuestStore.getState().startQuest(quest);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.start',
+      level: 'info',
+      data: { questId: 'quest-77', mode: 'story' },
+    });
+  });
+
+  it('prepareQuest leaves a quest.prepare breadcrumb with the quest id', () => {
+    const quest = {
+      id: 'quest-88',
+      mode: 'custom' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      category: 'personal' as const,
+    };
+
+    useQuestStore.getState().prepareQuest(quest);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.prepare',
+      level: 'info',
+      data: { questId: 'quest-88', mode: 'custom' },
+    });
+  });
+
+  it('cancelQuest leaves a quest.cancel breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-99',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now(),
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.cancel',
+      level: 'info',
+      data: { questId: 'quest-99' },
+    });
+  });
+
+  it('failQuest leaves a quest.fail breadcrumb', () => {
+    useQuestStore.getState().failQuest();
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'quest', message: 'quest.fail' })
+    );
+  });
+
+  it('completeQuest leaves a quest.complete breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-55',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now() - 600000,
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest, lastCompletedQuestTimestamp: null });
+
+    useQuestStore.getState().completeQuest(true);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.complete',
+      level: 'info',
+      data: { questId: 'quest-55', mode: 'story' },
     });
   });
 });

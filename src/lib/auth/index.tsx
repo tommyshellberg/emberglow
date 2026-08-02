@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
@@ -41,6 +42,7 @@ const _useAuth = create<AuthState>((set, get) => ({
         refresh: loginResponse.token.refresh,
       },
     });
+    Sentry.setTag('authState', 'full');
 
     // Login to RevenueCat with user ID
     if (loginResponse.user?.id) {
@@ -65,6 +67,7 @@ const _useAuth = create<AuthState>((set, get) => ({
       status: 'signOut',
       token: null,
     });
+    Sentry.setTag('authState', 'signedOut');
 
     // Clear user store
     useUserStore.getState().clearUser();
@@ -249,6 +252,7 @@ const _useAuth = create<AuthState>((set, get) => ({
           }
 
           set({ status: 'signIn', token: userToken });
+          Sentry.setTag('authState', 'full');
         } catch (fetchError) {
           console.error(
             'Failed to fetch user details during hydration:',
@@ -259,6 +263,7 @@ const _useAuth = create<AuthState>((set, get) => ({
           console.log('[Auth] Keeping user signed in despite fetch failure');
           // CRITICAL: Must set status to signIn so app can proceed offline
           set({ status: 'signIn', token: userToken });
+          Sentry.setTag('authState', 'full');
         }
       } else if (provisionalToken) {
         // Handle provisional users
@@ -271,6 +276,7 @@ const _useAuth = create<AuthState>((set, get) => ({
         };
 
         set({ status: 'signIn', token: provisionalTokenData });
+        Sentry.setTag('authState', 'provisional');
 
         // Note: We don't fetch user details for provisional users yet
         // They will be fetched after quest completion when converting to full user
@@ -279,12 +285,14 @@ const _useAuth = create<AuthState>((set, get) => ({
         // No tokens found - set signOut status without calling logout methods
         // since the user was never logged in
         set({ status: 'signOut', token: null });
+        Sentry.setTag('authState', 'signedOut');
       }
     } catch (e) {
       console.error('Error during hydration process:', e);
       // Don't sign out on hydration errors - let the user continue if possible
       // They might just have network issues or other temporary problems
       set({ status: 'signOut' }); // Set to signOut state but don't clear tokens
+      Sentry.setTag('authState', 'signedOut');
     }
   },
 }));
