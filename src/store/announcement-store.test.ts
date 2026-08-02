@@ -10,6 +10,9 @@ const baseCtx: AnnouncementContext = {
   isRegistered: false,
   completedQuestCount: 0,
   availablePerksCount: 0,
+  dailyReminderEnabled: true,
+  hasBeenPromptedForReminder: false,
+  reminderPromptedAt: null,
 };
 
 const baseSeen = {
@@ -17,6 +20,7 @@ const baseSeen = {
   hasSeenSkillTreeAnnouncement: false,
   hasSeenGuildsAnnouncement: false,
   hasSeenNarratorVoiceAnnouncement: false,
+  hasSeenDailyReminderPrompt: true,
   lastAnnouncementShownAt: null,
 };
 
@@ -151,6 +155,9 @@ describe('getAnnouncementToShow (pure selector)', () => {
     isRegistered: true,
     completedQuestCount: 5,
     availablePerksCount: 3,
+    dailyReminderEnabled: true,
+    hasBeenPromptedForReminder: false,
+    reminderPromptedAt: null,
   };
 
   it('returns null when nothing is eligible and narratorVoice was already seen', () => {
@@ -288,6 +295,134 @@ describe('getAnnouncementToShow (pure selector)', () => {
 
   it('never re-shows narratorVoice once seen', () => {
     expect(getAnnouncementToShow(narratorSeen, baseCtx, TODAY)).toBeNull();
+  });
+});
+
+describe('dailyReminder announcement eligibility', () => {
+  const NOW = 1754000000000;
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+  const unseenState = {
+    hasSeenBranchingAnnouncement: false,
+    hasSeenSkillTreeAnnouncement: true,
+    hasSeenGuildsAnnouncement: true,
+    hasSeenNarratorVoiceAnnouncement: true,
+    hasSeenDailyReminderPrompt: false,
+    lastAnnouncementShownAt: null,
+  };
+
+  const reminderCtx = {
+    hasCompletedFirstBranch: false,
+    isRegistered: true,
+    completedQuestCount: 1,
+    availablePerksCount: 0,
+    dailyReminderEnabled: false,
+    hasBeenPromptedForReminder: false,
+    reminderPromptedAt: null,
+  };
+
+  it('shows for an existing user: never prompted, >=1 quest, reminder off', () => {
+    expect(getAnnouncementToShow(unseenState, reminderCtx, NOW)).toBe(
+      'dailyReminder'
+    );
+  });
+
+  it('does not show with zero completed quests', () => {
+    expect(
+      getAnnouncementToShow(
+        unseenState,
+        { ...reminderCtx, completedQuestCount: 0 },
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it('does not show when the reminder is already enabled', () => {
+    expect(
+      getAnnouncementToShow(
+        unseenState,
+        { ...reminderCtx, dailyReminderEnabled: true },
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it('does not show again once seen', () => {
+    expect(
+      getAnnouncementToShow(
+        { ...unseenState, hasSeenDailyReminderPrompt: true },
+        reminderCtx,
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  describe('new-user re-ask (declined at onboarding)', () => {
+    const reAskCtx = {
+      ...reminderCtx,
+      hasBeenPromptedForReminder: true,
+      completedQuestCount: 3,
+      reminderPromptedAt: NOW - SEVEN_DAYS,
+    };
+
+    it('shows at exactly 3 quests and 7 days', () => {
+      expect(getAnnouncementToShow(unseenState, reAskCtx, NOW)).toBe(
+        'dailyReminder'
+      );
+    });
+
+    it('does not show with only 2 quests', () => {
+      expect(
+        getAnnouncementToShow(
+          unseenState,
+          { ...reAskCtx, completedQuestCount: 2 },
+          NOW
+        )
+      ).toBeNull();
+    });
+
+    it('does not show at 6 days 23 hours', () => {
+      expect(
+        getAnnouncementToShow(
+          unseenState,
+          {
+            ...reAskCtx,
+            reminderPromptedAt: NOW - SEVEN_DAYS + 60 * 60 * 1000,
+          },
+          NOW
+        )
+      ).toBeNull();
+    });
+
+    it('does not show when prompted but reminderPromptedAt is missing', () => {
+      expect(
+        getAnnouncementToShow(
+          unseenState,
+          { ...reAskCtx, reminderPromptedAt: null },
+          NOW
+        )
+      ).toBeNull();
+    });
+  });
+
+  it('outranks other eligible announcements', () => {
+    expect(
+      getAnnouncementToShow(
+        unseenState,
+        { ...reminderCtx, hasCompletedFirstBranch: true },
+        NOW
+      )
+    ).toBe('dailyReminder');
+  });
+
+  it('respects the once-per-day cap', () => {
+    expect(
+      getAnnouncementToShow(
+        { ...unseenState, lastAnnouncementShownAt: NOW - 1000 },
+        reminderCtx,
+        NOW
+      )
+    ).toBeNull();
   });
 });
 

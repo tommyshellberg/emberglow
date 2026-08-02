@@ -54,6 +54,7 @@ import {
 } from '@/store/announcement-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 import type { User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
@@ -127,11 +128,24 @@ function useFeatureAnnouncementSheets({
   const hasSeenNarratorVoiceAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenNarratorVoiceAnnouncement
   );
+  const hasSeenDailyReminderPrompt = useAnnouncementStore(
+    (state) => state.hasSeenDailyReminderPrompt
+  );
   const lastAnnouncementShownAt = useAnnouncementStore(
     (state) => state.lastAnnouncementShownAt
   );
   const markAnnouncementShown = useAnnouncementStore(
     (state) => state.markAnnouncementShown
+  );
+
+  const dailyReminderEnabled = useSettingsStore(
+    (state) => state.dailyReminder.enabled
+  );
+  const hasBeenPromptedForReminder = useSettingsStore(
+    (state) => state.hasBeenPromptedForReminder
+  );
+  const reminderPromptedAt = useSettingsStore(
+    (state) => state.reminderPromptedAt
   );
 
   // Decide which feature announcement (if any) to surface, honoring the
@@ -144,6 +158,7 @@ function useFeatureAnnouncementSheets({
         hasSeenSkillTreeAnnouncement,
         hasSeenGuildsAnnouncement,
         hasSeenNarratorVoiceAnnouncement,
+        hasSeenDailyReminderPrompt,
         lastAnnouncementShownAt,
       },
       {
@@ -151,10 +166,22 @@ function useFeatureAnnouncementSheets({
         isRegistered: !!user && !user.isProvisional,
         completedQuestCount: completedQuestsLength,
         availablePerksCount: availablePerksLength,
+        dailyReminderEnabled,
+        hasBeenPromptedForReminder,
+        reminderPromptedAt,
       }
     );
 
     if (!which) return;
+
+    if (which === 'dailyReminder') {
+      // The daily-reminder sheet itself lands in Task 8 (DailyReminderSheet +
+      // home wiring). Until then, treat an eligible user as a no-op rather
+      // than index into modalByKey with a ref that doesn't exist yet — this
+      // also intentionally withholds markAnnouncementShown() so the day-cap
+      // isn't burned on a prompt nobody saw.
+      return;
+    }
 
     const modalByKey = {
       branching: branchingModal,
@@ -176,11 +203,15 @@ function useFeatureAnnouncementSheets({
     hasSeenSkillTreeAnnouncement,
     hasSeenGuildsAnnouncement,
     hasSeenNarratorVoiceAnnouncement,
+    hasSeenDailyReminderPrompt,
     lastAnnouncementShownAt,
     hasCompletedFirstBranch,
     user,
     completedQuestsLength,
     availablePerksLength,
+    dailyReminderEnabled,
+    hasBeenPromptedForReminder,
+    reminderPromptedAt,
     branchingModal,
     skillTreeModal,
     guildsModal,
