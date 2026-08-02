@@ -1653,10 +1653,45 @@ describe('quest lifecycle breadcrumbs', () => {
     });
   });
 
-  it('failQuest leaves a quest.fail breadcrumb', () => {
+  it('cancelQuest with no active or pending quest does not leave a quest.cancel breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null, pendingQuest: null });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.cancel' })
+    );
+  });
+
+  it('failQuest leaves a quest.fail breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-42',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now(),
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest, pendingQuest: null });
+
     useQuestStore.getState().failQuest();
-    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'quest', message: 'quest.fail' })
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.fail',
+      level: 'info',
+      data: { questId: 'quest-42' },
+    });
+  });
+
+  it('failQuest with no active or pending quest does not leave a quest.fail breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null, pendingQuest: null });
+
+    useQuestStore.getState().failQuest();
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.fail' })
     );
   });
 
@@ -1680,5 +1715,15 @@ describe('quest lifecycle breadcrumbs', () => {
       level: 'info',
       data: { questId: 'quest-55', mode: 'story' },
     });
+  });
+
+  it('completeQuest with no active quest does not leave a quest.complete breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null });
+
+    useQuestStore.getState().completeQuest(true);
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.complete' })
+    );
   });
 });

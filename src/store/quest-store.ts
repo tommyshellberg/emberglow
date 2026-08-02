@@ -148,17 +148,14 @@ export const useQuestStore = create<QuestState>()(
       },
 
       completeQuest: async (ignoreDuration = false) => {
-        Sentry.addBreadcrumb({
-          category: 'quest',
-          message: 'quest.complete',
-          level: 'info',
-          data: {
-            questId: get().activeQuest?.id,
-            mode: get().activeQuest?.mode,
-          },
-        });
         const { activeQuest, lastCompletedQuestTimestamp } = get();
         if (activeQuest && activeQuest.startTime) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.complete',
+            level: 'info',
+            data: { questId: activeQuest.id, mode: activeQuest.mode },
+          });
           const completionTime = Date.now();
           const duration = (completionTime - activeQuest.startTime) / 1000;
 
@@ -388,14 +385,14 @@ export const useQuestStore = create<QuestState>()(
       },
 
       cancelQuest: () => {
-        Sentry.addBreadcrumb({
-          category: 'quest',
-          message: 'quest.cancel',
-          level: 'info',
-          data: { questId: get().activeQuest?.id },
-        });
         const { activeQuest, pendingQuest, cooperativeQuestRun } = get();
         if (activeQuest || pendingQuest) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.cancel',
+            level: 'info',
+            data: { questId: activeQuest?.id },
+          });
           // End any active live activity when quest is canceled
           QuestTimer.stopQuest();
           set({
@@ -416,15 +413,15 @@ export const useQuestStore = create<QuestState>()(
       },
 
       failQuest: () => {
-        Sentry.addBreadcrumb({
-          category: 'quest',
-          message: 'quest.fail',
-          level: 'info',
-          data: { questId: get().activeQuest?.id },
-        });
         const { activeQuest, pendingQuest } = get();
         const failedQuestDetails = activeQuest || pendingQuest;
         if (failedQuestDetails) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.fail',
+            level: 'info',
+            data: { questId: activeQuest?.id },
+          });
           QuestTimer.stopQuest();
 
           // Ensure all required fields for Quest are present
