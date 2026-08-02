@@ -1,4 +1,5 @@
 // src/store/user-store.ts
+import * as Sentry from '@sentry/react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -30,12 +31,18 @@ export const useUserStore = create<UserState>()(
   persist(
     (set) => ({
       user: null,
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        Sentry.setUser({ id: user.id }); // id only - no email (GDPR)
+        set({ user });
+      },
       updateUser: (userData) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null,
         })),
-      clearUser: () => set({ user: null }),
+      clearUser: () => {
+        Sentry.setUser(null);
+        set({ user: null });
+      },
     }),
     {
       name: 'user-storage',
