@@ -4,8 +4,8 @@ import { Share, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/emberglow';
 import { Text, View } from '@/components/ui';
-import { getInviteLink } from '@/lib/services/invite-link';
 import { posthogClient } from '@/lib/posthog';
+import { getInviteLink } from '@/lib/services/invite-link';
 import { colors, fontFamily, spacing } from '@/theme';
 
 export function InviteLinkButton() {
@@ -18,14 +18,16 @@ export function InviteLinkButton() {
       const sharedUrl = `${inviteLink.url}?src=profile`;
       const message = `Join me on Emberglow! ${sharedUrl}`;
 
-      await Share.share({
+      const result = await Share.share({
         message,
       });
 
-      // Capture event after successful share
-      posthogClient.capture('invite_link_shared', { src: 'profile' });
+      // Only capture if the user actually shared (not dismissed)
+      if (result.action === Share.sharedAction) {
+        posthogClient.capture('invite_link_shared', { src: 'profile' });
+      }
     } catch (error) {
-      // Silently ignore errors (user cancelled or network failure)
+      // Silently ignore errors (network failure, etc.)
     } finally {
       setIsLoading(false);
     }
