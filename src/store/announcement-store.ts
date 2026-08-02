@@ -116,9 +116,11 @@ export function parseLegacyAnnouncementFlags(
  *      (retention-critical first, then story progression, social/narrator last).
  *
  * Preconditions (from `ctx`) match the effects this replaced verbatim:
- *   - dailyReminder: !ctx.dailyReminderEnabled AND (first touch: !hasBeenPromptedForReminder
- *     && completedQuestCount >= 1) OR (re-ask: hasBeenPromptedForReminder && reminderPromptedAt
- *     set && completedQuestCount >= 3 && >= 7 days since reminderPromptedAt)
+ *   - dailyReminder: !ctx.dailyReminderEnabled AND (first touch: (!hasBeenPromptedForReminder
+ *     || reminderPromptedAt === null) && completedQuestCount >= 1 — the null-timestamp arm
+ *     covers the legacy 2025 controller cohort that stamped the flag without a timestamp)
+ *     OR (re-ask: hasBeenPromptedForReminder && reminderPromptedAt set && completedQuestCount
+ *     >= 3 && >= 7 days since reminderPromptedAt)
  *   - branching : ctx.hasCompletedFirstBranch
  *   - skillTree : ctx.isRegistered && ctx.availablePerksCount > 0
  *   - guilds    : ctx.isRegistered && ctx.completedQuestCount >= 3
@@ -139,14 +141,20 @@ export function getAnnouncementToShow(
   }
 
   // dailyReminder: retention-critical, so it outranks feature announcements.
-  // Two ways in: an existing user who has never been prompted anywhere
-  // (>=1 quest proves the loop works for them), or a new user who declined
+  // Two ways in: an existing user who has never been prompted anywhere, or
+  // who was only stamped by the legacy 2025 ReminderPromptController
+  // (hasBeenPromptedForReminder=true with reminderPromptedAt=null — the old
+  // code set the flag without a timestamp; the current code always stamps
+  // both together, so this combination can only be that legacy cohort, which
+  // never saw today's opt-in UI and should get first-touch treatment)
+  // (>=1 quest proves the loop works for them); or a new user who declined
   // at the first-quest celebration and now has a streak worth protecting
   // (>=3 quests, >=7 days). Seen-on-present makes this at most one show, ever.
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   if (!state.hasSeenDailyReminderPrompt && !ctx.dailyReminderEnabled) {
     const existingUserFirstTouch =
-      !ctx.hasBeenPromptedForReminder && ctx.completedQuestCount >= 1;
+      (!ctx.hasBeenPromptedForReminder || ctx.reminderPromptedAt === null) &&
+      ctx.completedQuestCount >= 1;
     const newUserReAsk =
       ctx.hasBeenPromptedForReminder &&
       ctx.reminderPromptedAt !== null &&

@@ -327,6 +327,19 @@ describe('dailyReminder announcement eligibility', () => {
     );
   });
 
+  it('shows for a never-prompted user even if reminderPromptedAt is (defensively) non-null', () => {
+    // hasBeenPromptedForReminder=false alone must be sufficient for first
+    // touch; this guards the `!hasBeenPromptedForReminder ||` arm
+    // independently of the `reminderPromptedAt === null` arm.
+    expect(
+      getAnnouncementToShow(
+        unseenState,
+        { ...reminderCtx, reminderPromptedAt: NOW - 1000 },
+        NOW
+      )
+    ).toBe('dailyReminder');
+  });
+
   it('does not show with zero completed quests', () => {
     expect(
       getAnnouncementToShow(
@@ -394,14 +407,14 @@ describe('dailyReminder announcement eligibility', () => {
       ).toBeNull();
     });
 
-    it('does not show when prompted but reminderPromptedAt is missing', () => {
+    it('shows for the legacy cohort: prompted flag set but no timestamp (2025 controller)', () => {
       expect(
         getAnnouncementToShow(
           unseenState,
           { ...reAskCtx, reminderPromptedAt: null },
           NOW
         )
-      ).toBeNull();
+      ).toBe('dailyReminder');
     });
   });
 
