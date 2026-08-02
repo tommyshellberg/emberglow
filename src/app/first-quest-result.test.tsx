@@ -252,6 +252,18 @@ describe('FirstQuestResultScreen', () => {
     it('releases the screen after skipping the reminder', () => {
       renderCompletedOutcome();
       fireEvent.press(screen.getByText('Continue Your Journey'));
+
+      // The mount effect already advances currentStep to
+      // VIEWING_SIGNUP_PROMPT (outcome is 'completed' from the first
+      // render), so asserting that value after Skip would pass even if
+      // releaseScreen never touched the step. Force the step back down via
+      // setState (bypassing the store's forward-only setCurrentStep guard)
+      // so the assertion below can only pass if releaseScreen's own
+      // setOnboardingStep call actually fires.
+      useOnboardingStore.setState({
+        currentStep: OnboardingStep.STARTING_FIRST_QUEST,
+      });
+
       fireEvent.press(screen.getByText('Skip for now'));
 
       expect(mockQuestStore.clearRecentCompletedQuest).toHaveBeenCalled();

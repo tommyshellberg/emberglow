@@ -96,9 +96,10 @@ export default function FirstQuestResultScreen() {
   };
 
   if (outcome === 'completed' && phase === 'reminder') {
+    // ReminderOptInScreen owns the full-screen presentation for this phase,
+    // including its own FocusAwareStatusBar — don't duplicate it here.
     return (
       <View className="flex-1 bg-background">
-        <FocusAwareStatusBar />
         <ReminderOptInScreen onDone={releaseScreen} />
       </View>
     );
