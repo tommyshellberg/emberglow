@@ -763,6 +763,13 @@ export default function Settings() {
         enabled: success,
         time: { hour, minute },
       });
+
+      posthogClient.capture('set_daily_reminder', {
+        surface: 'settings',
+        hour,
+        minute,
+        permission_state: success ? 'granted' : 'denied',
+      });
     } else {
       // Cancel the notification if disabling
       await cancelDailyReminderNotification();
@@ -772,6 +779,8 @@ export default function Settings() {
         ...dailyReminder,
         enabled: false,
       });
+
+      posthogClient.capture('disabled_daily_reminder', { surface: 'settings' });
     }
   };
 
@@ -788,6 +797,13 @@ export default function Settings() {
       setDailyReminder({
         enabled: success,
         time: { hour, minute },
+      });
+
+      posthogClient.capture('set_daily_reminder', {
+        surface: 'settings',
+        hour,
+        minute,
+        permission_state: success ? 'granted' : 'denied',
       });
     }
   };
