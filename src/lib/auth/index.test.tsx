@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
@@ -9,6 +10,12 @@ import { useUserStore } from '@/store/user-store';
 
 import { endProvisionalSession, useAuth } from './index';
 import { getToken, removeToken, setToken } from './utils';
+
+jest.mock('@sentry/react-native', () => ({
+  addBreadcrumb: jest.fn(),
+  setTag: jest.fn(),
+  setUser: jest.fn(),
+}));
 
 // Mock all dependencies
 jest.mock('expo-constants', () => ({
@@ -173,6 +180,19 @@ describe('Auth Store', () => {
         refresh: 'refresh-token',
       });
     });
+
+    it('tags authState full', () => {
+      const loginResponse = {
+        token: {
+          access: 'access-token',
+          refresh: 'refresh-token',
+        },
+      };
+
+      useAuth.getState().signIn(loginResponse);
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
+    });
   });
 
   describe('endProvisionalSession', () => {
@@ -235,6 +255,17 @@ describe('Auth Store', () => {
       const state = useAuth.getState();
       expect(state.status).toBe('signOut');
       expect(state.token).toBeNull();
+    });
+
+    it('tags authState signedOut', async () => {
+      const mockClearUser = jest.fn();
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: mockClearUser,
+      });
+
+      await useAuth.getState().signOut();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should logout from OneSignal when initialized', async () => {
@@ -304,6 +335,22 @@ describe('Auth Store', () => {
       const state = useAuth.getState();
       expect(state.status).toBe('signIn');
       expect(state.token).toEqual(mockToken);
+    });
+
+    it('tags authState full when a stored token is hydrated successfully', async () => {
+      const mockToken = { access: 'stored-token', refresh: 'stored-refresh' };
+      const mockUser = { id: 'user-123', name: 'Test User' };
+
+      (getToken as jest.Mock).mockReturnValue(mockToken);
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+        clearUser: jest.fn(),
+      });
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
     });
 
     it('should link OneSignal when user has ID and OneSignal is initialized', async () => {
@@ -397,6 +444,18 @@ describe('Auth Store', () => {
       });
     });
 
+    it('tags authState provisional when only a provisional token exists', async () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockReturnValue('provisional-access-token');
+
+      await useAuth.getState().hydrate();
+
+      const state = useAuth.getState();
+      expect(state.status).toBe('signIn');
+      expect(getUserDetails).not.toHaveBeenCalled();
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'provisional');
+    });
+
     it('should set signOut status when no token exists', async () => {
       (getToken as jest.Mock).mockReturnValue(null);
       (getItem as jest.Mock).mockReturnValue(null); // No provisional tokens either
@@ -407,6 +466,15 @@ describe('Auth Store', () => {
       expect(state.status).toBe('signOut');
       expect(state.token).toBeNull();
       expect(getUserDetails).not.toHaveBeenCalled();
+    });
+
+    it('tags authState signedOut when no token exists', async () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockReturnValue(null); // No provisional tokens either
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should keep user signed in when user details fetch fails', async () => {
@@ -431,6 +499,17 @@ describe('Auth Store', () => {
       expect(state.token).toEqual({ access: 'token' });
     });
 
+    it('tags authState full when the stored token is kept despite a fetch failure', async () => {
+      (getToken as jest.Mock).mockReturnValue({ access: 'token' });
+      (getUserDetails as jest.Mock).mockRejectedValue(
+        new Error('Network error')
+      );
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
+    });
+
     it('should handle hydration errors gracefully', async () => {
       (getToken as jest.Mock).mockImplementation(() => {
         throw new Error('Storage error');
@@ -446,6 +525,16 @@ describe('Auth Store', () => {
       // But it should set the status to signOut
       const state = useAuth.getState();
       expect(state.status).toBe('signOut');
+    });
+
+    it('tags authState signedOut when hydration itself throws', async () => {
+      (getToken as jest.Mock).mockImplementation(() => {
+        throw new Error('Storage error');
+      });
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should use maestro tokens in development when available', async () => {

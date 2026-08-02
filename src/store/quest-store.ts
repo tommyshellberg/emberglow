@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -106,6 +107,12 @@ export const useQuestStore = create<QuestState>()(
       cooperativeQuestRun: null,
       pendingInvitations: [],
       prepareQuest: (quest: LocalQuestTemplate) => {
+        Sentry.addBreadcrumb({
+          category: 'quest',
+          message: 'quest.prepare',
+          level: 'info',
+          data: { questId: quest.id, mode: quest.mode },
+        });
         const currentCooperativeQuestRun = get().cooperativeQuestRun;
         // Only clear cooperative quest data when preparing a non-cooperative quest
         // A quest is cooperative if mode is 'cooperative' OR if it's a custom quest with cooperative category
@@ -127,6 +134,12 @@ export const useQuestStore = create<QuestState>()(
       },
 
       startQuest: (quest: Quest) => {
+        Sentry.addBreadcrumb({
+          category: 'quest',
+          message: 'quest.start',
+          level: 'info',
+          data: { questId: quest.id, mode: quest.mode },
+        });
         const startedQuest = {
           ...quest,
           startTime: Date.now(),
@@ -137,6 +150,12 @@ export const useQuestStore = create<QuestState>()(
       completeQuest: async (ignoreDuration = false) => {
         const { activeQuest, lastCompletedQuestTimestamp } = get();
         if (activeQuest && activeQuest.startTime) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.complete',
+            level: 'info',
+            data: { questId: activeQuest.id, mode: activeQuest.mode },
+          });
           const completionTime = Date.now();
           const duration = (completionTime - activeQuest.startTime) / 1000;
 
@@ -368,6 +387,12 @@ export const useQuestStore = create<QuestState>()(
       cancelQuest: () => {
         const { activeQuest, pendingQuest, cooperativeQuestRun } = get();
         if (activeQuest || pendingQuest) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.cancel',
+            level: 'info',
+            data: { questId: (activeQuest ?? pendingQuest)?.id },
+          });
           // End any active live activity when quest is canceled
           QuestTimer.stopQuest();
           set({
@@ -391,6 +416,12 @@ export const useQuestStore = create<QuestState>()(
         const { activeQuest, pendingQuest } = get();
         const failedQuestDetails = activeQuest || pendingQuest;
         if (failedQuestDetails) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.fail',
+            level: 'info',
+            data: { questId: failedQuestDetails.id },
+          });
           QuestTimer.stopQuest();
 
           // Ensure all required fields for Quest are present
