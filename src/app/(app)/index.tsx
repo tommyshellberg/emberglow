@@ -16,6 +16,7 @@ import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
+import { DailyReminderSheet } from '@/components/modals/daily-reminder-sheet';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
@@ -96,7 +97,7 @@ function usePremiumRefreshOnMount(refreshPremiumStatus: () => void) {
  * above: the component crept past the 500-line `max-lines-per-function`
  * limit again once the narrator-voice announcement wiring landed. This block
  * is self-contained — it reads only what its caller passes in and returns
- * only the four modal refs `Home` renders. Gating and the once-per-day
+ * only the five modal refs `Home` renders. Gating and the once-per-day
  * throttle itself still live in the announcement store (see
  * `getAnnouncementToShow`).
  */
@@ -115,6 +116,7 @@ function useFeatureAnnouncementSheets({
   const skillTreeModal = useModal();
   const guildsModal = useModal();
   const narratorVoiceModal = useModal();
+  const dailyReminderModal = useModal();
 
   const hasSeenBranchingAnnouncement = useAnnouncementStore(
     (state) => state.hasSeenBranchingAnnouncement
@@ -174,16 +176,8 @@ function useFeatureAnnouncementSheets({
 
     if (!which) return;
 
-    if (which === 'dailyReminder') {
-      // The daily-reminder sheet itself lands in Task 8 (DailyReminderSheet +
-      // home wiring). Until then, treat an eligible user as a no-op rather
-      // than index into modalByKey with a ref that doesn't exist yet — this
-      // also intentionally withholds markAnnouncementShown() so the day-cap
-      // isn't burned on a prompt nobody saw.
-      return;
-    }
-
     const modalByKey = {
+      dailyReminder: dailyReminderModal,
       branching: branchingModal,
       skillTree: skillTreeModal,
       guilds: guildsModal,
@@ -216,10 +210,17 @@ function useFeatureAnnouncementSheets({
     skillTreeModal,
     guildsModal,
     narratorVoiceModal,
+    dailyReminderModal,
     markAnnouncementShown,
   ]);
 
-  return { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal };
+  return {
+    branchingModal,
+    skillTreeModal,
+    guildsModal,
+    narratorVoiceModal,
+    dailyReminderModal,
+  };
 }
 
 export default function Home() {
@@ -260,13 +261,18 @@ export default function Home() {
   // in the announcement store (see getAnnouncementToShow); useFeatureAnnouncementSheets
   // owns the modal refs and the selection effect, and returns the refs this
   // screen presents.
-  const { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal } =
-    useFeatureAnnouncementSheets({
-      hasCompletedFirstBranch,
-      user,
-      completedQuestsLength: completedQuests.length,
-      availablePerksLength: availablePerks.length,
-    });
+  const {
+    branchingModal,
+    skillTreeModal,
+    guildsModal,
+    narratorVoiceModal,
+    dailyReminderModal,
+  } = useFeatureAnnouncementSheets({
+    hasCompletedFirstBranch,
+    user,
+    completedQuestsLength: completedQuests.length,
+    availablePerksLength: availablePerks.length,
+  });
 
   // Use server-driven quests
   const {
@@ -652,6 +658,9 @@ export default function Home() {
 
       {/* Narrator Voice Announcement Modal */}
       <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
+
+      {/* Daily Reminder opt-in (existing users / declined-at-onboarding re-ask) */}
+      <DailyReminderSheet ref={dailyReminderModal.ref} />
     </View>
   );
 }
