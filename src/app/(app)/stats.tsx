@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import React, { useEffect, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
@@ -20,6 +21,7 @@ import { spacing } from '@/theme';
 const DAYS_SHOWN = 7;
 
 export default function StatsScreen() {
+  const router = useRouter();
   const posthog = usePostHog();
   const completedQuests = useQuestStore((state) => state.completedQuests);
   const user = useUserStore((state) => state.user);
@@ -45,6 +47,8 @@ export default function StatsScreen() {
         <ScreenHeader
           title="Your Stats"
           subtitle="Every minute here is a minute you took back."
+          showBackButton
+          onBackPress={() => router.push('/profile')}
         />
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.section}>

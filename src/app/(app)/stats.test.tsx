@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { cleanup, render, screen } from '@/lib/test-utils';
+import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -11,8 +11,11 @@ jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({ capture: mockCapture }),
 }));
 
+const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
+
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: mockRouterPush, replace: mockRouterReplace }),
 }));
 
 afterEach(() => {
@@ -84,5 +87,19 @@ describe('StatsScreen', () => {
 
     expect(mockCapture).toHaveBeenCalledTimes(1);
     expect(mockCapture).toHaveBeenCalledWith('stats_screen_viewed');
+  });
+
+  it('renders a back button that navigates to profile', async () => {
+    useQuestStore.setState({ completedQuests: [] });
+    useUserStore.setState({ user: null } as any);
+
+    const { user } = setup(<StatsScreen />);
+
+    const backButton = screen.getByLabelText('Go back');
+    await user.press(backButton);
+
+    await waitFor(() => {
+      expect(mockRouterPush).toHaveBeenCalledWith('/profile');
+    });
   });
 });
