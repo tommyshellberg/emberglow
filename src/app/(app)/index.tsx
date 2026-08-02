@@ -15,6 +15,7 @@ import Animated, {
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
+import { InviteConfirmModal } from '@/components/invite/invite-confirm-modal';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
@@ -621,6 +622,9 @@ export default function Home() {
 
       {/* Narrator Voice Announcement Modal */}
       <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
+
+      {/* Invite confirm modal — self-hides until an invite is pending */}
+      <InviteConfirmModal />
     </View>
   );
 }

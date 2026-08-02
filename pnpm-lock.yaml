@@ -209,6 +209,9 @@ importers:
       react-native-onesignal:
         specifier: ^5.2.9
         version: 5.2.14
+      react-native-play-install-referrer:
+        specifier: ^1.1.9
+        version: 1.1.9
       react-native-purchases:
         specifier: ^9.4.2
         version: 9.4.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -6576,6 +6579,9 @@ packages:
 
   react-native-onesignal@5.2.14:
     resolution: {integrity: sha512-wVnV3oQ62fCa6tJYqAjLVHym2jspu5h7hdKC03/tlUria7Z8qpYtykpX2GhB5iXrtk36+w1ZxyiFSSo2W2/dVA==}
+
+  react-native-play-install-referrer@1.1.9:
+    resolution: {integrity: sha512-COKQA/eS2I9NigxZDVZuLFzGNLBXF4+o3o9EIgULx+aagjVQexlPBh4g9fdnhiSvZk1rzq/asVwIJKRPc9Cy7A==}
 
   react-native-purchases-ui@9.4.2:
     resolution: {integrity: sha512-4C7UJy7NuaoeNRREmnWMfboAqQGL6YGyj6TX+bckGicIC3LLJdqw4zXDcPLsIh9x6lnDH3Gnod6X6IQxV4anvQ==}
@@ -15403,6 +15409,8 @@ snapshots:
   react-native-onesignal@5.2.14:
     dependencies:
       invariant: 2.2.4
+
+  react-native-play-install-referrer@1.1.9: {}
 
   react-native-purchases-ui@9.4.2(react-native-purchases@9.4.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:

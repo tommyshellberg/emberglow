@@ -23,6 +23,7 @@ import { getAccessToken } from '@/api/token';
 import { Button, EyebrowLabel, Input } from '@/components/emberglow';
 import { EmberProgress } from '@/components/onboarding/ember-progress';
 import { FocusAwareStatusBar, Image } from '@/components/ui';
+import { checkInviteMatch } from '@/lib/invite/check-invite-match';
 import {
   createProvisionalUser,
   updateUserCharacter,
@@ -522,6 +523,7 @@ export default function ChooseCharacterScreen() {
       } else {
         await createProvisionalUser(newCharacter as Character);
         posthog.capture('onboarding_create_provisional_user_success');
+        void checkInviteMatch().catch(() => {});
       }
 
       // Only proceed if both operations succeeded
