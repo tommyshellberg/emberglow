@@ -68,6 +68,20 @@ describe('checkInviteMatch', () => {
     expect(matchInvite).not.toHaveBeenCalled();
   });
 
+  test('a 404 resolve of a stashed code clears the dead stash and falls through to fingerprint matching', async () => {
+    useInviteStore.getState().stashCode('DEADC0DE');
+    (resolveInviteCode as jest.Mock).mockRejectedValue({
+      response: { status: 404 },
+    });
+    (matchInvite as jest.Mock).mockResolvedValue({ matched: false });
+
+    await checkInviteMatch();
+
+    expect(useInviteStore.getState().stashedCode).toBeNull();
+    expect(matchInvite).toHaveBeenCalled();
+    expect(useInviteStore.getState().matchChecked).toBe(true);
+  });
+
   test('does nothing when already checked', async () => {
     useInviteStore.setState({ matchChecked: true });
     await checkInviteMatch();
