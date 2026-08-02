@@ -68,10 +68,15 @@ export async function checkInviteMatch(): Promise<void> {
   }
 
   try {
-    const stashedCode = useInviteStore.getState().consumeStashedCode();
+    // Peek rather than consume: only clear the stash once resolveInviteCode
+    // has actually succeeded. Consuming it upfront would destroy the code on
+    // a network failure, so a retried launch would silently fall through to
+    // fingerprint matching instead of re-attempting the same resolve.
+    const stashedCode = useInviteStore.getState().stashedCode;
 
     if (stashedCode) {
       const resolved = await resolveInviteCode(stashedCode);
+      useInviteStore.getState().consumeStashedCode();
       if (!resolved.isSelf && !resolved.alreadyFriends) {
         useInviteStore.getState().setPendingInvite({
           code: resolved.code,

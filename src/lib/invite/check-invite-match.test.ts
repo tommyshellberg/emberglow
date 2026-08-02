@@ -57,6 +57,17 @@ describe('checkInviteMatch', () => {
     expect(useInviteStore.getState().pendingInvite).toBeNull();
   });
 
+  test('a failed resolve of a stashed code preserves the stash for retry', async () => {
+    useInviteStore.getState().stashCode('A1B2C3D4');
+    (resolveInviteCode as jest.Mock).mockRejectedValue(new Error('offline'));
+
+    await checkInviteMatch();
+
+    expect(useInviteStore.getState().matchChecked).toBe(false);
+    expect(useInviteStore.getState().stashedCode).toBe('A1B2C3D4');
+    expect(matchInvite).not.toHaveBeenCalled();
+  });
+
   test('does nothing when already checked', async () => {
     useInviteStore.setState({ matchChecked: true });
     await checkInviteMatch();
