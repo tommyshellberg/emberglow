@@ -5,11 +5,7 @@ import { render, screen } from '@/lib/test-utils';
 import type { DailyStat } from '../lib/daily-stats';
 import { WeeklySummary } from './weekly-summary';
 
-const day = (
-  date: string,
-  dayShort: string,
-  minutes: number
-): DailyStat => ({
+const day = (date: string, dayShort: string, minutes: number): DailyStat => ({
   date,
   dayInitial: dayShort[0],
   dayShort,

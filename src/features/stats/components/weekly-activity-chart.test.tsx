@@ -47,9 +47,7 @@ describe('WeeklyActivityChart', () => {
   });
 
   it('summarizes the week in the container accessibility label', () => {
-    render(
-      <WeeklyActivityChart stats={WEEK} variant="full" testID="chart" />
-    );
+    render(<WeeklyActivityChart stats={WEEK} variant="full" testID="chart" />);
     expect(screen.getByTestId('chart').props.accessibilityLabel).toBe(
       '3h across 4 days this week, best day Thu'
     );

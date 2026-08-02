@@ -33,7 +33,8 @@ export function getMilestoneProgress(totalMinutes: number): MilestoneProgress {
   const nextIndex = MILESTONE_HOURS.indexOf(next);
   const prevMinutes = nextIndex === 0 ? 0 : MILESTONE_HOURS[nextIndex - 1] * 60;
   const nextMinutes = next * 60;
-  const rawFraction = (totalMinutes - prevMinutes) / (nextMinutes - prevMinutes);
+  const rawFraction =
+    (totalMinutes - prevMinutes) / (nextMinutes - prevMinutes);
   const fraction =
     totalMinutes > 0 ? Math.max(rawFraction, MIN_FILL_FRACTION) : 0;
 
