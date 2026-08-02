@@ -391,7 +391,7 @@ export const useQuestStore = create<QuestState>()(
             category: 'quest',
             message: 'quest.cancel',
             level: 'info',
-            data: { questId: activeQuest?.id },
+            data: { questId: (activeQuest ?? pendingQuest)?.id },
           });
           // End any active live activity when quest is canceled
           QuestTimer.stopQuest();
@@ -420,7 +420,7 @@ export const useQuestStore = create<QuestState>()(
             category: 'quest',
             message: 'quest.fail',
             level: 'info',
-            data: { questId: activeQuest?.id },
+            data: { questId: failedQuestDetails.id },
           });
           QuestTimer.stopQuest();
 

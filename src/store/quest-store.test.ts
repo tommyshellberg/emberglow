@@ -1653,6 +1653,26 @@ describe('quest lifecycle breadcrumbs', () => {
     });
   });
 
+  it('cancelQuest leaves a quest.cancel breadcrumb with the pending quest id when there is no active quest', () => {
+    const pendingQuest = {
+      id: 'pending-quest-88',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+    useQuestStore.setState({ activeQuest: null, pendingQuest });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.cancel',
+      level: 'info',
+      data: { questId: 'pending-quest-88' },
+    });
+  });
+
   it('cancelQuest with no active or pending quest does not leave a quest.cancel breadcrumb', () => {
     useQuestStore.setState({ activeQuest: null, pendingQuest: null });
 
@@ -1682,6 +1702,26 @@ describe('quest lifecycle breadcrumbs', () => {
       message: 'quest.fail',
       level: 'info',
       data: { questId: 'quest-42' },
+    });
+  });
+
+  it('failQuest leaves a quest.fail breadcrumb with the pending quest id when there is no active quest', () => {
+    const pendingQuest = {
+      id: 'pending-quest-88',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+    useQuestStore.setState({ activeQuest: null, pendingQuest });
+
+    useQuestStore.getState().failQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.fail',
+      level: 'info',
+      data: { questId: 'pending-quest-88' },
     });
   });
 
