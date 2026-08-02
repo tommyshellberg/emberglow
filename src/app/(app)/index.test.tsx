@@ -87,11 +87,13 @@ const mockAnnouncementState = {
   hasSeenSkillTreeAnnouncement: false,
   hasSeenGuildsAnnouncement: false,
   hasSeenNarratorVoiceAnnouncement: false,
+  hasSeenDailyReminderPrompt: false,
   lastAnnouncementShownAt: null,
   setHasSeenBranchingAnnouncement: jest.fn(),
   setHasSeenSkillTreeAnnouncement: jest.fn(),
   setHasSeenGuildsAnnouncement: jest.fn(),
   setHasSeenNarratorVoiceAnnouncement: jest.fn(),
+  setHasSeenDailyReminderPrompt: jest.fn(),
   markAnnouncementShown: jest.fn(),
   getAnnouncementToShow: mockGetAnnouncementToShow,
 };
@@ -423,6 +425,26 @@ describe('Home Component - Integration Tests', () => {
       // The narrator sheet content is mounted (bottom-sheet pattern).
       expect(screen.getByText('Choose Who Tells Your Story')).toBeTruthy();
       expect(screen.getByText('Choose My Narrator')).toBeTruthy();
+
+      unmount();
+    });
+
+    it('presents the daily reminder sheet and stamps the throttle when due', () => {
+      // Guards against the Task-7 no-op branch regressing: prior to Task 8,
+      // 'dailyReminder' was intentionally treated as a no-op (no modal to
+      // present into, throttle withheld). This proves that branch is gone —
+      // the sheet mounts and the throttle fires like every other announcement.
+      mockGetAnnouncementToShow.mockReturnValue('dailyReminder');
+
+      const { unmount } = render(<Home />);
+      jest.advanceTimersByTime(1500);
+
+      expect(mockAnnouncementState.markAnnouncementShown).toHaveBeenCalledTimes(
+        1
+      );
+      // The daily-reminder sheet content is mounted (bottom-sheet pattern).
+      expect(screen.getByText('When will you quest each day?')).toBeTruthy();
+      expect(screen.getByText('Set daily reminder')).toBeTruthy();
 
       unmount();
     });

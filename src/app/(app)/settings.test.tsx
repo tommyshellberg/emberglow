@@ -1,5 +1,5 @@
 import { posthogClient } from '@/lib/posthog';
-import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { act, fireEvent, render, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -272,9 +272,7 @@ describe('Settings Screen', () => {
 
     it('confirms before wiping when a guest chooses Start Over', async () => {
       const { Alert } = require('react-native');
-      const alertSpy = jest
-        .spyOn(Alert, 'alert')
-        .mockImplementation(() => {});
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
       const { wipeGuestSession } = require('@/lib/auth');
 
       const { getByText } = render(<Settings />);
@@ -364,5 +362,90 @@ describe('Settings Screen', () => {
 
     expect(useSettingsStore.getState().narratorVoice).toBe('female');
     expect(await findByText('Female')).toBeOnTheScreen();
+  });
+
+  describe('daily reminder analytics', () => {
+    it('captures set_daily_reminder when the toggle is enabled', async () => {
+      useSettingsStore.setState({
+        dailyReminder: { enabled: false, time: null },
+      });
+
+      const { findByText, getAllByRole } = render(<Settings />);
+
+      await findByText('Daily Reminder');
+
+      // Switches render in a fixed order once notifications are enabled:
+      // Notifications, Daily Reminder, Streak Warning.
+      const dailyReminderSwitch = getAllByRole('switch')[1];
+      fireEvent.press(dailyReminderSwitch);
+
+      await waitFor(() => {
+        expect(posthogClient.capture).toHaveBeenCalledWith(
+          'set_daily_reminder',
+          {
+            surface: 'settings',
+            hour: 17,
+            minute: 0,
+            permission_state: 'granted',
+          }
+        );
+      });
+    });
+
+    it('captures disabled_daily_reminder when the toggle is disabled', async () => {
+      useSettingsStore.setState({
+        dailyReminder: { enabled: true, time: { hour: 9, minute: 30 } },
+      });
+
+      const { findByText, getAllByRole } = render(<Settings />);
+
+      await findByText('Daily Reminder');
+
+      const dailyReminderSwitch = getAllByRole('switch')[1];
+      fireEvent.press(dailyReminderSwitch);
+
+      await waitFor(() => {
+        expect(posthogClient.capture).toHaveBeenCalledWith(
+          'disabled_daily_reminder',
+          { surface: 'settings' }
+        );
+      });
+    });
+
+    it('captures set_daily_reminder when the time is changed', async () => {
+      useSettingsStore.setState({
+        dailyReminder: { enabled: true, time: { hour: 9, minute: 30 } },
+      });
+
+      const { findByText, getByText, UNSAFE_getByType } = render(<Settings />);
+
+      await findByText('Reminder Time');
+
+      // Reveal the native picker (mocked to the string 'DateTimePicker' at
+      // the top of this file) by pressing the formatted time pill.
+      fireEvent.press(getByText('9:30 AM'));
+
+      const picker = UNSAFE_getByType('DateTimePicker' as any);
+      const picked = new Date('2026-07-07T14:45:00');
+
+      // Called directly on the prop (not via fireEvent), matching the
+      // established date-time-field.test.tsx pattern: React 19 needs an
+      // explicit act() to flush the resulting setState synchronously.
+      await act(async () => {
+        picker.props.onChange({}, picked);
+      });
+
+      await waitFor(() => {
+        expect(posthogClient.capture).toHaveBeenCalledWith(
+          'set_daily_reminder',
+          {
+            surface: 'settings',
+            hour: 14,
+            minute: 45,
+            permission_state: 'granted',
+          }
+        );
+      });
+    });
   });
 });

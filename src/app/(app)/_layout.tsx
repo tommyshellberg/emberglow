@@ -212,12 +212,6 @@ export default function TabLayout() {
           href: null,
         }}
       />
-      <Tabs.Screen
-        name="reminder-setup"
-        options={{
-          href: null,
-        }}
-      />
       {/* Screen for viewing quest details within the (app) group */}
       <Tabs.Screen
         name="quest/[id]"

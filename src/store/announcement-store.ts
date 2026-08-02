@@ -19,6 +19,7 @@ import { getItem, removeItem, setItem } from '@/lib/storage';
  */
 
 export type AnnouncementKey =
+  | 'dailyReminder'
   | 'branching'
   | 'skillTree'
   | 'guilds'
@@ -26,13 +27,16 @@ export type AnnouncementKey =
 
 /**
  * Preconditions the store cannot read itself — supplied by the home screen from
- * its existing hooks (quest-store, user-store, skill-tree-store).
+ * its existing hooks (quest-store, user-store, skill-tree-store, settings-store).
  */
 export type AnnouncementContext = {
   hasCompletedFirstBranch: boolean;
   isRegistered: boolean;
   completedQuestCount: number;
   availablePerksCount: number;
+  dailyReminderEnabled: boolean;
+  hasBeenPromptedForReminder: boolean;
+  reminderPromptedAt: number | null;
 };
 
 /** The seen/timing slice the pure selector reads. */
@@ -41,6 +45,7 @@ export type AnnouncementSeenState = {
   hasSeenSkillTreeAnnouncement: boolean;
   hasSeenGuildsAnnouncement: boolean;
   hasSeenNarratorVoiceAnnouncement: boolean;
+  hasSeenDailyReminderPrompt: boolean;
   lastAnnouncementShownAt: number | null;
 };
 
@@ -107,9 +112,15 @@ export function parseLegacyAnnouncementFlags(
  *      shows today.
  *   2. Priority order — because of the day-cap, whichever is checked first is
  *      the one that shows *today*; the rest wait for a later day. Order is
- *      branching → skillTree → guilds → narratorVoice (story progression first, social/narrator last).
+ *      dailyReminder → branching → skillTree → guilds → narratorVoice
+ *      (retention-critical first, then story progression, social/narrator last).
  *
  * Preconditions (from `ctx`) match the effects this replaced verbatim:
+ *   - dailyReminder: !ctx.dailyReminderEnabled AND (first touch: (!hasBeenPromptedForReminder
+ *     || reminderPromptedAt === null) && completedQuestCount >= 1 — the null-timestamp arm
+ *     covers the legacy 2025 controller cohort that stamped the flag without a timestamp)
+ *     OR (re-ask: hasBeenPromptedForReminder && reminderPromptedAt set && completedQuestCount
+ *     >= 3 && >= 7 days since reminderPromptedAt)
  *   - branching : ctx.hasCompletedFirstBranch
  *   - skillTree : ctx.isRegistered && ctx.availablePerksCount > 0
  *   - guilds    : ctx.isRegistered && ctx.completedQuestCount >= 3
@@ -127,6 +138,31 @@ export function getAnnouncementToShow(
       new Date(now).toDateString()
   ) {
     return null;
+  }
+
+  // dailyReminder: retention-critical, so it outranks feature announcements.
+  // Two ways in: an existing user who has never been prompted anywhere, or
+  // who was only stamped by the legacy 2025 ReminderPromptController
+  // (hasBeenPromptedForReminder=true with reminderPromptedAt=null — the old
+  // code set the flag without a timestamp; the current code always stamps
+  // both together, so this combination can only be that legacy cohort, which
+  // never saw today's opt-in UI and should get first-touch treatment)
+  // (>=1 quest proves the loop works for them); or a new user who declined
+  // at the first-quest celebration and now has a streak worth protecting
+  // (>=3 quests, >=7 days). Seen-on-present makes this at most one show, ever.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  if (!state.hasSeenDailyReminderPrompt && !ctx.dailyReminderEnabled) {
+    const existingUserFirstTouch =
+      (!ctx.hasBeenPromptedForReminder || ctx.reminderPromptedAt === null) &&
+      ctx.completedQuestCount >= 1;
+    const newUserReAsk =
+      ctx.hasBeenPromptedForReminder &&
+      ctx.reminderPromptedAt !== null &&
+      ctx.completedQuestCount >= 3 &&
+      now - ctx.reminderPromptedAt >= SEVEN_DAYS_MS;
+    if (existingUserFirstTouch || newUserReAsk) {
+      return 'dailyReminder';
+    }
   }
 
   // Fixed priority: first unseen + precondition-met announcement wins today.
@@ -164,6 +200,7 @@ type AnnouncementStore = AnnouncementSeenState & {
   setHasSeenSkillTreeAnnouncement: (value: boolean) => void;
   setHasSeenGuildsAnnouncement: (value: boolean) => void;
   setHasSeenNarratorVoiceAnnouncement: (value: boolean) => void;
+  setHasSeenDailyReminderPrompt: (value: boolean) => void;
   /**
    * Stamp the once-per-day throttle. Fires when a sheet is *presented*, not when
    * it is dismissed — a user who force-quits without dismissing has still used
@@ -193,6 +230,7 @@ export const useAnnouncementStore = create<AnnouncementStore>()(
       hasSeenSkillTreeAnnouncement: legacySeed.hasSeenSkillTreeAnnouncement,
       hasSeenGuildsAnnouncement: legacySeed.hasSeenGuildsAnnouncement,
       hasSeenNarratorVoiceAnnouncement: false,
+      hasSeenDailyReminderPrompt: false,
       lastAnnouncementShownAt: null,
       setHasSeenBranchingAnnouncement: (value) =>
         set({ hasSeenBranchingAnnouncement: value }),
@@ -202,6 +240,8 @@ export const useAnnouncementStore = create<AnnouncementStore>()(
         set({ hasSeenGuildsAnnouncement: value }),
       setHasSeenNarratorVoiceAnnouncement: (value) =>
         set({ hasSeenNarratorVoiceAnnouncement: value }),
+      setHasSeenDailyReminderPrompt: (value) =>
+        set({ hasSeenDailyReminderPrompt: value }),
       markAnnouncementShown: () => set({ lastAnnouncementShownAt: Date.now() }),
       getAnnouncementToShow: (ctx) => getAnnouncementToShow(get(), ctx),
     }),
