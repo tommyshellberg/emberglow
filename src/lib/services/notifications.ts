@@ -229,6 +229,14 @@ export const scheduleDailyReminderNotification = async (
   hour: number,
   minute: number
 ): Promise<boolean> => {
+  // Check if notifications are enabled before scheduling — without this the
+  // function reports success for a reminder that can never fire (denied OS
+  // permission), and Settings then shows "Enabled" for a dead toggle.
+  const enabled = await areNotificationsEnabled();
+  if (!enabled) {
+    return false;
+  }
+
   try {
     // Cancel any existing reminders first
     await ExpoNotifications.cancelScheduledNotificationAsync('daily-reminder');
