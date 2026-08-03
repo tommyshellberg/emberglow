@@ -65,6 +65,17 @@ docs/
 .claude/tdd-guard/
 modules/**/android/.gradle/
 
+# ── Mirrored from ios/.gitignore + android/.gitignore (nested .gitignores are
+#    NOT read by EAS once a root .easignore exists) ─────────────────────────
+ios/Pods/
+android/app/.cxx/
+android/.gradle/
+DerivedData/
+*.jsbundle
+*.hprof
+local.properties
+.xcode.env.local
+
 # ── Extra exclusions: tracked in git but not needed to build ────────────────
 # Design-skill assets and reference screenshots (~23 MB)
 emberglow-design/
