@@ -16,7 +16,7 @@ import { isRunningInExpoGo } from 'expo';
 import { useFonts } from 'expo-font';
 import { Stack, useNavigationContainerRef, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { AppState, type AppStateStatus, Platform, View } from 'react-native';
 import BackgroundService from 'react-native-background-actions';
 import FlashMessage from 'react-native-flash-message';
@@ -395,10 +395,17 @@ function RootLayout() {
     };
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
+  // Hide the splash from an effect, NOT from a layout event. expo-splash-screen
+  // 31.x (SDK 54) vetoes every draw until hideAsync() runs, and the previous
+  // trigger — GestureHandlerRootView's onLayout — never fires in release builds
+  // on Fabric, which froze 2.0.0/2.1.0 on the splash forever. Effects run after
+  // every commit, so this fires as soon as the readiness flags flip.
+  React.useEffect(() => {
     // Check all flags: hydration promise resolved, auth status is final, and fonts are loaded
     if (hydrationFinished && authStatus !== 'hydrating' && fontsLoaded) {
-      await SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch((e) => {
+        console.warn('Failed to hide splash screen:', e);
+      });
     }
   }, [hydrationFinished, authStatus, fontsLoaded]);
 
@@ -415,7 +422,7 @@ function RootLayout() {
 
   // Always render the Stack - let child layouts handle redirects
   return (
-    <Providers onLayout={onLayoutRootView}>
+    <Providers>
       <NavigationGate />
       <PostHogNavigationTracker />
       <Stack
@@ -489,13 +496,7 @@ function RootLayout() {
   );
 }
 
-function Providers({
-  children,
-  onLayout,
-}: {
-  children: React.ReactNode;
-  onLayout?: () => void;
-}) {
+function Providers({ children }: { children: React.ReactNode }) {
   const theme = useThemeConfig();
   return (
     <View className="flex-1 bg-background">
@@ -505,7 +506,6 @@ function Providers({
       >
         <GestureHandlerRootView
           className={theme.dark ? `dark flex-1` : undefined}
-          onLayout={onLayout}
         >
           <KeyboardProvider>
             <ThemeProvider value={theme}>
