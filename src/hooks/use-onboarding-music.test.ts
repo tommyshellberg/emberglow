@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -30,6 +31,10 @@ beforeEach(() => {
   delete (mockPlayer as Partial<Record<'loop' | 'volume', unknown>>).volume;
   __resetAudioMock();
   useSettingsStore.setState(useSettingsStore.getInitialState());
+  // The backgrounded-app test overwrites this module-scoped value; reset it so
+  // every other test provably runs the foreground branch of the guard rather
+  // than inheriting whatever the previous test left behind.
+  (AppState as { currentState: AppStateStatus }).currentState = 'active';
 });
 
 describe('useOnboardingMusic', () => {
@@ -139,6 +144,53 @@ describe('useOnboardingMusic', () => {
     // unhandled rejection) — StoryNarration.tsx awaits inside try/catch for
     // the same reason.
     await waitFor(() => expect(mockPlayer.play).toHaveBeenCalled());
+  });
+
+  // REACT-NATIVE-71: first-quest tells the user to lock their phone, so the
+  // start() continuation can run with the app backgrounded — where iOS
+  // refuses to activate the audio session and expo-audio's sync play() throws.
+  // Music while backgrounded isn't wanted anyway; the hook must not ask.
+  it('does not start playback while the app is backgrounded', async () => {
+    (AppState as { currentState: AppStateStatus }).currentState = 'background';
+
+    renderHook(() => useOnboardingMusic());
+    // Flush the async start() continuation past the awaited session config.
+    await act(async () => {});
+
+    expect(mockPlayer.play).not.toHaveBeenCalled();
+  });
+
+  // AppState.currentState is null until the native module reports in (and
+  // 'unknown' on some Android launches). A guard written as `!== 'active'`
+  // would silently skip the music on every cold start — only a KNOWN
+  // background state may suppress playback.
+  it('starts playback when the app state is still indeterminate at cold start', async () => {
+    (AppState as { currentState: AppStateStatus | null }).currentState = null;
+
+    renderHook(() => useOnboardingMusic());
+
+    await waitFor(() => expect(mockPlayer.play).toHaveBeenCalled());
+  });
+
+  // The AppState check narrows the window but can't close it: the app can
+  // background between the check and the native call, and expo-audio's play()
+  // is synchronous native code that throws when iOS refuses the session.
+  // start() is fire-and-forget, so an uncaught throw becomes an unhandled
+  // rejection — exactly the REACT-NATIVE-71 Sentry event.
+  it('warns instead of rejecting when the OS refuses playback', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockPlayer.play.mockImplementationOnce(() => {
+      throw new Error('Session activation failed');
+    });
+
+    renderHook(() => useOnboardingMusic());
+    await act(async () => {});
+
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to start the onboarding music',
+      expect.any(Error)
+    );
+    warn.mockRestore();
   });
 
   it('does not start when disabled, e.g. while onboarding is already complete', () => {
