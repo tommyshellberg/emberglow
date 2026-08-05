@@ -27,9 +27,10 @@ export default function Login() {
   //
   // `status === 'signIn'` does NOT mean "has a real account": a provisional
   // session hydrates as 'signIn' too (see auth hydrate()). Every user the
-  // conversion gate holds is in exactly that state — the gate is the
-  // resolver's LAST branch, below `signOut → login`, so having a session is
-  // the definition of the gated population, not an edge case. Redirecting
+  // conversion gate holds is in exactly that state — the gate is the last
+  // branch that names a screen (Priority 5) and sits BELOW the resolver's
+  // `signOut → login` branch, so having a session is the definition of the
+  // gated population, not an edge case. Redirecting
   // them sent the wall's one email escape hatch nowhere: `/` resolves to
   // `(app)/index`, which is not in PRE_ACCOUNT_ZONE, so NavigationGate
   // replaced them straight back onto /quest-completed-signup and "Sign up
