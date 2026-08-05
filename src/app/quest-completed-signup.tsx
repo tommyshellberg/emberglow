@@ -164,7 +164,18 @@ export default function QuestCompletedSignupScreen() {
   // Gate path (see navigation-state-resolver Priority 5): a veteran guest
   // routed here to convert — "Quest one · complete" would be false, so show
   // their real standing instead.
-  const isConversionGate = useOnboardingStore((s) => s.isOnboardingComplete());
+  //
+  // Requires the character too, and not for tidiness: this variant's copy
+  // makes a factual claim about the player's standing, so `heroLevel`'s
+  // `?? 1` and `heroCurrentXP`'s `?? 0` would confidently tell a level-40
+  // veteran whose character hasn't loaded that they are a level 1 hero with
+  // 0 XP. The normal path's fallbacks are generic and harmless; these are
+  // not. Falling back to the first-quest framing is at worst vague. NOT a
+  // loading state — the screen's real job (signing up) works either way.
+  const isOnboardingComplete = useOnboardingStore((s) =>
+    s.isOnboardingComplete()
+  );
+  const isConversionGate = isOnboardingComplete && !!character;
   const heroCurrentXP = character?.currentXP ?? 0;
 
   return (

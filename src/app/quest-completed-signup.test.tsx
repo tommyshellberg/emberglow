@@ -392,6 +392,24 @@ describe('QuestCompletedSignupScreen', () => {
       expect(queryByText('Quest one · complete')).toBeNull();
     });
 
+    // The gate path's copy makes a FACTUAL CLAIM about the player's standing,
+    // so its fallbacks can't be the harmless generic ones the normal path
+    // uses: `?? 1` / `?? 0` would tell a level-40 veteran whose character
+    // hasn't loaded that they are a level 1 hero with 0 XP. Falling back to
+    // the first-quest framing is at worst vague; the alternative is wrong.
+    it('does not assert a standing it cannot know when the character has not loaded', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({ character: null })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(queryByText('Level 1 hero')).toBeNull();
+      expect(queryByText('0 XP')).toBeNull();
+      expect(getByText('Quest one · complete')).toBeTruthy();
+    });
+
     it('keeps the first-quest copy for the normal onboarding arrival', () => {
       mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
 
