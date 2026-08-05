@@ -22,6 +22,7 @@ import {
   type SocialSignInOutcome,
 } from '@/lib/auth/social';
 import { useCharacterStore } from '@/store/character-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import {
   colors,
   fontFamily,
@@ -158,6 +159,14 @@ export default function QuestCompletedSignupScreen() {
   const firstQuestXP =
     AVAILABLE_QUESTS.find((quest) => quest.id === 'quest-1')?.reward.xp ?? 0;
 
+  // Two audiences, one screen. Normal path: a guest fresh off quest one
+  // (onboarding still at VIEWING_SIGNUP_PROMPT) — show what they just earned.
+  // Gate path (see navigation-state-resolver Priority 5): a veteran guest
+  // routed here to convert — "Quest one · complete" would be false, so show
+  // their real standing instead.
+  const isConversionGate = useOnboardingStore((s) => s.isOnboardingComplete());
+  const heroCurrentXP = character?.currentXP ?? 0;
+
   return (
     <View
       style={[
@@ -174,7 +183,11 @@ export default function QuestCompletedSignupScreen() {
         entering={FadeInDown.duration(ANIM_DURATION)}
         style={styles.header}
       >
-        <EyebrowLabel tone="warm">Quest one · complete</EyebrowLabel>
+        <EyebrowLabel tone="warm">
+          {isConversionGate
+            ? `Level ${heroLevel} hero`
+            : 'Quest one · complete'}
+        </EyebrowLabel>
         <Text style={styles.title}>Claim your legend</Text>
       </Animated.View>
 
@@ -202,7 +215,9 @@ export default function QuestCompletedSignupScreen() {
             {`Level ${heroLevel} · ${heroTypeLabel}`}
           </Text>
         </View>
-        <Badge tone="warm">{`+${firstQuestXP} XP`}</Badge>
+        <Badge tone="warm">
+          {isConversionGate ? `${heroCurrentXP} XP` : `+${firstQuestXP} XP`}
+        </Badge>
       </Animated.View>
 
       <Animated.View

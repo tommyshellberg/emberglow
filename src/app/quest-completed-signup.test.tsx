@@ -78,6 +78,7 @@ jest.mock('react-native-flash-message', () => ({
 // Mock stores
 const mockOnboardingStore = {
   setCurrentStep: mockSetOnboardingStep,
+  isOnboardingComplete: jest.fn(() => false),
 };
 
 jest.mock('@/store/onboarding-store', () => ({
@@ -361,6 +362,35 @@ describe('QuestCompletedSignupScreen', () => {
           })
         );
       });
+    });
+  });
+
+  describe('Conversion gate variant', () => {
+    it("shows the player's real standing when arriving via the conversion gate (onboarding complete)", () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      // Extend the character fixture for this test: a leaked veteran. Uses the
+      // file's existing mockUseCharacterStore double (defined at ~line 109),
+      // mirroring the beforeEach wiring at ~line 121.
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({
+          character: { ...mockCharacterFixture, level: 5, currentXP: 1012 },
+        })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Level 5 hero')).toBeTruthy();
+      expect(getByText('1012 XP')).toBeTruthy();
+      expect(queryByText('Quest one · complete')).toBeNull();
+    });
+
+    it('keeps the first-quest copy for the normal onboarding arrival', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Quest one · complete')).toBeTruthy();
+      expect(queryByText(/hero$/)).toBeNull();
     });
   });
 });
