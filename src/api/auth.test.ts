@@ -1,4 +1,5 @@
 import { endProvisionalSession, signIn } from '@/lib/auth';
+import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   NoAccountForIdentity,
@@ -13,7 +14,6 @@ import {
   completeSignIn,
   isAuthenticated,
   logout,
-  ProvisionalSessionExpired,
   refreshAccessToken,
   refreshProvisionalTokens,
   removeTokens,

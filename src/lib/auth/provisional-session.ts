@@ -33,3 +33,25 @@ import { getItem } from '@/lib/storage';
  */
 export const hasProvisionalSession = (): boolean =>
   !!(getItem('provisionalUserId') || getItem('provisionalAccessToken'));
+
+/**
+ * The provisional session a conversion was supposed to SAVE turned out to be
+ * dead: the server answered 401 for its refresh token. `endProvisionalSession`
+ * has already told the user and armed the wipe, so the conversion is abandoned
+ * rather than completed — see `freshProvisionalAccessToken` in `@/api/auth`,
+ * which is the only thing that throws this.
+ *
+ * Lives HERE rather than next to its thrower for the same reason
+ * `@/lib/auth/social/errors.ts` exists: the sign-in UIs branch on
+ * `instanceof`, and their test suites mock `@/api/auth` wholesale. From this
+ * dependency-light module they get the REAL class without loading axios,
+ * OneSignal and four stores — so the branch is exercised against the same
+ * prototype chain production uses, instead of a hand-written double that would
+ * keep passing if the real class ever stopped being constructible.
+ */
+export class ProvisionalSessionExpired extends Error {
+  constructor() {
+    super('The provisional session expired before it could be converted');
+    this.name = 'ProvisionalSessionExpired';
+  }
+}

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
 import { endProvisionalSession, signIn } from '@/lib/auth';
+import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
 import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
@@ -39,23 +40,6 @@ export interface User {
 export interface RegisterResponse {
   user: User;
   tokens: tokenService.AuthTokens;
-}
-
-/**
- * The provisional session a conversion was supposed to SAVE turned out to be
- * dead: the server rejected its refresh token. `endProvisionalSession` has
- * already told the user and armed the wipe, so the conversion is abandoned
- * rather than completed — see `freshProvisionalAccessToken`.
- *
- * Callers need not branch on it: the sign-in UIs' existing generic
- * "please try again" copy is harmless behind the modal alert, which the user
- * must acknowledge and which then resets them to onboarding.
- */
-export class ProvisionalSessionExpired extends Error {
-  constructor() {
-    super('The provisional session expired before it could be converted');
-    this.name = 'ProvisionalSessionExpired';
-  }
 }
 
 /**
