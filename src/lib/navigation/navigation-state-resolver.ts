@@ -321,6 +321,21 @@ export function useNavigationTarget(): NavigationTarget {
   // streak celebration, quest results, onboarding — behaves as normal; only
   // the "default to app" outcome is replaced. Conversion clears the
   // provisional keys, so the next pass falls through to 'app'.
+  //
+  // "The next pass" is worth being precise about, because `hasProvisionalSession`
+  // is a plain MMKV read with NO subscription behind it — clearing the keys
+  // does not by itself re-run this hook. What re-runs it is the conversion's
+  // other side effects: `completeSignIn` calls `useUserStore.setUser()` and
+  // `characterStore.updateCharacter()`, both selected on above, and
+  // NavigationGate re-renders on every `usePathname()`/`useSegments()` change.
+  //
+  // Known gap, accepted for now: if conversion SUCCEEDS but `getUserDetails()`
+  // then throws (network), `completeSignIn` swallows it and still resolves
+  // 'app' — but neither store was written, and auth `status` was already
+  // 'signIn', so on the social path nothing re-renders. The user sits on the
+  // wall holding a valid real account until they restart the app or tap again.
+  // Fixing that properly means a reactive MMKV subscription, which is a larger
+  // change than this branch should carry.
   if (hasGuestSession) {
     console.log('🧭 Provisional session in main app - gating to signup');
     return { type: 'quest-completed-signup' };
