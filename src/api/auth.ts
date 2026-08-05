@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
-import { signIn } from '@/lib/auth';
+import { endProvisionalSession, signIn } from '@/lib/auth';
 import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
@@ -42,12 +42,72 @@ export interface RegisterResponse {
 }
 
 /**
+ * The provisional session a conversion was supposed to SAVE turned out to be
+ * dead: the server rejected its refresh token. `endProvisionalSession` has
+ * already told the user and armed the wipe, so the conversion is abandoned
+ * rather than completed — see `freshProvisionalAccessToken`.
+ *
+ * Callers need not branch on it: the sign-in UIs' existing generic
+ * "please try again" copy is harmless behind the modal alert, which the user
+ * must acknowledge and which then resets them to onboarding.
+ */
+export class ProvisionalSessionExpired extends Error {
+  constructor() {
+    super('The provisional session expired before it could be converted');
+    this.name = 'ProvisionalSessionExpired';
+  }
+}
+
+/**
+ * The access token to carry as a conversion request's Bearer header, or null
+ * when there is no provisional session at all.
+ *
+ * Why this exists: both conversion endpoints are `auth.optional` on the
+ * server, which SWALLOWS an expired access token and continues with no
+ * `req.user` — no 401, nothing to react to. Without `provisionalId` the
+ * magic-link verify skips conversion entirely and 404s, which the client maps
+ * to "That link has expired"; `/auth/social` likewise falls through to
+ * `no-account-for-identity`. Either way the user loops forever and the
+ * progress the whole gate exists to preserve is quietly lost.
+ *
+ * A gated veteran's access token is almost always stale on arrival: they
+ * expire in 30 minutes and nothing behind the wall refreshes them — no
+ * `(app)` screen mounts, so the interceptor that used to do it incidentally
+ * never runs. `authClient` is a bare axios instance with no interceptors of
+ * its own, so the refresh has to be explicit here.
+ *
+ * Only `'dead'` (a 401 for the REFRESH token itself) ends the session. A
+ * `'error'` result is a network flake or 5xx and is proof of nothing: the
+ * session is left alone and the conversion is attempted with the token we
+ * already have, which may well still be valid. `authClient`'s 10s timeout
+ * bounds the added wait.
+ */
+const freshProvisionalAccessToken = async (): Promise<string | null> => {
+  const stored = getItem('provisionalAccessToken');
+  if (typeof stored !== 'string' || stored.length === 0) {
+    return null;
+  }
+
+  const result = await refreshProvisionalTokens();
+  if (result.status === 'dead') {
+    endProvisionalSession();
+    throw new ProvisionalSessionExpired();
+  }
+  if (result.status === 'refreshed') {
+    return result.tokens.access.token;
+  }
+  return stored;
+};
+
+/**
  * Request a magic link for authentication
  */
 export const requestMagicLink = async (email: string): Promise<void> => {
-  try {
-    const provisionalToken = getItem('provisionalAccessToken');
+  // Outside the try: this is not a magic-link failure, and logging it as one
+  // would bury the real cause under the wrong message.
+  const provisionalToken = await freshProvisionalAccessToken();
 
+  try {
     console.log('provisionalToken exists:', !!provisionalToken);
 
     const body = { email };
@@ -57,7 +117,7 @@ export const requestMagicLink = async (email: string): Promise<void> => {
       'Content-Type': 'application/json',
     };
 
-    if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+    if (provisionalToken) {
       headers.Authorization = `Bearer ${provisionalToken}`;
       console.log(
         'Adding Bearer token for provisional user:',
@@ -307,12 +367,16 @@ export const socialSignIn = async (
   // hard type error shipping a stale client against a newer server.
   outcome: SocialSignInOutcome | (string & {});
 }> => {
-  const provisionalToken = getItem('provisionalAccessToken');
+  // Refreshed first when a guest session exists — see
+  // `freshProvisionalAccessToken`. A stale token here does not fail loudly;
+  // it makes the server treat a conversion as a brand-new signup and strands
+  // the hero this screen promised to keep.
+  const provisionalToken = await freshProvisionalAccessToken();
 
   const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   };
-  if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+  if (provisionalToken) {
     headers.Authorization = `Bearer ${provisionalToken}`;
   }
 

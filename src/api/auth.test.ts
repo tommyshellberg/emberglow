@@ -1,4 +1,4 @@
-import { signIn } from '@/lib/auth';
+import { endProvisionalSession, signIn } from '@/lib/auth';
 import {
   ExistingAccountConfirmationRequired,
   NoAccountForIdentity,
@@ -13,6 +13,7 @@ import {
   completeSignIn,
   isAuthenticated,
   logout,
+  ProvisionalSessionExpired,
   refreshAccessToken,
   refreshProvisionalTokens,
   removeTokens,
@@ -650,6 +651,206 @@ describe('auth.ts', () => {
         'signIn store update failed'
       );
     });
+  });
+
+  // A gated veteran guest arrives at the conversion screen with an access
+  // token that is almost always stale (they expire in 30 minutes and nothing
+  // behind the wall refreshes them). Both conversion endpoints use the
+  // server's `auth.optional`, which SWALLOWS an expired token and continues
+  // with no `req.user` — no 401, no signal — so the conversion silently
+  // becomes a plain sign-up and the progress it exists to save is lost.
+  describe('provisional refresh before conversion', () => {
+    const credential = {
+      provider: 'google' as const,
+      idToken: 'google-id-token',
+    };
+
+    const freshTokens = {
+      access: { token: 'fresh-prov-access', expires: '2025-01-02' },
+      refresh: { token: 'fresh-prov-refresh', expires: '2025-02-02' },
+    };
+
+    const realTokens = {
+      access: { token: 'real-access', expires: '2025-01-01' },
+      refresh: { token: 'real-refresh', expires: '2025-02-01' },
+    };
+
+    /** A guest who has been away long enough for the access token to lapse. */
+    const guestOnDisk = () =>
+      (getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'provisionalAccessToken') return 'stale-prov-access';
+        if (key === 'provisionalRefreshToken') return 'prov-refresh';
+        if (key === 'provisionalUserId') return 'prov-user-1';
+        return null;
+      });
+
+    /** Route POSTs by URL so the refresh and the conversion can differ. */
+    const respond = (handlers: Record<string, () => unknown>) =>
+      (authClient.post as jest.Mock).mockImplementation((url: string) => {
+        const handler = handlers[url];
+        if (!handler) {
+          return Promise.reject(new Error(`unexpected POST to ${url}`));
+        }
+        return handler();
+      });
+
+    const postedUrls = () =>
+      (authClient.post as jest.Mock).mock.calls.map(([url]) => url);
+
+    beforeEach(() => {
+      (authClient.post as jest.Mock).mockClear();
+      // clearAllMocks does not clear implementations — pin the default so a
+      // mockImplementation from one test can't leak into the next.
+      (getItem as jest.Mock).mockReturnValue(null);
+      // Same reason: an earlier test leaves `signIn` throwing on purpose.
+      (signIn as jest.Mock).mockReset();
+      (getUserDetails as jest.Mock).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+      });
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+    });
+
+    it('sends the REFRESHED provisional token on the magic-link conversion', async () => {
+      guestOnDisk();
+      respond({
+        '/auth/refresh-tokens': () => Promise.resolve({ data: freshTokens }),
+        '/auth/magiclink': () => Promise.resolve({ data: {} }),
+      });
+
+      await requestMagicLink('me@example.com');
+
+      expect(postedUrls()).toEqual(['/auth/refresh-tokens', '/auth/magiclink']);
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/magiclink',
+        { email: 'me@example.com' },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer fresh-prov-access',
+          },
+        }
+      );
+    });
+
+    it('sends the REFRESHED provisional token on the social conversion', async () => {
+      guestOnDisk();
+      respond({
+        '/auth/refresh-tokens': () => Promise.resolve({ data: freshTokens }),
+        '/auth/social': () =>
+          Promise.resolve({
+            data: { tokens: realTokens, outcome: 'converted' },
+          }),
+      });
+
+      await socialSignIn(credential);
+
+      expect(postedUrls()).toEqual(['/auth/refresh-tokens', '/auth/social']);
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...credential, confirmExistingAccount: false },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer fresh-prov-access',
+          },
+        }
+      );
+    });
+
+    // The normal sign-in path must be untouched: no provisional session, no
+    // extra round trip, no new failure mode for users who never were guests.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'does not touch the refresh endpoint on the %s path when no provisional session exists',
+      async (_label, run, url) => {
+        (getItem as jest.Mock).mockReturnValue(null);
+        respond({
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'created' },
+            }),
+        });
+
+        await run();
+
+        expect(postedUrls()).toEqual([url]);
+      }
+    );
+
+    // Only a 401 on the REFRESH token proves the server disowned the session.
+    it.each([
+      ['magic link', () => requestMagicLink('me@example.com')],
+      ['social', () => socialSignIn(credential)],
+    ])(
+      'ends the session and abandons the %s conversion when the refresh token is rejected',
+      async (_label, run) => {
+        guestOnDisk();
+        respond({
+          '/auth/refresh-tokens': () =>
+            Promise.reject({ response: { status: 401 } }),
+        });
+
+        await expect(run()).rejects.toBeInstanceOf(ProvisionalSessionExpired);
+
+        expect(endProvisionalSession).toHaveBeenCalled();
+        // Aborted, not attempted: sending it anyway would create a SECOND,
+        // empty account for the same person under the same email.
+        expect(postedUrls()).toEqual(['/auth/refresh-tokens']);
+        // endProvisionalSession wipes on acknowledge, never underneath the
+        // notice — nothing here may clear the keys inline.
+        expect(removeItem).not.toHaveBeenCalled();
+      }
+    );
+
+    // A flaky network is not proof of anything. Wiping here would destroy an
+    // unclaimed hero over a dropped packet, and the stale token may well
+    // still be valid.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'keeps the session and still attempts the %s conversion when the refresh merely fails',
+      async (_label, run, url) => {
+        guestOnDisk();
+        respond({
+          '/auth/refresh-tokens': () =>
+            Promise.reject(new Error('Network Error')),
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'converted' },
+            }),
+        });
+
+        await run();
+
+        expect(endProvisionalSession).not.toHaveBeenCalled();
+        expect(postedUrls()).toEqual(['/auth/refresh-tokens', url]);
+        expect(authClient.post).toHaveBeenCalledWith(
+          url,
+          expect.anything(),
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              Authorization: 'Bearer stale-prov-access',
+            }),
+          })
+        );
+      }
+    );
   });
 
   describe('isAuthenticated', () => {
