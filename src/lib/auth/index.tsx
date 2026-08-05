@@ -317,6 +317,13 @@ export const hydrateAuth = async () => _useAuth.getState().hydrate();
  *
  * Device preferences (reminder times etc.) are intentionally left alone;
  * only identity and progress are wiped.
+ *
+ * Sibling key list: `hasProvisionalSession` in `./provisional-session`
+ * decides whether a guest session EXISTS from two of these four keys
+ * (deliberately not `provisionalRefreshToken`, which conversion leaves on
+ * disk, nor `provisionalEmail`). If you change which keys conversion clears,
+ * change that check too — it is what walls a guest out of the app, so a key
+ * added here and not there leaves converted users gated forever.
  */
 export const wipeGuestSession = () => {
   removeItem('provisionalAccessToken');
