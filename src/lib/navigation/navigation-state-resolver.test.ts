@@ -417,6 +417,20 @@ describe('Navigation State Resolver', () => {
     expect(result.current).toEqual({ type: 'app' });
   });
 
+  it('gates a provisional session out of the app and onto the signup screen (leaked-guest conversion gate)', () => {
+    mockAuthState.status = 'signIn';
+    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+    mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+    mockQuestState.completedQuests = [];
+    mockGetItem.mockImplementation((key: string) =>
+      key === 'provisionalAccessToken' ? 'prov-token' : null
+    );
+
+    const { result } = renderHook(() => useNavigationTarget());
+
+    expect(result.current).toEqual({ type: 'quest-completed-signup' });
+  });
+
   it('updates navigation target when auth status changes from signOut to signIn', () => {
     // Start with signed out state
     mockAuthState.status = 'signOut';

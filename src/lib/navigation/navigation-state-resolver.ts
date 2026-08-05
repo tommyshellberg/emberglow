@@ -315,7 +315,19 @@ export function useNavigationTarget(): NavigationTarget {
     return { type: 'login' };
   }
 
-  // Priority 5: Default to app
+  // Priority 5: Provisional-conversion gate. A guest session must never live
+  // in the main app: nothing ties the account to a person, so 30 days of
+  // inactivity kills the refresh token and orphans the character forever
+  // (there is no email to log back in with). Everything above this line —
+  // streak celebration, quest results, onboarding — behaves as normal; only
+  // the "default to app" outcome is replaced. Conversion clears the
+  // provisional keys, so the next pass falls through to 'app'.
+  if (hasProvisionalSession) {
+    console.log('🧭 Provisional session in main app - gating to signup');
+    return { type: 'quest-completed-signup' };
+  }
+
+  // Priority 6: Default to app
   console.log('🧭 Default to app');
   return { type: 'app' };
 }
