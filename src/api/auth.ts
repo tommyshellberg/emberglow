@@ -76,16 +76,35 @@ export class ProvisionalSessionExpired extends Error {
  * never runs. `authClient` is a bare axios instance with no interceptors of
  * its own, so the refresh has to be explicit here.
  *
- * Only `'dead'` (a 401 for the REFRESH token itself) ends the session. A
- * `'error'` result is a network flake or 5xx and is proof of nothing: the
- * session is left alone and the conversion is attempted with the token we
- * already have, which may well still be valid. `authClient`'s 10s timeout
- * bounds the added wait.
+ * Ending the session requires SERVER PROOF — a 401 for the refresh token
+ * itself. Nothing else does:
+ *
+ * - No refresh token on disk: we return the stored access token and let the
+ *   conversion try. `doRefreshProvisionalTokens` reports `'dead'` for this
+ *   case without any network call, and that is right for its OTHER caller —
+ *   the provisional-client interceptor only asks after a 401 has already
+ *   proven the access token rejected, so "nothing left to refresh with" really
+ *   is unrecoverable there. Here we ask PROACTIVELY, with no such proof, so
+ *   inheriting that verdict would hand `wipeGuestSession` (explicitly "no
+ *   salvage") a working session's character, quests and POIs on no evidence.
+ *   The state is reachable: `createProvisionalUser` stores the refresh token
+ *   conditionally, and `hydrate()` still carries a fallback for installs
+ *   without one. Its contract is deliberately NOT changed — the interceptor
+ *   depends on it and is correct as written.
+ * - `'error'` (network flake, 5xx, malformed body): proof of nothing either.
+ *   Same outcome — keep the session, try with the token we have.
+ *
+ * `authClient`'s 10s timeout bounds the added wait.
  */
 const freshProvisionalAccessToken = async (): Promise<string | null> => {
   const stored = getItem('provisionalAccessToken');
   if (typeof stored !== 'string' || stored.length === 0) {
     return null;
+  }
+
+  const refreshToken = getItem('provisionalRefreshToken');
+  if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+    return stored;
   }
 
   const result = await refreshProvisionalTokens();

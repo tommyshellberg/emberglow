@@ -684,6 +684,19 @@ describe('auth.ts', () => {
         return null;
       });
 
+    /**
+     * A legacy install: an access token but NO refresh token. Reachable
+     * because `createProvisionalUser` stores the refresh token conditionally
+     * (`user.ts`), and `auth hydrate()` still carries a
+     * `provisionalRefreshToken || provisionalToken` fallback for this shape.
+     */
+    const guestWithNoRefreshToken = () =>
+      (getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'provisionalAccessToken') return 'stale-prov-access';
+        if (key === 'provisionalUserId') return 'prov-user-1';
+        return null;
+      });
+
     /** Route POSTs by URL so the refresh and the conversion can differ. */
     const respond = (handlers: Record<string, () => unknown>) =>
       (authClient.post as jest.Mock).mockImplementation((url: string) => {
@@ -809,6 +822,50 @@ describe('auth.ts', () => {
         // endProvisionalSession wipes on acknowledge, never underneath the
         // notice — nothing here may clear the keys inline.
         expect(removeItem).not.toHaveBeenCalled();
+      }
+    );
+
+    // `doRefreshProvisionalTokens` answers 'dead' for a missing refresh token
+    // WITHOUT contacting the server. That is correct for its other caller —
+    // the provisional-client interceptor, which only asks after a 401 has
+    // already proven the access token rejected — but here we ask PROACTIVELY,
+    // with no such proof. Inheriting 'dead' would wipe a working session's
+    // character, quests and POIs (wipeGuestSession is explicitly "no
+    // salvage") on no server evidence at all, which is the exact loss this
+    // whole branch exists to prevent.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'attempts the %s conversion with the stored token when there is no refresh token to refresh WITH',
+      async (_label, run, url) => {
+        guestWithNoRefreshToken();
+        respond({
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'converted' },
+            }),
+        });
+
+        await run();
+
+        // No server was ever asked, so nothing proved this session dead.
+        expect(endProvisionalSession).not.toHaveBeenCalled();
+        expect(postedUrls()).toEqual([url]);
+        expect(authClient.post).toHaveBeenCalledWith(
+          url,
+          expect.anything(),
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              Authorization: 'Bearer stale-prov-access',
+            }),
+          })
+        );
       }
     );
 
