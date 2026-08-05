@@ -3,6 +3,7 @@ import { usePostHog } from 'posthog-react-native';
 import { useCallback, useState } from 'react';
 
 import { requestMagicLink } from '@/api/auth';
+import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
 
 import {
   EMAIL_IN_USE_ERROR_MESSAGE,
@@ -60,6 +61,19 @@ export function useMagicLink(): UseMagicLinkReturn {
         setEmailSent(true);
         onSuccess?.(email);
       } catch (err) {
+        // Not a send failure — nothing was ever sent, and nothing here is
+        // retryable. `endProvisionalSession` has already put a non-cancelable
+        // "Character Expired" alert on screen and acknowledging it wipes and
+        // resets to onboarding, so this branch deliberately sets no error copy
+        // (a second, vaguer message would only compete with the alert) and
+        // reports its own outcome instead of the catch-all `..._unknown`.
+        if (err instanceof ProvisionalSessionExpired) {
+          posthog.capture('magic_link_request_provisional_session_expired', {
+            email,
+          });
+          return;
+        }
+
         posthog.capture('magic_link_request_failed', { email });
 
         if (axios.isAxiosError(err)) {

@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { requestMagicLink } from '@/api/auth';
+// The REAL class, not a stand-in: the hook branches on `instanceof`, and
+// `provisional-session.ts` imports only `@/lib/storage`, so requiring it pulls
+// in none of the native modules the `@/api/auth` mock below exists to avoid.
+import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
 
 import { useMagicLink } from './use-magic-link';
 
@@ -116,6 +120,41 @@ describe('useMagicLink', () => {
         'This email address is already associated with an account. Please use a different email address.'
       );
     });
+  });
+
+  // Not a magic-link failure: the provisional session turned out to be dead,
+  // `endProvisionalSession` has already put a non-cancelable alert on screen,
+  // and acknowledging it wipes and resets to onboarding. Reporting it as a
+  // send failure buries a distinct, actionable cause under the catch-all
+  // `..._unknown` bucket and shows the user retry copy for something retrying
+  // cannot fix.
+  it('reports an expired provisional session as its own outcome, not a generic send failure', async () => {
+    mockedRequestMagicLink.mockRejectedValueOnce(
+      new ProvisionalSessionExpired()
+    );
+
+    const { result } = renderHook(() => useMagicLink());
+
+    await result.current.requestMagicLink('test@example.com');
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(mockCapture).toHaveBeenCalledWith(
+      'magic_link_request_provisional_session_expired',
+      { email: 'test@example.com' }
+    );
+    expect(mockCapture).not.toHaveBeenCalledWith(
+      'magic_link_request_failed',
+      expect.anything()
+    );
+    expect(mockCapture).not.toHaveBeenCalledWith(
+      'magic_link_request_failed_unknown',
+      expect.anything()
+    );
+    // The alert owns the explaining; a second, vaguer message under it would
+    // only compete with it.
+    expect(result.current.error).toBe('');
+    expect(result.current.emailSent).toBe(false);
   });
 
   it('should increment send attempts on each request', async () => {

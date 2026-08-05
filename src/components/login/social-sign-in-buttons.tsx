@@ -14,6 +14,7 @@ import { showMessage } from 'react-native-flash-message';
 
 import { socialSignIn } from '@/api/auth';
 import { Button } from '@/components/emberglow';
+import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   type ExistingAccountSummary,
@@ -191,6 +192,23 @@ export function SocialSignInButtons({
    */
   const reportFailure = React.useCallback(
     (error: unknown, provider: SocialProvider) => {
+      // Handled here rather than in the caller's catch so the confirmed
+      // REPLAY gets it too — that path refreshes the provisional token again
+      // and can reach the same verdict, and a replay that grew its own copy
+      // would be the one that stops reporting it.
+      //
+      // Nothing to log and nothing to show: `endProvisionalSession` has
+      // already put a non-cancelable alert on screen, and acknowledging it
+      // wipes and resets to onboarding. Firing `social_signin_failure` would
+      // file an expected, server-proven branch as a fault, and `onError`
+      // would flash retry copy under an alert that retrying cannot satisfy.
+      if (error instanceof ProvisionalSessionExpired) {
+        posthog.capture('social_signin_provisional_session_expired', {
+          provider,
+        });
+        return;
+      }
+
       const { code, status } = describeFailure(error);
 
       // Every error that reaches here is the raw object `socialSignIn`
