@@ -115,6 +115,14 @@ describe('QuestCompletedSignupScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // jest.clearAllMocks() above only clears call history — it does not
+    // undo a prior .mockReturnValue()/.mockImplementation() (that's
+    // mockReset's job, which would also wipe every other mock in this
+    // file). mockOnboardingStore.isOnboardingComplete is a module-level
+    // jest.fn() shared across every test, so without re-establishing its
+    // default here, a test that calls .mockReturnValue(true) would leak
+    // that value into every later test that doesn't set it explicitly.
+    mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
     mockUseOnboardingStore.mockImplementation((selector) =>
       selector(mockOnboardingStore as any)
     );
