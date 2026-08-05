@@ -417,19 +417,25 @@ describe('Navigation State Resolver', () => {
     expect(result.current).toEqual({ type: 'app' });
   });
 
-  it('gates a provisional session out of the app and onto the signup screen (leaked-guest conversion gate)', () => {
-    mockAuthState.status = 'signIn';
-    mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
-    mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
-    mockQuestState.completedQuests = [];
-    mockGetItem.mockImplementation((key: string) =>
-      key === 'provisionalAccessToken' ? 'prov-token' : null
-    );
+  // Both arms of hasProvisionalSession's OR: a guest can be missing either
+  // half (the user id is written before the tokens), and covering only one
+  // let the other arm be deleted without a single test noticing.
+  it.each(['provisionalAccessToken', 'provisionalUserId'])(
+    'gates a provisional session out of the app and onto the signup screen when %s is on disk (leaked-guest conversion gate)',
+    (provisionalKey) => {
+      mockAuthState.status = 'signIn';
+      mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+      mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+      mockQuestState.completedQuests = [];
+      mockGetItem.mockImplementation((key: string) =>
+        key === provisionalKey ? 'prov-value' : null
+      );
 
-    const { result } = renderHook(() => useNavigationTarget());
+      const { result } = renderHook(() => useNavigationTarget());
 
-    expect(result.current).toEqual({ type: 'quest-completed-signup' });
-  });
+      expect(result.current).toEqual({ type: 'quest-completed-signup' });
+    }
+  );
 
   it('updates navigation target when auth status changes from signOut to signIn', () => {
     // Start with signed out state

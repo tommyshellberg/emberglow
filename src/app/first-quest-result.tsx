@@ -7,7 +7,7 @@ import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { Button, FocusAwareStatusBar, Text, View } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { getItem } from '@/lib/storage';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types'; // Import Quest type for better type safety
@@ -25,13 +25,10 @@ export default function FirstQuestResultScreen() {
   // asking that user to "create an account" is asking for the one they are
   // signed into. BUT a provisional session also hydrates with status 'signIn'
   // (see auth hydrate()), and a guest is exactly who the prompt is for — so
-  // 'signIn' only skips the prompt when no provisional keys are on disk. Same
-  // two-key check the resolver uses for hasProvisionalSession.
-  const hasProvisionalSession = !!(
-    getItem('provisionalUserId') || getItem('provisionalAccessToken')
-  );
+  // 'signIn' only skips the prompt when no provisional keys are on disk —
+  // the same shared check the resolver's gate uses.
   const stepAfterFirstQuest =
-    authStatus === 'signIn' && !hasProvisionalSession
+    authStatus === 'signIn' && !hasProvisionalSession()
       ? OnboardingStep.COMPLETED
       : OnboardingStep.VIEWING_SIGNUP_PROMPT;
   const resetFailedQuest = useQuestStore((state) => state.resetFailedQuest);

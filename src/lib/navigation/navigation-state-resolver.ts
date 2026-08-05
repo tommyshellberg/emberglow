@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/lib/auth';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
@@ -191,9 +192,7 @@ export function useNavigationTarget(): NavigationTarget {
   // Provisional users hydrate with status 'signIn' (see auth hydrate()), so
   // authStatus alone can't identify the onboarding first-quest flow after an
   // app restart — check for a provisional session as well.
-  const hasProvisionalSession = !!(
-    getItem('provisionalUserId') || getItem('provisionalAccessToken')
-  );
+  const hasGuestSession = hasProvisionalSession();
   // A signed-in, non-provisional user can ALSO be mid-onboarding: a social
   // signup with no hero is routed back through it fully authenticated, and no
   // provisional session ever exists on that path. Any started-but-unfinished
@@ -202,7 +201,7 @@ export function useNavigationTarget(): NavigationTarget {
   const isInOnboardingFlow =
     !isOnboardingComplete &&
     (authStatus === 'signOut' ||
-      hasProvisionalSession ||
+      hasGuestSession ||
       currentStep !== OnboardingStep.NOT_STARTED);
 
   // Priority 1: Streak celebration (highest priority to show before quest complete)
@@ -322,7 +321,7 @@ export function useNavigationTarget(): NavigationTarget {
   // streak celebration, quest results, onboarding — behaves as normal; only
   // the "default to app" outcome is replaced. Conversion clears the
   // provisional keys, so the next pass falls through to 'app'.
-  if (hasProvisionalSession) {
+  if (hasGuestSession) {
     console.log('🧭 Provisional session in main app - gating to signup');
     return { type: 'quest-completed-signup' };
   }

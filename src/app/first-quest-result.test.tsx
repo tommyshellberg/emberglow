@@ -147,19 +147,24 @@ describe('FirstQuestResultScreen', () => {
       );
     });
 
-    it('sends a hydrated PROVISIONAL session (signIn + provisional keys) to the signup prompt, not COMPLETED', () => {
-      mockAuthState.status = 'signIn';
-      mockStorage.provisionalAccessToken = 'prov-token';
+    // Both arms of hasProvisionalSession's OR — either key alone is enough to
+    // mean "this is a guest", and only covering one left the other deletable.
+    it.each(['provisionalAccessToken', 'provisionalUserId'])(
+      'sends a hydrated PROVISIONAL session (signIn + %s) to the signup prompt, not COMPLETED',
+      (provisionalKey) => {
+        mockAuthState.status = 'signIn';
+        mockStorage[provisionalKey] = 'prov-value';
 
-      render(<FirstQuestResultScreen />);
+        render(<FirstQuestResultScreen />);
 
-      expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
-        OnboardingStep.VIEWING_SIGNUP_PROMPT
-      );
-      expect(mockOnboardingStore.setCurrentStep).not.toHaveBeenCalledWith(
-        OnboardingStep.COMPLETED
-      );
-    });
+        expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+          OnboardingStep.VIEWING_SIGNUP_PROMPT
+        );
+        expect(mockOnboardingStore.setCurrentStep).not.toHaveBeenCalledWith(
+          OnboardingStep.COMPLETED
+        );
+      }
+    );
 
     it('should call clearRecentCompletedQuest when Continue button is pressed', () => {
       const { getByTestId } = render(<FirstQuestResultScreen />);
