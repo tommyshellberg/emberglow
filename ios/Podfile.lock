@@ -1721,7 +1721,7 @@ PODS:
     - React-Core
   - react-native-get-random-values (1.11.0):
     - React-Core
-  - react-native-keyboard-controller (1.18.5):
+  - react-native-keyboard-controller (1.22.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1733,7 +1733,7 @@ PODS:
     - React-graphics
     - React-ImageManager
     - React-jsi
-    - react-native-keyboard-controller/common (= 1.18.5)
+    - react-native-keyboard-controller/common (= 1.22.1)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
@@ -1744,7 +1744,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-keyboard-controller/common (1.18.5):
+  - react-native-keyboard-controller/common (1.22.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -3175,7 +3175,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: f775db9e991c6f3b8ccbc02bfcde22770f96e23b
   react-native-background-actions: 35a1e298faed0957d36469eb21d634f0b6243bcb
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
-  react-native-keyboard-controller: 1ad78688f744e0ebdf3b04007b91089a254b80f9
+  react-native-keyboard-controller: 0a2352f43dd4d9d41ce911382971e40f55385e38
   react-native-mmkv: 3d69c8bbdbceb1c0d3754863ecffa6ec24e4be12
   react-native-onesignal: b68c981956150f288c1585889871affcef3c0b8b
   react-native-restart: 0bc732f4461709022a742bb29bcccf6bbc5b4863
