@@ -73,7 +73,17 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
         <View style={styles.overlay} />
       </BackgroundImage>
 
-      <ScreenContainer transparent style={styles.screenPadding}>
+      {/* The gap has to travel through `bottomPadding`, not the style prop:
+          ScreenContainer sets `paddingBottom` (inset + gap), and Yoga resolves
+          padding by edge specificity rather than source order, so a
+          `paddingVertical` here would lose at the bottom edge no matter that
+          it is applied later. */}
+      <ScreenContainer
+        testID="failed-quest-content"
+        transparent
+        bottomPadding={spacing[8]}
+        style={styles.screenPadding}
+      >
         {/* Title Section */}
         <Animated.View style={[styles.header, headerAnimatedStyle]}>
           <EyebrowLabel>
@@ -119,7 +129,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.overlay,
   },
   screenPadding: {
-    paddingVertical: spacing[8],
+    // Top only — the bottom is ScreenContainer's, via `bottomPadding`.
+    paddingTop: spacing[8],
   },
   header: {
     marginTop: spacing[12],
