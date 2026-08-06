@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 
@@ -113,6 +114,10 @@ jest.mock('./utils', () => ({
   getToken: jest.fn(),
   removeToken: jest.fn(),
   setToken: jest.fn(),
+}));
+
+jest.mock('expo-router', () => ({
+  router: { replace: jest.fn() },
 }));
 
 jest.mock('@/lib/storage', () => ({
@@ -232,9 +237,28 @@ describe('Auth Store', () => {
       expect(characterStoreMocks.mockResetCharacter).toHaveBeenCalled();
       expect(onboardingStoreMocks.mockResetOnboarding).toHaveBeenCalled();
 
-      // Signed out + onboarding reset ⇒ the resolver routes to
-      // /onboarding/welcome by its normal rules; no navigation code here.
       expect(useAuth.getState().status).toBe('signOut');
+
+      alertSpy.mockRestore();
+    });
+
+    // The wipe used to lean on the resolver to route to /onboarding. That
+    // works from `(app)`, the only place the interceptors could fire it — but
+    // NOT from `/quest-completed-signup` or `/login`, which the conversion
+    // gate made into call sites. Both are in PRE_ACCOUNT_ZONE, so
+    // `isAlreadyAtTarget('onboarding', …)` answers true and NavigationGate
+    // suppresses the redirect: data gone, screen unchanged, alert already
+    // promising a fresh start. Same dead-affordance shape as emberglow#365.
+    it('leaves the screen it was called from, not just the session', () => {
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: jest.fn(),
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+      endProvisionalSession();
+      (alertSpy.mock.calls[0][2] as any)[0].onPress();
+
+      expect(router.replace).toHaveBeenCalledWith('/onboarding/welcome');
 
       alertSpy.mockRestore();
     });

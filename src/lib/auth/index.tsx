@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
@@ -305,10 +306,18 @@ export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
 
 /**
- * Wipes the guest (provisional) session AND all local progress, then signs
- * out. With onboarding reset and auth signed out, the navigation resolver
- * routes to /onboarding/welcome by its normal rules — no navigation code
- * here, same sanctioned pattern as the no-hero screen's reset button.
+ * Wipes the guest (provisional) session AND all local progress, signs out, and
+ * lands the user on /onboarding/welcome.
+ *
+ * The navigation is explicit rather than left to the resolver. Leaning on the
+ * resolver worked while the only callers were the `(app)` interceptors, but
+ * the conversion gate added call sites on `/quest-completed-signup` and
+ * `/login` — both members of PRE_ACCOUNT_ZONE, where
+ * `isAlreadyAtTarget('onboarding', …)` answers true and NavigationGate
+ * suppresses the redirect (`@/lib/navigation/is-already-at-target`). The user
+ * acknowledged an alert promising a fresh start, lost their character, and did
+ * not move. Every caller needs the exit, so the exit belongs here — the same
+ * conclusion `login-form.tsx`'s `discardHeroAndStartOver` reached separately.
  *
  * Deliberately no salvage: grafting saved local progress onto a freshly
  * provisioned account is the split-brain shape that produced the PR #364
@@ -342,6 +351,8 @@ export const wipeGuestSession = () => {
 
   // Also clears the user store and detaches PostHog/RevenueCat/OneSignal.
   _useAuth.getState().signOut();
+
+  router.replace('/onboarding/welcome');
 };
 
 /**
