@@ -14,7 +14,10 @@ import { showMessage } from 'react-native-flash-message';
 
 import { socialSignIn } from '@/api/auth';
 import { Button } from '@/components/emberglow';
-import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   type ExistingAccountSummary,
@@ -206,6 +209,24 @@ export function SocialSignInButtons({
         posthog.capture('social_signin_provisional_session_expired', {
           provider,
         });
+        return;
+      }
+
+      // The sibling of the branch above, handled the opposite way. Nothing was
+      // proven, no alert was raised and the session still exists — silence
+      // would leave a button that spun and then did nothing. Logged because it
+      // names a real fault (an unreachable API host), and given its own event
+      // so it does not disappear into the `social_signin_failure` bucket that
+      // the Reliability dashboard reads as OAuth breakage.
+      if (error instanceof ProvisionalRefreshUnavailable) {
+        console.error(
+          `[SocialSignIn] ${provider} conversion abandoned — provisional refresh unreachable`,
+          error
+        );
+        posthog.capture('social_signin_provisional_refresh_unavailable', {
+          provider,
+        });
+        onError('generic');
         return;
       }
 

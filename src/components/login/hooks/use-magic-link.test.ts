@@ -4,8 +4,12 @@ import { requestMagicLink } from '@/api/auth';
 // The REAL class, not a stand-in: the hook branches on `instanceof`, and
 // `provisional-session.ts` imports only `@/lib/storage`, so requiring it pulls
 // in none of the native modules the `@/api/auth` mock below exists to avoid.
-import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 
+import { NETWORK_ERROR_MESSAGE } from '../constants';
 import { useMagicLink } from './use-magic-link';
 
 // Mock the requestMagicLink function
@@ -154,6 +158,32 @@ describe('useMagicLink', () => {
     // The alert owns the explaining; a second, vaguer message under it would
     // only compete with it.
     expect(result.current.error).toBe('');
+    expect(result.current.emailSent).toBe(false);
+  });
+
+  // The mirror image of the case above, and it must NOT be handled the same
+  // way: nothing was proven about the session, no alert is on screen, and the
+  // session is still intact. The conversion was abandoned precisely so the
+  // user can retry, so this is the one provisional branch that owes them copy.
+  it('shows retryable copy when the provisional refresh could not be reached', async () => {
+    mockedRequestMagicLink.mockRejectedValueOnce(
+      new ProvisionalRefreshUnavailable()
+    );
+
+    const { result } = renderHook(() => useMagicLink());
+
+    await result.current.requestMagicLink('test@example.com');
+
+    await waitFor(() =>
+      expect(mockCapture).toHaveBeenCalledWith(
+        'magic_link_request_provisional_refresh_unavailable',
+        { email: 'test@example.com' }
+      )
+    );
+    await waitFor(() =>
+      expect(result.current.error).toBe(NETWORK_ERROR_MESSAGE)
+    );
+    // Nothing was sent, so the success path must not have been entered.
     expect(result.current.emailSent).toBe(false);
   });
 

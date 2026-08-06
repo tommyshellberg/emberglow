@@ -8,7 +8,10 @@ import { socialSignIn } from '@/api/auth';
 // actual: the component branches on `instanceof`. `provisional-session.ts`
 // imports only `@/lib/storage`, so it pulls in none of the native modules the
 // `@/api/auth` mock exists to avoid.
-import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   getAppleCredential,
@@ -317,6 +320,34 @@ describe('SocialSignInButtons', () => {
       );
       // The alert is already on screen; a flash message under it competes.
       expect(onError).not.toHaveBeenCalled();
+    });
+
+    // Same family, opposite handling. No alert was raised and the session is
+    // untouched, so silence here would leave a button that spun and did
+    // nothing — the user needs the retry prompt the expired case withholds.
+    it('surfaces an unreachable provisional refresh as a retryable failure', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      mockSocialSignIn.mockRejectedValue(new ProvisionalRefreshUnavailable());
+      const onError = jest.fn();
+
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockCapture).toHaveBeenCalledWith(
+          'social_signin_provisional_refresh_unavailable',
+          { provider: 'google' }
+        );
+      });
+      expect(onError).toHaveBeenCalledWith('generic');
+      // Filed under its own cause, not the catch-all fault bucket.
+      expect(mockCapture).not.toHaveBeenCalledWith(
+        'social_signin_failure',
+        expect.anything()
+      );
     });
 
     it('records the native error code on social_signin_failure, so a DEVELOPER_ERROR is distinguishable from a network failure', async () => {

@@ -2,7 +2,10 @@ import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
 import { endProvisionalSession, signIn } from '@/lib/auth';
-import { ProvisionalSessionExpired } from '@/lib/auth/provisional-session';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
@@ -74,9 +77,21 @@ export interface RegisterResponse {
  *   The state is reachable: `createProvisionalUser` stores the refresh token
  *   conditionally, and `hydrate()` still carries a fallback for installs
  *   without one. Its contract is deliberately NOT changed — the interceptor
- *   depends on it and is correct as written.
- * - `'error'` (network flake, 5xx, malformed body): proof of nothing either.
- *   Same outcome — keep the session, try with the token we have.
+ *   depends on it and is correct as written. Reported to PostHog rather than
+ *   passed over in silence: this install shape mis-converts by construction,
+ *   and it is otherwise invisible — the conversion endpoints answer 200.
+ * - `'error'` (network flake, 5xx, timeout, malformed body): proof of nothing
+ *   either, so the session is likewise left alone — but the conversion is
+ *   ABANDONED rather than attempted, and the caller is told to retry.
+ *
+ * That last one is the asymmetry worth stating. Proceeding on a stale token
+ * does not fail loudly: `auth.optional` swallows it, the server sees no
+ * `req.user`, and a conversion degrades into a plain signup — a second
+ * account, the hero orphaned, no error anywhere. Aborting costs the user a
+ * retry. Orphaning costs them everything the gate exists to save, so the two
+ * are not close. Aborting is NOT correct for the no-refresh-token case above:
+ * that install can never refresh, so abandoning would strand it forever, while
+ * proceeding at least succeeds whenever the stored token is still valid.
  *
  * `authClient`'s 10s timeout bounds the added wait.
  */
@@ -88,6 +103,7 @@ const freshProvisionalAccessToken = async (): Promise<string | null> => {
 
   const refreshToken = getItem('provisionalRefreshToken');
   if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+    posthogClient.capture('provisional_conversion_unrefreshable');
     return stored;
   }
 
@@ -99,7 +115,9 @@ const freshProvisionalAccessToken = async (): Promise<string | null> => {
   if (result.status === 'refreshed') {
     return result.tokens.access.token;
   }
-  return stored;
+
+  posthogClient.capture('provisional_conversion_refresh_unavailable');
+  throw new ProvisionalRefreshUnavailable();
 };
 
 /**

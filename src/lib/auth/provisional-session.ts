@@ -55,3 +55,24 @@ export class ProvisionalSessionExpired extends Error {
     this.name = 'ProvisionalSessionExpired';
   }
 }
+
+/**
+ * The provisional session could not be REFRESHED, and nothing was proven about
+ * whether it is still alive: a network flake, a 5xx, a timeout, a malformed
+ * refresh body. Thrown by `freshProvisionalAccessToken` in `@/api/auth`.
+ *
+ * Unlike `ProvisionalSessionExpired` this leaves the session completely
+ * untouched — no alert, no wipe — so the two error types must not be handled
+ * the same way. The conversion is abandoned rather than attempted, because the
+ * only token we could send is one the conversion endpoints (`auth.optional`)
+ * silently ignore: they would answer 200 and mint a brand-new account, filing
+ * the hero this screen promises to keep under nobody. Retrying is the correct
+ * user action, so callers SHOULD show retryable copy — the opposite of the
+ * expired case.
+ */
+export class ProvisionalRefreshUnavailable extends Error {
+  constructor() {
+    super('The provisional session could not be refreshed');
+    this.name = 'ProvisionalRefreshUnavailable';
+  }
+}
