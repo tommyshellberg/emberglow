@@ -58,6 +58,10 @@ jest.mock('@/components/login/social-sign-in-buttons', () => {
           onPress={() => onSuccess('app', 'existing-account-login', 'google')}
         />
         <Pressable
+          testID="mock-social-success-onboarding-target"
+          onPress={() => onSuccess('onboarding', 'created', 'google')}
+        />
+        <Pressable
           testID="mock-social-error-email-in-use"
           onPress={() => onError('email-in-use')}
         />
@@ -314,6 +318,36 @@ describe('QuestCompletedSignupScreen', () => {
         expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
           method: 'google',
         });
+      });
+    });
+
+    // The screen used to delegate its exit entirely to the conversion gate.
+    // That relies on a store write to re-render the resolver, and
+    // `completeSignIn` swallows a failed `getUserDetails()` while still
+    // resolving 'app' — so neither store is written, auth status was already
+    // 'signIn', nothing re-renders, and the user sits on the wall holding a
+    // valid real account. Navigating on the target the callback already
+    // carries costs one line (same shape as login-form.tsx).
+    it('lands a converted user in the app rather than waiting for the gate', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-google'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
+      });
+    });
+
+    // The target is not always 'app': a social identity that resolves to a
+    // hero-less account is routed back through onboarding. Hardcoding '/(app)/'
+    // would strand that user on a Play screen with no character.
+    it('honours an onboarding target instead of assuming the app', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-onboarding-target'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
       });
     });
 

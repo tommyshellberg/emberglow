@@ -99,19 +99,22 @@ export default function QuestCompletedSignupScreen() {
 
   const handleSocialSignInSuccess = useCallback(
     (
-      _target: 'onboarding' | 'app',
+      target: 'onboarding' | 'app',
       outcome: SocialSignInOutcome | (string & {}),
       provider: SocialProvider
     ) => {
-      // The user arriving here already has a provisional character and has
-      // completed quest-1 (that's how they reached this screen), so unlike
-      // the login screen's `created` case, no explicit routing decision is
-      // needed: `socialSignIn` (src/api/auth.ts) clears the provisional
-      // tokens as a side effect, and the globally-mounted NavigationGate's
-      // onboarding-sync heuristic (navigation-state-resolver.ts) then flips
-      // onboarding to COMPLETED and routes to `/(app)` on its own — the
-      // same mechanism the magic-link conversion path already relies on
-      // (see `completeSignIn`'s JSDoc).
+      // Navigate on the target the callback already carries, rather than
+      // leaving it to the conversion gate.
+      //
+      // Delegating looks sound — `socialSignIn` clears the provisional tokens,
+      // so the gate's next pass falls through to 'app'. But "next pass" needs
+      // something to re-render the resolver, and `hasProvisionalSession` is a
+      // plain MMKV read with no subscription. The re-render normally comes
+      // from `completeSignIn`'s store writes, which it skips when
+      // `getUserDetails()` fails or answers without an id/email — it swallows
+      // that and still resolves 'app'. Auth status was already 'signIn', so
+      // nothing changes and the user sits on this wall holding a valid real
+      // account until they restart. Same one-liner as login-form.tsx:161.
       //
       // This screen is reachable by a returning user too (e.g. reinstalled
       // the app, still has a provisional character + completed quest-1 on
@@ -123,6 +126,8 @@ export default function QuestCompletedSignupScreen() {
       if (outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED) {
         posthog.capture('signup_completed', { method: provider });
       }
+
+      router.replace(target === 'app' ? '/(app)/' : '/onboarding');
     },
     [posthog]
   );
