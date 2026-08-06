@@ -306,6 +306,20 @@ export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
 
 /**
+ * Whether a dead-session notice is already on screen awaiting acknowledgement.
+ *
+ * `refreshProvisionalTokens` is single-flight, so one 'dead' verdict is handed
+ * to every caller that joined the in-flight refresh. Without this, a gated
+ * guest tapping "Continue with Google" while a background provisional request
+ * 401s gets two stacked non-cancelable alerts, each wiping on acknowledge —
+ * the second against an already-signed-out store.
+ *
+ * Not a one-way latch: `wipeGuestSession` clears it, so a later dead session
+ * (a new guest, a new lapse) is still announced.
+ */
+let sessionEnding = false;
+
+/**
  * Wipes the guest (provisional) session AND all local progress, signs out, and
  * lands the user on /onboarding/welcome.
  *
@@ -335,6 +349,10 @@ export const hydrateAuth = async () => _useAuth.getState().hydrate();
  * added here and not there leaves converted users gated forever.
  */
 export const wipeGuestSession = () => {
+  // Cleared here rather than in the alert's handler so the re-arm is tied to
+  // the wipe actually running, not to a particular caller remembering to.
+  sessionEnding = false;
+
   removeItem('provisionalAccessToken');
   removeItem('provisionalRefreshToken');
   removeItem('provisionalUserId');
@@ -370,6 +388,11 @@ export const wipeGuestSession = () => {
  * refreshProvisionalTokens' result contract.
  */
 export const endProvisionalSession = () => {
+  if (sessionEnding) {
+    return;
+  }
+  sessionEnding = true;
+
   Alert.alert(
     'Character Expired',
     'Sorry, but it looks like your temporary character expired — no worries, though, it only takes a couple of minutes to create a new one.',

@@ -262,6 +262,32 @@ describe('Auth Store', () => {
 
       alertSpy.mockRestore();
     });
+
+    // `refreshProvisionalTokens` is single-flight, so ONE 'dead' verdict is
+    // delivered to every joined caller — a gated guest tapping "Continue with
+    // Google" while a background provisional request 401s reaches this twice.
+    // Two stacked non-cancelable alerts each wipe on acknowledge, and the
+    // second runs against an already-signed-out store.
+    it('announces a dead session once, however many callers reach it', () => {
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: jest.fn(),
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+      endProvisionalSession();
+      endProvisionalSession();
+
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+
+      // Acknowledging re-arms it: a LATER dead session is a new event and
+      // must still be announced, so the guard cannot be a one-way latch.
+      (alertSpy.mock.calls[0][2] as any)[0].onPress();
+      endProvisionalSession();
+      expect(alertSpy).toHaveBeenCalledTimes(2);
+
+      (alertSpy.mock.calls[1][2] as any)[0].onPress();
+      alertSpy.mockRestore();
+    });
   });
 
   describe('signOut', () => {
