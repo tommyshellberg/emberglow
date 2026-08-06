@@ -150,11 +150,14 @@ export default function QuestCompletedSignupScreen() {
     []
   );
 
-  // Hero card data — real data throughout, no hardcoded name/XP/type. XP is
+  // Hero card data — real data throughout, no hardcoded name/XP/type.
+  //
+  // XP has two meanings here, one per audience. On the onboarding path it is
   // quest-1's reward preview from AVAILABLE_QUESTS (matching the
-  // first-quest-result.tsx precedent), not the character store's
-  // accumulated `currentXP`, since the card means "what you just earned",
-  // not "your lifetime total".
+  // first-quest-result.tsx precedent), because the card means "what you just
+  // earned". On the conversion-gate path it is the character store's
+  // accumulated `currentXP`, because a gated veteran's card means "what you
+  // stand to lose" — see `isConversionGate` and the badge below.
   const characterProfile = character
     ? CHARACTERS.find((c) => c.id === character.type)
     : undefined;

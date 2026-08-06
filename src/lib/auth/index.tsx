@@ -341,12 +341,17 @@ let sessionEnding = false;
  * Device preferences (reminder times etc.) are intentionally left alone;
  * only identity and progress are wiped.
  *
- * Sibling key list: `hasProvisionalSession` in `./provisional-session`
- * decides whether a guest session EXISTS from two of these four keys
- * (deliberately not `provisionalRefreshToken`, which conversion leaves on
- * disk, nor `provisionalEmail`). If you change which keys conversion clears,
- * change that check too — it is what walls a guest out of the app, so a key
- * added here and not there leaves converted users gated forever.
+ * Sibling key list: `hasProvisionalSession` in `./provisional-session` decides
+ * whether a guest session EXISTS from two of these four keys — deliberately
+ * not `provisionalRefreshToken` (conversion leaves it on disk on purpose) and
+ * not `provisionalEmail`.
+ *
+ * That invariant runs in one direction, and it does NOT run through this
+ * function: every key `hasProvisionalSession` reads must be cleared by BOTH
+ * conversion paths — `verifyMagicLink` and `socialSignIn` in `@/api/auth`.
+ * Add a key to the check that conversion does not clear and every converted
+ * user is walled behind the signup screen forever. Adding a `removeItem` here
+ * is harmless by comparison: this is the start-over wipe, not a conversion.
  */
 export const wipeGuestSession = () => {
   // Cleared here rather than in the alert's handler so the re-arm is tied to
