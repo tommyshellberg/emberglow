@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Badge } from '@/components/emberglow';
 import { CompactRewardBreakdown } from '@/features/quest-result/components';
 import { useCustomQuestStory } from '@/hooks/useCustomQuestStory';
+import { useBottomSafeAreaInset } from '@/lib/hooks/use-bottom-safe-area-inset';
 import { calculatePerkBonuses } from '@/lib/perks';
 import {
   getCurrentUserAdjustedXP,
@@ -17,6 +18,9 @@ import { QuestCompleteActions } from './quest-complete/QuestCompleteActions';
 import { QuestCompleteHeader } from './quest-complete/QuestCompleteHeader';
 import { QuestCompleteStory } from './quest-complete/QuestCompleteStory';
 import type { QuestCompleteProps } from './quest-complete/types';
+
+/** Gap below the action buttons, before any bottom safe-area inset. */
+const CONTENT_BOTTOM_GAP = spacing[6];
 
 export function QuestComplete({
   quest,
@@ -32,6 +36,12 @@ export function QuestComplete({
   const customStory = useCustomQuestStory(quest);
   const displayStory = customStory || story;
   const currentUserId = useUserStore((state) => state.user?.id);
+
+  // This screen renders from two places with different things below it:
+  // (app)/quest/[id] inside the tab navigator with the bar hidden, and
+  // first-quest-result.tsx on the root stack. Neither spans the inset, so
+  // the action buttons have to clear the Android navigation bar themselves.
+  const bottomInset = useBottomSafeAreaInset();
 
   const adjustedXP = getCurrentUserAdjustedXP(quest, currentUserId);
 
@@ -70,7 +80,13 @@ export function QuestComplete({
           disableAnimations={disableEnteringAnimations}
         />
 
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            { paddingBottom: CONTENT_BOTTOM_GAP + bottomInset },
+          ]}
+          testID="quest-complete-content"
+        >
           <View style={styles.statsRow}>
             <Badge tone="warm">{`+${adjustedXP} XP`}</Badge>
             <Badge tone="neutral">{`${quest.durationMinutes} min offline`}</Badge>
@@ -125,7 +141,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing[5],
     paddingTop: spacing[4],
-    paddingBottom: spacing[6],
+    // paddingBottom is applied inline — it carries the safe-area inset.
   },
   statsRow: {
     flexDirection: 'row',
