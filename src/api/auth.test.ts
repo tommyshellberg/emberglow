@@ -1,4 +1,8 @@
-import { signIn } from '@/lib/auth';
+import { endProvisionalSession, signIn } from '@/lib/auth';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   NoAccountForIdentity,
@@ -104,7 +108,15 @@ describe('auth.ts', () => {
     });
 
     it('should include provisional token in headers when available', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123'); // provisionalAccessToken
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockResolvedValue({ data: {} });
 
       await requestMagicLink('test@example.com');
@@ -122,7 +134,15 @@ describe('auth.ts', () => {
     });
 
     it('should include token in header when provisional token is available', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123'); // provisionalAccessToken
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockResolvedValue({ data: {} });
 
       await requestMagicLink('test@example.com');
@@ -434,7 +454,15 @@ describe('auth.ts', () => {
     });
 
     it('posts the credential with a provisional Bearer header when a provisional token exists', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
 
       await socialSignIn(credential);
 
@@ -476,7 +504,15 @@ describe('auth.ts', () => {
     });
 
     it('clears provisional storage after a successful sign-in', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
 
       await socialSignIn(credential);
 
@@ -497,7 +533,15 @@ describe('auth.ts', () => {
     });
 
     it('forwards confirmExistingAccount when the caller replays a confirmed credential', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
 
       await socialSignIn(credential, true);
 
@@ -521,7 +565,15 @@ describe('auth.ts', () => {
     });
 
     it('throws a typed error carrying the account summary on the collision 409', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockRejectedValue(
         collision409({ name: 'Rowan', level: 12, dailyQuestStreak: 4 })
       );
@@ -541,7 +593,15 @@ describe('auth.ts', () => {
       // never picked a hero has no character — so `''` is a real wire value,
       // not a bug. Defaulting it here would hide it from the sheet, which is
       // the layer that decides the fallback copy.
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockRejectedValue(
         collision409({ name: '', level: 1, dailyQuestStreak: 0 })
       );
@@ -554,7 +614,15 @@ describe('auth.ts', () => {
     });
 
     it('falls back to an empty summary when the collision 409 omits the account', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockRejectedValue(collision409(undefined));
 
       // toHaveProperty, not toMatchObject: the latter's subset semantics treat
@@ -570,7 +638,15 @@ describe('auth.ts', () => {
     it('rethrows the generic email-in-use 409 untouched (no details payload)', async () => {
       // The 409 the magic-link path already owns. Keying on status instead of
       // details.reason would swallow this one.
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       const generic409 = axiosError(409, {
         code: 409,
         message: 'Email address is already in use by another account.',
@@ -581,7 +657,15 @@ describe('auth.ts', () => {
     });
 
     it('rethrows an axios error whose details.reason is some other reason', async () => {
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       const otherReason = axiosError(409, {
         details: { reason: 'some-other-reason', account: { name: 'Rowan' } },
       });
@@ -628,7 +712,15 @@ describe('auth.ts', () => {
       // Load-bearing ordering: the confirm re-post has to still carry the
       // provisional Bearer header (so it lands on the conversion branch), and
       // dismissing the sheet has to leave the local hero alive.
-      (getItem as jest.Mock).mockReturnValue('provisional-token-123');
+      // Keyed, not blanket: a bare mockReturnValue hands the SAME string to
+      // every key, including `provisionalRefreshToken`, describing a disk
+      // state that cannot exist. These cases are about the Bearer header, so
+      // the honest shape is an access token with nothing to refresh with.
+      (getItem as jest.Mock).mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' || key === 'provisionalUserId'
+          ? 'provisional-token-123'
+          : null
+      );
       (authClient.post as jest.Mock).mockRejectedValue(
         collision409({ name: 'Rowan', level: 12, dailyQuestStreak: 4 })
       );
@@ -650,6 +742,295 @@ describe('auth.ts', () => {
         'signIn store update failed'
       );
     });
+  });
+
+  // A gated veteran guest arrives at the conversion screen with an access
+  // token that is almost always stale (they expire in 30 minutes and nothing
+  // behind the wall refreshes them). Both conversion endpoints use the
+  // server's `auth.optional`, which SWALLOWS an expired token and continues
+  // with no `req.user` — no 401, no signal — so the conversion silently
+  // becomes a plain sign-up and the progress it exists to save is lost.
+  describe('provisional refresh before conversion', () => {
+    const credential = {
+      provider: 'google' as const,
+      idToken: 'google-id-token',
+    };
+
+    const freshTokens = {
+      access: { token: 'fresh-prov-access', expires: '2025-01-02' },
+      refresh: { token: 'fresh-prov-refresh', expires: '2025-02-02' },
+    };
+
+    const realTokens = {
+      access: { token: 'real-access', expires: '2025-01-01' },
+      refresh: { token: 'real-refresh', expires: '2025-02-01' },
+    };
+
+    /** A guest who has been away long enough for the access token to lapse. */
+    const guestOnDisk = () =>
+      (getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'provisionalAccessToken') return 'stale-prov-access';
+        if (key === 'provisionalRefreshToken') return 'prov-refresh';
+        if (key === 'provisionalUserId') return 'prov-user-1';
+        return null;
+      });
+
+    /**
+     * A legacy install: an access token but NO refresh token. Reachable
+     * because `createProvisionalUser` stores the refresh token conditionally
+     * (`user.ts`), and `auth hydrate()` still carries a
+     * `provisionalRefreshToken || provisionalToken` fallback for this shape.
+     */
+    const guestWithNoRefreshToken = () =>
+      (getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'provisionalAccessToken') return 'stale-prov-access';
+        if (key === 'provisionalUserId') return 'prov-user-1';
+        return null;
+      });
+
+    /** Route POSTs by URL so the refresh and the conversion can differ. */
+    const respond = (handlers: Record<string, () => unknown>) =>
+      (authClient.post as jest.Mock).mockImplementation((url: string) => {
+        const handler = handlers[url];
+        if (!handler) {
+          return Promise.reject(new Error(`unexpected POST to ${url}`));
+        }
+        return handler();
+      });
+
+    const postedUrls = () =>
+      (authClient.post as jest.Mock).mock.calls.map(([url]) => url);
+
+    beforeEach(() => {
+      (authClient.post as jest.Mock).mockClear();
+      // clearAllMocks does not clear implementations — pin the default so a
+      // mockImplementation from one test can't leak into the next.
+      (getItem as jest.Mock).mockReturnValue(null);
+      // Same reason: an earlier test leaves `signIn` throwing on purpose.
+      (signIn as jest.Mock).mockReset();
+      (getUserDetails as jest.Mock).mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+      });
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+      });
+    });
+
+    it('sends the REFRESHED provisional token on the magic-link conversion', async () => {
+      guestOnDisk();
+      respond({
+        '/auth/refresh-tokens': () => Promise.resolve({ data: freshTokens }),
+        '/auth/magiclink': () => Promise.resolve({ data: {} }),
+      });
+
+      await requestMagicLink('me@example.com');
+
+      expect(postedUrls()).toEqual(['/auth/refresh-tokens', '/auth/magiclink']);
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/magiclink',
+        { email: 'me@example.com' },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer fresh-prov-access',
+          },
+        }
+      );
+    });
+
+    it('sends the REFRESHED provisional token on the social conversion', async () => {
+      guestOnDisk();
+      respond({
+        '/auth/refresh-tokens': () => Promise.resolve({ data: freshTokens }),
+        '/auth/social': () =>
+          Promise.resolve({
+            data: { tokens: realTokens, outcome: 'converted' },
+          }),
+      });
+
+      await socialSignIn(credential);
+
+      expect(postedUrls()).toEqual(['/auth/refresh-tokens', '/auth/social']);
+      expect(authClient.post).toHaveBeenCalledWith(
+        '/auth/social',
+        { ...credential, confirmExistingAccount: false },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer fresh-prov-access',
+          },
+        }
+      );
+    });
+
+    // The normal sign-in path must be untouched: no provisional session, no
+    // extra round trip, no new failure mode for users who never were guests.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'does not touch the refresh endpoint on the %s path when no provisional session exists',
+      async (_label, run, url) => {
+        (getItem as jest.Mock).mockReturnValue(null);
+        respond({
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'created' },
+            }),
+        });
+
+        await run();
+
+        expect(postedUrls()).toEqual([url]);
+      }
+    );
+
+    // Only a 401 on the REFRESH token proves the server disowned the session.
+    it.each([
+      ['magic link', () => requestMagicLink('me@example.com')],
+      ['social', () => socialSignIn(credential)],
+    ])(
+      'ends the session and abandons the %s conversion when the refresh token is rejected',
+      async (_label, run) => {
+        guestOnDisk();
+        respond({
+          '/auth/refresh-tokens': () =>
+            Promise.reject({ response: { status: 401 } }),
+        });
+
+        await expect(run()).rejects.toBeInstanceOf(ProvisionalSessionExpired);
+
+        expect(endProvisionalSession).toHaveBeenCalled();
+        // Aborted, not attempted: sending it anyway would create a SECOND,
+        // empty account for the same person under the same email.
+        expect(postedUrls()).toEqual(['/auth/refresh-tokens']);
+        // endProvisionalSession wipes on acknowledge, never underneath the
+        // notice — nothing here may clear the keys inline.
+        expect(removeItem).not.toHaveBeenCalled();
+      }
+    );
+
+    // `doRefreshProvisionalTokens` answers 'dead' for a missing refresh token
+    // WITHOUT contacting the server. That is correct for its other caller —
+    // the provisional-client interceptor, which only asks after a 401 has
+    // already proven the access token rejected — but here we ask PROACTIVELY,
+    // with no such proof. Inheriting 'dead' would wipe a working session's
+    // character, quests and POIs (wipeGuestSession is explicitly "no
+    // salvage") on no server evidence at all, which is the exact loss this
+    // whole branch exists to prevent.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'attempts the %s conversion with the stored token when there is no refresh token to refresh WITH',
+      async (_label, run, url) => {
+        guestWithNoRefreshToken();
+        respond({
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'converted' },
+            }),
+        });
+
+        await run();
+
+        // No server was ever asked, so nothing proved this session dead.
+        expect(endProvisionalSession).not.toHaveBeenCalled();
+        expect(postedUrls()).toEqual([url]);
+        expect(authClient.post).toHaveBeenCalledWith(
+          url,
+          expect.anything(),
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              Authorization: 'Bearer stale-prov-access',
+            }),
+          })
+        );
+      }
+    );
+
+    // A flaky network is not proof of anything. Wiping here would destroy an
+    // unclaimed hero over a dropped packet, and the stale token may well
+    // still be valid.
+    it.each([
+      [
+        'magic link',
+        () => requestMagicLink('me@example.com'),
+        '/auth/magiclink',
+      ],
+      ['social', () => socialSignIn(credential), '/auth/social'],
+    ])(
+      'keeps the session but ABANDONS the %s conversion when the refresh cannot be reached',
+      async (_label, run, url) => {
+        guestOnDisk();
+        respond({
+          '/auth/refresh-tokens': () =>
+            Promise.reject(new Error('Network Error')),
+          // The server's REAL answer to a conversion carrying a token it
+          // cannot read: `auth.optional` swallows it, so this degrades into a
+          // plain signup that mints a second account and orphans the hero.
+          // Fixturing 'converted' here would have asserted the one outcome a
+          // stale token cannot produce.
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'created' },
+            }),
+        });
+
+        await expect(run()).rejects.toBeInstanceOf(
+          ProvisionalRefreshUnavailable
+        );
+
+        // Nothing was proven about the session, so it survives untouched…
+        expect(endProvisionalSession).not.toHaveBeenCalled();
+        expect(removeItem).not.toHaveBeenCalled();
+
+        // …and the conversion never went out. Asserting the exact URL list is
+        // what makes this fail if the abort is removed: a `rejects` assertion
+        // alone would still pass if the POST fired and something else threw.
+        expect(postedUrls()).toEqual(['/auth/refresh-tokens']);
+        expect(authClient.post).not.toHaveBeenCalledWith(
+          url,
+          expect.anything(),
+          expect.anything()
+        );
+      }
+    );
+
+    it.each([
+      ['magic link', () => requestMagicLink('me@example.com')],
+      ['social', () => socialSignIn(credential)],
+    ])(
+      'reports the unrefreshable %s conversion instead of failing silently',
+      async (_label, run) => {
+        guestWithNoRefreshToken();
+        respond({
+          '/auth/magiclink': () => Promise.resolve({ data: {} }),
+          '/auth/social': () =>
+            Promise.resolve({
+              data: { tokens: realTokens, outcome: 'created' },
+            }),
+        });
+
+        await run();
+
+        expect(posthogClient.capture).toHaveBeenCalledWith(
+          'provisional_conversion_unrefreshable'
+        );
+      }
+    );
   });
 
   describe('isAuthenticated', () => {

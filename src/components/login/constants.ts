@@ -45,3 +45,13 @@ export const EMAIL_IN_USE_ERROR_MESSAGE =
 /** Ditto for the catch-all failure copy. */
 export const GENERIC_SEND_ERROR_MESSAGE =
   'Login link failed to send. Please try again.';
+
+/**
+ * Shown when the request never reached the server — an axios error with no
+ * response, and the aborted-conversion case (`ProvisionalRefreshUnavailable`),
+ * which is the same situation one hop earlier. Both are retryable and neither
+ * is the user's fault, so they say the same thing rather than each carrying a
+ * hand-typed near-duplicate.
+ */
+export const NETWORK_ERROR_MESSAGE =
+  'Network error. Please check your connection and try again.';

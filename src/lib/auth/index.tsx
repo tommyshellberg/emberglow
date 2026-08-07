@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
@@ -305,10 +306,32 @@ export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
 
 /**
- * Wipes the guest (provisional) session AND all local progress, then signs
- * out. With onboarding reset and auth signed out, the navigation resolver
- * routes to /onboarding/welcome by its normal rules — no navigation code
- * here, same sanctioned pattern as the no-hero screen's reset button.
+ * Whether a dead-session notice is already on screen awaiting acknowledgement.
+ *
+ * `refreshProvisionalTokens` is single-flight, so one 'dead' verdict is handed
+ * to every caller that joined the in-flight refresh. Without this, a gated
+ * guest tapping "Continue with Google" while a background provisional request
+ * 401s gets two stacked non-cancelable alerts, each wiping on acknowledge —
+ * the second against an already-signed-out store.
+ *
+ * Not a one-way latch: `wipeGuestSession` clears it, so a later dead session
+ * (a new guest, a new lapse) is still announced.
+ */
+let sessionEnding = false;
+
+/**
+ * Wipes the guest (provisional) session AND all local progress, signs out, and
+ * lands the user on /onboarding/welcome.
+ *
+ * The navigation is explicit rather than left to the resolver. Leaning on the
+ * resolver worked while the only callers were the `(app)` interceptors, but
+ * the conversion gate added call sites on `/quest-completed-signup` and
+ * `/login` — both members of PRE_ACCOUNT_ZONE, where
+ * `isAlreadyAtTarget('onboarding', …)` answers true and NavigationGate
+ * suppresses the redirect (`@/lib/navigation/is-already-at-target`). The user
+ * acknowledged an alert promising a fresh start, lost their character, and did
+ * not move. Every caller needs the exit, so the exit belongs here — the same
+ * conclusion `login-form.tsx`'s `discardHeroAndStartOver` reached separately.
  *
  * Deliberately no salvage: grafting saved local progress onto a freshly
  * provisioned account is the split-brain shape that produced the PR #364
@@ -317,8 +340,24 @@ export const hydrateAuth = async () => _useAuth.getState().hydrate();
  *
  * Device preferences (reminder times etc.) are intentionally left alone;
  * only identity and progress are wiped.
+ *
+ * Sibling key list: `hasProvisionalSession` in `./provisional-session` decides
+ * whether a guest session EXISTS from two of these four keys — deliberately
+ * not `provisionalRefreshToken` (conversion leaves it on disk on purpose) and
+ * not `provisionalEmail`.
+ *
+ * That invariant runs in one direction, and it does NOT run through this
+ * function: every key `hasProvisionalSession` reads must be cleared by BOTH
+ * conversion paths — `verifyMagicLink` and `socialSignIn` in `@/api/auth`.
+ * Add a key to the check that conversion does not clear and every converted
+ * user is walled behind the signup screen forever. Adding a `removeItem` here
+ * is harmless by comparison: this is the start-over wipe, not a conversion.
  */
 export const wipeGuestSession = () => {
+  // Cleared here rather than in the alert's handler so the re-arm is tied to
+  // the wipe actually running, not to a particular caller remembering to.
+  sessionEnding = false;
+
   removeItem('provisionalAccessToken');
   removeItem('provisionalRefreshToken');
   removeItem('provisionalUserId');
@@ -335,6 +374,8 @@ export const wipeGuestSession = () => {
 
   // Also clears the user store and detaches PostHog/RevenueCat/OneSignal.
   _useAuth.getState().signOut();
+
+  router.replace('/onboarding/welcome');
 };
 
 /**
@@ -352,6 +393,11 @@ export const wipeGuestSession = () => {
  * refreshProvisionalTokens' result contract.
  */
 export const endProvisionalSession = () => {
+  if (sessionEnding) {
+    return;
+  }
+  sessionEnding = true;
+
   Alert.alert(
     'Character Expired',
     'Sorry, but it looks like your temporary character expired — no worries, though, it only takes a couple of minutes to create a new one.',

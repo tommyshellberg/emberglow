@@ -92,6 +92,11 @@ const mockQuestState = {
   recentCompletedQuest: null as any,
   failedQuest: null as any,
   completedQuests: [] as any[],
+  // Priority 1's input. Absent from this object it read `undefined`, which is
+  // falsy and so behaved like `false` — the branch was reachable only by a
+  // test that added the field itself, and any test that did leaked it into
+  // every test after it (the resolver's first branch wins over all others).
+  shouldShowStreakCelebration: false,
   resetFailedQuest: jest.fn(),
   clearRecentCompletedQuest: jest.fn(),
 };
@@ -140,6 +145,7 @@ beforeEach(() => {
   mockQuestState.recentCompletedQuest = null;
   mockQuestState.failedQuest = null;
   mockQuestState.completedQuests = [];
+  mockQuestState.shouldShowStreakCelebration = false;
   mockQuestState.resetFailedQuest.mockClear();
   mockQuestState.clearRecentCompletedQuest.mockClear();
 
@@ -415,6 +421,77 @@ describe('Navigation State Resolver', () => {
     const { result } = renderHook(() => useNavigationTarget());
 
     expect(result.current).toEqual({ type: 'app' });
+  });
+
+  // Both arms of hasProvisionalSession's OR: a guest can be missing either
+  // half (the user id is written before the tokens), and covering only one
+  // let the other arm be deleted without a single test noticing.
+  it.each(['provisionalAccessToken', 'provisionalUserId'])(
+    'gates a provisional session out of the app and onto the signup screen when %s is on disk (leaked-guest conversion gate)',
+    (provisionalKey) => {
+      mockAuthState.status = 'signIn';
+      mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+      mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+      mockQuestState.completedQuests = [];
+      mockGetItem.mockImplementation((key: string) =>
+        key === provisionalKey ? 'prov-value' : null
+      );
+
+      const { result } = renderHook(() => useNavigationTarget());
+
+      expect(result.current).toEqual({ type: 'quest-completed-signup' });
+    }
+  );
+
+  // The gate replaces the "default to app" outcome and NOTHING above it. That
+  // promise lives only in a comment, and the comment cannot fail: hoisting the
+  // gate to the top of the ladder (population held identical) passes all 2120
+  // tests, while a gated veteran with a running quest silently loses the timer
+  // screen, every quest result, and streak celebration. These pin the rank.
+  describe('the gate outranks nothing above it', () => {
+    const gatedVeteran = () => {
+      mockAuthState.status = 'signIn';
+      mockOnboardingState.isOnboardingComplete.mockReturnValue(true);
+      mockOnboardingState.currentStep = OnboardingStep.COMPLETED;
+      mockQuestState.completedQuests = [];
+      mockGetItem.mockImplementation((key: string) =>
+        key === 'provisionalAccessToken' ? 'prov-value' : null
+      );
+    };
+
+    it('still shows a gated guest their running quest', () => {
+      gatedVeteran();
+      mockQuestState.pendingQuest = { id: 'quest-9' };
+
+      const { result } = renderHook(() => useNavigationTarget());
+
+      expect(result.current).toEqual({
+        type: 'pending-quest',
+        questId: 'quest-9',
+      });
+    });
+
+    it('still shows a gated guest the result of a quest they just failed', () => {
+      gatedVeteran();
+      mockQuestState.failedQuest = { id: 'quest-9' };
+
+      const { result } = renderHook(() => useNavigationTarget());
+
+      expect(result.current).toEqual({
+        type: 'quest-result',
+        questId: 'quest-9',
+        outcome: 'failed',
+      });
+    });
+
+    it('still shows a gated guest their streak celebration', () => {
+      gatedVeteran();
+      mockQuestState.shouldShowStreakCelebration = true;
+
+      const { result } = renderHook(() => useNavigationTarget());
+
+      expect(result.current).toEqual({ type: 'streak-celebration' });
+    });
   });
 
   it('updates navigation target when auth status changes from signOut to signIn', () => {

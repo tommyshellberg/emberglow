@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/lib/auth';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
@@ -191,9 +192,7 @@ export function useNavigationTarget(): NavigationTarget {
   // Provisional users hydrate with status 'signIn' (see auth hydrate()), so
   // authStatus alone can't identify the onboarding first-quest flow after an
   // app restart — check for a provisional session as well.
-  const hasProvisionalSession = !!(
-    getItem('provisionalUserId') || getItem('provisionalAccessToken')
-  );
+  const hasGuestSession = hasProvisionalSession();
   // A signed-in, non-provisional user can ALSO be mid-onboarding: a social
   // signup with no hero is routed back through it fully authenticated, and no
   // provisional session ever exists on that path. Any started-but-unfinished
@@ -202,7 +201,7 @@ export function useNavigationTarget(): NavigationTarget {
   const isInOnboardingFlow =
     !isOnboardingComplete &&
     (authStatus === 'signOut' ||
-      hasProvisionalSession ||
+      hasGuestSession ||
       currentStep !== OnboardingStep.NOT_STARTED);
 
   // Priority 1: Streak celebration (highest priority to show before quest complete)
@@ -315,7 +314,34 @@ export function useNavigationTarget(): NavigationTarget {
     return { type: 'login' };
   }
 
-  // Priority 5: Default to app
+  // Priority 5: Provisional-conversion gate. A guest session must never live
+  // in the main app: nothing ties the account to a person, so 30 days of
+  // inactivity kills the refresh token and orphans the character forever
+  // (there is no email to log back in with). Everything above this line —
+  // streak celebration, quest results, onboarding — behaves as normal; only
+  // the "default to app" outcome is replaced. Conversion clears the
+  // provisional keys, so the next pass falls through to 'app'.
+  //
+  // "The next pass" is worth being precise about, because `hasProvisionalSession`
+  // is a plain MMKV read with NO subscription behind it — clearing the keys
+  // does not by itself re-run this hook. What re-runs it is the conversion's
+  // other side effects: `completeSignIn` calls `useUserStore.setUser()` and
+  // `characterStore.updateCharacter()`, both selected on above, and
+  // NavigationGate re-renders on every `usePathname()`/`useSegments()` change.
+  //
+  // Known gap, accepted for now: if conversion SUCCEEDS but `getUserDetails()`
+  // then throws (network), `completeSignIn` swallows it and still resolves
+  // 'app' — but neither store was written, and auth `status` was already
+  // 'signIn', so on the social path nothing re-renders. The user sits on the
+  // wall holding a valid real account until they restart the app or tap again.
+  // Fixing that properly means a reactive MMKV subscription, which is a larger
+  // change than this branch should carry.
+  if (hasGuestSession) {
+    console.log('🧭 Provisional session in main app - gating to signup');
+    return { type: 'quest-completed-signup' };
+  }
+
+  // Priority 6: Default to app
   console.log('🧭 Default to app');
   return { type: 'app' };
 }

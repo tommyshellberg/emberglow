@@ -43,12 +43,27 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
  * `quest-completed-signup.tsx`'s "Create account" button hit this.
  *
  * So for these three the resolver's answer is read as a default rather than a
- * mandate. That is safe precisely here and nowhere else: this zone is the
- * resolver's LAST branch (Priority 3-4), reached only once streak celebration,
- * pending quests and quest results have all declined to claim the user. Those
- * higher-priority screens stay strictly matched below — they are consequences
- * of state the user cannot opt out of, and a running quest must still evict
- * someone sitting on `/login`.
+ * mandate. That is safe precisely here and nowhere else: every branch that can
+ * name one of these screens is a LATE one (Priorities 3-5), reached only once
+ * streak celebration, pending quests and quest results have all declined to
+ * claim the user. Those higher-priority screens stay strictly matched below —
+ * they are consequences of state the user cannot opt out of, and a running
+ * quest must still evict someone sitting on `/login`.
+ *
+ * `quest-completed-signup` now has TWO of those branches, which the original
+ * "Priority 3-4" phrasing did not contemplate: the onboarding one (Priority 3,
+ * step VIEWING_SIGNUP_PROMPT) and the provisional-conversion gate (Priority 5),
+ * which fires with onboarding COMPLETE. The conclusion is unchanged — Priority
+ * 5 is later still — but the premise is not "the last branch", it is "after
+ * everything the user cannot opt out of".
+ *
+ * Known hole, deliberately left open: `onboarding` is in this zone, so a gated
+ * guest who reaches `/onboarding` satisfies the gate and is not evicted from
+ * it. That is reachable via plain `/login` → "Create a hero" when `character`
+ * is null (`login-form.tsx` deliberately leaves stray keys alone). It is not a
+ * lock — re-running onboarding mints fresh provisional keys, and the gate
+ * catches them again on the way out — but the gate is described elsewhere as a
+ * "hard wall" and it is not one at this seam.
  *
  * Letting the user actually REACH `/login?intent=convert` exposes that the
  * `convert` framing withholds its way back on purpose (`copy.ts:105-110` — that
@@ -69,7 +84,7 @@ const PRE_ACCOUNT_ZONE: Partial<Record<ResolverOwnedSegment, true>> = {
 
 /**
  * Resolver-owned screens that ALSO have their own entry points, and so must
- * survive the Priority 5 'app' fall-through.
+ * survive the Priority 6 'app' fall-through.
  *
  * `RESOLVER_OWNED_SEGMENTS` encodes "only the resolver puts you here", which
  * lets target 'app' read any membership as a stale state-driven arrival and
@@ -136,7 +151,7 @@ export function isAlreadyAtTarget(
     case 'loading':
       return false;
 
-    // 'app' is the resolver's Priority 5 fall-through, returned whenever nothing
+    // 'app' is the resolver's Priority 6 fall-through, returned whenever nothing
     // special is happening. It is the ABSENCE of a destination, not a
     // destination: a reason to leave a screen the resolver owns, and no reason
     // to move anywhere else. Matching it against the (app) group instead would
