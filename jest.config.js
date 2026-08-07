@@ -10,8 +10,15 @@ module.exports = {
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
   // Ignore nested git worktrees (created under .worktrees/) so jest doesn't
   // scan their duplicate test files or collide on their haste module names.
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/'],
-  modulePathIgnorePatterns: ['<rootDir>/.worktrees/'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/.worktrees/',
+    '<rootDir>/.stryker-tmp/',
+  ],
+  modulePathIgnorePatterns: [
+    '<rootDir>/.worktrees/',
+    '<rootDir>/.stryker-tmp/',
+  ],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
