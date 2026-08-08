@@ -39,6 +39,8 @@
     "check-all": "pnpm run lint && pnpm run type-check && pnpm run lint:translations && pnpm run test",
     "test:ci": "pnpm run test --coverage",
     "test:watch": "pnpm run test --watch",
+    "test:mutate": "stryker run --mutate",
+    "test:mutate:audit": "stryker run",
     "install-maestro": "curl -Ls 'https://get.maestro.mobile.dev' | bash",
     "e2e": ".maestro/run-tests.sh",
     "e2e:onboarding": ".maestro/run-tests.sh onboarding",
