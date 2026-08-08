@@ -9,6 +9,14 @@ produced it.
 - Raw report: `reports/mutation/index.html` (2.1 MB — do not open it in an agent
   context; it has killed two sessions. Use `/tmp/mutation-report.json` with a targeted
   `node -e` / `jq` query instead.)
+- **`/tmp/mutation-report.json` is not reproducible.** It was hand-extracted from
+  `reports/mutation/index.html`'s embedded `app.report = {...}` JavaScript object
+  literal — open it with `node -e`, not a JSON parser, since it is a JS object literal,
+  not strict JSON. `stryker.config.mjs:19` sets `reporters: ['html', 'clear-text',
+  'progress']` with no `json` reporter, so simply re-running Stryker will **not**
+  regenerate this file. To get it back, either repeat that HTML-literal extraction
+  against a fresh `index.html`, or add `'json'` to the reporters array in
+  `stryker.config.mjs` before running.
 - Runtime: **30m38s**, 86.08 tests run per mutant on average.
 - **Do not re-run Stryker to re-read these numbers.** Everything is transcribed below.
 
@@ -157,14 +165,14 @@ checked:
 
 | Module | Survivors | Real gap | Equivalent | Don't care |
 | --- | ---: | ---: | ---: | ---: |
-| `quest-timer.ts` | 136 | 100 | 7 | 29 |
+| `quest-timer.ts` | 136 | 100 | 5 | 31 |
 | `revenuecat-service.ts` | 48 | 32 | 0 | 16 |
 | `scheduled-quests-store.ts` | 13 | 13 | 0 | 0 |
 | `settings-store.ts` | 17 | 13 | 0 | 4 |
 | `user-store.ts` | 16 | 8 | 0 | 8 |
-| **Total** | **230** | **166** | **7** | **57** |
+| **Total** | **230** | **166** | **5** | **59** |
 
-**166 + 7 + 57 = 230.** ✓ (Per-module: 136 + 48 + 13 + 17 + 16 = 230. ✓)
+**166 + 5 + 59 = 230.** ✓ (Per-module: 136 + 48 + 13 + 17 + 16 = 230. ✓)
 
 ### Classification rules used
 
@@ -174,7 +182,7 @@ So the next reader can check the judgement rather than trust it:
    behavior a user or an operator would notice. Default bucket.
 2. **Equivalent** — the mutant is semantically identical to the original *for every
    input the declared types permit*, so no test can ever kill it. Each one below carries
-   a one-line proof. "Hard to test" is never a reason to land here; only 7 of 230
+   a one-line proof. "Hard to test" is never a reason to land here; only 5 of 230
    qualified.
 3. **Don't care** — the mutated expression's entire observable effect is a
    `console.log` / `console.error` message, or a `__DEV__`-only affordance that is not
@@ -388,7 +396,7 @@ drive the PURCHASED and CANCELLED paths and simply throw the return value away.
 
 ---
 
-### 4.5 `src/lib/services/quest-timer.ts` — 136 survivors (100 real gap, 7 equivalent, 29 don't care)
+### 4.5 `src/lib/services/quest-timer.ts` — 136 survivors (100 real gap, 5 equivalent, 31 don't care)
 
 Existing test: `src/lib/services/quest-timer.test.ts` (517 lines, 13 tests). The two
 patterns that produce nearly all 136 survivors:
@@ -502,28 +510,35 @@ then assert (a) the template/start-time/run-id are restored, and (b)
 | --- | --- | --- | --- |
 | 1201 | `if (BackgroundService.isRunning())` → `true` | `BackgroundService.stop()` is called when no service is running | With `isRunning()` mocked false, assert `stop` is **not** called (the existing Android test only covers the `true` case) |
 
-#### Equivalent (7)
+#### Equivalent (5)
 
 Each of these is unkillable, with the proof:
 
 | Line | Mutation | Why no test can kill it |
 | --- | --- | --- |
-| 27 | `if (jsonString && typeof jsonString === 'string')` → `true` | For the declared type `string \| null \| undefined`: `JSON.parse(null)` coerces to `"null"` and returns `null` — the same value the original returns; `JSON.parse(undefined)` throws and the catch returns `null`. Identical return for every permitted input. |
 | 27 | sub-condition `typeof jsonString === 'string'` → `true` | Given the declared type, `jsonString && typeof jsonString === 'string'` is exactly `Boolean(jsonString)`. The `typeof` operand can only ever be redundant. |
-| 27 | `&&` → `\|\|` | Differs only for `''`, where the mutant enters the `try`, `JSON.parse('')` throws, and the catch returns `null` — the same value. |
 | 40 | `if (value && typeof value === 'string')` → `true` | `parseInt(null)` / `parseInt(undefined)` / `parseInt('')` all yield `NaN`, and the `!isNaN` check then returns `null` — identical to the original for every permitted input. |
 | 40 | `&&` → `\|\|` | Only `''` differs, and it reaches the same `NaN → null` result. |
 | 120 | `if (typeof store.setLiveActivityId === 'function')` → `true` | `useQuestStore` always defines `setLiveActivityId`, so the guard is always true. The `else` branch (a `console.warn`) is dead code. |
 | 278 | same guard in `prepareQuest` → `true` | Same reason. |
 
-The three `L27` / two `L40` entries also carry a design note: **the `typeof x === 'string'`
-operand in both helpers is unreachable defensive code** given the TypeScript signature.
-Deleting it is a better outcome than testing it.
+> **Reclassified from Equivalent to Don't care (see §4.5 Don't care table below):** the
+> full-condition mutant `if (jsonString && typeof jsonString === 'string')` → `true` at
+> L27, and the `&&` → `\|\|` mutant at L27. Neither is strictly equivalent — for input
+> `''` both mutants enter the `try` block, `JSON.parse('')` throws, and
+> `console.error('Failed to parse JSON from storage:')` fires, which the original never
+> does. The return value (`null`) is unchanged, so the only difference is a log line —
+> exactly the "don't care" rule, not equivalence.
 
-#### Don't care (29)
+The one `L27` / two `L40` entries above also carry a design note: **the
+`typeof x === 'string'` operand in both helpers is unreachable defensive code** given the
+TypeScript signature. Deleting it is a better outcome than testing it.
+
+#### Don't care (31)
 
 | Lines | Mutation | Why |
 | --- | --- | --- |
+| 27 (×2) | `if (jsonString && typeof jsonString === 'string')` → `true`; `&&` → `\|\|` | For `''`, both mutants enter the `try` block where `JSON.parse('')` throws and `console.error('Failed to parse JSON from storage:')` fires; the return value (`null`) is unchanged — log-only difference, reclassified from Equivalent (see note above the Equivalent table) |
 | 109 (×2), 110 (×2), 111 | `'[QuestTimer] Loaded quest data:'` → `""`, its payload object → `{}`, `!!this.questTemplate` flips, `this.questTemplate?.id` → non-optional | All inside one `console.log` |
 | 149 (×2), 175, 188, 197, 199, 200, 210 | Log messages and log payload objects in `prepareQuest` | Log-only |
 | 249, 250 | `catch` block of `createQuestRun` → `{}`; its message string → `""` | The catch body is a `console.error` plus a comment; the "continue anyway" behavior is the *absence* of a rethrow and is already covered |
@@ -542,9 +557,9 @@ session, ordered by risk — the damage a real bug in that code would do, weight
 convincingly the current tests pretend to cover it. Start at #1.
 
 Every item below is a **Real gap**. Nothing from the Equivalent or Don't-care buckets is
-worth work; if anything, four of the don't-care clusters argue for *deleting* code
-(the `user-store` rehydration `console.log`s, and the redundant `typeof x === 'string'`
-operands in `quest-timer`'s two parse helpers).
+worth work; if anything, two clusters argue for *deleting* code instead of testing it:
+the `user-store` rehydration `console.log`s (Don't care, §4.2) and the redundant
+`typeof x === 'string'` operands in `quest-timer`'s two parse helpers (Equivalent, §4.5).
 
 | # | Item | Why it ranks here |
 | --- | --- | --- |
@@ -575,10 +590,17 @@ operands in `quest-timer`'s two parse helpers).
 ### Re-running
 
 ```bash
-pnpm test:mutate:audit          # full sweep over the configured modules (~30 min)
-pnpm test:mutate -- <glob>      # single module
+pnpm test:mutate:audit               # full sweep over the configured modules (~30 min)
+pnpm test:mutate src/store/user-store.ts   # single module — pass the path directly,
+                                            # no `--` separator (pnpm does not strip it,
+                                            # so `-- <glob>` leaves `--mutate` without its
+                                            # value and misreads <glob> as a config file)
 ```
 
 Config: `stryker.config.mjs`. Do not add `inPlace: true`. When re-running after fixes,
 compare **covered score** module-by-module against §2 — the total score will move for
 reasons (new tests reaching new code) that have nothing to do with assertion quality.
+**`/tmp/mutation-report.json` will not reappear on its own** — see the note in the
+header above. If you want a fresh JSON dump, add `'json'` to the `reporters` array in
+`stryker.config.mjs` before running, or re-extract it from the new `index.html`'s
+embedded `app.report` object.
