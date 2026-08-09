@@ -522,6 +522,7 @@ function TimezoneModalList({
       {TIMEZONES.map((timezone) => (
         <ListItem
           key={timezone.value}
+          testID={`timezone-option-${timezone.value}`}
           title={timezone.label}
           trailing={
             selectedTimezone === timezone.value ? (
