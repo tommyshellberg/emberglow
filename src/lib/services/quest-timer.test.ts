@@ -277,7 +277,16 @@ describe('QuestTimer', () => {
     jest.clearAllMocks();
     // Fake timers make the 500 ms solo-start window advanceable, and stop a
     // stray timer from a locking test firing during a later one.
-    jest.useFakeTimers();
+    //
+    // `advanceTimers: true` matters for mutation runs, not for this suite:
+    // the cooperative lock-status retry ladder does
+    // `await new Promise(r => setTimeout(r, retryDelay))`, which only runs
+    // when the server call rejects. Under a plain fake clock nothing ever
+    // advances it, so any mutant that reaches that await hangs until Stryker's
+    // timeout — 70+ hangs took one audit from 50 minutes to over four hours.
+    // Letting the clock also track real time keeps those awaits resolving
+    // while advanceTimersByTime() still drives every assertion deterministically.
+    jest.useFakeTimers({ advanceTimers: true });
     resetQuestTimerStatics();
     mockQuestStore.activeQuest = null;
     mockQuestStore.cooperativeQuestRun = null;
