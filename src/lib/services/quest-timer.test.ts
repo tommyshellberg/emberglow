@@ -16,6 +16,7 @@ import {
   updatePhoneLockStatus,
 } from '@/lib/services/quest-run-service';
 import { removeItem, setItem } from '@/lib/storage';
+import { useUserStore } from '@/store/user-store';
 // Import the store for assertions
 // Import types
 import type {
@@ -168,6 +169,12 @@ const mockQuestStore = (
         setCooperativeQuestRun: jest.Mock;
         activeQuest: { id: string; startTime: number } | null;
         cooperativeQuestRun: { id: string; status: string } | null;
+        recentCompletedQuest: {
+          id: string;
+          questRunId?: string;
+          stopTime?: number;
+        } | null;
+        completedQuests: unknown[];
       };
     };
   }
@@ -247,6 +254,8 @@ describe('QuestTimer', () => {
     resetQuestTimerStatics();
     mockQuestStore.activeQuest = null;
     mockQuestStore.cooperativeQuestRun = null;
+    mockQuestStore.recentCompletedQuest = null;
+    mockQuestStore.completedQuests = [];
     BackgroundService.isRunning.mockReturnValue(false);
     // clearAllMocks only clears call records, not implementations. Re-establish
     // createQuestRun's default resolved value so a prior test's mockRejectedValue
@@ -254,6 +263,22 @@ describe('QuestTimer', () => {
     // reset between tests; M1's prepare-time reset removes that masking.)
     (createQuestRun as jest.Mock).mockResolvedValue({
       id: 'mock-quest-run-id',
+    });
+    // Same reason: tests that stage a 'pending' or 'failed' run would
+    // otherwise leak that status into every later cooperative test.
+    (getQuestRunStatus as jest.Mock).mockResolvedValue({
+      id: 'mock-quest-run-id',
+      status: 'active',
+      actualStartTime: Date.now(),
+      scheduledEndTime: Date.now() + 900000,
+    });
+    (updatePhoneLockStatus as jest.Mock).mockResolvedValue({
+      id: 'mock-quest-run-id',
+      status: 'active',
+      participants: [],
+    });
+    (useUserStore.getState as jest.Mock).mockReturnValue({
+      user: { id: 'test-user-id' },
     });
     // Clear the mock storage
     Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
@@ -456,14 +481,118 @@ describe('QuestTimer', () => {
         status: 'pending',
       };
       await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+      const activityId = readQuestTimerStatics().oneSignalActivityId;
+      (updatePhoneLockStatus as jest.Mock).mockClear();
 
       await QuestTimer.onPhoneLocked();
 
+      // The cooperative branch still reports the lock, and carries the live
+      // activity id so the server can dismiss the card.
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'coop-run-id',
+        true,
+        activityId
+      );
       // Only the cooperative branch polls the server for activation.
       expect(getQuestRunStatus).toHaveBeenCalledWith('coop-run-id');
       expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'coop-run-id', status: 'active' })
       );
+    });
+
+    it('starts a cooperative quest at the server-supplied start time', async () => {
+      const actualStartTime = 1_700_000_000_000;
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        status: 'active',
+        actualStartTime,
+        scheduledEndTime: actualStartTime + 900_000,
+      });
+      const template = storyQuest();
+      await QuestTimer.prepareQuest(template, 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+
+      // Falling back to Date.now() here would desynchronise this participant
+      // from everyone else in the run.
+      expect(mockQuestStore.startQuest).toHaveBeenCalledWith({
+        ...template,
+        startTime: actualStartTime,
+        status: 'active',
+      });
+    });
+
+    it('does not start a cooperative quest the server has not activated', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        status: 'pending',
+        actualStartTime: undefined,
+      });
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(500);
+
+      expect(mockQuestStore.startQuest).not.toHaveBeenCalled();
+      expect(mockQuestStore.setCooperativeQuestRun).not.toHaveBeenCalled();
+    });
+
+    it('fails the local quest when the server says the run already failed', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        status: 'failed',
+      });
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'coop-run-id', status: 'failed' })
+      );
+      expect(mockQuestStore.failQuest).toHaveBeenCalled();
+    });
+
+    it('does not restart a cooperative quest that is already active locally', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 1 };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(mockQuestStore.startQuest).not.toHaveBeenCalled();
+    });
+
+    it('updates the Android notification when a cooperative quest activates', async () => {
+      Platform.OS = 'android';
+      BackgroundService.isRunning.mockReturnValue(true);
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(BackgroundService.updateNotification).toHaveBeenCalledWith({
+        taskTitle: 'Quest in progress: Test Quest',
+        taskDesc: 'Keep your phone locked for 15 minutes to complete the quest',
+        progressBar: { max: 100, value: 0, indeterminate: false },
+      });
     });
 
     it('sends lock status through the solo path for a solo run', async () => {
@@ -578,12 +707,18 @@ describe('QuestTimer', () => {
       // static null the method is inert under every mutation of it, so such a
       // test asserts nothing. This one has a run id and a template, and only
       // the missing start time stops it — so inverting the guard is visible.
+      //
+      // activeQuest is staged so that the downstream `questStartTime &&
+      // questTemplate` guard is observable too: relaxing it to `||` would
+      // reach the fallback completion call below.
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
       await QuestTimer.prepareQuest(storyQuest());
       (updatePhoneLockStatus as jest.Mock).mockClear();
 
       await QuestTimer.onPhoneUnlocked();
 
       expect(mockQuestStore.failQuest).not.toHaveBeenCalled();
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
       expect(updatePhoneLockStatus).not.toHaveBeenCalled();
     });
 
@@ -649,6 +784,56 @@ describe('QuestTimer', () => {
         },
         { durationMinutes: 15, status: 'completed' }
       );
+    });
+
+    it('does not complete a quest the store is not actually running', async () => {
+      // The store moved on to a different quest. Completing on id mismatch
+      // would credit the wrong quest.
+      mockQuestStore.activeQuest = { id: 'some-other-quest', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('fetches participant rewards for a completed run', async () => {
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      mockQuestStore.recentCompletedQuest = {
+        id: 'test-quest-id',
+        questRunId: 'completed-run-id',
+        stopTime: 5,
+      };
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'completed-run-id',
+        status: 'completed',
+        participants: [{ userId: 'u1', rewards: { adjustedXP: 120 } }],
+      });
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      (getQuestRunStatus as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      // Skipping this leaves the results screen showing base XP rather than
+      // the server's adjusted, perk-applied numbers.
+      expect(getQuestRunStatus).toHaveBeenCalledWith('completed-run-id');
+    });
+
+    it('does not push a completed Live Activity on Android', async () => {
+      Platform.OS = 'android';
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.completeQuest).toHaveBeenCalledWith(true);
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
     });
 
     it('shows the failure notification on Android instead of a Live Activity', async () => {
@@ -832,6 +1017,53 @@ describe('QuestTimer', () => {
             { userId: 'user-b', ready: true, status: 'accepted' },
           ],
         })
+      );
+    });
+
+    it('prefers the server questId over the local template id', async () => {
+      // The fallback chain ends at `quest-${run.id}`. Getting the order wrong
+      // attaches the run to the wrong quest in the store.
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        questId: 'server-quest-id',
+        invitationId: 'invitation-1',
+        participants: [],
+      });
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ questId: 'server-quest-id' })
+      );
+    });
+
+    it('falls back to the nested quest id when the server sends no questId', async () => {
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        quest: { id: 'nested-quest-id' },
+        invitationId: 'invitation-1',
+        participants: [],
+      });
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ questId: 'nested-quest-id' })
+      );
+    });
+
+    it('records an empty host id when there is no signed-in user', async () => {
+      (useUserStore.getState as jest.Mock).mockReturnValue({ user: null });
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        invitationId: 'invitation-1',
+        participants: [],
+      });
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ hostId: '' })
       );
     });
 
