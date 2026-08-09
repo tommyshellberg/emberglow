@@ -30,9 +30,18 @@ const config = {
   htmlReporter: { fileName: 'reports/mutation/index.html' },
   jsonReporter: { fileName: 'reports/mutation/report.json' },
   concurrency: 12,
-  // jest-expo startup is ~1.7s for a single small file; the 5000ms default
-  // would flag slow-but-correct runs as timeouts.
-  timeoutMS: 60000,
+  // Overhead allowance on top of the measured dry-run time (Stryker adds
+  // timeoutFactor * dryRunTime itself). jest-expo startup is ~1.7s for a
+  // single small file, so 10s is already generous.
+  //
+  // Do NOT raise this back to 60s. quest-timer.test.ts runs on fake timers, so
+  // a mutant that reaches an `await new Promise(r => setTimeout(r, delay))`
+  // — the cooperative lock-status retry ladder — hangs rather than resolving.
+  // Those are real kills (the mutant that forces `retryCount < maxRetries`
+  // true is a genuine infinite loop), but at 60s each they took the audit from
+  // 50 minutes to over four hours. Report the TimedOut column alongside the
+  // score: Stryker counts timeouts as killed.
+  timeoutMS: 10000,
 };
 
 export default config;
