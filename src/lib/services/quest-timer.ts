@@ -24,7 +24,10 @@ import { useUserStore } from '@/store/user-store';
 // --- Linter Fix for Type Errors ---
 // Helper function to safely parse JSON from storage
 function parseJson<T>(jsonString: string | null | undefined): T | null {
-  if (jsonString && typeof jsonString === 'string') {
+  // No `typeof jsonString === 'string'` operand: the signature already
+  // guarantees it, so the check could only ever be redundant — an unkillable
+  // branch that no test can distinguish from its absence.
+  if (jsonString) {
     try {
       return JSON.parse(jsonString) as T;
     } catch (e) {
@@ -37,7 +40,7 @@ function parseJson<T>(jsonString: string | null | undefined): T | null {
 
 // Helper function to safely parse Int from storage
 function parseIntSafe(value: string | null | undefined): number | null {
-  if (value && typeof value === 'string') {
+  if (value) {
     const parsed = parseInt(value, 10);
     return !isNaN(parsed) ? parsed : null;
   }
@@ -116,14 +119,9 @@ export default class QuestTimer {
 
       // Update the store with the live activity ID if it exists
       if (this.oneSignalActivityId) {
-        const store = useQuestStore.getState();
-        if (typeof store.setLiveActivityId === 'function') {
-          store.setLiveActivityId(this.oneSignalActivityId);
-        } else {
-          console.warn(
-            'setLiveActivityId function not found in quest store state.'
-          );
-        }
+        // The store always defines setLiveActivityId, so the old
+        // `typeof … === 'function'` guard had a permanently dead else branch.
+        useQuestStore.getState().setLiveActivityId(this.oneSignalActivityId);
       }
     } catch (error) {
       console.error('Error loading quest data:', error);
@@ -274,10 +272,7 @@ export default class QuestTimer {
           attributes,
           pendingContent
         );
-        const store = useQuestStore.getState();
-        if (typeof store.setLiveActivityId === 'function') {
-          store.setLiveActivityId(this.oneSignalActivityId);
-        }
+        useQuestStore.getState().setLiveActivityId(this.oneSignalActivityId);
       } catch (error) {
         console.error(
           'Error starting pending OneSignal Live Activity (Default):',

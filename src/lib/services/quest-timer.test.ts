@@ -7,7 +7,12 @@ import { OneSignal } from 'react-native-onesignal';
 
 // Import mocked modules
 import {
+  areNotificationsEnabled,
+  clearAllNotifications,
+} from '@/lib/services/notifications';
+import {
   createQuestRun,
+  getQuestRunStatus,
   updatePhoneLockStatus,
 } from '@/lib/services/quest-run-service';
 import { removeItem, setItem } from '@/lib/storage';
@@ -15,6 +20,7 @@ import { removeItem, setItem } from '@/lib/storage';
 // Import types
 import type {
   CooperativeQuestTemplate,
+  CustomQuestTemplate,
   StoryQuestTemplate,
 } from '@/store/types';
 
@@ -79,6 +85,14 @@ jest.mock('@/lib/storage', () => ({
   }),
 }));
 
+// A single mutable object backs every getState() call, so a test can stage
+// store state by assigning to it (reset in beforeEach).
+//
+// `activeQuest` defaults to null, not to a quest. The solo-start path is
+// guarded by `if (!questStore.activeQuest && this.questTemplate)`, so a
+// non-null activeQuest fixture makes `startQuest` structurally unreachable —
+// the assertion would pass against an implementation that never starts a
+// quest at all. Tests that need an in-progress quest set it explicitly.
 jest.mock('@/store/quest-store', () => {
   const mockStore = {
     setLiveActivityId: jest.fn(),
@@ -87,16 +101,21 @@ jest.mock('@/store/quest-store', () => {
     failQuest: jest.fn(),
     resetActiveQuest: jest.fn(),
     setCooperativeQuestRun: jest.fn(),
-    activeQuest: {
-      id: 'test-quest-id',
-      startTime: 0,
-    },
-    cooperativeQuestRun: null,
+    reset: jest.fn(),
+    activeQuest: null as { id: string; startTime: number } | null,
+    pendingQuest: null,
+    recentCompletedQuest: null,
+    completedQuests: [] as unknown[],
+    failedQuests: [] as unknown[],
+    lastCompletedQuestTimestamp: 0,
+    cooperativeQuestRun: null as { id: string; status: string } | null,
   };
 
   return {
     useQuestStore: {
-      getState: jest.fn().mockReturnValue(mockStore),
+      getState: jest.fn(() => mockStore),
+      setState: jest.fn(),
+      __mockStore: mockStore,
     },
   };
 });
@@ -137,9 +156,98 @@ jest.mock('react-native-background-actions', () => ({
   },
 }));
 
+// Handle on the shared quest-store mock object so tests can stage store state.
+const mockQuestStore = (
+  jest.requireMock('@/store/quest-store') as {
+    useQuestStore: {
+      __mockStore: {
+        setLiveActivityId: jest.Mock;
+        startQuest: jest.Mock;
+        completeQuest: jest.Mock;
+        failQuest: jest.Mock;
+        setCooperativeQuestRun: jest.Mock;
+        activeQuest: { id: string; startTime: number } | null;
+        cooperativeQuestRun: { id: string; status: string } | null;
+      };
+    };
+  }
+).useQuestStore.__mockStore;
+
+const BackgroundService = jest.requireMock(
+  'react-native-background-actions'
+) as {
+  start: jest.Mock;
+  stop: jest.Mock;
+  isRunning: jest.Mock;
+  updateNotification: jest.Mock;
+};
+
+/**
+ * QuestTimer is a static class, so its fields survive between tests. Without
+ * this the suite is order-dependent: a leftover `isPhoneLocked = true` makes
+ * onPhoneLocked return early, and a leftover questTemplate keeps an "unlock
+ * with no quest" case from ever taking the early-return branch.
+ */
+function resetQuestTimerStatics() {
+  const timer = QuestTimer as unknown as {
+    isPhoneLocked: boolean;
+    questStartTime: number | null;
+    questTemplate: unknown;
+    oneSignalActivityId: string | null;
+    questRunId: string | null;
+  };
+  timer.isPhoneLocked = false;
+  timer.questStartTime = null;
+  timer.questTemplate = null;
+  timer.oneSignalActivityId = null;
+  timer.questRunId = null;
+}
+
+function readQuestTimerStatics() {
+  return QuestTimer as unknown as {
+    isPhoneLocked: boolean;
+    questStartTime: number | null;
+    oneSignalActivityId: string | null;
+  };
+}
+
+const storyQuest = (
+  overrides: Partial<StoryQuestTemplate> = {}
+): StoryQuestTemplate => ({
+  id: 'test-quest-id',
+  title: 'Test Quest',
+  durationMinutes: 15,
+  mode: 'story',
+  recap: 'Test quest recap',
+  poiSlug: 'test-poi',
+  story: 'Test story content',
+  options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
+  reward: { xp: 100 },
+  ...overrides,
+});
+
+const customQuest = (
+  overrides: Partial<CustomQuestTemplate> = {}
+): CustomQuestTemplate => ({
+  id: 'custom-quest-id',
+  title: 'Go for a walk',
+  durationMinutes: 20,
+  mode: 'custom',
+  category: 'fitness',
+  reward: { xp: 50 },
+  ...overrides,
+});
+
 describe('QuestTimer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Fake timers make the 500 ms solo-start window advanceable, and stop a
+    // stray timer from a locking test firing during a later one.
+    jest.useFakeTimers();
+    resetQuestTimerStatics();
+    mockQuestStore.activeQuest = null;
+    mockQuestStore.cooperativeQuestRun = null;
+    BackgroundService.isRunning.mockReturnValue(false);
     // clearAllMocks only clears call records, not implementations. Re-establish
     // createQuestRun's default resolved value so a prior test's mockRejectedValue
     // can't leak forward. (Previously masked by the static questRunId never being
@@ -151,6 +259,10 @@ describe('QuestTimer', () => {
     Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
     // Reset Platform.OS to ios for most tests
     Platform.OS = 'ios';
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('prepareQuest', () => {
@@ -320,15 +432,60 @@ describe('QuestTimer', () => {
       );
     });
 
-    it('should handle duplicate phone lock calls', async () => {
-      // Arrange
-      // @ts-ignore
-      QuestTimer.isPhoneLocked = true;
+    it('ignores a duplicate lock event', async () => {
+      // The old version of this test set isPhoneLocked by hand with no quest
+      // prepared, so it asserted nothing the guard at the top of the method
+      // was responsible for. Drive a real quest through instead, and check
+      // the second lock produces no side effects at all — including the
+      // storage reload, which is the only observable difference once the
+      // start-time check downstream also blocks a re-start.
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      jest.clearAllMocks();
 
-      // Act
       await QuestTimer.onPhoneLocked();
 
-      // Assert
+      expect(mockQuestStore.setLiveActivityId).not.toHaveBeenCalled();
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+
+    it('sends lock status through the cooperative path for a cooperative run', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+
+      await QuestTimer.onPhoneLocked();
+
+      // Only the cooperative branch polls the server for activation.
+      expect(getQuestRunStatus).toHaveBeenCalledWith('coop-run-id');
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'coop-run-id', status: 'active' })
+      );
+    });
+
+    it('sends lock status through the solo path for a solo run', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'mock-quest-run-id',
+        true,
+        expect.any(String)
+      );
+      expect(getQuestRunStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not send lock status when the server issued no run id', async () => {
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('server down'));
+      await QuestTimer.prepareQuest(storyQuest());
+      (updatePhoneLockStatus as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneLocked();
+
       expect(updatePhoneLockStatus).not.toHaveBeenCalled();
     });
   });
@@ -364,7 +521,6 @@ describe('QuestTimer', () => {
     it('should handle Android platform', async () => {
       // Arrange
       Platform.OS = 'android';
-      const BackgroundService = require('react-native-background-actions');
       BackgroundService.isRunning.mockReturnValue(true);
 
       // Act
@@ -373,63 +529,221 @@ describe('QuestTimer', () => {
       // Assert
       expect(BackgroundService.stop).toHaveBeenCalled();
     });
+
+    it('does not stop a background service that is not running', async () => {
+      // The guard's other direction. Without this, `if (isRunning())` can be
+      // forced true and only the case above is exercised.
+      BackgroundService.isRunning.mockReturnValue(false);
+
+      await QuestTimer.stopQuest();
+
+      expect(BackgroundService.stop).not.toHaveBeenCalled();
+    });
   });
 
   describe('onPhoneUnlocked', () => {
-    it('marks quest as failed locally when phone is unlocked during quest', async () => {
-      // This test is checking that QuestTimer can handle phone unlock events
-      // The actual logic of failing quests is complex and depends on timing
-      // For now, let's just verify the basic flow works without errors
+    // These previously asserted only `resolves.not.toThrow()`. An empty method
+    // body also does not throw, which is why the whole of onPhoneUnlocked could
+    // be deleted with the suite still green. Assert the outcome instead.
 
-      const mockQuestTemplate: StoryQuestTemplate = {
-        id: 'test-quest-id',
-        title: 'Test Quest',
-        durationMinutes: 15,
-        mode: 'story',
-        recap: 'Test quest recap',
-        poiSlug: 'test-poi',
-        story: 'Test story content',
-        options: [{ id: 'option1', text: 'Option 1', nextQuestId: null }],
-        reward: { xp: 100 },
-      };
+    it('fails the quest when the phone is unlocked before the duration elapses', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
 
-      // Prepare quest first
-      await QuestTimer.prepareQuest(mockQuestTemplate);
+      await QuestTimer.onPhoneUnlocked();
 
-      // Act - call onPhoneUnlocked
-      await expect(QuestTimer.onPhoneUnlocked()).resolves.not.toThrow();
-
-      // The test passes if no errors are thrown
-      // More detailed testing would require mocking the internal timer state
+      expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
     });
 
-    it('handles cooperative quest unlock differently than single-player', async () => {
-      // This test verifies that cooperative quests can be handled without errors
-      // The actual cooperative quest logic is complex and would need more setup
+    it('tells the server the phone is unlocked and tears the run down', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      (updatePhoneLockStatus as jest.Mock).mockClear();
 
-      const mockQuestTemplate: StoryQuestTemplate = {
-        id: 'test-quest-id',
-        title: 'Cooperative Quest',
-        durationMinutes: 5,
-        mode: 'story',
-        category: 'cooperative',
-        recap: 'Test cooperative quest',
-        poiSlug: 'test-poi',
-        story: 'Test story content',
-        options: [],
-        reward: { xp: 100 },
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'mock-quest-run-id',
+        false
+      );
+      // stopQuest() runs as part of the failure path.
+      expect(removeItem).toHaveBeenCalledWith('QUEST_RUN_ID');
+      expect(removeItem).toHaveBeenCalledWith('QUEST_TIMER_START_TIME');
+    });
+
+    it('does nothing when a quest is prepared but never locked', async () => {
+      // The start-time arm of the early-return condition. Note there is
+      // deliberately no "nothing prepared at all" companion test: with every
+      // static null the method is inert under every mutation of it, so such a
+      // test asserts nothing. This one has a run id and a template, and only
+      // the missing start time stops it — so inverting the guard is visible.
+      await QuestTimer.prepareQuest(storyQuest());
+      (updatePhoneLockStatus as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.failQuest).not.toHaveBeenCalled();
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
+    });
+
+    it('clears the locked flag so the next lock is processed', async () => {
+      // stopQuest() does not reset isPhoneLocked — only onPhoneUnlocked does.
+      // If that assignment is dropped, the duplicate-lock guard swallows every
+      // subsequent lock and no further quest can ever start.
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      await QuestTimer.onPhoneUnlocked();
+
+      await QuestTimer.prepareQuest(storyQuest());
+      (updatePhoneLockStatus as jest.Mock).mockClear();
+      await QuestTimer.onPhoneLocked();
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'mock-quest-run-id',
+        true,
+        expect.any(String)
+      );
+    });
+
+    it('does not push a failed Live Activity for a cooperative quest', async () => {
+      // The single-player branch flips the card to "Quest Failed"; the
+      // cooperative branch leaves it to the server. This is the actual
+      // difference the test name has always claimed.
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'cooperative-quest-run-id',
+        status: 'active',
       };
-
-      // For cooperative quests, we need to provide a quest run ID
       await QuestTimer.prepareQuest(
-        mockQuestTemplate,
+        storyQuest({ durationMinutes: 5 }),
         'cooperative-quest-run-id'
       );
+      await QuestTimer.onPhoneLocked();
+      (OneSignal.LiveActivities.startDefault as jest.Mock).mockClear();
 
-      // Act - call onPhoneUnlocked
-      await expect(QuestTimer.onPhoneUnlocked()).resolves.not.toThrow();
+      await QuestTimer.onPhoneUnlocked();
 
-      // The test passes if no errors are thrown
+      expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+
+    it('completes the quest when the phone is unlocked after the duration', async () => {
+      // The other side of the elapsed-time comparison. Without it the
+      // `>=` boundary and the whole completion arm are unasserted, and a
+      // flipped comparison would fail every quest the user actually finished.
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      (OneSignal.LiveActivities.startDefault as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.completeQuest).toHaveBeenCalledWith(true);
+      expect(mockQuestStore.failQuest).not.toHaveBeenCalled();
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        expect.any(String),
+        {
+          title: 'Quest Complete',
+          description: 'Congratulations on finishing your quest!',
+        },
+        { durationMinutes: 15, status: 'completed' }
+      );
+    });
+
+    it('shows the failure notification on Android instead of a Live Activity', async () => {
+      Platform.OS = 'android';
+      BackgroundService.isRunning.mockReturnValue(true);
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      BackgroundService.updateNotification.mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(BackgroundService.updateNotification).toHaveBeenCalledWith({
+        taskTitle: 'Quest Failed',
+        taskDesc: 'You unlocked your phone. Try again next time!',
+        progressBar: { max: 100, value: 0, indeterminate: false },
+      });
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+
+    it('flips the Live Activity to failed for a single-player quest', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      const activityId = readQuestTimerStatics().oneSignalActivityId;
+      (OneSignal.LiveActivities.startDefault as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        activityId,
+        { title: 'Quest Failed', description: 'Try again next time' },
+        { durationMinutes: 15, status: 'failed' }
+      );
+    });
+  });
+
+  describe('solo quest start', () => {
+    it('starts the quest in the store 500 ms after the phone is locked', async () => {
+      const template = storyQuest();
+      await QuestTimer.prepareQuest(template);
+
+      await QuestTimer.onPhoneLocked();
+      // The delay is deliberate — assert it has not started yet, so a mutant
+      // that starts the quest synchronously is also caught.
+      expect(mockQuestStore.startQuest).not.toHaveBeenCalled();
+      const startTime = readQuestTimerStatics().questStartTime;
+
+      jest.advanceTimersByTime(500);
+
+      expect(mockQuestStore.startQuest).toHaveBeenCalledWith({
+        ...template,
+        startTime,
+        status: 'active',
+      });
+    });
+
+    it('does not start the quest if the phone was unlocked inside the window', async () => {
+      // Server unreachable at prepare, so there is no run id. onPhoneUnlocked
+      // then clears isPhoneLocked and early-returns without tearing down the
+      // template — which is what isolates the in-callback lock check.
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('server down'));
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      await QuestTimer.onPhoneUnlocked();
+
+      jest.advanceTimersByTime(500);
+
+      expect(mockQuestStore.startQuest).not.toHaveBeenCalled();
+    });
+
+    it('does not start a second quest when one is already active', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      // The store gained an active quest during the 500 ms window (e.g. a
+      // restored session). The timer must stand down.
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 1 };
+
+      jest.advanceTimersByTime(500);
+
+      expect(mockQuestStore.startQuest).not.toHaveBeenCalled();
+    });
+
+    it('does not double-start a cooperative quest via the solo timer', async () => {
+      // The cooperative branch starts the quest itself once the server reports
+      // it active. If the solo/cooperative discriminator flips, the 500 ms
+      // timer starts it a second time.
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'cooperative-quest-run-id',
+        status: 'active',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'cooperative-quest-run-id');
+
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(500);
+
+      expect(mockQuestStore.startQuest).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -472,46 +786,326 @@ describe('QuestTimer', () => {
         'existing-coop-run-id'
       );
     });
+
+    // The discriminator is `mode === 'cooperative' || (mode === 'custom' &&
+    // category === 'cooperative')`. Flipping that `&&` to `||` makes EVERY
+    // custom quest throw. Both arms need a test or the operator is free.
+    it('creates a solo run for a custom quest in a non-cooperative category', async () => {
+      await QuestTimer.prepareQuest(customQuest({ category: 'fitness' }));
+
+      expect(createQuestRun).toHaveBeenCalledTimes(1);
+      expect(setItem).toHaveBeenCalledWith('QUEST_RUN_ID', 'mock-quest-run-id');
+    });
+
+    it('throws for a cooperative custom quest with no run id', async () => {
+      await expect(
+        QuestTimer.prepareQuest(customQuest({ category: 'cooperative' }))
+      ).rejects.toThrow(
+        'Cooperative quest must have an existing quest run ID from server'
+      );
+      expect(createQuestRun).not.toHaveBeenCalled();
+    });
+
+    it('stores cooperative run data when the server returns an invitation', async () => {
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        invitationId: 'invitation-1',
+        // The server sends participants as bare ids or as objects; both must
+        // normalise to the object shape.
+        participants: [
+          'user-a',
+          { userId: 'user-b', ready: true, status: 'accepted' },
+        ],
+      });
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'coop-run-id',
+          questId: 'test-quest-id',
+          hostId: 'test-user-id',
+          status: 'pending',
+          invitationId: 'invitation-1',
+          participants: [
+            { userId: 'user-a', ready: false, status: 'pending' },
+            { userId: 'user-b', ready: true, status: 'accepted' },
+          ],
+        })
+      );
+    });
+
+    it('does not store cooperative run data when participants are missing', async () => {
+      // Both fields are required. With `||` in place of `&&`, a solo run that
+      // happens to carry an invitationId would be promoted to cooperative.
+      (createQuestRun as jest.Mock).mockResolvedValue({
+        id: 'run-id',
+        invitationId: 'invitation-1',
+      });
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).not.toHaveBeenCalled();
+    });
+
+    it('does not store cooperative run data for a solo run', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(mockQuestStore.setCooperativeQuestRun).not.toHaveBeenCalled();
+    });
   });
 
-  describe('Android platform specific tests', () => {
+  describe('notification hygiene at prepare', () => {
+    it('clears stale notifications when notifications are enabled', async () => {
+      (areNotificationsEnabled as jest.Mock).mockResolvedValue(true);
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(clearAllNotifications).toHaveBeenCalled();
+    });
+
+    it('does not clear notifications when the user has them disabled', async () => {
+      (areNotificationsEnabled as jest.Mock).mockResolvedValue(false);
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(clearAllNotifications).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Live Activity payloads', () => {
+    it('starts the pending card with the ready copy and duration', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        expect.any(String),
+        {
+          title: 'Quest Ready',
+          description: 'Lock your phone to begin your quest',
+        },
+        { durationMinutes: 15, status: 'pending' }
+      );
+    });
+
+    it('publishes the minted activity id to the quest store', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+
+      const mintedId = (OneSignal.LiveActivities.startDefault as jest.Mock).mock
+        .calls[0][0];
+      expect(mockQuestStore.setLiveActivityId).toHaveBeenCalledWith(mintedId);
+    });
+
+    it('reuses the prepare-time id and flips the card to active on lock', async () => {
+      // Minting a second id here is the H1 defect: the server's stale-activity
+      // sweep would dismiss the card belonging to the running quest.
+      await QuestTimer.prepareQuest(storyQuest());
+      const preparedId = (OneSignal.LiveActivities.startDefault as jest.Mock)
+        .mock.calls[0][0];
+
+      await QuestTimer.onPhoneLocked();
+
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenLastCalledWith(
+        preparedId,
+        { title: 'Test Quest', description: 'Focus on your quest' },
+        { durationMinutes: 15, status: 'active' }
+      );
+    });
+
+    it('does not touch Live Activities on Android', async () => {
+      Platform.OS = 'android';
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+      // H2 registration is iOS-only — there is no card to register. Asserted
+      // as "not called at all" rather than by argument shape, because
+      // expect.anything() does not match null: a `not.toHaveBeenCalledWith(
+      // expect.anything(), false, expect.anything())` assertion still passes
+      // against an actual call of (runId, false, null).
+      expect(updatePhoneLockStatus).not.toHaveBeenCalled();
+
+      // The lock-time card update is iOS-only too.
+      await QuestTimer.onPhoneLocked();
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Android background service', () => {
     beforeEach(() => {
       Platform.OS = 'android';
     });
 
-    it('should use BackgroundService for Android', async () => {
-      // Arrange
-      const BackgroundService = require('react-native-background-actions');
-      const mockQuestTemplate: StoryQuestTemplate = {
-        id: 'test-quest-id',
-        title: 'Test Quest',
-        durationMinutes: 15,
-        mode: 'story',
-        recap: 'Test quest recap',
-        poiSlug: 'test-poi',
-        story: 'Test story content',
-        options: [],
-        reward: { xp: 100 },
-      };
+    it('starts the foreground service with a declared type and icon', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
 
-      // Act
-      await QuestTimer.prepareQuest(mockQuestTemplate);
-
-      // Assert
+      // Asserted as a whole object, not objectContaining: dropping
+      // foregroundServiceType kills the service on Android 14+, and an
+      // objectContaining assertion would not notice.
       expect(BackgroundService.start).toHaveBeenCalledWith(
         expect.any(Function),
-        expect.objectContaining({
+        {
           taskName: 'QuestTimer',
           taskTitle: 'Quest Ready',
           taskDesc: 'Lock your phone to begin your quest',
-          parameters: expect.objectContaining({
+          taskIcon: { name: 'ic_launcher', type: 'mipmap' },
+          color: '#77c5bf',
+          foregroundServiceType: ['specialUse'],
+          progressBar: { max: 100, value: 0, indeterminate: true },
+          parameters: {
             questDuration: 900000, // 15 * 60 * 1000
             questTitle: 'Test Quest',
+            questDescription: 'Test quest recap',
             questId: 'test-quest-id',
+          },
+        }
+      );
+    });
+
+    it('falls back to the title when the template has no recap', async () => {
+      await QuestTimer.prepareQuest(customQuest({ title: 'Go for a walk' }));
+
+      expect(BackgroundService.start).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            questDescription: 'Go for a walk',
           }),
         })
       );
-      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+
+    it('falls back to generic copy when the recap is empty', async () => {
+      await QuestTimer.prepareQuest(storyQuest({ recap: '' }));
+
+      expect(BackgroundService.start).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            questDescription: 'Focus on your quest',
+          }),
+        })
+      );
+    });
+
+    it('updates the notification on lock when the service is running', async () => {
+      BackgroundService.isRunning.mockReturnValue(true);
+
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+
+      expect(BackgroundService.updateNotification).toHaveBeenCalledWith({
+        taskTitle: 'Quest in progress: Test Quest',
+        taskDesc: 'Keep your phone locked for 15 minutes to complete the quest',
+        progressBar: { max: 100, value: 0, indeterminate: false },
+      });
+    });
+
+    it('does not update the notification when no service is running', async () => {
+      BackgroundService.isRunning.mockReturnValue(false);
+
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+
+      expect(BackgroundService.updateNotification).not.toHaveBeenCalled();
+    });
+
+    it('does not update the notification on iOS', async () => {
+      Platform.OS = 'ios';
+      BackgroundService.isRunning.mockReturnValue(true);
+
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+
+      expect(BackgroundService.updateNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('persistence round-trip', () => {
+    it('writes every quest key when the phone locks', async () => {
+      const template = storyQuest();
+      await QuestTimer.prepareQuest(template);
+
+      await QuestTimer.onPhoneLocked();
+
+      const { questStartTime, oneSignalActivityId } = readQuestTimerStatics();
+      expect(setItem).toHaveBeenCalledWith(
+        'QUEST_TIMER_TEMPLATE',
+        JSON.stringify(template)
+      );
+      expect(setItem).toHaveBeenCalledWith(
+        'QUEST_TIMER_START_TIME',
+        String(questStartTime)
+      );
+      expect(setItem).toHaveBeenCalledWith(
+        'ONESIGNAL_ACTIVITY_ID',
+        oneSignalActivityId
+      );
+      expect(setItem).toHaveBeenCalledWith('QUEST_RUN_ID', 'mock-quest-run-id');
+    });
+
+    it('clears the stored ids when there is no card and no run', async () => {
+      // Android mints no Live Activity; a failed createQuestRun leaves no run
+      // id. Both stale keys must be removed or a new quest attaches to a dead
+      // run / an undismissable card.
+      Platform.OS = 'android';
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('server down'));
+
+      await QuestTimer.prepareQuest(storyQuest());
+
+      expect(removeItem).toHaveBeenCalledWith('ONESIGNAL_ACTIVITY_ID');
+      expect(removeItem).toHaveBeenCalledWith('QUEST_RUN_ID');
+      expect(setItem).not.toHaveBeenCalledWith(
+        'QUEST_RUN_ID',
+        expect.anything()
+      );
+    });
+
+    it('restores a running quest from storage after an app restart', async () => {
+      // Every static is null here (fresh process). Everything the unlock path
+      // needs — run id, start time, template — has to come back out of
+      // storage, so this one assertion covers the whole read path.
+      const template = storyQuest();
+      mockStorage['QUEST_TIMER_TEMPLATE'] = JSON.stringify(template);
+      mockStorage['QUEST_TIMER_START_TIME'] = String(Date.now() - 60_000);
+      mockStorage['ONESIGNAL_ACTIVITY_ID'] = 'restored-activity-id';
+      mockStorage['QUEST_RUN_ID'] = 'restored-run-id';
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.setLiveActivityId).toHaveBeenCalledWith(
+        'restored-activity-id'
+      );
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        'restored-run-id',
+        false
+      );
+      expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not push a null activity id into the store on restore', async () => {
+      // Android has no Live Activity, so nothing is stored under that key.
+      // Publishing null would clear the store's handle rather than leave it.
+      mockStorage['QUEST_TIMER_TEMPLATE'] = JSON.stringify(storyQuest());
+      mockStorage['QUEST_TIMER_START_TIME'] = String(Date.now() - 60_000);
+      mockStorage['QUEST_RUN_ID'] = 'restored-run-id';
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.setLiveActivityId).not.toHaveBeenCalled();
+    });
+
+    it('does not restamp the start time when a lock event repeats', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      const firstStart = readQuestTimerStatics().questStartTime;
+
+      // Screen off → on → off without the quest ever being unlocked. Clearing
+      // the duplicate-lock flag is what a real second lock event does.
+      readQuestTimerStatics().isPhoneLocked = false;
+      jest.advanceTimersByTime(60_000);
+      await QuestTimer.onPhoneLocked();
+
+      expect(readQuestTimerStatics().questStartTime).toBe(firstStart);
     });
   });
 });
