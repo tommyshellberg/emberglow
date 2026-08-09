@@ -473,6 +473,197 @@ describe('RevenueCatService remaining public surface', () => {
   });
 });
 
+describe('RevenueCatService.presentPaywall result handling', () => {
+  let service: RevenueCatService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+    // A fresh instance per test. The configuration-error branch below latches
+    // `testModeEnabled` on the instance, and every later paywall call on that
+    // instance would then take the simulated-purchase shortcut.
+    service = freshService();
+    service.initialize();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('reports success and refreshes entitlements when the purchase was restored', async () => {
+    mockPresentPaywall.mockResolvedValue('RESTORED');
+    (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({});
+
+    await expect(service.presentPaywall('settings')).resolves.toBe(true);
+
+    expect(Purchases.getCustomerInfo).toHaveBeenCalled();
+    expect(posthogClient.capture).toHaveBeenCalledWith(
+      'restore_purchases_succeeded',
+      { source: 'settings', method: 'paywall' }
+    );
+  });
+
+  it('reports failure when the paywall was never shown', async () => {
+    mockPresentPaywall.mockResolvedValue('NOT_PRESENTED');
+
+    await expect(service.presentPaywall('settings')).resolves.toBe(false);
+    expect(Purchases.getCustomerInfo).not.toHaveBeenCalled();
+  });
+
+  it('reports failure for a result the switch does not recognise', async () => {
+    // A newer SDK adding a result value must not read as a purchase.
+    mockPresentPaywall.mockResolvedValue('SOME_FUTURE_RESULT');
+
+    await expect(service.presentPaywall('settings')).resolves.toBe(false);
+    expect(Purchases.getCustomerInfo).not.toHaveBeenCalled();
+  });
+
+  it('simulates a purchase once test mode is on, without showing a paywall', async () => {
+    jest.useFakeTimers();
+    try {
+      service.enableTestMode();
+
+      const pending = service.presentPaywall('settings');
+      await jest.advanceTimersByTimeAsync(1500);
+
+      await expect(pending).resolves.toBe(true);
+      expect(mockPresentPaywall).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('RevenueCatService.presentPaywall failure handling', () => {
+  const originalDev = __DEV__;
+  let service: RevenueCatService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+    service = freshService();
+    service.initialize();
+  });
+
+  afterEach(() => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  /**
+   * Rejects the first paywall call and resolves 'CANCELLED' on any later one.
+   *
+   * The retry is recursive: the catch block sets test mode and calls
+   * presentPaywall again. Rejecting every time would make the recursion
+   * unbounded whenever test mode fails to be set, so the test would hang
+   * rather than fail. Resolving the second call turns the same defect into a
+   * plain wrong return value.
+   */
+  function failOnceThenCancel(error: unknown) {
+    mockPresentPaywall
+      .mockReset()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValue('CANCELLED');
+  }
+
+  it('falls back to a simulated purchase when development is misconfigured', async () => {
+    jest.useFakeTimers();
+    failOnceThenCancel(new Error('No offerings found for this app'));
+
+    const pending = service.presentPaywall('settings');
+    await jest.advanceTimersByTimeAsync(1500);
+
+    await expect(pending).resolves.toBe(true);
+    // The retry takes the test-mode shortcut, so the SDK is not asked twice.
+    expect(mockPresentPaywall).toHaveBeenCalledTimes(1);
+    expect(posthogClient.capture).not.toHaveBeenCalledWith(
+      'purchase_failed',
+      expect.anything()
+    );
+  });
+
+  it('recognises a missing bundle ID as the same misconfiguration', async () => {
+    jest.useFakeTimers();
+    failOnceThenCancel(new Error('Bundle ID does not match'));
+
+    const pending = service.presentPaywall('settings');
+    await jest.advanceTimersByTimeAsync(1500);
+
+    await expect(pending).resolves.toBe(true);
+  });
+
+  it('recognises the native configuration-error code', async () => {
+    // iOS reports it here rather than on error.message.
+    jest.useFakeTimers();
+    failOnceThenCancel(
+      Object.assign(new Error('unhelpful'), {
+        userInfo: { readable_error_code: 'CONFIGURATION_ERROR' },
+      })
+    );
+
+    const pending = service.presentPaywall('settings');
+    await jest.advanceTimersByTimeAsync(1500);
+
+    await expect(pending).resolves.toBe(true);
+  });
+
+  it('reports a store failure rather than pretending the purchase worked', async () => {
+    failOnceThenCancel(
+      Object.assign(new Error('store blew up'), { code: 'STORE_PROBLEM' })
+    );
+
+    await expect(service.presentPaywall('settings')).rejects.toThrow(
+      'store blew up'
+    );
+    expect(mockPresentPaywall).toHaveBeenCalledTimes(1);
+    expect(posthogClient.capture).toHaveBeenCalledWith('purchase_failed', {
+      source: 'settings',
+      method: 'paywall',
+      error_code: 'STORE_PROBLEM',
+    });
+  });
+
+  it('reports the message when the failure carries no code', async () => {
+    failOnceThenCancel(new Error('offerings unavailable'));
+
+    await expect(service.presentPaywall('settings')).rejects.toThrow(
+      'offerings unavailable'
+    );
+    expect(posthogClient.capture).toHaveBeenCalledWith('purchase_failed', {
+      source: 'settings',
+      method: 'paywall',
+      error_code: 'offerings unavailable',
+    });
+  });
+
+  it('never enables test mode in a production build', async () => {
+    // The same misconfiguration that unlocks premium for free in development
+    // must reach the user as a failure once __DEV__ is off.
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    failOnceThenCancel(new Error('No offerings found for this app'));
+
+    await expect(service.presentPaywall('settings')).rejects.toThrow(
+      'No offerings found'
+    );
+    expect(posthogClient.capture).toHaveBeenCalledWith('purchase_failed', {
+      source: 'settings',
+      method: 'paywall',
+      error_code: 'No offerings found for this app',
+    });
+  });
+
+  it('survives a rejection with no error object', async () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    failOnceThenCancel(undefined);
+
+    await expect(service.presentPaywall('settings')).rejects.toBeUndefined();
+    expect(posthogClient.capture).toHaveBeenCalledWith('purchase_failed', {
+      source: 'settings',
+      method: 'paywall',
+      error_code: 'unknown',
+    });
+  });
+});
+
 describe('RevenueCatService error propagation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
