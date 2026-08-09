@@ -714,3 +714,73 @@ a kill.
 `{ advanceTimers: true }` was tried on the quest-timer fake clock to stop the
 hangs. It does not work — the loops are in production code, not the clock — and
 it introduces nondeterminism under parallel load. Reverted; do not retry it.
+
+---
+
+## 7. `backgroundTask` — 2026-08-09, second pass
+
+`quest-timer.ts` L926–1197 was the single largest untested region left in the
+audit set: **~180 no-coverage mutants in one function**, and the function is the
+loop that actually runs a quest while the phone is locked — elapsed-time maths,
+the progress notification, completion detection, teardown. No test had executed
+a line of it.
+
+### How to test it at all
+
+`BackgroundService.start` is mocked, so the task is never invoked. The tests
+pull it back off the mock:
+
+```ts
+const backgroundTask = BackgroundService.start.mock.calls[0][0];
+await backgroundTask(taskData);
+```
+
+The loop is `while (BackgroundService.isRunning())`, so `isRunning` is the exit
+control. **Every test must either drive the loop to an explicit `break` or flip
+`isRunning` false.** Otherwise the loop's
+`await new Promise(r => setTimeout(r, updateInterval))` never resolves under
+fake timers and the test hangs rather than failing. For a test that needs
+exactly one iteration:
+
+```ts
+let iterations = 0;
+BackgroundService.isRunning.mockImplementation(() => iterations++ < 1);
+const running = backgroundTask(taskDataFor(15));
+await jest.advanceTimersByTimeAsync(9000); // the loop's update interval
+await running;
+```
+
+Covered: the no-task-data guard, elapsed-progress maths, completion at the
+duration boundary (Live Activity + teardown), the Android-only completion
+notification, unlock detection, the stuck-in-pending cooperative completion, and
+both cooperative server-activation outcomes.
+
+Progress is asserted at **50%**, deliberately — 0 and 100 are both values that
+several mutants of the percentage expression also produce, so asserting at
+either end would have been vacuous.
+
+### Verified by mutation, not by a green run
+
+| Mutation | Tests failed (was 0 for all) |
+| --- | --- |
+| `backgroundTask` body emptied | 7 |
+| progress percentage `* 100` → `* 0` | 2 |
+| completion boundary `>=` → `>` | 4 |
+| `if (!taskData) return` disabled | 1 |
+
+### Re-measuring quest-timer is now impractical, and that is the finding
+
+A single-module `--mutate src/lib/services/quest-timer.ts` run reached only
+306/747 mutants in 84 minutes, with **75 timeouts** and slowing. Covering a
+`while` loop whose exit condition is a mock means every mutant that removes the
+`break`, or keeps the exit condition true, is a **genuine infinite loop** —
+correctly killed, but each one costs the full timeout, and the hung workers
+appear to starve the remaining ones.
+
+So the scores in §6 remain the last trustworthy measured figures. The
+`backgroundTask` work above is verified by the targeted mutations in the table,
+not by a fresh score.
+
+If a full number is wanted later, budget hours rather than minutes, and expect
+a large TimedOut column that Stryker will count as kills. Do not read the
+resulting score as comparable to §6 without subtracting the timeouts.
