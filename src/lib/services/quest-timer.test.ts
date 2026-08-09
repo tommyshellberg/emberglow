@@ -562,6 +562,50 @@ describe('QuestTimer', () => {
       );
     });
 
+    it('retries the lock report after a failed attempt', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+      (updatePhoneLockStatus as jest.Mock)
+        .mockClear()
+        .mockRejectedValueOnce(new Error('offline'));
+
+      const locking = QuestTimer.onPhoneLocked();
+      // The ladder waits a second between attempts. Without this the second
+      // attempt never happens and the assertion below reads 1.
+      await jest.advanceTimersByTimeAsync(1000);
+      await locking;
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after three attempts and still starts the quest', async () => {
+      // A phone that locks in a dead spot must not lose the quest. The
+      // ladder's return value is discarded on purpose: the lock report is
+      // best-effort, and activation is decided by the status check that
+      // follows it.
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+      (updatePhoneLockStatus as jest.Mock)
+        .mockClear()
+        .mockRejectedValue(new Error('offline'));
+
+      const locking = QuestTimer.onPhoneLocked();
+      await jest.advanceTimersByTimeAsync(2000);
+      await locking;
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledTimes(3);
+      expect(getQuestRunStatus).toHaveBeenCalledWith('coop-run-id');
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'coop-run-id', status: 'active' })
+      );
+    });
+
     it('starts a cooperative quest at the server-supplied start time', async () => {
       const actualStartTime = 1_700_000_000_000;
       mockQuestStore.cooperativeQuestRun = {
