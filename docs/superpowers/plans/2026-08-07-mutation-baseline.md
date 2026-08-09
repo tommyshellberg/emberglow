@@ -1,5 +1,11 @@
 # Mutation testing baseline — 2026-08-07
 
+> **STATUS 2026-08-09: the follow-up work in §5 is DONE.** All 16 prioritized items
+> are implemented, plus a second pass over what the first pass left behind. Results
+> and what deliberately went unfixed are in §6 at the bottom. Everything above §6 is
+> preserved as the original baseline — read it for the *reasoning*, not as a to-do
+> list.
+
 Stryker pilot sweep over five modules. This document is the **handoff artifact**: it
 records what the sweep found, classifies every surviving mutant, and ends with a
 prioritized list of tests worth writing. It assumes no context from the session that
@@ -604,3 +610,107 @@ reasons (new tests reaching new code) that have nothing to do with assertion qua
 header above. If you want a fresh JSON dump, add `'json'` to the `reporters` array in
 `stryker.config.mjs` before running, or re-extract it from the new `index.html`'s
 embedded `app.report` object.
+
+---
+
+## 6. Results — 2026-08-09
+
+All 16 items in §5 are implemented, plus a second pass over the survivors the
+first pass left behind. Branch `chore/mutation-testing-pilot`, 11 further
+commits, still no PR.
+
+### Scores
+
+Verified by a complete, clean audit (1107 mutants, 0 timeouts, 0 errors) taken
+at commit `f71242b`. The two later test commits add ~10 assertions and can only
+have improved these numbers; they are not reflected below. Full suite green
+throughout: 185 suites / 2231 tests, `tsc --noEmit` clean.
+
+| Module | total% | covered% |
+| --- | --- | --- |
+| `scheduled-quests-store.ts` | 70.21 → 97.87 | 71.74 → **100.00** |
+| `user-store.ts` | 25.93 → 94.74 | 30.43 → **100.00** |
+| `settings-store.ts` | 29.03 → 80.65 | 34.62 → 86.21 |
+| `revenuecat-service.ts` | 18.25 → 57.41 | 50.00 → 72.95 |
+| `quest-timer.ts` | 10.04 → 42.17 | 36.15 → 72.25 |
+| **All files** | 15.33 → **50.14** | 43.07 → **75.41** |
+
+Killed 174 → 555. No-coverage 731 → 371. Survived 230 → 181.
+
+**Compare covered score, not total.** The mutant population fell 1135 → 1107
+because dead defensive code was deleted, so the two totals are not measuring the
+same denominator.
+
+**Survivor count is a bad progress metric.** It barely moved while kills
+tripled, because reaching previously-unexecuted code *converts* a no-coverage
+mutant into a survivor. Judge by killed and no-coverage.
+
+### The finding that mattered most, and that Stryker could not report
+
+`quest-timer.test.ts` mocked the quest store with `activeQuest: { id: … }`. The
+solo-start path is guarded by `if (!questStore.activeQuest && …)`, so
+`questStore.startQuest` — the line that makes a quest exist — was **structurally
+unreachable in every test**, and appeared in the *no-coverage* bucket rather
+than as a survivor. §4 read that as "the tests do not reach this code". The
+truth was that a single fixture default suppressed it.
+
+Stryker does not mutate fixtures, so it cannot surface this class at all. When a
+region reads as no-coverage despite tests that plainly call into it, suspect the
+mock's default state before believing the code is unreached.
+
+Second instance of the same shape: `Env.*` is `undefined` in every Jest test
+repo-wide (`Env = Constants.expoConfig?.extra ?? {}`, and Jest populates no
+`extra`). The iOS and Android `Purchases.configure` branches were therefore
+indistinguishable — both configured `{ apiKey: undefined }`. The fix needs an
+`expo-constants` stub *plus* a guard test asserting the two keys differ, or the
+branch tests silently go vacuous again the next time someone edits the stub.
+
+### Source deleted rather than tested
+
+- `parseJson` / `parseIntSafe`: the `typeof x === 'string'` operands. The
+  signatures already guarantee it — unkillable by construction (§4.5).
+- Both `typeof store.setLiveActivityId === 'function'` guards. The store always
+  defines it, so the `else` was dead code.
+- `user-store`'s `onRehydrateStorage`. Its only effect was logging a user id and
+  feature flags to the console on every launch.
+
+### Deliberately left alive
+
+- **`settings-store`'s last 4 survivors** sit in an `onRehydrateStorage` handler
+  whose only effect is a `console.error`. Unlike the user-store logs, an error
+  log on hydration failure has diagnostic value. 86.21% is this module's
+  practical ceiling.
+- **`onPhoneLocked` updates the Android notification twice for cooperative
+  quests** — once in the activation branch, once at the end — with identical
+  payloads. The only way to kill that block is `toHaveBeenCalledTimes(2)`, which
+  would pin the duplication in place and make deduplicating it a test failure.
+  **This is a production defect to ticket, not a test gap.**
+
+### Config changes, and a warning about run time
+
+`stryker.config.mjs` gained a `json` reporter (`reports/mutation/report.json` —
+query it with `node -e`, never read the 2.1 MB HTML into an agent context),
+`dryRunTimeoutMinutes: 20`, `timeoutMS: 10000`, and `concurrency: 8`.
+
+The audit now takes **50+ minutes**, not the original 30, and can take much
+longer. Three causes, all understood:
+
+1. A covered mutant costs a jest run; a no-coverage mutant is free. Halving
+   no-coverage roughly doubles the work.
+2. **The new tests reach unbounded loops in production code** — `presentPaywall`
+   re-invokes itself after enabling test mode, and the cooperative lock-status
+   ladder retries on a timer. Mutants that make either unbounded hang until
+   Stryker's timeout. These are legitimate kills, but each costs the full
+   timeout, and the effective timeout is `dryRunNetTime × 1.5 + timeoutMS`, so
+   trimming `timeoutMS` alone barely helps. One run logged 70 hangs and ran
+   over four hours.
+3. At `concurrency: 12` the box saturated and `login-form.test.tsx` (a
+   pre-existing slow suite, ~24s) blew Jest's 5s per-test default *during the
+   dry run*, aborting the whole audit. Hence 8.
+
+**Report the TimedOut column alongside the score** — Stryker counts a timeout as
+a kill.
+
+`{ advanceTimers: true }` was tried on the quest-timer fake clock to stop the
+hangs. It does not work — the loops are in production code, not the clock — and
+it introduces nondeterminism under parallel load. Reverted; do not retry it.
