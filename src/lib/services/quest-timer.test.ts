@@ -117,7 +117,17 @@ jest.mock('@/store/quest-store', () => {
   return {
     useQuestStore: {
       getState: jest.fn(() => mockStore),
-      setState: jest.fn(),
+      // Real zustand runs an updater function against the current state and
+      // merges what it returns. A bare jest.fn() stores the function and
+      // never calls it, so everything inside a `setState(state => …)` is
+      // unreachable in every test — it reads as code with no coverage rather
+      // than as an untested branch.
+      setState: jest.fn((next) => {
+        Object.assign(
+          mockStore,
+          typeof next === 'function' ? next(mockStore) : next
+        );
+      }),
       __mockStore: mockStore,
     },
   };
@@ -939,6 +949,45 @@ describe('QuestTimer', () => {
       );
     });
 
+    it('rewrites only the matching entry in the completed-quests history', async () => {
+      // The history is matched on id *and* stop time, because a repeatable
+      // quest appears in it once per run. Matching on id alone would rewrite
+      // an earlier run of the same quest with this run's rewards.
+      const earlierRun = { id: 'test-quest-id', stopTime: 6 };
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      mockQuestStore.recentCompletedQuest = {
+        id: 'test-quest-id',
+        questRunId: 'completed-run-id',
+        stopTime: 5,
+      };
+      mockQuestStore.completedQuests = [
+        { id: 'test-quest-id', stopTime: 5 },
+        earlierRun,
+      ];
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'completed-run-id',
+        status: 'completed',
+        participants: [{ userId: 'u1', rewards: { adjustedXP: 120 } }],
+      });
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          completedQuests: [
+            expect.objectContaining({
+              stopTime: 5,
+              participants: [{ userId: 'u1', rewards: { adjustedXP: 120 } }],
+            }),
+            earlierRun,
+          ],
+        })
+      );
+    });
+
     it('skips the rewards fetch when the completed quest has no run id', async () => {
       mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
       mockQuestStore.recentCompletedQuest = { id: 'test-quest-id' };
@@ -981,6 +1030,45 @@ describe('QuestTimer', () => {
       );
       expect(mockCharacterStore.addXP).toHaveBeenCalledWith(100);
       expect(mockCharacterStore.updateStreak).toHaveBeenCalled();
+    });
+
+    it('fetches participant rewards for a quest that was stuck in pending', async () => {
+      // The rewards merge exists twice: once for a quest the store had made
+      // active, once here. Only the first arm had a test, so a stuck quest
+      // could complete showing base XP instead of the server's adjusted
+      // numbers and nothing would notice.
+      const earlierRun = { id: 'test-quest-id', stopTime: -1 };
+      questStoreMockModule.useQuestStore.__mockStore.pendingQuest = {
+        id: 'test-quest-id',
+        durationMinutes: 15,
+        reward: { xp: 100 },
+      };
+      mockQuestStore.completedQuests = [earlierRun];
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'mock-quest-run-id',
+        status: 'completed',
+        participants: [{ userId: 'u1', rewards: { adjustedXP: 140 } }],
+      });
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(getQuestRunStatus).toHaveBeenCalledWith('mock-quest-run-id');
+      expect(mockQuestStore.recentCompletedQuest).toEqual(
+        expect.objectContaining({
+          id: 'test-quest-id',
+          participants: [{ userId: 'u1', rewards: { adjustedXP: 140 } }],
+        })
+      );
+      // The new run is rewritten in the history; the earlier one is not.
+      expect(mockQuestStore.completedQuests).toEqual([
+        earlierRun,
+        expect.objectContaining({
+          participants: [{ userId: 'u1', rewards: { adjustedXP: 140 } }],
+        }),
+      ]);
     });
 
     it('does not push a completed Live Activity on Android', async () => {
