@@ -42,6 +42,11 @@ const config = {
   // 50 minutes to over four hours. Report the TimedOut column alongside the
   // score: Stryker counts timeouts as killed.
   timeoutMS: 10000,
+  // Separate from timeoutMS: this bounds the initial full-suite run that
+  // measures per-test coverage. The default is 5 minutes, which the audit set
+  // now exceeds — a failed dry run aborts the whole audit with
+  // "Something went wrong in the initial test run".
+  dryRunTimeoutMinutes: 20,
 };
 
 export default config;
