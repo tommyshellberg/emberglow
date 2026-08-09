@@ -51,10 +51,9 @@ export const useUserStore = create<UserState>()(
         setItem: setItemForStorage,
         removeItem: removeItemForStorage,
       })),
-      onRehydrateStorage: () => (state) => {
-        console.log('[UserStore] Rehydrated with user:', state?.user?.id);
-        console.log('[UserStore] Feature flags:', state?.user?.featureFlags);
-      },
+      // No onRehydrateStorage handler: it only logged the rehydrated user id
+      // and feature flags to the console on every launch — a user identifier
+      // in device logs, buying nothing a breakpoint would not.
     }
   )
 );

@@ -56,6 +56,10 @@ build/
 # Jest
 coverage/
 
+# Stryker mutation testing
+.stryker-tmp/
+reports/
+
 # Debug
 .log/
 logs/
