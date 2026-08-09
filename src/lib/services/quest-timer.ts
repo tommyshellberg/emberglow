@@ -486,25 +486,9 @@ export default class QuestTimer {
                 questStore.startQuest(quest);
               }
 
-              // Update Android notification to show quest is active
-              if (Platform.OS === 'android' && BackgroundService.isRunning()) {
-                try {
-                  await BackgroundService.updateNotification({
-                    taskTitle: `Quest in progress: ${this.questTemplate.title}`,
-                    taskDesc: `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
-                    progressBar: {
-                      max: 100,
-                      value: 0,
-                      indeterminate: false,
-                    },
-                  });
-                } catch (error) {
-                  console.error(
-                    '[QuestTimer] Failed to update Android notification:',
-                    error
-                  );
-                }
-              }
+              // No Android notification update here. Every path through this
+              // method falls through to the shared one at the end, which posts
+              // the identical payload.
             } else if (questRun.status === 'failed') {
               console.log(
                 '[QuestTimer] Quest already failed by another participant'

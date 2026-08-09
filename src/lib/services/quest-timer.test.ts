@@ -709,6 +709,10 @@ describe('QuestTimer', () => {
         taskDesc: 'Keep your phone locked for 15 minutes to complete the quest',
         progressBar: { max: 100, value: 0, indeterminate: false },
       });
+      // Exactly once. The cooperative activation branch used to post this
+      // notification itself and then fall through to the shared call at the
+      // end of onPhoneLocked, which posts the identical payload.
+      expect(BackgroundService.updateNotification).toHaveBeenCalledTimes(1);
     });
 
     it('sends lock status through the solo path for a solo run', async () => {
