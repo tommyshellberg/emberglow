@@ -23,8 +23,12 @@ const config = {
   // no mutation run needs.
   ignorePatterns: ['ios', 'android', '.worktrees', 'coverage', 'reports'],
   disableTypeChecks: 'src/**/*.{ts,tsx}',
-  reporters: ['html', 'clear-text', 'progress'],
+  // 'json' is what makes a run's survivors queryable afterwards. Without it
+  // the only artifact is a 2 MB HTML file whose embedded `app.report` object
+  // has to be hand-extracted before it can be read.
+  reporters: ['html', 'json', 'clear-text', 'progress'],
   htmlReporter: { fileName: 'reports/mutation/index.html' },
+  jsonReporter: { fileName: 'reports/mutation/report.json' },
   concurrency: 12,
   // jest-expo startup is ~1.7s for a single small file; the 5000ms default
   // would flag slow-but-correct runs as timeouts.
