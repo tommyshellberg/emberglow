@@ -6,9 +6,11 @@ import { Platform } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 
 // Import mocked modules
+import { queryClient } from '@/api/common';
 import {
   areNotificationsEnabled,
   clearAllNotifications,
+  scheduleQuestCompletionNotification,
 } from '@/lib/services/notifications';
 import {
   createQuestRun,
@@ -143,6 +145,11 @@ jest.mock('@/store/character-store', () => {
   };
 });
 
+// backgroundTask's stuck-in-pending completion arm require()s this lazily.
+jest.mock('@/api/common', () => ({
+  queryClient: { invalidateQueries: jest.fn() },
+}));
+
 // Mock uuid
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'test-uuid-' + Math.random()),
@@ -244,6 +251,26 @@ function readQuestTimerStatics() {
     oneSignalActivityId: string | null;
   };
 }
+
+/**
+ * The background task is handed to BackgroundService.start(), which is mocked,
+ * so it never runs on its own. Pull it back off the mock to drive it directly.
+ */
+function capturedBackgroundTask(): (taskData?: {
+  questDuration: number;
+  questTitle: string;
+  questId: string;
+  questDescription: string;
+}) => Promise<void> {
+  return BackgroundService.start.mock.calls[0][0];
+}
+
+const taskDataFor = (durationMinutes = 15) => ({
+  questDuration: durationMinutes * 60 * 1000,
+  questTitle: 'Test Quest',
+  questId: 'test-quest-id',
+  questDescription: 'Test quest recap',
+});
 
 const storyQuest = (
   overrides: Partial<StoryQuestTemplate> = {}
@@ -1427,6 +1454,222 @@ describe('QuestTimer', () => {
       await QuestTimer.onPhoneLocked();
 
       expect(readQuestTimerStatics().questStartTime).toBe(firstStart);
+    });
+  });
+
+  // This is the loop that actually runs a quest while the phone is locked:
+  // elapsed-time maths, the progress notification, completion detection and
+  // teardown. None of it was executed by any test — ~180 of the module's
+  // no-coverage mutants live here.
+  //
+  // The loop is `while (BackgroundService.isRunning())`, so isRunning is the
+  // exit control. Every test below must either drive the loop to an explicit
+  // `break` or flip isRunning false, otherwise the loop's
+  // `await new Promise(r => setTimeout(r, updateInterval))` never resolves
+  // under fake timers and the test hangs instead of failing.
+  describe('backgroundTask', () => {
+    it('does nothing without task data', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      const backgroundTask = capturedBackgroundTask();
+      jest.clearAllMocks();
+
+      await backgroundTask();
+
+      expect(BackgroundService.updateNotification).not.toHaveBeenCalled();
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('reports elapsed progress on the Android notification', async () => {
+      Platform.OS = 'android';
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      BackgroundService.updateNotification.mockClear();
+      // Exactly half way through, so the percentage maths is pinned to a value
+      // that is not 0 or 100 — either of which several mutants also produce.
+      jest.advanceTimersByTime(7.5 * 60 * 1000);
+      let iterations = 0;
+      BackgroundService.isRunning.mockImplementation(() => iterations++ < 1);
+
+      const running = backgroundTask(taskDataFor(15));
+      await jest.advanceTimersByTimeAsync(9000); // the loop's update interval
+      await running;
+
+      expect(BackgroundService.updateNotification).toHaveBeenCalledWith({
+        progressBar: { max: 100, value: 50, indeterminate: false },
+      });
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('completes the quest once the duration elapses', async () => {
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      const activityId = readQuestTimerStatics().oneSignalActivityId;
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      BackgroundService.isRunning.mockReturnValue(true);
+      (OneSignal.LiveActivities.startDefault as jest.Mock).mockClear();
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(mockQuestStore.completeQuest).toHaveBeenCalledWith(true);
+      expect(BackgroundService.updateNotification).toHaveBeenCalledWith({
+        progressBar: { max: 100, value: 100, indeterminate: false },
+      });
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        activityId,
+        {
+          title: 'Quest Complete',
+          description: 'Congratulations on finishing your quest!',
+        },
+        { durationMinutes: 15, status: 'completed' }
+      );
+      // Teardown, or the service keeps running after the quest is over.
+      expect(BackgroundService.stop).toHaveBeenCalled();
+      expect(removeItem).toHaveBeenCalledWith('QUEST_RUN_ID');
+    });
+
+    it('schedules the completion notification on Android only', async () => {
+      Platform.OS = 'android';
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      BackgroundService.isRunning.mockReturnValue(true);
+      (OneSignal.LiveActivities.startDefault as jest.Mock).mockClear();
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(scheduleQuestCompletionNotification).toHaveBeenCalledWith(
+        'test-quest-id'
+      );
+      // Android has no Live Activity to complete.
+      expect(OneSignal.LiveActivities.startDefault).not.toHaveBeenCalled();
+    });
+
+    it('does not schedule a completion notification on iOS', async () => {
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      BackgroundService.isRunning.mockReturnValue(true);
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(scheduleQuestCompletionNotification).not.toHaveBeenCalled();
+    });
+
+    it('tears down when it notices the phone was unlocked', async () => {
+      await QuestTimer.prepareQuest(storyQuest());
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      // The unlock listener has already flipped the flag. The loop has to
+      // notice and stop, rather than ticking against an abandoned quest.
+      readQuestTimerStatics().isPhoneLocked = false;
+      BackgroundService.isRunning.mockReturnValue(true);
+      BackgroundService.updateNotification.mockClear();
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(BackgroundService.stop).toHaveBeenCalled();
+      expect(BackgroundService.updateNotification).not.toHaveBeenCalled();
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('completes a cooperative quest still stuck in the pending state', async () => {
+      questStoreMockModule.useQuestStore.__mockStore.pendingQuest = {
+        id: 'test-quest-id',
+        durationMinutes: 15,
+        reward: { xp: 100 },
+      };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      BackgroundService.isRunning.mockReturnValue(true);
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pendingQuest: null,
+          activeQuest: null,
+          recentCompletedQuest: expect.objectContaining({
+            id: 'test-quest-id',
+            status: 'completed',
+          }),
+        })
+      );
+      expect(mockCharacterStore.addXP).toHaveBeenCalledWith(100);
+      expect(mockCharacterStore.updateStreak).toHaveBeenCalled();
+      // Stale user details would otherwise show the pre-quest XP.
+      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['user', 'details'],
+      });
+    });
+
+    it('starts a cooperative quest once the server reports it active', async () => {
+      // Locked, but the server had not activated the run when the service
+      // started, so no start time was ever stamped.
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      const template = storyQuest();
+      await QuestTimer.prepareQuest(template, 'coop-run-id');
+      const backgroundTask = capturedBackgroundTask();
+      const actualStartTime = Date.now() - 60_000;
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        status: 'active',
+        actualStartTime,
+        scheduledEndTime: actualStartTime + 900_000,
+      });
+      readQuestTimerStatics().isPhoneLocked = true;
+      let iterations = 0;
+      BackgroundService.isRunning.mockImplementation(() => iterations++ < 1);
+      mockQuestStore.startQuest.mockClear();
+
+      const running = backgroundTask(taskDataFor(15));
+      await jest.advanceTimersByTimeAsync(9000);
+      await running;
+
+      // Anchored to the server's time, not Date.now(), or this participant
+      // finishes at a different moment from everyone else in the run.
+      expect(mockQuestStore.startQuest).toHaveBeenCalledWith({
+        ...template,
+        startTime: actualStartTime,
+        status: 'active',
+      });
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'coop-run-id', status: 'active' })
+      );
+    });
+
+    it('fails the quest when the server reports the cooperative run failed', async () => {
+      mockQuestStore.cooperativeQuestRun = {
+        id: 'coop-run-id',
+        status: 'pending',
+      };
+      await QuestTimer.prepareQuest(storyQuest(), 'coop-run-id');
+      const backgroundTask = capturedBackgroundTask();
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: 'coop-run-id',
+        status: 'failed',
+      });
+      readQuestTimerStatics().isPhoneLocked = true;
+      BackgroundService.isRunning.mockReturnValue(true);
+
+      await backgroundTask(taskDataFor(15));
+
+      expect(mockQuestStore.setCooperativeQuestRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'coop-run-id', status: 'failed' })
+      );
+      expect(mockQuestStore.failQuest).toHaveBeenCalled();
+      expect(BackgroundService.stop).toHaveBeenCalled();
     });
   });
 });
