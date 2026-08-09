@@ -99,6 +99,11 @@ export const Modal = React.forwardRef(
         {...props}
         {...detachedProps}
         ref={modal.ref}
+        // Same defect, same fix as `emberglow/overlay/bottom-sheet.tsx`:
+        // @gorhom/bottom-sheet defaults `accessible` to true on the view that
+        // wraps every child, which on iOS collapses the whole sheet into one
+        // accessibility element and hides everything inside it.
+        accessible={false}
         index={0}
         snapPoints={snapPoints}
         backdropComponent={props.backdropComponent || renderBackdrop}

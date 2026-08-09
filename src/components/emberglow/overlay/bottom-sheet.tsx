@@ -116,6 +116,13 @@ export const BottomSheet = React.forwardRef(
       <BottomSheetModal
         {...props}
         ref={sheet.ref}
+        // @gorhom/bottom-sheet defaults `accessible` to true (its
+        // `DEFAULT_ACCESSIBLE`) and puts it on the single view that wraps every
+        // child. On iOS that marks the whole sheet as ONE accessibility element,
+        // so UIKit drops every descendant and reads the library's default
+        // "Bottom Sheet" label instead. VoiceOver users could not reach any
+        // control inside a sheet, and no testID inside one was findable.
+        accessible={false}
         enableDynamicSizing
         maxDynamicContentSize={windowHeight * MAX_DYNAMIC_CONTENT_RATIO}
         backgroundStyle={styles.background}
