@@ -129,13 +129,19 @@ jest.mock('@/store/user-store', () => ({
   },
 }));
 
-jest.mock('@/store/character-store', () => ({
-  useCharacterStore: {
-    getState: jest.fn(() => ({
-      character: { id: 'test-character-id' },
-    })),
-  },
-}));
+jest.mock('@/store/character-store', () => {
+  const mockStore = {
+    character: { id: 'test-character-id' },
+    addXP: jest.fn(),
+    updateStreak: jest.fn(),
+  };
+  return {
+    useCharacterStore: {
+      getState: jest.fn(() => mockStore),
+      __mockStore: mockStore,
+    },
+  };
+});
 
 // Mock uuid
 jest.mock('uuid', () => ({
@@ -158,6 +164,27 @@ jest.mock('react-native-background-actions', () => ({
 }));
 
 // Handle on the shared quest-store mock object so tests can stage store state.
+const questStoreMockModule = jest.requireMock('@/store/quest-store') as {
+  useQuestStore: {
+    setState: jest.Mock;
+    __mockStore: {
+      pendingQuest: {
+        id: string;
+        durationMinutes: number;
+        reward: { xp: number };
+      } | null;
+    };
+  };
+};
+const mockSetState = questStoreMockModule.useQuestStore.setState;
+const mockCharacterStore = (
+  jest.requireMock('@/store/character-store') as {
+    useCharacterStore: {
+      __mockStore: { addXP: jest.Mock; updateStreak: jest.Mock };
+    };
+  }
+).useCharacterStore.__mockStore;
+
 const mockQuestStore = (
   jest.requireMock('@/store/quest-store') as {
     useQuestStore: {
@@ -256,6 +283,7 @@ describe('QuestTimer', () => {
     mockQuestStore.cooperativeQuestRun = null;
     mockQuestStore.recentCompletedQuest = null;
     mockQuestStore.completedQuests = [];
+    questStoreMockModule.useQuestStore.__mockStore.pendingQuest = null;
     BackgroundService.isRunning.mockReturnValue(false);
     // clearAllMocks only clears call records, not implementations. Re-establish
     // createQuestRun's default resolved value so a prior test's mockRejectedValue
@@ -821,6 +849,60 @@ describe('QuestTimer', () => {
       // Skipping this leaves the results screen showing base XP rather than
       // the server's adjusted, perk-applied numbers.
       expect(getQuestRunStatus).toHaveBeenCalledWith('completed-run-id');
+      // …and the fetched rewards have to reach the store, or the round-trip
+      // is pure cost.
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recentCompletedQuest: expect.objectContaining({
+            id: 'test-quest-id',
+            participants: [{ userId: 'u1', rewards: { adjustedXP: 120 } }],
+          }),
+        })
+      );
+    });
+
+    it('skips the rewards fetch when the completed quest has no run id', async () => {
+      mockQuestStore.activeQuest = { id: 'test-quest-id', startTime: 0 };
+      mockQuestStore.recentCompletedQuest = { id: 'test-quest-id' };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      (getQuestRunStatus as jest.Mock).mockClear();
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(getQuestRunStatus).not.toHaveBeenCalled();
+      expect(mockSetState).not.toHaveBeenCalled();
+    });
+
+    it('completes a quest that was stuck in the pending state', async () => {
+      // The store never transitioned to active (the 500 ms starter was
+      // missed), so the active-quest branch cannot fire. Without this arm the
+      // user finishes the quest and gets nothing.
+      questStoreMockModule.useQuestStore.__mockStore.pendingQuest = {
+        id: 'test-quest-id',
+        durationMinutes: 15,
+        reward: { xp: 100 },
+      };
+      await QuestTimer.prepareQuest(storyQuest({ durationMinutes: 15 }));
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeQuest: null,
+          pendingQuest: null,
+          recentCompletedQuest: expect.objectContaining({
+            id: 'test-quest-id',
+            status: 'completed',
+            questRunId: 'mock-quest-run-id',
+          }),
+        })
+      );
+      expect(mockCharacterStore.addXP).toHaveBeenCalledWith(100);
+      expect(mockCharacterStore.updateStreak).toHaveBeenCalled();
     });
 
     it('does not push a completed Live Activity on Android', async () => {

@@ -299,6 +299,42 @@ describe('RevenueCatService.refreshCustomerInfo recovery', () => {
     ).resolves.toMatchObject({ activeSubscriptions: [] });
   });
 
+  it('rethrows a rejection that carries no message at all', async () => {
+    // `error.message?.includes(...)` without the optional chain turns this
+    // into a TypeError thrown from the handler, hiding the real failure.
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue({
+      code: 'STORE_PROBLEM',
+    });
+
+    await expect(revenueCatService.refreshCustomerInfo()).rejects.toEqual({
+      code: 'STORE_PROBLEM',
+    });
+  });
+
+  it('rethrows when userInfo exists but carries no description', async () => {
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('boom'), { userInfo: {} })
+    );
+
+    await expect(revenueCatService.refreshCustomerInfo()).rejects.toThrow(
+      'boom'
+    );
+  });
+
+  it('rethrows when the native description is some other error', async () => {
+    // Blanking the matched phrase makes `includes('')` always true, which
+    // would swallow every native error as "no active account".
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('boom'), {
+        userInfo: { description: 'Receipt validation failed' },
+      })
+    );
+
+    await expect(revenueCatService.refreshCustomerInfo()).rejects.toThrow(
+      'boom'
+    );
+  });
+
   it('rethrows any other failure instead of inventing an empty account', async () => {
     // Swallowing this would report every paying user as unsubscribed the
     // moment the network blips.
@@ -671,6 +707,16 @@ describe('RevenueCatService analytics', () => {
       expect(posthogClient.capture).toHaveBeenCalledWith('purchase_cancelled', {
         source: 'settings',
         method: 'paywall',
+      });
+    });
+
+    it('attributes the view to "unknown" when no source is given', async () => {
+      mockPresentPaywall.mockResolvedValue('CANCELLED');
+
+      await revenueCatService.presentPaywall();
+
+      expect(posthogClient.capture).toHaveBeenCalledWith('paywall_viewed', {
+        source: 'unknown',
       });
     });
 
