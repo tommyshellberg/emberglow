@@ -896,3 +896,55 @@ call into it, read the mock before reading the code.**
 | `if (questRunIdFromQuest)` → `false` | 1 |
 | `participants: questRunData.participants` → `[]` | 1 |
 | keep the pre-merge quest as `recentCompletedQuest` | 1 |
+
+### 8.4 A measured score for `revenuecat-service.ts`
+
+A single-module run finished in ~35 minutes. **Directly comparable to §6** —
+the same 263 mutants, so the denominator has not moved.
+
+| | §6 (f71242b) | §8 | change |
+| --- | --- | --- | --- |
+| Killed (incl. timeouts) | 151 | **196** | +45 |
+| No coverage | 56 | **7** | −49 |
+| Survived | 56 | 60 | +4 |
+| Total score | 57.41% | **74.52%** | +17.11 |
+| Covered score | 72.95% | **76.56%** | +3.61 |
+
+**One timeout, not seventy.** The fail-once-then-succeed mock design in §8.1
+is why. Compare §6, where a run logged 70 hangs and took over four hours.
+Survivors rising while no-coverage collapses is the expected shape (§6):
+reaching previously-unexecuted code converts a no-coverage mutant into a
+survivor.
+
+Of the 60 survivors, 32 are log text and roughly 15 more are the object
+literal inside a single `console.log` of customer info. The rest:
+
+- **`hasPremiumAccess` L150–153 is dead code.** `if (__DEV__) return true` at
+  L138 returns before it, so `if (this.testModeEnabled && __DEV__)` can never
+  be true. Not fixed here — out of scope for a test pass. Worth deleting.
+- `case NOT_PRESENTED` is equivalent: it falls through to `default`, which
+  returns the same `false`. Only the log differs.
+- `if (!this.isInitialized)` in `hasPremiumAccess` is equivalent in one
+  direction: removing it lets `refreshCustomerInfo` throw its own
+  not-initialized error, which the catch turns into the same `false`.
+- Genuine remaining gap: the two catch blocks in `presentPaywallIfNeeded`.
+
+### 8.5 The duplicate Android notification — fixed
+
+§6 recorded this as "a production defect to ticket, not a test gap". Fixed
+here instead. When the server had already activated a cooperative quest,
+`onPhoneLocked` posted the Android "Quest in progress" notification inside the
+activation branch and then fell through to the shared call at the end of the
+method, which posts the identical payload behind the identical guards. The
+inner call is gone.
+
+Written test-first: `toHaveBeenCalledTimes(1)` fails with "Expected 1,
+received 2" against the old code. That is a genuine red phase, so this one
+needed no mutation to prove.
+
+**This is the only production behaviour change the whole mutation-testing
+effort has produced.** Everything else on the branch is tests, dead-code
+removal, and config. Judge the work on the fake-coverage findings — the
+covered score started at 43%, meaning more than half of the code the tests
+executed could be arbitrarily broken with the suite still green — not on a
+bug count.
