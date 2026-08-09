@@ -118,6 +118,31 @@ describe('RevenueCatService.initialize', () => {
     });
   });
 
+  it('does not configure on a platform with no key', () => {
+    // Expo web has neither key. Configuring there with the wrong platform's
+    // key is worse than not configuring at all.
+    Platform.OS = 'web';
+
+    freshService().initialize();
+
+    expect(Purchases.configure).not.toHaveBeenCalled();
+  });
+
+  it('turns on verbose SDK logging only in development', () => {
+    const originalDev = __DEV__;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    try {
+      freshService().initialize();
+      expect(Purchases.setLogLevel).not.toHaveBeenCalled();
+
+      (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+      freshService().initialize();
+      expect(Purchases.setLogLevel).toHaveBeenCalledWith('VERBOSE');
+    } finally {
+      (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+    }
+  });
+
   it('configures the SDK exactly once across repeated calls', () => {
     const service = freshService();
 
@@ -228,6 +253,226 @@ describe('RevenueCatService.hasPremiumAccess', () => {
     service.initialize();
 
     await expect(service.hasPremiumAccess()).resolves.toBe(false);
+  });
+});
+
+describe('RevenueCatService.refreshCustomerInfo recovery', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+    // The synthesised fallback below reads this enum, which the global
+    // react-native-purchases mock does not define.
+    (
+      Purchases as unknown as { VERIFICATION_RESULT: Record<string, string> }
+    ).VERIFICATION_RESULT = { NOT_REQUESTED: 'NOT_REQUESTED' };
+    revenueCatService.initialize();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('synthesises empty entitlements when there is no active account', async () => {
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue(
+      new Error('No active account found')
+    );
+
+    const info = await revenueCatService.refreshCustomerInfo();
+
+    expect(info.entitlements.active).toEqual({});
+    expect(info.entitlements.all).toEqual({});
+    expect(info.activeSubscriptions).toEqual([]);
+    expect(info.allPurchasedProductIdentifiers).toEqual([]);
+    expect(info.latestExpirationDate).toBeNull();
+    expect(info.managementURL).toBeNull();
+    expect(info.originalAppUserId).toBe('');
+  });
+
+  it('recognises the no-active-account signal on the native userInfo shape', async () => {
+    // iOS reports it here rather than on error.message.
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('unhelpful'), {
+        userInfo: { description: 'No active account' },
+      })
+    );
+
+    await expect(
+      revenueCatService.refreshCustomerInfo()
+    ).resolves.toMatchObject({ activeSubscriptions: [] });
+  });
+
+  it('rethrows any other failure instead of inventing an empty account', async () => {
+    // Swallowing this would report every paying user as unsubscribed the
+    // moment the network blips.
+    (Purchases.getCustomerInfo as jest.Mock).mockRejectedValue(
+      new Error('network unreachable')
+    );
+
+    await expect(revenueCatService.refreshCustomerInfo()).rejects.toThrow(
+      'network unreachable'
+    );
+  });
+
+  it('denies premium when the customer info carries no entitlements', async () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({});
+    const service = freshService();
+    service.initialize();
+
+    await expect(service.hasPremiumAccess()).resolves.toBe(false);
+
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+  });
+});
+
+describe('RevenueCatService remaining public surface', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+    revenueCatService.initialize();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('getOfferings returns the current offering', async () => {
+    const current = { identifier: 'default' };
+    (Purchases.getOfferings as jest.Mock).mockResolvedValue({ current });
+
+    await expect(revenueCatService.getOfferings()).resolves.toBe(current);
+  });
+
+  it('getOfferings degrades to null rather than throwing at the call site', async () => {
+    (Purchases.getOfferings as jest.Mock).mockRejectedValue(
+      new Error('offline')
+    );
+
+    await expect(revenueCatService.getOfferings()).resolves.toBeNull();
+  });
+
+  it('getManagementURL returns the subscription management link', async () => {
+    (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({
+      managementURL: 'https://apps.apple.com/account/subscriptions',
+    });
+
+    await expect(revenueCatService.getManagementURL()).resolves.toBe(
+      'https://apps.apple.com/account/subscriptions'
+    );
+  });
+
+  it('getManagementURL returns null when the account has no link', async () => {
+    (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({
+      managementURL: null,
+    });
+
+    await expect(revenueCatService.getManagementURL()).resolves.toBeNull();
+  });
+
+  it('restorePurchases returns the restored customer info', async () => {
+    const customerInfo = { originalAppUserId: 'user-1' };
+    (Purchases.restorePurchases as jest.Mock).mockResolvedValue(customerInfo);
+
+    await expect(revenueCatService.restorePurchases()).resolves.toBe(
+      customerInfo
+    );
+    expect(revenueCatService.getCustomerInfo()).toBe(customerInfo);
+  });
+
+  it('purchasePackage returns the customer info from the completed purchase', async () => {
+    const customerInfo = { originalAppUserId: 'user-1' };
+    (Purchases.purchasePackage as jest.Mock).mockResolvedValue({
+      customerInfo,
+    });
+
+    await expect(revenueCatService.purchasePackage(testPackage)).resolves.toBe(
+      customerInfo
+    );
+  });
+
+  describe('presentPaywallIfNeeded', () => {
+    it('delegates to presentPaywall when no entitlement is named', async () => {
+      mockPresentPaywall.mockResolvedValue('PURCHASED');
+      (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({});
+
+      await expect(revenueCatService.presentPaywallIfNeeded()).resolves.toBe(
+        true
+      );
+      expect(mockPresentPaywall).toHaveBeenCalled();
+      expect(RevenueCatUI.presentPaywallIfNeeded).not.toHaveBeenCalled();
+    });
+
+    it('reports success and refreshes entitlements when purchased', async () => {
+      (RevenueCatUI.presentPaywallIfNeeded as jest.Mock).mockResolvedValue(
+        'PURCHASED'
+      );
+      (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({});
+
+      await expect(
+        revenueCatService.presentPaywallIfNeeded('premium')
+      ).resolves.toBe(true);
+      expect(RevenueCatUI.presentPaywallIfNeeded).toHaveBeenCalledWith({
+        requiredEntitlementIdentifier: 'premium',
+      });
+      expect(Purchases.getCustomerInfo).toHaveBeenCalled();
+    });
+
+    it('reports success when the purchase was restored rather than new', async () => {
+      (RevenueCatUI.presentPaywallIfNeeded as jest.Mock).mockResolvedValue(
+        'RESTORED'
+      );
+      (Purchases.getCustomerInfo as jest.Mock).mockResolvedValue({});
+
+      await expect(
+        revenueCatService.presentPaywallIfNeeded('premium')
+      ).resolves.toBe(true);
+    });
+
+    it('reports failure without refreshing when cancelled', async () => {
+      (RevenueCatUI.presentPaywallIfNeeded as jest.Mock).mockResolvedValue(
+        'CANCELLED'
+      );
+
+      await expect(
+        revenueCatService.presentPaywallIfNeeded('premium')
+      ).resolves.toBe(false);
+      expect(Purchases.getCustomerInfo).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('RevenueCatService error propagation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('leaves the service unconfigured when the SDK throws on configure', () => {
+    (Purchases.configure as jest.Mock).mockImplementation(() => {
+      throw new Error('bad api key');
+    });
+    const service = freshService();
+
+    expect(() => service.initialize()).toThrow('bad api key');
+    // Must not latch as initialized, or every later guard waves through an
+    // unconfigured SDK.
+    expect(service.isConfigured()).toBe(false);
+  });
+
+  it('propagates a login failure to the caller', async () => {
+    (Purchases.logIn as jest.Mock).mockRejectedValue(new Error('login failed'));
+
+    await expect(revenueCatService.loginUser('user-1')).rejects.toThrow(
+      'login failed'
+    );
+  });
+
+  it('propagates a logout failure to the caller', async () => {
+    (Purchases.logOut as jest.Mock).mockRejectedValue(
+      new Error('logout failed')
+    );
+
+    await expect(revenueCatService.logoutUser()).rejects.toThrow(
+      'logout failed'
+    );
   });
 });
 
