@@ -784,3 +784,115 @@ not by a fresh score.
 If a full number is wanted later, budget hours rather than minutes, and expect
 a large TimedOut column that Stryker will count as kills. Do not read the
 resulting score as comparable to §6 without subtracting the timeouts.
+
+---
+
+## 8. Third pass — 2026-08-10
+
+Three commits on `chore/mutation-testing-pilot`, still no PR. Full suite green
+throughout: 185 suites / 2252 passed / 3 skipped, `tsc --noEmit` clean.
+
+Targets were taken from §7's shortlist, largest first. All three were reached.
+
+### 8.1 `presentPaywall`'s catch block and its unhandled results
+
+`presentPaywall` had tests for two of its six switch arms and none for the
+catch block. That block is where a paywall failure is sorted into "this build
+is misconfigured, simulate the purchase" or "this is a real store failure,
+report it and rethrow". 11 new tests.
+
+**The recursion trap, and how to avoid paying for it.** The misconfiguration
+branch sets `testModeEnabled` and then calls `presentPaywall` again. If a test
+makes the SDK reject *every* time, then any mutation that stops
+`testModeEnabled` being set turns that retry into unbounded recursion — a
+Stryker timeout, which costs the full timeout and is one of the causes of the
+four-hour runs in §6. Rejecting **once** and resolving `'CANCELLED'` on the
+retry turns the identical mutant into an ordinary wrong-return-value failure
+that a normal assertion catches in milliseconds.
+
+This generalises: **when a production path retries, make the mock succeed on
+the retry.** It costs nothing in coverage and converts timeout-kills into
+assertion-kills.
+
+| Mutation | Tests failed (was 0 for all) |
+| --- | --- |
+| test-mode `return true` → `false` | 4 |
+| `throw error` → `return false` | 4 |
+| `if (__DEV__)` → `false` | 3 |
+| `testModeEnabled = true` → `false` | 3 |
+| `readable_error_code ===` → `!==` | 3 |
+| `if (__DEV__)` → `true` | 2 |
+| `'No offerings found'` → `''` | 2 |
+| drop the `?? error?.message` fallback | 2 |
+| RESTORED `return true` → `false` | 1 |
+| NOT_PRESENTED `return false` → `true` | 1 |
+| `default: return false` → `true` | 1 |
+
+Noted, not fixed (out of scope, dev-only): in a development build a rejection
+with no error object crashes the catch handler, because L319 reads
+`error.message?.includes(...)` — the optional chain is on `.includes`, not on
+`.message`. The original failure is replaced by a `TypeError`. Production is
+unaffected: the whole block is `__DEV__`-gated.
+
+### 8.2 The cooperative lock-report retry ladder
+
+`quest-timer.ts` L399–445. Three attempts, one second apart, to tell the
+server the phone is locked. The entire catch block was no-coverage. 2 new
+tests: one proving a failed attempt is retried after the delay, one proving
+the ladder stops at three and that **the quest still starts anyway** — the
+report is best-effort, and activation is decided by the status check that
+follows it. A phone locking in a dead spot must not lose the quest.
+
+| Mutation | Tests failed (was 0 for all) |
+| --- | --- |
+| catch block emptied | 2 |
+| `retryCount < maxRetries` → `false` | 2 |
+| `retryCount < maxRetries` → `>=` | 2 |
+| drop the `error?.response?.data` chain | 2 |
+| `retryCount < maxRetries` → `<=` | 1 |
+| `retryCount++` → `retryCount--` | 1 (by timeout — it retries forever) |
+
+**Two equivalent mutants here, confirmed and left alive.** `return true` at
+the end of a successful attempt and `return false` after the last one. The
+caller is `await sendPhoneLockStatus();` and discards the result. Flipping
+either leaves all 73 tests green, and no test could ever tell them apart.
+Do not chase these.
+
+### 8.3 The participant-rewards merge — and a third fixture finding
+
+On completion the app fetches the run from the server and merges the server's
+adjusted XP into the finished quest. This exists **twice**: once for a quest
+the store had made active, once for a quest stuck in pending because the
+500 ms starter was missed. Only the first had a test, and neither asserted
+anything about the completed-quests history. 2 new tests.
+
+Both merges rewrite that history by matching on quest id **and** stop time,
+because a repeatable quest appears in it once per run. Matching on id alone
+would overwrite an earlier run with this run's rewards. Each test seeds a
+decoy entry sharing the id but not the stop time, which is what makes both
+halves of the condition load-bearing.
+
+**The fixture finding (third of its kind — see §6).** The pending path calls
+`useQuestStore.setState(state => ({…}))`, the updater-function form. The test
+mock was a bare `jest.fn()`: it stores the function and never calls it. So
+everything inside that arrow was unreachable in **every** test, and the report
+listed it as no-coverage rather than as an untested branch. The mock now runs
+updaters against the mock store the way zustand does. All 73 pre-existing
+tests pass unchanged.
+
+Three instances of this class now: a mock's `activeQuest` default, `Env.*`
+being `undefined` repo-wide, and a `setState` mock that drops updater
+functions. **When a region reads as no-coverage despite tests that plainly
+call into it, read the mock before reading the code.**
+
+| Mutation | Tests failed (was 0 for all) |
+| --- | --- |
+| active path `q.id ===` → `!==` | 1 |
+| active path `&&` → `\|\|` | 1 |
+| active path `q.stopTime ===` → `!==` | 1 |
+| pending path `q.id ===` → `!==` | 1 |
+| pending path `&&` → `\|\|` | 1 |
+| pending path `q.stopTime ===` → `!==` | 1 |
+| `if (questRunIdFromQuest)` → `false` | 1 |
+| `participants: questRunData.participants` → `[]` | 1 |
+| keep the pre-merge quest as `recentCompletedQuest` | 1 |
