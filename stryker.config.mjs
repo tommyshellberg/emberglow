@@ -29,7 +29,11 @@ const config = {
   reporters: ['html', 'json', 'clear-text', 'progress'],
   htmlReporter: { fileName: 'reports/mutation/index.html' },
   jsonReporter: { fileName: 'reports/mutation/report.json' },
-  concurrency: 12,
+  // 12 saturated the box: login-form.test.tsx (the slowest suite, ~24s) then
+  // blew Jest's 5s per-test default during the dry run and aborted the whole
+  // audit. Oversubscription also inflates the score, since Stryker counts a
+  // TimedOut mutant as killed.
+  concurrency: 8,
   // Overhead allowance on top of the measured dry-run time (Stryker adds
   // timeoutFactor * dryRunTime itself). jest-expo startup is ~1.7s for a
   // single small file, so 10s is already generous.
