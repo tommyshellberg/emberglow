@@ -159,8 +159,14 @@ export default function CreateScheduledQuest() {
 
         {/* Both error slots carry the same id on purpose: a flow needs to
             know the form was rejected, not which of the two rejected it.
-            They are mutually exclusive in practice - a client-side
-            validation failure never reaches the server. */}
+
+            They can be on screen at the same time, so a flow must not assume
+            the id matches exactly one element. `createMutation.error` stays
+            set until the next `mutate()` call, and `submit` returns before
+            `mutate()` when `validateEventForm` rejects the form. So: submit a
+            valid form, let the server reject it, then clear the title and
+            submit again - the effect above clears `validationError` only, the
+            server error is still there, and both Texts render. */}
         {validationError ? (
           <Text
             testID="event-validation-error"
