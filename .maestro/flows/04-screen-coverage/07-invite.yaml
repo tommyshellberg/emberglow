@@ -84,10 +84,15 @@ appId: com.vaedros.unquest
 # -----------------------------------------------------------------------------
 # WHAT THIS FILE DELIBERATELY DOES NOT TOUCH
 # -----------------------------------------------------------------------------
-# - THE CONTACTS THEMSELVES. The rows are the iOS simulator's own address book
+# - THE CONTACTS BY NAME. The rows are the iOS simulator's own address book
 #   (Anna Haro, John Appleseed, …) with per-simulator UUIDs in their ids, so
-#   they are matched by id PATTERN and never by name. Ticking one is not
-#   exercised: it arms a real bulk send.
+#   they are matched by id PATTERN and never by name or UUID. One row IS ticked
+#   and then unticked below — see that block for why ticking is safe and why
+#   the untick is mandatory rather than tidiness.
+# - SENDING TO THE TICKED CONTACTS. That needs a tap on
+#   `invite-select-contacts-button`, which runs `handleSendInvites`
+#   (`ContactsImportModal.tsx:216`) — a real bulk invite to Apple's sample
+#   addresses. Never tapped here.
 # - THE SEARCH FIELD, beyond checking it is there. Typing into it works, but
 #   `searchQuery` lives in `ContactsImportModal` and is only reset by the
 #   sheet's `dismiss()` ref method, which nothing calls when the backdrop
@@ -202,6 +207,48 @@ appId: com.vaedros.unquest
     id: 'invite-add-manual-button'
     text: 'Add Manual Contact'
     enabled: true
+
+# TICK ONE CONTACT — THE REAL STATE CHANGE ON THIS STEP.
+#
+# What ticking does and does not do: `handleContactSelect`
+# (`ContactsImportModal.tsx:197-210`) only flips an entry in the local
+# `selectedContacts` map. It sends nothing. Sending needs the button above, and
+# this file never taps it.
+#
+# The row is chosen by id pattern, so no simulator UUID and no person's name is
+# pinned. Whichever row Maestro matches first is fine, and the flow does not
+# have to trust that it matched the SAME row twice either: two different rows
+# would leave the count at 2, the label would read `Invite 2 Contacts`, and the
+# untick assertion below would go red.
+- tapOn:
+    id: 'contact-item-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-select-contacts-button'
+      text: 'Invite 1 Contact'
+      enabled: true
+    timeout: 10000
+
+# UNTICK IT AGAIN, AND THIS IS NOT TIDYING — it is the receipt that the tick
+# does not survive the run. `selectedContacts` is reset only inside the sheet
+# ref's `dismiss()` (`ContactsImportModal.tsx:88-94`), and nothing calls that
+# when the backdrop closes the sheet: `present()` re-runs the permission check
+# and reloads the contacts, but leaves the ticks alone. A tick left behind would
+# still be there the next time this sheet opens — for the next run of this file,
+# or for whatever flow opens the sheet after it — with a live send button armed
+# above it.
+#
+# The assertion is the same pair as before the tick, so it also closes the
+# transition: the label and the enabled state both came back because the count
+# went back to zero.
+- tapOn:
+    id: 'contact-item-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-select-contacts-button'
+      text: 'Select Contacts'
+      enabled: false
+    timeout: 10000
 
 # The sheet's title says `Invite Friends` on BOTH steps, so it cannot tell them
 # apart. This line can: `invite-email-input` belongs to the email form alone.
