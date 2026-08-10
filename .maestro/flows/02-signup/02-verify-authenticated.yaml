@@ -229,6 +229,74 @@ appId: com.vaedros.unquest
 - assertNotVisible: '(!|\d+), .*'
 
 # =============================================================================
+# THE NARRATOR-VOICE ANNOUNCEMENT — DISMISS IT ON PURPOSE, NOT BY ACCIDENT
+# =============================================================================
+# A bottom sheet advertising the new narrator voices lands on top of the home
+# screen a moment after this flow arrives there, and it WILL land on every run
+# of this flow. Handling it has to be part of the flow.
+#
+# Why it always fires here. The home screen picks one unseen announcement and
+# presents it 1.5 seconds after the screen settles (`index.tsx:168-172`). For a
+# just-converted account the winner is always `narratorVoice`: it is the only
+# one of the four with no precondition (`announcement-store.ts:151-157`), and
+# the other three cannot qualify at signup (no story branch taken, no perks,
+# one quest). The 1.5s timer is restarted by the conversion itself, because the
+# effect depends on `user` and `user` changes the moment the magic link
+# verifies. So the sheet arrives a beat or two after the tab bar does.
+#
+# WHAT IT DID BEFORE THIS BLOCK EXISTED. On the 2026-08-10 Release run the
+# sheet presented mid-flow and the next `tapOn` in this file hit one of its two
+# full-width buttons instead of the tab it named. Proven after the fact from
+# the device's own storage: `hasSeenNarratorVoiceAnnouncement` was `true` with
+# `lastAnnouncementShownAt` stamped inside the run window, and that flag is
+# written ONLY by the sheet's two button handlers
+# (`narrator-voice-announcement-modal.tsx:78-91`) — there is no dismiss-by-
+# backdrop path that sets it. Which button got pressed was down to pixel
+# overlap. One of them is "Choose My Narrator", which pushes /settings, so the
+# flow could have been dragged to a screen it never asked for. Both handlers
+# also send a PostHog event, so every run was reporting a user decision that no
+# user made.
+#
+# The sheet can steal any tap, not just the next one — the tab taps further
+# down this file are equally exposed — so the cure is to deal with it here,
+# before any of them, rather than to make one tap tolerant.
+#
+# Sheets in this app do not set `accessibilityViewIsModal`, so everything
+# behind the backdrop stays in the accessibility tree and a `tapOn` by id still
+# matches the tab button underneath and still reports success. That is why
+# waiting the sheet out or retrying past it cannot work: nothing about the
+# elements this flow names changes while the sheet is up.
+#
+# Shape: wait for the sheet, then dismiss it if it is there.
+#   - The wait is what makes this deterministic. Without it the guard below
+#     would run before the 1.5s timer fires, find nothing, and skip — leaving
+#     the sheet to appear moments later, which is exactly the old behaviour.
+#   - `optional: true` is what keeps it tolerant: on a container that has
+#     already seen the announcement, or on a day the once-per-day cap has
+#     already been spent, no sheet comes and the wait must not fail the flow.
+#     Verified on device both ways: with the sheet absent the wait passes with
+#     `optional: true` and fails with "Assertion is false" without it.
+#   - Matched on the label because the sheet has no testIDs yet (ticketed).
+#     `Maybe Later` is findable thanks to the SHE-26 sheet accessibility fix on
+#     this branch; before it, sheet contents were invisible to iOS.
+- extendedWaitUntil:
+    visible: 'Maybe Later'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Maybe Later'
+    commands:
+      - tapOn: 'Maybe Later'
+      # The sheet animates out. Waiting for its label to go is the only
+      # post-condition available: the tap itself reports success either way,
+      # and every element this flow later names was already matchable through
+      # the backdrop.
+      - extendedWaitUntil:
+          notVisible: 'Maybe Later'
+          timeout: 10000
+
+# =============================================================================
 # THE HERO CROSSED THE BOUNDARY — IDENTITY AND PROGRESSION
 # =============================================================================
 # The profile tab is the only screen in the authenticated app that renders
@@ -246,6 +314,25 @@ appId: com.vaedros.unquest
 # fails first if the wrong account's link is opened — mutation-verified below.
 #
 # The wait doubles as the post-condition for the tab tap.
+#
+# THIS TAP IS DELIBERATELY NOT RETRIED. It has been seen to fail twice, for two
+# different reasons, and only one of them is fixed:
+#
+#   1. The narrator sheet stole it. That is the block above, and it is handled
+#      at the source now.
+#   2. On an earlier Release run the tap was lost with no sheet on screen —
+#      Maestro reported success, the hierarchy dump taken straight afterwards
+#      showed the app still on home with `new-quest-tab` selected, and the same
+#      tap by hand a minute later worked. Nothing explains that one. The
+#      container was wiped before it could be investigated, so there are no
+#      forensics, and it has not recurred.
+#
+# A `retry` around this tap was tried and removed. It would have swallowed
+# cause 2 as well as cause 1, and cause 2 — if it is real and not a one-off —
+# is a tab button that does nothing for a user who has just signed in. This
+# repo has shipped that exact defect three times. A test that quietly re-taps
+# is how it ships a fourth. If it happens again, this flow should go red and
+# say so.
 - tapOn:
     id: 'profile-tab'
 - extendedWaitUntil:
