@@ -39,6 +39,12 @@ export default function MapScreen() {
     [highestQuestId]
   );
 
+  // The visible title and the screen-reader label for the picture must come
+  // from the same call. `getMapNameForQuest` returns a different name once the
+  // player unlocks a later quest (Vaedros Kingdom, Darkwood Forest, ...), so a
+  // hardcoded label would announce a place the user is not looking at.
+  const mapName = getMapNameForQuest(highestQuestId);
+
   // Get actual image dimensions
   useEffect(() => {
     if (mapImageSource) {
@@ -81,7 +87,7 @@ export default function MapScreen() {
       {/* Map Title */}
       <View className="absolute left-4 top-10 z-10 rounded-lg bg-black/50 px-3 py-1 backdrop-blur-sm">
         <Text testID="map-title" className="text-xl font-bold text-white">
-          {getMapNameForQuest(highestQuestId)}
+          {mapName}
         </Text>
       </View>
 
@@ -108,7 +114,7 @@ export default function MapScreen() {
             testID="map-image"
             accessible={true}
             accessibilityRole="image"
-            accessibilityLabel="Vaedros map"
+            accessibilityLabel={`${mapName} map`}
             source={mapImageSource}
             style={{
               width: imageDimensions.width,
