@@ -35,13 +35,19 @@ appId: com.vaedros.unquest
 #
 # It still needs no conditional dismissal, and this is the reason, checked in
 # source rather than assumed: the gate is an effect INSIDE the home screen
-# component (`(app)/index.tsx:139-188`). It re-runs only when one of its
-# dependencies changes — the four `hasSeen*` flags, the throttle stamp, the
-# quest/perk counts, the user. The calendar is not one of them. The home screen
-# stays mounted for the whole suite, so a day boundary alone cannot make a sheet
-# appear; only a fresh mount of home (a relaunch, or `clearState`) can. This
-# file never relaunches. A live hierarchy dump on home before the first run
-# confirmed no sheet was up.
+# component (`(app)/index.tsx:139-188`). It re-runs when it MOUNTS or when one of
+# its dependencies changes — the four `hasSeen*` flags, the throttle stamp, the
+# completed-quest count, the available-perk count, the user object
+# (`index.tsx:175-188`). The calendar is not one of them, so a day boundary on
+# its own cannot make a sheet appear. Two things can: a relaunch, or any change
+# to one of those dependencies. The second needs no relaunch at all — COMPLETING
+# A QUEST moves `completedQuestsLength`, which re-runs the whole gate with the
+# day-cap already lapsed.
+#
+# This file does neither: it never relaunches, and nothing it touches writes any
+# of those dependencies (the profile's own refresh does not write the user
+# store). A live hierarchy dump on home before the first run confirmed no sheet
+# was up, and three green runs met none.
 #
 # If a sheet ever IS up when this file starts, it fails LOUDLY and early rather
 # than quietly: an announcement sheet covers home with a full-screen backdrop
@@ -49,9 +55,11 @@ appId: com.vaedros.unquest
 # the profile never appears, and the wait right after it times out.
 #
 # The GUILDS announcement is the one this account is queued for
-# (`announcement-store.ts:143-149`: registered, three quests completed). Whoever
-# relaunches this app next should expect it on home ~1.5s after settle, and must
-# dismiss it with the sheet's own non-destructive button.
+# (`announcement-store.ts:143-149`: registered, three quests completed). It will
+# present on home ~1.5s after settle the next time that effect re-runs — after a
+# relaunch, or after any change to one of its dependencies, quest completion
+# being the likely one on this chain. Whoever meets it must dismiss it with the
+# sheet's own non-destructive button.
 #
 # Nothing streak- or date-coupled is asserted anywhere in this file, for the
 # same cross-day reason: the streak tile still shows yesterday's number.
