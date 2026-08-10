@@ -78,6 +78,17 @@ export function QuestDeck({ data, activeIndex, onAdvance }: QuestDeckProps) {
   const nextItem = data[(activeIndex + 1) % total];
   const nextLabel = nextItem ? MODE_META[nextItem.mode].label : '';
 
+  // `PanResponder.create` below runs once, at mount, so anything its handlers
+  // close over is frozen at that moment. `onAdvance` is not stable: the caller
+  // rebuilds it every time the active card changes. A captured copy therefore
+  // always advances from whichever card was showing at mount, which made the
+  // deck unswipeable past the second card. Keep a ref pointed at the current
+  // prop and read it when the gesture ends.
+  const onAdvanceRef = React.useRef(onAdvance);
+  React.useEffect(() => {
+    onAdvanceRef.current = onAdvance;
+  }, [onAdvance]);
+
   const panResponder = React.useRef(
     PanResponder.create({
       // Only claim the responder once a drag is clearly horizontal and past
@@ -87,9 +98,9 @@ export function QuestDeck({ data, activeIndex, onAdvance }: QuestDeckProps) {
         Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
       onPanResponderRelease: (_evt, gestureState) => {
         if (gestureState.dx <= -DECK_SWIPE_THRESHOLD) {
-          onAdvance(1);
+          onAdvanceRef.current(1);
         } else if (gestureState.dx >= DECK_SWIPE_THRESHOLD) {
-          onAdvance(-1);
+          onAdvanceRef.current(-1);
         }
       },
     })
