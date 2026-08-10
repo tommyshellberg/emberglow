@@ -224,30 +224,63 @@ appId: com.vaedros.unquest
 # belongs to, instead of to whatever element on the screen happens to carry
 # that string. Proved on device: pairing `1/2` with the WRONG card's title
 # ("Quest Beginner") fails, while pairing it with "First Steps" passes.
-- assertVisible: 'Daily Streak achievements'
-
 # -----------------------------------------------------------------------------
-# PUT THE STREAK CAROUSEL BACK ON ITS FIRST CARD — A REAL BUG BIT HERE
+# THIS SCREEN REMEMBERS WHERE THE LAST VISIT LEFT IT — A REAL BUG BIT HERE
 # -----------------------------------------------------------------------------
-# This screen does NOT start on card 1 every time. Both back controls on this
-# route call `router.push('/profile')` rather than popping, so the achievements
-# screen is never torn down — it stays mounted for the rest of the app session
-# and keeps the carousel exactly where the last visit left it. Coming back in
-# lands on that same card.
+# The achievements route is a TAB route hidden from the tab bar: `(app)/_layout`
+# declares it as a `Tabs.Screen` with `href: null`, exactly like the leaderboard.
+# A tab navigator keeps every screen it has visited mounted, so once this screen
+# has been opened it is never torn down for the rest of the app session, and it
+# keeps its scroll positions — the page each carousel is on AND how far down the
+# screen itself is scrolled. Opening it again lands on that same state. (This is
+# nothing to do with how the back control leaves: it calls `router.push` rather
+# than popping, but `router.back()` would leave the screen parked identically,
+# and no navigation stack grows either — expo-router turns a push into a
+# navigate when the target is not a stack, and the tab router de-duplicates its
+# own history.)
 #
 # Observed, not theorised: the first end-to-end run of this file failed on the
 # First Steps assertion below, and the dump showed the carousel still parked on
 # "Committed" from an earlier visit in the same session.
 #
-# A restore step at the end of the flow would not fix that, because the case
+# A restore step at the END of the flow would not fix that, because the case
 # that bites is a run that ABORTED half way and never reached its own cleanup.
-# So the reset lives at the START, and it is bounded: three cards, so at most
-# two swipes back. When the carousel is already on card 1 the guard is false and
-# nothing happens.
+# So both positions are re-established HERE, on the way in.
 #
-# `scrollUntilVisible` cannot do this job — direction LEFT and direction RIGHT
-# were both tried on the parked carousel and moved it zero pixels. A swipe with
-# explicit coordinates does move it, so that is what this uses.
+# FIRST the vertical position, because the carousel reset below is a swipe at a
+# fixed point on the screen and that point only means anything if the screen is
+# where we think it is. On a screen left scrolled down, the streak carousel is
+# not merely somewhere else — it is out of the accessibility tree entirely, and
+# the swipe would land on a different category's carousel. Seen in a dump.
+#
+# Four swipes DOWN pin the screen against the top of its own scroll. A ScrollView
+# clamps there, so overshooting costs nothing and the result is the same however
+# far down the screen started — which is what makes it deterministic rather than
+# a guess. Three were enough from the very bottom; the fourth is margin. Vertical
+# swipes do not page the horizontal carousels (checked in a dump before and
+# after), so this step cannot disturb what the next one is about to fix.
+- repeat:
+    times: 4
+    commands:
+      - swipe:
+          direction: DOWN
+- waitForAnimationToEnd
+
+# The screen is now at its top, so this header sits at a known place and the
+# streak carousel is the band directly under it.
+- assertVisible: 'Daily Streak achievements'
+
+# THEN the carousel. Bounded: three cards, so at most two swipes back. When the
+# carousel is already on card 1 the guard is false and nothing happens.
+#
+# It has to be a swipe with explicit start and end points. Two tidier-looking
+# mechanisms were tried against the parked carousel and moved it ZERO pixels:
+# `scrollUntilVisible` with direction LEFT or RIGHT, and `swipe` with a `from:`
+# element and a direction. Both produce a gesture this paging ScrollView ignores.
+#
+# 42% of the screen height is 358px, and with the screen pinned to its top the
+# streak card occupies 221px to 501px. The point is inside the card by
+# construction, not by luck.
 - repeat:
     times: 2
     commands:
