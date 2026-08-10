@@ -122,6 +122,23 @@ export const BottomSheet = React.forwardRef(
         // so UIKit drops every descendant and reads the library's default
         // "Bottom Sheet" label instead. VoiceOver users could not reach any
         // control inside a sheet, and no testID inside one was findable.
+        //
+        // This line sits after the `{...props}` spread on purpose. In JSX the
+        // last value wins, so a caller cannot turn `accessible` back on. That
+        // is deliberate: TypeScript still accepts the prop, and it is silently
+        // ignored. There is no good reason to want it on.
+        //
+        // CI DOES NOT GUARD THIS. The Jest test only checks that this component
+        // passes `accessible={false}` down to `BottomSheetModal`. It says
+        // nothing about what the library then does with it. If a future version
+        // stopped forwarding the prop to the view holding the children, that
+        // test would stay green and every sheet in the app would go blank to
+        // VoiceOver and to Maestro again, with nothing visibly wrong on screen.
+        // The only real check is manual: after any bump of
+        // @gorhom/bottom-sheet, open a sheet on an iOS device or simulator,
+        // dump the accessibility tree (Maestro's `inspect_view_hierarchy`), and
+        // confirm the sheet's text and buttons are listed under it rather than
+        // a single node labelled "Bottom Sheet".
         accessible={false}
         enableDynamicSizing
         maxDynamicContentSize={windowHeight * MAX_DYNAMIC_CONTENT_RATIO}
