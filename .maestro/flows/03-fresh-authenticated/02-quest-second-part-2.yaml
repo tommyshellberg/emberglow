@@ -143,9 +143,20 @@ appId: com.vaedros.unquest
 #   - `221d9b7` gave this sheet's two buttons testIDs precisely so the suite
 #     could close it.
 # `branching-announcement-continue` is the non-destructive one ("Continue
-# Current Journey"): its handler only sets `setHasSeenBranchingAnnouncement(true)`
-# and dismisses. Naming it by id cannot drift onto the destructive button, which
-# is strictly safer than any coordinate.
+# Current Journey"): its handler sets `setHasSeenBranchingAnnouncement(true)` and
+# dismisses. Naming it by id cannot drift onto the destructive button, which is
+# strictly safer than any coordinate.
+#
+# It is not free, though. `handleContinue` also fires
+# `posthog.capture('branching_announcement_declined')`, so every run that takes
+# the present branch writes a "user declined" event that no user produced. Same
+# side effect the narrator-sheet dismissal has in `02-signup/
+# 02-verify-authenticated.yaml`. It lands in the dev PostHog project. No dismiss
+# path avoids it and still leaves the sheet closed for good: the destructive
+# button captures its own event, and the old backdrop tap captured nothing but
+# never set `hasSeenBranchingAnnouncement`, so the sheet returns on a later day.
+# Worth knowing before anyone reads announcement funnels from an environment the
+# suite runs against.
 #
 # The wait and the guard name the BACKDROP rather than the button, on purpose.
 # The backdrop is the thing that actually occludes the streak button, and its
