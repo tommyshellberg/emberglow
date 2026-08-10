@@ -199,6 +199,15 @@ function DeckCard({
 
   return (
     <Animated.View
+      // One id per mode, so a flow can read which card is front instead of
+      // counting swipes. `cooperative` is the only mode whose name differs
+      // from the anchor the e2e suite uses — it names that card `coop` — so
+      // spell it out rather than deriving an id that reads `…-cooperative`.
+      testID={
+        item.mode === 'cooperative'
+          ? 'deck-card-coop'
+          : `deck-card-${item.mode}`
+      }
       style={[styles.cardSlot, animatedStyle, { zIndex: total - order }]}
     >
       {isFront ? (
