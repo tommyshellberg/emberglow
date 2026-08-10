@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
@@ -204,7 +204,6 @@ jest.mock('@/components/ui', () => ({
   SafeAreaView: ({ children, ...props }: any) => (
     <div {...props}>{children}</div>
   ),
-  UpdateNotificationBar: () => <div>UpdateNotificationBar</div>,
 }));
 
 jest.mock('@gorhom/bottom-sheet', () => ({
@@ -695,6 +694,46 @@ describe('RootLayout', () => {
       expect(mockFailQuest).toHaveBeenCalled();
       expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(mockEvent.notification.display).toHaveBeenCalled();
+    });
+  });
+
+  // Regression tests for the 2.0.0 production boot freeze: the splash was only
+  // hidden from GestureHandlerRootView's onLayout, which never fires in release
+  // builds on the SDK 54 / Fabric stack. expo-splash-screen 31.x blocks every
+  // frame until hideAsync() is called, so the app froze on the splash forever.
+  // Hiding must not depend on a layout event.
+  describe('splash screen hiding', () => {
+    it('hides the splash once hydration, auth, and fonts are ready — without any layout event', async () => {
+      const { useAuth } = require('@/lib');
+      const SplashScreen = require('expo-splash-screen');
+      // Pin auth explicitly: earlier tests replace the useAuth implementation
+      // with 'hydrating' and jest.clearAllMocks() does NOT restore it.
+      useAuth.mockImplementation((selector: any) =>
+        selector({ status: 'signIn' })
+      );
+
+      render(<RootLayout />);
+
+      await waitFor(() => {
+        expect(SplashScreen.hideAsync).toHaveBeenCalled();
+      });
+    });
+
+    it('does not hide the splash while auth is still hydrating', async () => {
+      const { useAuth } = require('@/lib');
+      const SplashScreen = require('expo-splash-screen');
+      useAuth.mockImplementation((selector: any) =>
+        selector({ status: 'hydrating' })
+      );
+
+      render(<RootLayout />);
+
+      // Flush effects and pending microtasks so a wrongly-fired hide would land
+      await act(async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+      });
+
+      expect(SplashScreen.hideAsync).not.toHaveBeenCalled();
     });
   });
 });

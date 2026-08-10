@@ -25,6 +25,7 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
   'quest-completed-signup': true,
   'streak-celebration': true,
   'first-quest-result': true,
+  'no-hero': true,
 };
 
 /**
@@ -42,12 +43,27 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
  * `quest-completed-signup.tsx`'s "Create account" button hit this.
  *
  * So for these three the resolver's answer is read as a default rather than a
- * mandate. That is safe precisely here and nowhere else: this zone is the
- * resolver's LAST branch (Priority 3-4), reached only once streak celebration,
- * pending quests and quest results have all declined to claim the user. Those
- * higher-priority screens stay strictly matched below — they are consequences
- * of state the user cannot opt out of, and a running quest must still evict
- * someone sitting on `/login`.
+ * mandate. That is safe precisely here and nowhere else: every branch that can
+ * name one of these screens is a LATE one (Priorities 3-5), reached only once
+ * streak celebration, pending quests and quest results have all declined to
+ * claim the user. Those higher-priority screens stay strictly matched below —
+ * they are consequences of state the user cannot opt out of, and a running
+ * quest must still evict someone sitting on `/login`.
+ *
+ * `quest-completed-signup` now has TWO of those branches, which the original
+ * "Priority 3-4" phrasing did not contemplate: the onboarding one (Priority 3,
+ * step VIEWING_SIGNUP_PROMPT) and the provisional-conversion gate (Priority 5),
+ * which fires with onboarding COMPLETE. The conclusion is unchanged — Priority
+ * 5 is later still — but the premise is not "the last branch", it is "after
+ * everything the user cannot opt out of".
+ *
+ * Known hole, deliberately left open: `onboarding` is in this zone, so a gated
+ * guest who reaches `/onboarding` satisfies the gate and is not evicted from
+ * it. That is reachable via plain `/login` → "Create a hero" when `character`
+ * is null (`login-form.tsx` deliberately leaves stray keys alone). It is not a
+ * lock — re-running onboarding mints fresh provisional keys, and the gate
+ * catches them again on the way out — but the gate is described elsewhere as a
+ * "hard wall" and it is not one at this seam.
  *
  * Letting the user actually REACH `/login?intent=convert` exposes that the
  * `convert` framing withholds its way back on purpose (`copy.ts:105-110` — that
@@ -64,6 +80,40 @@ const PRE_ACCOUNT_ZONE: Partial<Record<ResolverOwnedSegment, true>> = {
   onboarding: true,
   login: true,
   'quest-completed-signup': true,
+};
+
+/**
+ * Resolver-owned screens that ALSO have their own entry points, and so must
+ * survive the Priority 6 'app' fall-through.
+ *
+ * `RESOLVER_OWNED_SEGMENTS` encodes "only the resolver puts you here", which
+ * lets target 'app' read any membership as a stale state-driven arrival and
+ * evict. That inference is sound for screens with no other way in. It is false
+ * for `/streak-celebration`: three affordances push it on purpose — the play
+ * screen header and journal (`StreakCounter`) and the profile stats card — and
+ * the resolver only names it while `shouldShowStreakCelebration` is true. Tap
+ * the flame on any other day and the resolver answers 'app', so the gate
+ * replaced the user back onto Play before the screen could be read
+ * (emberglow#365, captured on device 2026-07-28).
+ *
+ * Same defect shape as PRE_ACCOUNT_ZONE above — store state cannot express
+ * "the user just tapped" — but a distinct carve-out, because that zone answers
+ * "which screens satisfy each other" while this one answers "which screens the
+ * absence of a destination is no reason to leave".
+ *
+ * The safety this gives up is real and is paid for elsewhere: the gate used to
+ * be the fallback that landed an auto-shown celebration back home when
+ * `handleContinue` cleared the flag and `router.back()` had nowhere to go. That
+ * screen now guarantees its own exit rather than leaning on eviction, which is
+ * where the guarantee belonged — the gate cannot tell the two arrivals apart,
+ * and the screen does not need to.
+ *
+ * Scoped to target 'app' only. Every higher-priority target still evicts from
+ * here (see the strict cases below): a pending quest outranks reading your
+ * streak, and those are consequences of state the user cannot opt out of.
+ */
+const USER_REACHABLE_SEGMENTS: Partial<Record<ResolverOwnedSegment, true>> = {
+  'streak-celebration': true,
 };
 
 /**
@@ -101,7 +151,7 @@ export function isAlreadyAtTarget(
     case 'loading':
       return false;
 
-    // 'app' is the resolver's Priority 5 fall-through, returned whenever nothing
+    // 'app' is the resolver's Priority 6 fall-through, returned whenever nothing
     // special is happening. It is the ABSENCE of a destination, not a
     // destination: a reason to leave a screen the resolver owns, and no reason
     // to move anywhere else. Matching it against the (app) group instead would
@@ -117,6 +167,13 @@ export function isAlreadyAtTarget(
       // a dependency of the gate's effect, so the real decision is only
       // deferred until they populate a tick later.
       if (root === undefined) {
+        return true;
+      }
+
+      // Screens the user can reach on purpose (see USER_REACHABLE_SEGMENTS)
+      // are resolver-owned but not resolver-exclusive: 'app' is the absence of
+      // a destination, which is no reason to take one away from them.
+      if (Object.hasOwn(USER_REACHABLE_SEGMENTS, root)) {
         return true;
       }
 
@@ -163,6 +220,20 @@ export function isAlreadyAtTarget(
       return segments[0] === 'streak-celebration';
     case 'first-quest-result':
       return segments[0] === 'first-quest-result';
+
+    // A hero-less account sitting in the app group must still be evicted to
+    // /no-hero. But tapping the screen's "Choose your hero" button resets
+    // onboarding and navigates to /onboarding/welcome WITHOUT changing any
+    // resolver input — serverUser is unchanged, so the resolver still answers
+    // 'no-hero' on the next render. A strict segments[0] === 'no-hero' match
+    // read that as "not there yet" and replaced the user straight back onto
+    // /no-hero, making the button inert (same dead-link shape as
+    // PRE_ACCOUNT_ZONE above, just not initiated from inside that zone).
+    case 'no-hero':
+      return (
+        segments[0] === 'no-hero' ||
+        Object.hasOwn(PRE_ACCOUNT_ZONE, segments[0])
+      );
 
     default: {
       const _exhaustive: never = target;

@@ -82,7 +82,7 @@ export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
         <Text style={styles.heading}>Your Story Just Got Deadlier</Text>
 
         <Text style={styles.body}>
-          unQuest now features branching storylines with real consequences. Some
+        Emberglow now features branching storylines with real consequences. Some
           choices lead to victory, others... to death.
         </Text>
 

@@ -1,4 +1,7 @@
+import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
+import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 import { create } from 'zustand';
 
@@ -6,8 +9,10 @@ import { storeTokens } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem } from '@/lib/storage';
+import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
+import { usePOIStore } from '@/store/poi-store';
 import { useUserStore } from '@/store/user-store';
 
 import { createSelectors } from '../utils';
@@ -38,6 +43,7 @@ const _useAuth = create<AuthState>((set, get) => ({
         refresh: loginResponse.token.refresh,
       },
     });
+    Sentry.setTag('authState', 'full');
 
     // Login to RevenueCat with user ID
     if (loginResponse.user?.id) {
@@ -62,6 +68,7 @@ const _useAuth = create<AuthState>((set, get) => ({
       status: 'signOut',
       token: null,
     });
+    Sentry.setTag('authState', 'signedOut');
 
     // Clear user store
     useUserStore.getState().clearUser();
@@ -246,6 +253,7 @@ const _useAuth = create<AuthState>((set, get) => ({
           }
 
           set({ status: 'signIn', token: userToken });
+          Sentry.setTag('authState', 'full');
         } catch (fetchError) {
           console.error(
             'Failed to fetch user details during hydration:',
@@ -256,6 +264,7 @@ const _useAuth = create<AuthState>((set, get) => ({
           console.log('[Auth] Keeping user signed in despite fetch failure');
           // CRITICAL: Must set status to signIn so app can proceed offline
           set({ status: 'signIn', token: userToken });
+          Sentry.setTag('authState', 'full');
         }
       } else if (provisionalToken) {
         // Handle provisional users
@@ -268,6 +277,7 @@ const _useAuth = create<AuthState>((set, get) => ({
         };
 
         set({ status: 'signIn', token: provisionalTokenData });
+        Sentry.setTag('authState', 'provisional');
 
         // Note: We don't fetch user details for provisional users yet
         // They will be fetched after quest completion when converting to full user
@@ -276,12 +286,14 @@ const _useAuth = create<AuthState>((set, get) => ({
         // No tokens found - set signOut status without calling logout methods
         // since the user was never logged in
         set({ status: 'signOut', token: null });
+        Sentry.setTag('authState', 'signedOut');
       }
     } catch (e) {
       console.error('Error during hydration process:', e);
       // Don't sign out on hydration errors - let the user continue if possible
       // They might just have network issues or other temporary problems
       set({ status: 'signOut' }); // Set to signOut state but don't clear tokens
+      Sentry.setTag('authState', 'signedOut');
     }
   },
 }));
@@ -292,3 +304,104 @@ export const signIn = (response: UserLoginResponse) =>
   _useAuth.getState().signIn(response);
 export const signOut = () => _useAuth.getState().signOut();
 export const hydrateAuth = async () => _useAuth.getState().hydrate();
+
+/**
+ * Whether a dead-session notice is already on screen awaiting acknowledgement.
+ *
+ * `refreshProvisionalTokens` is single-flight, so one 'dead' verdict is handed
+ * to every caller that joined the in-flight refresh. Without this, a gated
+ * guest tapping "Continue with Google" while a background provisional request
+ * 401s gets two stacked non-cancelable alerts, each wiping on acknowledge —
+ * the second against an already-signed-out store.
+ *
+ * Not a one-way latch: `wipeGuestSession` clears it, so a later dead session
+ * (a new guest, a new lapse) is still announced.
+ */
+let sessionEnding = false;
+
+/**
+ * Wipes the guest (provisional) session AND all local progress, signs out, and
+ * lands the user on /onboarding/welcome.
+ *
+ * The navigation is explicit rather than left to the resolver. Leaning on the
+ * resolver worked while the only callers were the `(app)` interceptors, but
+ * the conversion gate added call sites on `/quest-completed-signup` and
+ * `/login` — both members of PRE_ACCOUNT_ZONE, where
+ * `isAlreadyAtTarget('onboarding', …)` answers true and NavigationGate
+ * suppresses the redirect (`@/lib/navigation/is-already-at-target`). The user
+ * acknowledged an alert promising a fresh start, lost their character, and did
+ * not move. Every caller needs the exit, so the exit belongs here — the same
+ * conclusion `login-form.tsx`'s `discardHeroAndStartOver` reached separately.
+ *
+ * Deliberately no salvage: grafting saved local progress onto a freshly
+ * provisioned account is the split-brain shape that produced the PR #364
+ * bug family (two accounts, divided quest data, empty journal). A dead
+ * guest starts over — one branch, one honest outcome (Tommy, 2026-07-29).
+ *
+ * Device preferences (reminder times etc.) are intentionally left alone;
+ * only identity and progress are wiped.
+ *
+ * Sibling key list: `hasProvisionalSession` in `./provisional-session` decides
+ * whether a guest session EXISTS from two of these four keys — deliberately
+ * not `provisionalRefreshToken` (conversion leaves it on disk on purpose) and
+ * not `provisionalEmail`.
+ *
+ * That invariant runs in one direction, and it does NOT run through this
+ * function: every key `hasProvisionalSession` reads must be cleared by BOTH
+ * conversion paths — `verifyMagicLink` and `socialSignIn` in `@/api/auth`.
+ * Add a key to the check that conversion does not clear and every converted
+ * user is walled behind the signup screen forever. Adding a `removeItem` here
+ * is harmless by comparison: this is the start-over wipe, not a conversion.
+ */
+export const wipeGuestSession = () => {
+  // Cleared here rather than in the alert's handler so the re-arm is tied to
+  // the wipe actually running, not to a particular caller remembering to.
+  sessionEnding = false;
+
+  removeItem('provisionalAccessToken');
+  removeItem('provisionalRefreshToken');
+  removeItem('provisionalUserId');
+  removeItem('provisionalEmail');
+
+  // Call-time require, not a top-level import: quest-store reaches back to
+  // this module (quest-store → quest-run-service → provisional-client →
+  // lib/auth), and a static import would close that cycle at module init.
+  const { useQuestStore } = require('@/store/quest-store');
+  useQuestStore.getState().reset();
+  usePOIStore.getState().reset();
+  useCharacterStore.getState().resetCharacter();
+  useOnboardingStore.getState().resetOnboarding();
+
+  // Also clears the user store and detaches PostHog/RevenueCat/OneSignal.
+  _useAuth.getState().signOut();
+
+  router.replace('/onboarding/welcome');
+};
+
+/**
+ * A provisional session is DEFINITIVELY dead: the server rejected its access
+ * token AND its refresh token (or there was none). Nothing sent with those
+ * credentials can ever succeed again, so holding onto them only buys an
+ * endless 401 storm behind a working-looking app — the failure mode this
+ * function exists to end.
+ *
+ * Tells the user, then wipes on acknowledge — never invisibly underneath
+ * the notice, so the screen doesn't reset while they are reading why.
+ *
+ * Only call this on proof (a 401 for the refresh token itself). For plain
+ * network failures the session must be left alone — see
+ * refreshProvisionalTokens' result contract.
+ */
+export const endProvisionalSession = () => {
+  if (sessionEnding) {
+    return;
+  }
+  sessionEnding = true;
+
+  Alert.alert(
+    'Character Expired',
+    'Sorry, but it looks like your temporary character expired — no worries, though, it only takes a couple of minutes to create a new one.',
+    [{ text: 'Start Over', onPress: () => wipeGuestSession() }],
+    { cancelable: false }
+  );
+};

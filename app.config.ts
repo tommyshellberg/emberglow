@@ -100,6 +100,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     ['react-native-edge-to-edge'],
     [
+      '@react-native-google-signin/google-signin',
+      {
+        // Reversed GOOGLE_IOS_CLIENT_ID; prebuild regenerates the Info.plist
+        // URL scheme from this, so the hand-added entry no longer gets dropped.
+        iosUrlScheme:
+          'com.googleusercontent.apps.294858595704-9mp664qph89g16istbfoklhku760lnj5',
+      },
+    ],
+    [
       '@sentry/react-native/expo',
       {
         url: 'https://sentry.io/',

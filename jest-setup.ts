@@ -270,8 +270,31 @@ jest.mock('@gorhom/bottom-sheet', () => {
   const React = jest.requireActual('react');
   const RN = jest.requireActual('react-native');
 
+  // Mocked BottomSheetModal that supports BOTH:
+  // 1. ref forwarding with dismiss/present methods (for emberglow BottomSheet)
+  // 2. .mock.calls introspection (for existing tests in bottom-sheet.test.tsx and unlock-celebration-modal.test.tsx)
+  //
+  // Keep jest.fn() for mock tracking, wrap in React.forwardRef for ref support,
+  // expose .mock property via live getter so jest.clearAllMocks() refreshes it.
+  const bottomSheetModalRender = jest.fn((props: any, ref: any) => {
+    React.useImperativeHandle(ref, () => ({
+      dismiss: jest.fn(),
+      present: jest.fn(),
+    }));
+    return React.createElement(
+      RN.View,
+      { testID: 'bottom-sheet-modal' },
+      props.children
+    );
+  });
+
+  const MockedBottomSheetModal = React.forwardRef(bottomSheetModalRender);
+  Object.defineProperty(MockedBottomSheetModal, 'mock', {
+    get: () => bottomSheetModalRender.mock,
+  });
+
   return {
-    BottomSheetModal: jest.fn(({ children }) => children),
+    BottomSheetModal: MockedBottomSheetModal,
     BottomSheetModalProvider: jest.fn(({ children }) => children),
     BottomSheetBackdrop: jest.fn(() => null),
     BottomSheetScrollView: jest.fn(({ children }) => children),
@@ -391,6 +414,7 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
     configure: jest.fn(),
     hasPlayServices: jest.fn().mockResolvedValue(true),
+    signOut: jest.fn().mockResolvedValue(undefined),
     signIn: jest.fn(),
   },
   statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },

@@ -17,7 +17,10 @@ module.exports = {
     '<rootDir>/.worktrees/',
     '<rootDir>/.stryker-tmp/',
   ],
-  modulePathIgnorePatterns: ['<rootDir>/.worktrees/', '<rootDir>/.stryker-tmp/'],
+  modulePathIgnorePatterns: [
+    '<rootDir>/.worktrees/',
+    '<rootDir>/.stryker-tmp/',
+  ],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

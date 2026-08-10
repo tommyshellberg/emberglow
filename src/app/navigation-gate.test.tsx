@@ -61,6 +61,25 @@ describe('NavigationGate — user-initiated moves inside the signed-out area', (
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it('leaves a hero-less user who tapped "Choose your hero" on /no-hero', () => {
+    // Signed in, server account has no character — the resolver returns
+    // 'no-hero'. Tapping the button on that screen calls resetOnboarding()
+    // and router.replace('/onboarding/welcome'), but neither touches
+    // serverUser, so the resolver still returns 'no-hero' here. Without
+    // is-already-at-target.ts treating onboarding as good enough for this
+    // target, the gate would replace the user straight back onto /no-hero,
+    // making the button inert.
+    mockTarget = { type: 'no-hero' };
+
+    // no-hero.tsx has already run router.replace('/onboarding/welcome').
+    mockSegments = ['onboarding', 'welcome'];
+    mockPathname = '/onboarding/welcome';
+
+    render(<NavigationGate />);
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it('leaves a post-first-quest user who tapped "Create account" on /login', () => {
     // currentStep === VIEWING_SIGNUP_PROMPT, so the resolver returns
     // 'quest-completed-signup'.
@@ -106,5 +125,15 @@ describe('NavigationGate — evictions it must still perform', () => {
     render(<NavigationGate />);
 
     expect(mockReplace).toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('evicts a hero-less account sitting in the app group to /no-hero', () => {
+    mockTarget = { type: 'no-hero' };
+    mockSegments = ['(app)'];
+    mockPathname = '/';
+
+    render(<NavigationGate />);
+
+    expect(mockReplace).toHaveBeenCalledWith('/no-hero');
   });
 });

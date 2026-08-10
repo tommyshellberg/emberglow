@@ -17,10 +17,12 @@ import {
 } from '@/components/login/social-sign-in-buttons';
 import { FocusAwareStatusBar } from '@/components/ui';
 import {
+  type NoAccountForIdentity,
   SOCIAL_SIGNIN_OUTCOMES,
   type SocialSignInOutcome,
 } from '@/lib/auth/social';
 import { useCharacterStore } from '@/store/character-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import {
   colors,
   fontFamily,
@@ -97,46 +99,50 @@ export default function QuestCompletedSignupScreen() {
 
   const handleSocialSignInSuccess = useCallback(
     (
-      _target: 'onboarding' | 'app',
+      target: 'onboarding' | 'app',
       outcome: SocialSignInOutcome | (string & {}),
       provider: SocialProvider
     ) => {
-      // The user arriving here already has a provisional character and has
-      // completed quest-1 (that's how they reached this screen), so unlike
-      // the login screen's `created` case, no explicit routing decision is
-      // needed: `socialSignIn` (src/api/auth.ts) clears the provisional
-      // tokens as a side effect, and the globally-mounted NavigationGate's
-      // onboarding-sync heuristic (navigation-state-resolver.ts) then flips
-      // onboarding to COMPLETED and routes to `/(app)` on its own — the
-      // same mechanism the magic-link conversion path already relies on
-      // (see `completeSignIn`'s JSDoc).
+      // Navigate on the target the callback already carries, rather than
+      // leaving it to the conversion gate.
+      //
+      // Delegating looks sound — `socialSignIn` clears the provisional tokens,
+      // so the gate's next pass falls through to 'app'. But "next pass" needs
+      // something to re-render the resolver, and `hasProvisionalSession` is a
+      // plain MMKV read with no subscription. The re-render normally comes
+      // from `completeSignIn`'s store writes, which it skips when
+      // `getUserDetails()` fails or answers without an id/email — it swallows
+      // that and still resolves 'app'. Auth status was already 'signIn', so
+      // nothing changes and the user sits on this wall holding a valid real
+      // account until they restart. Same one-liner as login-form.tsx:161.
       //
       // This screen is reachable by a returning user too (e.g. reinstalled
       // the app, still has a provisional character + completed quest-1 on
       // this device, and their social identity already resolves to an
       // existing full account) — outcomes `login`, `existing-account-login`,
       // and `linked` all mean "signed into an account that already
-      // existed," not a new signup, so only `created`/`converted` (a
-      // genuinely new full account) should count toward the funnel.
-      if (
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CREATED ||
-        outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED
-      ) {
+      // existed," not a new signup, so only `converted` (a genuinely new
+      // full account) should count toward the funnel.
+      if (outcome === SOCIAL_SIGNIN_OUTCOMES.CONVERTED) {
         posthog.capture('signup_completed', { method: provider });
       }
+
+      router.replace(target === 'app' ? '/(app)/' : '/onboarding');
     },
     [posthog]
   );
 
   const handleSocialSignInError = useCallback(
-    (kind: 'email-in-use' | 'generic') => {
+    // A `NoAccountForIdentity` here is out of scope for this screen (it has
+    // no no-account step of its own) and is treated the same as any other
+    // failure — falls through with everything but the 409 case.
+    (kind: 'email-in-use' | 'generic' | NoAccountForIdentity) => {
+      const isEmailInUse = kind === 'email-in-use';
       showMessage({
-        message:
-          kind === 'email-in-use' ? 'Email already in use' : 'Sign-in failed',
-        description:
-          kind === 'email-in-use'
-            ? 'This email is already tied to another account.'
-            : 'Please try again.',
+        message: isEmailInUse ? 'Email already in use' : 'Sign-in failed',
+        description: isEmailInUse
+          ? 'This email is already tied to another account.'
+          : 'Please try again.',
         type: 'danger',
         duration: 3000,
       });
@@ -144,11 +150,14 @@ export default function QuestCompletedSignupScreen() {
     []
   );
 
-  // Hero card data — real data throughout, no hardcoded name/XP/type. XP is
+  // Hero card data — real data throughout, no hardcoded name/XP/type.
+  //
+  // XP has two meanings here, one per audience. On the onboarding path it is
   // quest-1's reward preview from AVAILABLE_QUESTS (matching the
-  // first-quest-result.tsx precedent), not the character store's
-  // accumulated `currentXP`, since the card means "what you just earned",
-  // not "your lifetime total".
+  // first-quest-result.tsx precedent), because the card means "what you just
+  // earned". On the conversion-gate path it is the character store's
+  // accumulated `currentXP`, because a gated veteran's card means "what you
+  // stand to lose" — see `isConversionGate` and the badge below.
   const characterProfile = character
     ? CHARACTERS.find((c) => c.id === character.type)
     : undefined;
@@ -157,6 +166,25 @@ export default function QuestCompletedSignupScreen() {
   const heroTypeLabel = characterProfile?.type ?? FALLBACK_HERO_TYPE;
   const firstQuestXP =
     AVAILABLE_QUESTS.find((quest) => quest.id === 'quest-1')?.reward.xp ?? 0;
+
+  // Two audiences, one screen. Normal path: a guest fresh off quest one
+  // (onboarding still at VIEWING_SIGNUP_PROMPT) — show what they just earned.
+  // Gate path (see navigation-state-resolver Priority 5): a veteran guest
+  // routed here to convert — "Quest one · complete" would be false, so show
+  // their real standing instead.
+  //
+  // Requires the character too, and not for tidiness: this variant's copy
+  // makes a factual claim about the player's standing, so `heroLevel`'s
+  // `?? 1` and `heroCurrentXP`'s `?? 0` would confidently tell a level-40
+  // veteran whose character hasn't loaded that they are a level 1 hero with
+  // 0 XP. The normal path's fallbacks are generic and harmless; these are
+  // not. Falling back to the first-quest framing is at worst vague. NOT a
+  // loading state — the screen's real job (signing up) works either way.
+  const isOnboardingComplete = useOnboardingStore((s) =>
+    s.isOnboardingComplete()
+  );
+  const isConversionGate = isOnboardingComplete && !!character;
+  const heroCurrentXP = character?.currentXP ?? 0;
 
   return (
     <View
@@ -174,7 +202,11 @@ export default function QuestCompletedSignupScreen() {
         entering={FadeInDown.duration(ANIM_DURATION)}
         style={styles.header}
       >
-        <EyebrowLabel tone="warm">Quest one · complete</EyebrowLabel>
+        <EyebrowLabel tone="warm">
+          {isConversionGate
+            ? `Level ${heroLevel} hero`
+            : 'Quest one · complete'}
+        </EyebrowLabel>
         <Text style={styles.title}>Claim your legend</Text>
       </Animated.View>
 
@@ -202,7 +234,9 @@ export default function QuestCompletedSignupScreen() {
             {`Level ${heroLevel} · ${heroTypeLabel}`}
           </Text>
         </View>
-        <Badge tone="warm">{`+${firstQuestXP} XP`}</Badge>
+        <Badge tone="warm">
+          {isConversionGate ? `${heroCurrentXP} XP` : `+${firstQuestXP} XP`}
+        </Badge>
       </Animated.View>
 
       <Animated.View

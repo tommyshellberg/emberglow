@@ -75,7 +75,15 @@ export default function AppQuestDetailsScreen() {
       }
     }
 
-    router.replace(APP_HOME_ROUTE);
+    // From the journal this screen was pushed, so pop back to it. In the
+    // post-quest result flow the stack behind us is stale (pending-quest),
+    // so replacing to home stays correct there. canGoBack guards the
+    // deep-link case where this screen is the first one on the stack.
+    if (from === 'journal' && router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(APP_HOME_ROUTE);
+    }
   };
 
   const quest = useMemo(() => {

@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 
 import { useNextAvailableQuests } from '@/api/quest/use-next-available-quests';
 import { audioCacheService } from '@/lib/services/audio-cache.service';
-import { getQuestAudioPath } from '@/utils/audio-utils';
+import { useSettingsStore } from '@/store/settings-store';
+import { getNarrationPaths, type NarrationPaths } from '@/utils/audio-utils';
 
 interface UseAudioPreloaderOptions {
   storylineId?: string;
@@ -18,6 +19,7 @@ export const useAudioPreloader = ({
     includeOptions: true,
     enabled,
   });
+  const narratorVoice = useSettingsStore((s) => s.narratorVoice);
 
   useEffect(() => {
     if (!isSuccess || !questsData || !enabled) {
@@ -26,37 +28,41 @@ export const useAudioPreloader = ({
 
     const preloadAudio = async () => {
       try {
-        // Collect audio files from available quests
-        const audioFiles: string[] = [];
+        // Collect narration paths from available quests
+        const audioItems: NarrationPaths[] = [];
 
-        // Add main quest audio files
+        // Add main quest narration paths
         if (questsData.quests) {
           for (const quest of questsData.quests) {
             if (quest.customId) {
-              audioFiles.push(getQuestAudioPath(quest.customId, storylineId));
+              audioItems.push(getNarrationPaths(quest.customId, storylineId));
             }
           }
         }
 
-        // Add option quest audio files
+        // Add option quest narration paths
         if (questsData.options) {
           for (const option of questsData.options) {
             if (option.nextQuest?.customId) {
-              audioFiles.push(
-                getQuestAudioPath(option.nextQuest.customId, storylineId)
+              audioItems.push(
+                getNarrationPaths(option.nextQuest.customId, storylineId)
               );
             }
           }
         }
 
-        // Filter out duplicates
-        const uniqueAudioFiles = [...new Set(audioFiles)];
+        // Filter out duplicates, keyed by primaryPath
+        const uniqueItems = [
+          ...new Map(
+            audioItems.map((item) => [item.primaryPath, item])
+          ).values(),
+        ];
 
-        if (uniqueAudioFiles.length > 0) {
+        if (uniqueItems.length > 0) {
           console.log(
-            `Preloading ${uniqueAudioFiles.length} audio files for ${storylineId}`
+            `Preloading ${uniqueItems.length} audio files for ${storylineId}`
           );
-          await audioCacheService.preloadAudio(uniqueAudioFiles);
+          await audioCacheService.preloadAudio(uniqueItems);
         }
       } catch (error) {
         console.warn('Failed to preload audio files:', error);
@@ -64,7 +70,11 @@ export const useAudioPreloader = ({
     };
 
     preloadAudio();
-  }, [isSuccess, questsData, storylineId, enabled]);
+    // narratorVoice: getNarrationPaths reads settings via getState(), which
+    // doesn't itself trigger a re-render. Subscribing to narratorVoice above
+    // and listing it here is what makes a voice change while mounted
+    // re-preload the current quests' narration (see use-audio-preloader.test.ts).
+  }, [isSuccess, questsData, storylineId, enabled, narratorVoice]);
 
   return {
     cacheStats: audioCacheService.getCacheStats(),

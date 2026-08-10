@@ -86,10 +86,12 @@ const mockAnnouncementState = {
   hasSeenBranchingAnnouncement: false,
   hasSeenSkillTreeAnnouncement: false,
   hasSeenGuildsAnnouncement: false,
+  hasSeenNarratorVoiceAnnouncement: false,
   lastAnnouncementShownAt: null,
   setHasSeenBranchingAnnouncement: jest.fn(),
   setHasSeenSkillTreeAnnouncement: jest.fn(),
   setHasSeenGuildsAnnouncement: jest.fn(),
+  setHasSeenNarratorVoiceAnnouncement: jest.fn(),
   markAnnouncementShown: jest.fn(),
   getAnnouncementToShow: mockGetAnnouncementToShow,
 };
@@ -405,6 +407,22 @@ describe('Home Component - Integration Tests', () => {
       // The branching sheet content is mounted (bottom-sheet pattern).
       expect(screen.getByText('Your Story Just Got Deadlier')).toBeTruthy();
       expect(screen.getByText('Restart at Branching Point')).toBeTruthy();
+
+      unmount();
+    });
+
+    it('presents the narrator voice announcement and stamps the throttle when due', () => {
+      mockGetAnnouncementToShow.mockReturnValue('narratorVoice');
+
+      const { unmount } = render(<Home />);
+      jest.advanceTimersByTime(1500);
+
+      expect(mockAnnouncementState.markAnnouncementShown).toHaveBeenCalledTimes(
+        1
+      );
+      // The narrator sheet content is mounted (bottom-sheet pattern).
+      expect(screen.getByText('Choose Who Tells Your Story')).toBeTruthy();
+      expect(screen.getByText('Choose My Narrator')).toBeTruthy();
 
       unmount();
     });

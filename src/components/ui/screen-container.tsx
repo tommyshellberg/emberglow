@@ -1,8 +1,7 @@
-import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { View, type ViewProps } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useBottomSafeAreaInset } from '@/lib/hooks/use-bottom-safe-area-inset';
 import { colors } from '@/theme';
 
 interface ScreenContainerProps extends ViewProps {
@@ -30,9 +29,15 @@ interface ScreenContainerProps extends ViewProps {
  * container.
  *
  * Standard padding:
- * - Bottom: 8px, on screens with a tab bar (the bar already spans the inset)
- * - Bottom: insets.bottom + 32px (for full screens without tab bar, use fullScreen={true})
+ * - Bottom: 8px under a visible tab bar (the bar already spans the inset)
+ * - Bottom: insets.bottom + 8px everywhere else
  * - Horizontal: 16px (4 in Tailwind = 16px)
+ *
+ * `fullScreen` only swaps the 8px gap for 32px. It does NOT decide whether
+ * the safe-area inset is reserved — the route does, via `hidesTabBar`. Those
+ * two were previously conflated in this one prop, which is how "Try Again" on
+ * Quest Failed ended up under the Android navigation bar: the screen wanted
+ * the inset but not the extra 32px, and had no way to say so.
  *
  * Pass `transparent` on screens that render their own full-screen
  * background art/scrim behind this container — otherwise the flat canvas
@@ -48,19 +53,11 @@ export function ScreenContainer({
   style,
   ...props
 }: ScreenContainerProps) {
-  const insets = useSafeAreaInsets();
-  const tabBarHeight = React.useContext(BottomTabBarHeightContext);
-
   // Determine bottom padding: fullScreen uses 32px, tab screens use 8px
   const defaultBottomPadding = fullScreen ? 32 : 8;
   const finalBottomPadding = bottomPadding ?? defaultBottomPadding;
 
-  // A tab bar below us already spans insets.bottom, so reserving it here too
-  // would strand a dead strip of canvas above the bar. The context is still
-  // set on in-tab routes that hide the bar (quest-discovery, quest/reflection)
-  // — those pass fullScreen, which is why it also gates this.
-  const tabBarSpansInset = tabBarHeight !== undefined && !fullScreen;
-  const bottomInset = tabBarSpansInset ? 0 : insets.bottom;
+  const bottomInset = useBottomSafeAreaInset();
 
   return (
     <View

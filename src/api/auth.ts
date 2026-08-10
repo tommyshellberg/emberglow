@@ -1,15 +1,22 @@
 import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
-import { signIn } from '@/lib/auth';
+import { endProvisionalSession, signIn } from '@/lib/auth';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
 } from '@/lib/auth/social';
-import { ExistingAccountConfirmationRequired } from '@/lib/auth/social';
+import {
+  ExistingAccountConfirmationRequired,
+  NoAccountForIdentity,
+} from '@/lib/auth/social';
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
-import { getItem, removeItem } from '@/lib/storage';
+import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
@@ -39,12 +46,89 @@ export interface RegisterResponse {
 }
 
 /**
+ * The access token to carry as a conversion request's Bearer header, or null
+ * when there is no provisional session at all.
+ *
+ * Why this exists: both conversion endpoints are `auth.optional` on the
+ * server, which SWALLOWS an expired access token and continues with no
+ * `req.user` — no 401, nothing to react to. Without `provisionalId` the
+ * magic-link verify skips conversion entirely and 404s, which the client maps
+ * to "That link has expired"; `/auth/social` likewise falls through to
+ * `no-account-for-identity`. Either way the user loops forever and the
+ * progress the whole gate exists to preserve is quietly lost.
+ *
+ * A gated veteran's access token is almost always stale on arrival: they
+ * expire in 30 minutes and nothing behind the wall refreshes them — no
+ * `(app)` screen mounts, so the interceptor that used to do it incidentally
+ * never runs. `authClient` is a bare axios instance with no interceptors of
+ * its own, so the refresh has to be explicit here.
+ *
+ * Ending the session requires SERVER PROOF — a 401 for the refresh token
+ * itself. Nothing else does:
+ *
+ * - No refresh token on disk: we return the stored access token and let the
+ *   conversion try. `doRefreshProvisionalTokens` reports `'dead'` for this
+ *   case without any network call, and that is right for its OTHER caller —
+ *   the provisional-client interceptor only asks after a 401 has already
+ *   proven the access token rejected, so "nothing left to refresh with" really
+ *   is unrecoverable there. Here we ask PROACTIVELY, with no such proof, so
+ *   inheriting that verdict would hand `wipeGuestSession` (explicitly "no
+ *   salvage") a working session's character, quests and POIs on no evidence.
+ *   The state is reachable: `createProvisionalUser` stores the refresh token
+ *   conditionally, and `hydrate()` still carries a fallback for installs
+ *   without one. Its contract is deliberately NOT changed — the interceptor
+ *   depends on it and is correct as written. Reported to PostHog rather than
+ *   passed over in silence: this install shape mis-converts by construction,
+ *   and it is otherwise invisible — the conversion endpoints answer 200.
+ * - `'error'` (network flake, 5xx, timeout, malformed body): proof of nothing
+ *   either, so the session is likewise left alone — but the conversion is
+ *   ABANDONED rather than attempted, and the caller is told to retry.
+ *
+ * That last one is the asymmetry worth stating. Proceeding on a stale token
+ * does not fail loudly: `auth.optional` swallows it, the server sees no
+ * `req.user`, and a conversion degrades into a plain signup — a second
+ * account, the hero orphaned, no error anywhere. Aborting costs the user a
+ * retry. Orphaning costs them everything the gate exists to save, so the two
+ * are not close. Aborting is NOT correct for the no-refresh-token case above:
+ * that install can never refresh, so abandoning would strand it forever, while
+ * proceeding at least succeeds whenever the stored token is still valid.
+ *
+ * `authClient`'s 10s timeout bounds the added wait.
+ */
+const freshProvisionalAccessToken = async (): Promise<string | null> => {
+  const stored = getItem('provisionalAccessToken');
+  if (typeof stored !== 'string' || stored.length === 0) {
+    return null;
+  }
+
+  const refreshToken = getItem('provisionalRefreshToken');
+  if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+    posthogClient.capture('provisional_conversion_unrefreshable');
+    return stored;
+  }
+
+  const result = await refreshProvisionalTokens();
+  if (result.status === 'dead') {
+    endProvisionalSession();
+    throw new ProvisionalSessionExpired();
+  }
+  if (result.status === 'refreshed') {
+    return result.tokens.access.token;
+  }
+
+  posthogClient.capture('provisional_conversion_refresh_unavailable');
+  throw new ProvisionalRefreshUnavailable();
+};
+
+/**
  * Request a magic link for authentication
  */
 export const requestMagicLink = async (email: string): Promise<void> => {
-  try {
-    const provisionalToken = getItem('provisionalAccessToken');
+  // Outside the try: this is not a magic-link failure, and logging it as one
+  // would bury the real cause under the wrong message.
+  const provisionalToken = await freshProvisionalAccessToken();
 
+  try {
     console.log('provisionalToken exists:', !!provisionalToken);
 
     const body = { email };
@@ -54,7 +138,7 @@ export const requestMagicLink = async (email: string): Promise<void> => {
       'Content-Type': 'application/json',
     };
 
-    if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+    if (provisionalToken) {
       headers.Authorization = `Bearer ${provisionalToken}`;
       console.log(
         'Adding Bearer token for provisional user:',
@@ -304,12 +388,16 @@ export const socialSignIn = async (
   // hard type error shipping a stale client against a newer server.
   outcome: SocialSignInOutcome | (string & {});
 }> => {
-  const provisionalToken = getItem('provisionalAccessToken');
+  // Refreshed first when a guest session exists — see
+  // `freshProvisionalAccessToken`. A stale token here does not fail loudly;
+  // it makes the server treat a conversion as a brand-new signup and strands
+  // the hero this screen promised to keep.
+  const provisionalToken = await freshProvisionalAccessToken();
 
   const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   };
-  if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+  if (provisionalToken) {
     headers.Authorization = `Bearer ${provisionalToken}`;
   }
 
@@ -330,12 +418,23 @@ export const socialSignIn = async (
     // `any` — left off, a typo in `reason`/`account` below would read
     // `undefined` and silently fall through to the generic error copy.
     const details = axios.isAxiosError<{
-      details?: { reason?: string; account?: ExistingAccountSummary };
+      details?: {
+        reason?: string;
+        account?: ExistingAccountSummary;
+        email?: string;
+      };
     }>(error)
       ? error.response?.data?.details
       : undefined;
     if (details?.reason === 'existing-account-confirmation-required') {
       throw new ExistingAccountConfirmationRequired(details.account ?? {});
+    }
+    if (details?.reason === 'no-account-for-identity') {
+      // `?? ''` rather than a throw: the screen's copy already handles an empty
+      // address (it drops the "for <email>" clause), and failing the whole
+      // sign-in because a display string is missing would be a worse outcome
+      // than a slightly vaguer sentence.
+      throw new NoAccountForIdentity(details.email ?? '');
     }
     throw error;
   }
@@ -406,6 +505,72 @@ export const refreshAccessToken =
       tokenService.removeTokens();
       return null;
     }
+  };
+
+/**
+ * Result of a provisional-session refresh. Discriminated so callers can tell
+ * "the session is definitively dead" (server rejected the refresh token, or we
+ * never had one) from "the refresh merely failed" (network, 5xx, malformed
+ * response) — only the former may end the session; treating a flaky network as
+ * death would destroy an unclaimed hero's server link over nothing.
+ */
+export type ProvisionalRefreshResult =
+  | { status: 'refreshed'; tokens: tokenService.AuthTokens }
+  | { status: 'dead' }
+  | { status: 'error' };
+
+const doRefreshProvisionalTokens =
+  async (): Promise<ProvisionalRefreshResult> => {
+    const refreshToken = getItem<string>('provisionalRefreshToken');
+    if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+      // The access token was rejected and there is nothing to refresh with:
+      // unrecoverable by construction.
+      return { status: 'dead' };
+    }
+
+    try {
+      const response = await authClient.post('/auth/refresh-tokens', {
+        refreshToken,
+      });
+      const tokens: tokenService.AuthTokens = response.data;
+      if (!tokens?.access?.token || !tokens?.refresh?.token) {
+        return { status: 'error' };
+      }
+
+      // The server rotates refresh tokens (the old doc is deleted on use), so
+      // both halves must be stored back or the NEXT refresh would 401 against
+      // a consumed token and falsely read as a dead session.
+      setItem('provisionalAccessToken', tokens.access.token);
+      setItem('provisionalRefreshToken', tokens.refresh.token);
+      return { status: 'refreshed', tokens };
+    } catch (error) {
+      // Plain property check instead of axios.isAxiosError: the server's
+      // refreshAuth answers 401 for every rejected refresh token, and only a
+      // 401 proves the server itself disowned the session.
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 401) {
+        return { status: 'dead' };
+      }
+      console.error('Provisional token refresh failed:', error);
+      return { status: 'error' };
+    }
+  };
+
+// Single-flight: the server consumes the refresh token on first use, so two
+// concurrent refreshes would have the loser present an already-deleted token,
+// get a 401, and misdiagnose a healthy session as dead. Both axios clients
+// funnel through here, so the deduplication must live at this level.
+let provisionalRefreshInFlight: Promise<ProvisionalRefreshResult> | null = null;
+
+export const refreshProvisionalTokens =
+  (): Promise<ProvisionalRefreshResult> => {
+    if (!provisionalRefreshInFlight) {
+      provisionalRefreshInFlight = doRefreshProvisionalTokens().finally(() => {
+        provisionalRefreshInFlight = null;
+      });
+    }
+    return provisionalRefreshInFlight;
   };
 
 /**

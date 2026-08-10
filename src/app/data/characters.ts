@@ -1,3 +1,4 @@
+import { type AudioSource } from 'expo-audio';
 import { type ImageSourcePropType } from 'react-native';
 
 export type Character = {
@@ -7,6 +8,7 @@ export type Character = {
   description: string;
   image: ImageSourcePropType;
   profileImage: ImageSourcePropType;
+  introAudio: AudioSource;
 };
 
 const CHARACTERS: Character[] = [
@@ -17,22 +19,7 @@ const CHARACTERS: Character[] = [
     description: 'Turns idle hours into gold.',
     image: require('@/../assets/images/characters/alchemist-full.jpg'),
     profileImage: require('@/../assets/images/characters/alchemist-profile.jpg'),
-  },
-  {
-    id: 'bard',
-    type: 'Bard',
-    title: 'Voice of Inspiration',
-    description: 'Every quiet moment becomes a song.',
-    image: require('@/../assets/images/characters/bard-full.jpg'),
-    profileImage: require('@/../assets/images/characters/bard-profile.jpg'),
-  },
-  {
-    id: 'druid',
-    type: 'Druid',
-    title: 'Guardian of Nature',
-    description: 'Draws strength from the world beyond the screen.',
-    image: require('@/../assets/images/characters/druid-full.jpg'),
-    profileImage: require('@/../assets/images/characters/druid-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/alchemist-intro.mp3'),
   },
   {
     id: 'knight',
@@ -41,6 +28,16 @@ const CHARACTERS: Character[] = [
     description: 'Holds the line, one quest at a time.',
     image: require('@/../assets/images/characters/knight-full.jpg'),
     profileImage: require('@/../assets/images/characters/knight-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/knight-intro.mp3'),
+  },
+  {
+    id: 'bard',
+    type: 'Bard',
+    title: 'Voice of Inspiration',
+    description: 'Every quiet moment becomes a song.',
+    image: require('@/../assets/images/characters/bard-full.jpg'),
+    profileImage: require('@/../assets/images/characters/bard-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/bard-intro.mp3'),
   },
   {
     id: 'scout',
@@ -49,6 +46,16 @@ const CHARACTERS: Character[] = [
     description: 'Finds paths where others see none.',
     image: require('@/../assets/images/characters/scout-full.jpg'),
     profileImage: require('@/../assets/images/characters/scout-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/scout-intro.mp3'),
+  },
+  {
+    id: 'druid',
+    type: 'Druid',
+    title: 'Guardian of Nature',
+    description: 'Draws strength from the world beyond the screen.',
+    image: require('@/../assets/images/characters/druid-full.jpg'),
+    profileImage: require('@/../assets/images/characters/druid-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/druid-intro.mp3'),
   },
   {
     id: 'wizard',
@@ -57,6 +64,7 @@ const CHARACTERS: Character[] = [
     description: 'Bends time itself to their will.',
     image: require('@/../assets/images/characters/wizard-full.jpg'),
     profileImage: require('@/../assets/images/characters/wizard-profile.jpg'),
+    introAudio: require('@/../assets/audio/characters/wizard-intro.mp3'),
   },
 ];
 

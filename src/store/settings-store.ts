@@ -3,6 +3,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getItem, removeItem, setItem } from '@/lib/storage';
 
+import { type NarratorVoice } from './types';
+
 type ReminderTime = {
   hour: number;
   minute: number;
@@ -25,6 +27,10 @@ type SettingsState = {
   setStreakWarning: (streakWarning: StreakWarning) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
+  narratorVoice: NarratorVoice | null;
+  setNarratorVoice: (voice: NarratorVoice) => void;
+  onboardingSoundEnabled: boolean;
+  setOnboardingSoundEnabled: (enabled: boolean) => void;
 };
 
 const getItemForStorage = (name: string) => {
@@ -48,6 +54,11 @@ export const useSettingsStore = create<SettingsState>()(
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
         set({ hasBeenPromptedForReminder: value }),
+      narratorVoice: null,
+      setNarratorVoice: (voice) => set({ narratorVoice: voice }),
+      onboardingSoundEnabled: true,
+      setOnboardingSoundEnabled: (enabled) =>
+        set({ onboardingSoundEnabled: enabled }),
     }),
     {
       name: 'unquest-settings',

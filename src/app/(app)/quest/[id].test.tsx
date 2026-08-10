@@ -30,6 +30,8 @@ jest.mock('expo-router', () => ({
   router: {
     replace: jest.fn(),
     push: jest.fn(),
+    back: jest.fn(),
+    canGoBack: jest.fn(() => true),
   },
 }));
 
@@ -843,6 +845,45 @@ describe('AppQuestDetailsScreen', () => {
 
       // Verify quest renders (animations are disabled in props)
       expect(screen.getByText('Morning Meditation')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Back Navigation', () => {
+    it('pops back to the journal (router.back) when opened from the journal', async () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        from: 'journal',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
+
+      await user.press(screen.getByLabelText('Go back'));
+
+      // The journal pushed this screen, so the journal is still on the
+      // stack — replacing to home instead is the "Back lands on Play" bug.
+      expect(router.back).toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('falls back to home when there is no stack to pop (deep link)', async () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        from: 'journal',
+        questData: JSON.stringify(mockCompletedQuest),
+      });
+      // Once, not persistently: afterEach only clearAllMocks()es, which
+      // keeps mockReturnValue and would leak `false` into later tests.
+      (router.canGoBack as jest.Mock).mockReturnValueOnce(false);
+
+      const user = userEvent.setup();
+      await renderAsync(<AppQuestDetailsScreen />);
+
+      await user.press(screen.getByLabelText('Go back'));
+
+      expect(router.back).not.toHaveBeenCalled();
+      expect(router.replace).toHaveBeenCalledWith('/(app)');
     });
   });
 

@@ -14,6 +14,7 @@ import {
 } from '@/components/emberglow';
 import { ONBOARDING_QUEST_ID } from '@/components/quest-complete/constants';
 import { BackgroundImage } from '@/components/ui';
+import { useBottomSafeAreaInset } from '@/lib/hooks/use-bottom-safe-area-inset';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
@@ -55,6 +56,7 @@ export default function PendingQuestScreen() {
   const cancelQuest = useQuestStore((state) => state.cancelQuest);
   const userId = useUserStore((state) => state.user?.id);
   const insets = useSafeAreaInsets();
+  const bottomInset = useBottomSafeAreaInset();
 
   // Fetch quest reward preview
   // Custom and cooperative quests need questData, story quests need questTemplateId
@@ -140,12 +142,15 @@ export default function PendingQuestScreen() {
       />
 
       <View
+        testID="pending-quest-content"
         style={[
           styles.content,
           {
             paddingTop: insets.top + spacing[4],
             paddingHorizontal: UI_CONFIG.HORIZONTAL_PADDING,
-            paddingBottom: CONTENT_BOTTOM_PADDING,
+            // The background art is a sibling behind this layer, so it keeps
+            // bleeding under the navigation bar — only the content clears it.
+            paddingBottom: bottomInset + CONTENT_BOTTOM_PADDING,
           },
         ]}
       >

@@ -32,8 +32,10 @@ import { background } from '@/components/ui/colors';
 import { Modal, useModal } from '@/components/ui/modal';
 import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useAuth } from '@/lib';
+import { wipeGuestSession } from '@/lib/auth';
 import { TIMEZONES } from '@/lib/constants/timezones';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
+import { posthogClient } from '@/lib/posthog';
 import {
   areNotificationsEnabled,
   cancelDailyReminderNotification,
@@ -44,9 +46,10 @@ import {
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, setItem } from '@/lib/storage';
 import { useSettingsStore } from '@/store/settings-store';
-import type { User } from '@/store/types';
+import type { NarratorVoice, User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 import { colors, fontFamily, radii, spacing } from '@/theme';
+import { getEffectiveNarratorVoice } from '@/utils/audio-utils';
 
 import {
   handleDeleteAccount,
@@ -71,6 +74,7 @@ function handleEmailContact() {
 
 type AccountSectionProps = {
   user: User | null;
+  isGuest: boolean;
   hasPremiumAccess: boolean;
   onManageSubscription: () => void;
   onLogout: () => void;
@@ -78,10 +82,38 @@ type AccountSectionProps = {
 
 function AccountSection({
   user,
+  isGuest,
   hasPremiumAccess,
   onManageSubscription,
   onLogout,
 }: AccountSectionProps) {
+  // A guest (provisional user) HAS a user object — /users/me succeeds with
+  // their provisional JWT — but its email is a generated
+  // <uuid>@unquestapp.com placeholder, not an identity they chose or could
+  // sign in with. A guest reaching this screen at all is an anomaly (the
+  // resolver holds guests at the signup prompt; enforcement proper arrives
+  // with Expo protected routes), so instead of a Logout they can't come back
+  // from — or nothing, which leaves them silently stuck — they get the one
+  // honest exit: start over. Same wipe the dead-session path uses.
+  const accountSubtitle = isGuest
+    ? 'Guest — progress saved on this device'
+    : user?.email || 'Not signed in';
+
+  const handleStartOver = () => {
+    Alert.alert(
+      'Start Over',
+      'This clears your guest character and all progress so you can begin fresh. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Over',
+          style: 'destructive',
+          onPress: () => wipeGuestSession(),
+        },
+      ]
+    );
+  };
+
   return (
     <>
       <View style={styles.card}>
@@ -92,7 +124,7 @@ function AccountSection({
             <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
           }
           title="Account"
-          subtitle={user?.email || 'Not signed in'}
+          subtitle={accountSubtitle}
         />
         <View style={styles.divider} />
         <ListItem
@@ -114,13 +146,22 @@ function AccountSection({
         />
       </View>
 
-      {user && (
+      {user && !isGuest && (
         <View style={styles.logoutWrapper}>
           <Button
             testID="settings-logout-button"
             variant="secondary"
             label="Logout"
             onPress={onLogout}
+          />
+        </View>
+      )}
+      {isGuest && (
+        <View style={styles.logoutWrapper}>
+          <Button
+            variant="secondary"
+            label="Start Over"
+            onPress={handleStartOver}
           />
         </View>
       )}
@@ -177,6 +218,8 @@ function TimeSubRow({
 type PreferencesSectionProps = {
   selectedTimezoneLabel: string;
   onTimezonePress: () => void;
+  narratorVoiceLabel: string;
+  onNarratorVoiceToggle: () => void;
   notificationsEnabled: boolean;
   onNotificationsToggle: (value: boolean) => void;
   dailyReminderEnabled: boolean;
@@ -198,6 +241,8 @@ type PreferencesSectionProps = {
 function PreferencesSection({
   selectedTimezoneLabel,
   onTimezonePress,
+  narratorVoiceLabel,
+  onNarratorVoiceToggle,
   notificationsEnabled,
   onNotificationsToggle,
   dailyReminderEnabled,
@@ -240,6 +285,16 @@ function PreferencesSection({
         <View style={styles.divider} />
         <ListItem
           testID="settings-row-notifications"
+          leading={
+            <Feather name="mic" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Narrator voice"
+          subtitle={narratorVoiceLabel}
+          onPress={onNarratorVoiceToggle}
+        />
+
+        <View style={styles.divider} />
+        <ListItem
           leading={
             <Feather name="bell" size={ICON_SIZE} color={colors.text.accent} />
           }
@@ -393,7 +448,7 @@ function LegalSection() {
               color={colors.text.muted}
             />
           }
-          onPress={() => Linking.openURL('https://unquestapp.com/terms')}
+          onPress={() => Linking.openURL('https://emberglowapp.com/terms')}
         />
       </View>
     </>
@@ -569,6 +624,14 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
     useSettingsStore();
+  // No separate narratorVoice subscription needed: the selector-less
+  // useSettingsStore() call above already re-renders this component on any
+  // settings-store change (zustand's set() always produces a new state
+  // object), so the narrator voice row picks up changes through that broad
+  // subscription. The effective value itself is derived (explicit choice ??
+  // character default) via getEffectiveNarratorVoice, which reads
+  // getState() and so does not itself trigger a re-render.
+  const effectiveVoice = getEffectiveNarratorVoice();
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
@@ -820,6 +883,12 @@ export default function Settings() {
     updateSettings({ timezone });
   };
 
+  const handleNarratorVoiceToggle = () => {
+    const next: NarratorVoice = effectiveVoice === 'female' ? 'male' : 'female';
+    useSettingsStore.getState().setNarratorVoice(next);
+    posthogClient.capture('settings_narrator_voice_changed', { voice: next });
+  };
+
   // In your render method, handle loading state
   if (isLoading || isLoadingSettings) {
     return (
@@ -845,6 +914,7 @@ export default function Settings() {
           <View className="px-4">
             <AccountSection
               user={user}
+              isGuest={!!getItem('provisionalAccessToken')}
               hasPremiumAccess={hasPremiumAccess}
               onManageSubscription={() =>
                 handleManageSubscription(setIsLoading)
@@ -858,6 +928,10 @@ export default function Settings() {
                 selectedTimezone
               }
               onTimezonePress={() => timezoneModal.present()}
+              narratorVoiceLabel={
+                effectiveVoice === 'female' ? 'Female' : 'Male'
+              }
+              onNarratorVoiceToggle={handleNarratorVoiceToggle}
               notificationsEnabled={notificationsEnabled}
               onNotificationsToggle={handleNotificationsToggle}
               dailyReminderEnabled={dailyReminder.enabled}

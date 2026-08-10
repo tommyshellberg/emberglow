@@ -4,10 +4,19 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform, StyleSheet } from 'react-native';
 
 import { socialSignIn } from '@/api/auth';
+// The REAL class, for the same reason the two social errors below are required
+// actual: the component branches on `instanceof`. `provisional-session.ts`
+// imports only `@/lib/storage`, so it pulls in none of the native modules the
+// `@/api/auth` mock exists to avoid.
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import {
   ExistingAccountConfirmationRequired,
   getAppleCredential,
   getGoogleCredential,
+  NoAccountForIdentity,
   SocialSignInCancelled,
 } from '@/lib/auth/social';
 import {
@@ -42,6 +51,10 @@ jest.mock('@/lib/auth/social', () => ({
   ExistingAccountConfirmationRequired: jest.requireActual(
     '@/lib/auth/social/errors'
   ).ExistingAccountConfirmationRequired,
+  // Same reasoning as `ExistingAccountConfirmationRequired` above: the
+  // component branches on `instanceof NoAccountForIdentity`.
+  NoAccountForIdentity: jest.requireActual('@/lib/auth/social/errors')
+    .NoAccountForIdentity,
   SOCIAL_SIGNIN_OUTCOMES: {
     LOGIN: 'login',
     EXISTING_ACCOUNT_LOGIN: 'existing-account-login',
@@ -255,6 +268,86 @@ describe('SocialSignInButtons', () => {
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith('generic');
       });
+    });
+
+    it('passes a NoAccountForIdentity error through to onError untranslated, and does not log it as a failure', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      const noAccountError = new NoAccountForIdentity('tommy@gmail.com');
+      mockSocialSignIn.mockRejectedValue(noAccountError);
+      const onError = jest.fn();
+
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith(noAccountError);
+      });
+      // Distinct from every other failure: nothing here is a fault to log,
+      // so it must not fire the same event a real failure does.
+      expect(mockCapture).not.toHaveBeenCalledWith(
+        'social_signin_failure',
+        expect.anything()
+      );
+    });
+
+    // The provisional session turned out to be dead before the credential was
+    // ever exchanged. `endProvisionalSession` owns the explaining (a
+    // non-cancelable alert that wipes and resets on acknowledge), so this is
+    // neither a fault to log nor something the retry copy can help with.
+    it('reports an expired provisional session as its own outcome, not a generic social_signin_failure', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      mockSocialSignIn.mockRejectedValue(new ProvisionalSessionExpired());
+      const onError = jest.fn();
+
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockCapture).toHaveBeenCalledWith(
+          'social_signin_provisional_session_expired',
+          { provider: 'google' }
+        );
+      });
+      expect(mockCapture).not.toHaveBeenCalledWith(
+        'social_signin_failure',
+        expect.anything()
+      );
+      // The alert is already on screen; a flash message under it competes.
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    // Same family, opposite handling. No alert was raised and the session is
+    // untouched, so silence here would leave a button that spun and did
+    // nothing — the user needs the retry prompt the expired case withholds.
+    it('surfaces an unreachable provisional refresh as a retryable failure', async () => {
+      mockGetGoogleCredential.mockResolvedValue({
+        provider: 'google',
+        idToken: 'google-id-token',
+      });
+      mockSocialSignIn.mockRejectedValue(new ProvisionalRefreshUnavailable());
+      const onError = jest.fn();
+
+      render(<SocialSignInButtons onSuccess={noop} onError={onError} />);
+      fireEvent.press(screen.getByTestId('google-sign-in-button'));
+
+      await waitFor(() => {
+        expect(mockCapture).toHaveBeenCalledWith(
+          'social_signin_provisional_refresh_unavailable',
+          { provider: 'google' }
+        );
+      });
+      expect(onError).toHaveBeenCalledWith('generic');
+      // Filed under its own cause, not the catch-all fault bucket.
+      expect(mockCapture).not.toHaveBeenCalledWith(
+        'social_signin_failure',
+        expect.anything()
+      );
     });
 
     it('records the native error code on social_signin_failure, so a DEVELOPER_ERROR is distinguishable from a network failure', async () => {

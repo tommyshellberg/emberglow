@@ -15,10 +15,15 @@ import { showMessage } from 'react-native-flash-message';
 import { socialSignIn } from '@/api/auth';
 import { Button } from '@/components/emberglow';
 import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
+import {
   ExistingAccountConfirmationRequired,
   type ExistingAccountSummary,
   getAppleCredential,
   getGoogleCredential,
+  NoAccountForIdentity,
   SOCIAL_SIGNIN_OUTCOMES,
   SocialSignInCancelled,
   type SocialSignInOutcome,
@@ -57,8 +62,11 @@ export type SocialSignInButtonsProps = {
     provider: SocialProvider
   ) => void;
   /** `'email-in-use'` maps to the existing 409 copy already used by the
-   * magic-link flow; `'generic'` covers every other failure. */
-  onError: (kind: 'email-in-use' | 'generic') => void;
+   * magic-link flow; `'generic'` covers every other failure. A
+   * `NoAccountForIdentity` instance is passed through raw instead of
+   * collapsed to a kind string — unlike the other two, the caller needs the
+   * carried `email` to render the no-account step, not just a copy lookup. */
+  onError: (kind: 'email-in-use' | 'generic' | NoAccountForIdentity) => void;
   /** Promotes the Google button to the screen's single primary (ember)
    * action — solid Cinnabar with a warm glow instead of the default
    * `outline`. Off by default because the login screen's magic-link submit
@@ -187,6 +195,41 @@ export function SocialSignInButtons({
    */
   const reportFailure = React.useCallback(
     (error: unknown, provider: SocialProvider) => {
+      // Handled here rather than in the caller's catch so the confirmed
+      // REPLAY gets it too — that path refreshes the provisional token again
+      // and can reach the same verdict, and a replay that grew its own copy
+      // would be the one that stops reporting it.
+      //
+      // Nothing to log and nothing to show: `endProvisionalSession` has
+      // already put a non-cancelable alert on screen, and acknowledging it
+      // wipes and resets to onboarding. Firing `social_signin_failure` would
+      // file an expected, server-proven branch as a fault, and `onError`
+      // would flash retry copy under an alert that retrying cannot satisfy.
+      if (error instanceof ProvisionalSessionExpired) {
+        posthog.capture('social_signin_provisional_session_expired', {
+          provider,
+        });
+        return;
+      }
+
+      // The sibling of the branch above, handled the opposite way. Nothing was
+      // proven, no alert was raised and the session still exists — silence
+      // would leave a button that spun and then did nothing. Logged because it
+      // names a real fault (an unreachable API host), and given its own event
+      // so it does not disappear into the `social_signin_failure` bucket that
+      // the Reliability dashboard reads as OAuth breakage.
+      if (error instanceof ProvisionalRefreshUnavailable) {
+        console.error(
+          `[SocialSignIn] ${provider} conversion abandoned — provisional refresh unreachable`,
+          error
+        );
+        posthog.capture('social_signin_provisional_refresh_unavailable', {
+          provider,
+        });
+        onError('generic');
+        return;
+      }
+
       const { code, status } = describeFailure(error);
 
       // Every error that reaches here is the raw object `socialSignIn`
@@ -268,12 +311,24 @@ export function SocialSignInButtons({
           return;
         }
 
+        // Distinguished from every other failure the same way the collision
+        // above is: the server told us something specific, and collapsing it
+        // to 'generic' would lose the address the no-account screen names.
+        // Deliberately has no `reportFailure` call — nothing here is a fault
+        // to log, and firing `social_signin_failure` for it would flag an
+        // expected, server-driven branch as an error.
+        if (error instanceof NoAccountForIdentity) {
+          posthog.capture('social_signin_no_account', { provider });
+          onError(error);
+          return;
+        }
+
         reportFailure(error, provider);
       } finally {
         if (!awaitingConfirmation) setSigningInProvider(null);
       }
     },
-    [isSigningIn, finishSignIn, reportFailure, posthog]
+    [isSigningIn, finishSignIn, reportFailure, posthog, onError]
   );
 
   const handleConfirmExistingAccount = React.useCallback(async () => {

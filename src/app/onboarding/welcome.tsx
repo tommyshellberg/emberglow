@@ -11,11 +11,14 @@ import { colors, fontFamily, scrims, spacing } from '@/theme';
 // 92×92 logo per the design source's WelcomeScreen (onboarding-screens.jsx:76).
 const LOGO_SIZE = 92;
 
-// Container padding matches the design source's WelcomeScreen
+// Horizontal/bottom padding matches the design source's WelcomeScreen
 // (onboarding-screens.jsx:74) — not on the 4pt spacing scale, kept literal
 // per the "pixel-perfect beats scale purity" convention (Phase 2 ground
 // rule 2), same precedent as login-form.tsx's CARD_PADDING_* constants.
-const CONTENT_PADDING_TOP = 36;
+// Top padding deliberately departs from that source: the spacers below
+// already bias the content downward to clear the sun, so the source's 36
+// stacked on top of that and sat the logo visibly too low on device.
+const CONTENT_PADDING_TOP = 0;
 const CONTENT_PADDING_HORIZONTAL = 28;
 const CONTENT_PADDING_BOTTOM = 36;
 

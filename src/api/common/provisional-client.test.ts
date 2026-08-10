@@ -18,21 +18,41 @@ jest.mock('@/lib/storage', () => ({
   getItem: mockGetItem,
 }));
 
-// Mock axios
-const mockAxiosInstance = {
-  interceptors: {
-    request: {
-      use: jest.fn(),
+// Mock the provisional refresh + dead-session recovery seams
+const mockRefreshProvisionalTokens = jest.fn();
+jest.mock('../auth', () => ({
+  refreshProvisionalTokens: (...args: any[]) =>
+    mockRefreshProvisionalTokens(...args),
+}));
+
+const mockEndProvisionalSession = jest.fn();
+jest.mock('@/lib/auth', () => ({
+  endProvisionalSession: (...args: any[]) => mockEndProvisionalSession(...args),
+}));
+
+// Mock axios — the instance must be CALLABLE: the 401 handler retries by
+// invoking provisionalApiClient(originalRequest) directly.
+const mockAxiosInstance = Object.assign(
+  jest
+    .fn()
+    .mockImplementation((config) =>
+      Promise.resolve({ data: 'retry success', config })
+    ),
+  {
+    interceptors: {
+      request: {
+        use: jest.fn(),
+      },
+      response: {
+        use: jest.fn(),
+      },
     },
-    response: {
-      use: jest.fn(),
-    },
-  },
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-};
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+  }
+);
 
 jest.mock('axios', () => ({
   create: jest.fn(() => mockAxiosInstance),
@@ -42,9 +62,17 @@ describe('Provisional API Client', () => {
   let provisionalApiClient: any;
   let requestInterceptor: any;
   let responseInterceptor: any;
+  let responseErrorInterceptor: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks wipes calls but not implementations; restore the callable
+    // retry behavior and pin the refresh default so tests can't leak into
+    // each other.
+    mockAxiosInstance.mockImplementation((config: any) =>
+      Promise.resolve({ data: 'retry success', config })
+    );
+    mockRefreshProvisionalTokens.mockResolvedValue({ status: 'error' });
 
     // Setup interceptor capture
     mockAxiosInstance.interceptors.request.use.mockImplementation(
@@ -55,8 +83,9 @@ describe('Provisional API Client', () => {
     );
 
     mockAxiosInstance.interceptors.response.use.mockImplementation(
-      (success, _error) => {
+      (success, error) => {
         responseInterceptor = success;
+        responseErrorInterceptor = error;
         return success;
       }
     );
@@ -316,6 +345,77 @@ describe('Provisional API Client', () => {
 
         expect(consoleSpy).toHaveBeenCalledWith('Status:', status);
       }
+    });
+  });
+
+  describe('401 handling', () => {
+    it('refreshes the provisional session and retries the request once', async () => {
+      mockRefreshProvisionalTokens.mockResolvedValue({
+        status: 'refreshed',
+        tokens: {
+          access: { token: 'rotated-access', expires: '2025-01-01' },
+          refresh: { token: 'rotated-refresh', expires: '2025-02-01' },
+        },
+      });
+
+      const originalRequest = { url: '/quest-runs', headers: {} } as any;
+      const result = await responseErrorInterceptor({
+        response: { status: 401 },
+        config: originalRequest,
+      });
+
+      expect(mockRefreshProvisionalTokens).toHaveBeenCalled();
+      expect(originalRequest.headers.Authorization).toBe(
+        'Bearer rotated-access'
+      );
+      expect(originalRequest._retry).toBe(true);
+      expect(result).toEqual({ data: 'retry success', config: originalRequest });
+      expect(mockEndProvisionalSession).not.toHaveBeenCalled();
+    });
+
+    it('ends the provisional session when the refresh proves it dead', async () => {
+      mockRefreshProvisionalTokens.mockResolvedValue({ status: 'dead' });
+
+      const original = {
+        response: { status: 401 },
+        config: { url: '/quest-runs', headers: {} },
+      };
+
+      await expect(responseErrorInterceptor(original)).rejects.toBe(original);
+      expect(mockEndProvisionalSession).toHaveBeenCalled();
+    });
+
+    it('keeps the session and rejects when the refresh merely errors', async () => {
+      mockRefreshProvisionalTokens.mockResolvedValue({ status: 'error' });
+
+      const original = {
+        response: { status: 401 },
+        config: { url: '/quest-runs', headers: {} },
+      };
+
+      await expect(responseErrorInterceptor(original)).rejects.toBe(original);
+      expect(mockEndProvisionalSession).not.toHaveBeenCalled();
+    });
+
+    it('does not refresh twice for the same request', async () => {
+      const original = {
+        response: { status: 401 },
+        config: { url: '/quest-runs', headers: {}, _retry: true },
+      };
+
+      await expect(responseErrorInterceptor(original)).rejects.toBe(original);
+      expect(mockRefreshProvisionalTokens).not.toHaveBeenCalled();
+    });
+
+    it('passes non-401 errors through without refreshing', async () => {
+      const original = {
+        response: { status: 500 },
+        config: { url: '/quest-runs', headers: {} },
+      };
+
+      await expect(responseErrorInterceptor(original)).rejects.toBe(original);
+      expect(mockRefreshProvisionalTokens).not.toHaveBeenCalled();
+      expect(mockEndProvisionalSession).not.toHaveBeenCalled();
     });
   });
 

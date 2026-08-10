@@ -1,7 +1,9 @@
-import axios from 'axios';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
+import { endProvisionalSession } from '@/lib/auth';
 import { getItem } from '@/lib/storage';
 
+import { refreshProvisionalTokens } from '../auth';
 import { getApiUrl } from './get-api-url';
 
 // Create a separate axios instance for provisional users
@@ -58,7 +60,41 @@ provisionalApiClient.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error: AxiosError) => {
+    const originalRequest = error?.config as
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | undefined;
+
+    // A 401 here means the provisional access token itself was rejected —
+    // this client always attaches it, so unlike apiClient there is no
+    // "the header was simply missing" case. Refresh once and retry; a dead
+    // verdict (the REFRESH token was rejected too) ends the session so the
+    // navigation resolver can route to login/signup instead of leaving a
+    // working-looking app that 401s forever.
+    if (
+      error?.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true;
+
+      // Single-flight inside refreshProvisionalTokens: concurrent 401s from
+      // both clients share one POST (the server consumes refresh tokens on
+      // use, so a second POST would misread a healthy session as dead).
+      const result = await refreshProvisionalTokens();
+
+      if (result?.status === 'refreshed') {
+        originalRequest.headers.Authorization = `Bearer ${result.tokens.access.token}`;
+        return provisionalApiClient(originalRequest);
+      }
+
+      if (result?.status === 'dead') {
+        endProvisionalSession();
+      }
+      // 'error' (network flake, 5xx): the session survives; only this
+      // request fails.
+    }
+
     return Promise.reject(error);
   }
 );

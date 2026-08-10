@@ -50,3 +50,28 @@ export class ExistingAccountConfirmationRequired extends Error {
     this.account = account;
   }
 }
+
+/**
+ * The verified social identity owns no account. Nothing was created — the
+ * server refuses to create accounts outside onboarding, mirroring magic-link's
+ * "User not found. Please create an account through the app."
+ *
+ * Distinguished by `details.reason` being exactly 'no-account-for-identity',
+ * NOT by status code: 404 is not reserved to this path, and a route-level 404
+ * carries no `details` at all. Any other reason is re-thrown untranslated so it
+ * still reaches the caller's generic error copy.
+ *
+ * `email` is the address the user just authorized with the provider, carried so
+ * the no-account screen can name it. Always present — the server sets it from
+ * the verified identity, which cannot reach this branch without one (an
+ * email-less identity is rejected earlier with 400).
+ */
+export class NoAccountForIdentity extends Error {
+  readonly email: string;
+
+  constructor(email: string) {
+    super('No account found for this sign-in');
+    this.name = 'NoAccountForIdentity';
+    this.email = email;
+  }
+}

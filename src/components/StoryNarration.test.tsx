@@ -1,6 +1,7 @@
 import React from 'react';
 
-import { render, screen, setup, waitFor } from '@/lib/test-utils';
+import { act, render, screen, setup, waitFor } from '@/lib/test-utils';
+import { useSettingsStore } from '@/store/settings-store';
 import { type StoryQuestTemplate } from '@/store/types';
 
 import { StoryNarration } from './StoryNarration';
@@ -48,6 +49,7 @@ beforeEach(() => {
   audioCacheService.getAudioSource.mockResolvedValue({
     uri: 'file:///narration.mp3',
   });
+  useSettingsStore.setState({ narratorVoice: null });
 });
 
 describe('StoryNarration', () => {
@@ -97,5 +99,79 @@ describe('StoryNarration', () => {
     expect(
       await screen.findByText('Failed to load audio narration')
     ).toBeTruthy();
+  });
+
+  it('requests the female path with male fallback when narratorVoice is female', async () => {
+    useSettingsStore.setState({ narratorVoice: 'female' });
+
+    render(<StoryNarration quest={quest} />);
+
+    await waitFor(() => {
+      // Exact strings, not a loose pattern: /quest-.*\.mp3$/ would also match
+      // the female path itself (`.*` absorbs `1-female`), so it couldn't
+      // distinguish a correct male fallback from a regression that passed
+      // the primary path as both arguments.
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        'storylines/vaedros/quest-1-female.mp3',
+        'storylines/vaedros/quest-1.mp3'
+      );
+    });
+  });
+
+  it('re-resolves the source when the voice changes while mounted', async () => {
+    useSettingsStore.setState({ narratorVoice: 'male' });
+
+    render(<StoryNarration quest={quest} />);
+    await waitFor(() =>
+      expect(audioCacheService.getAudioSource).toHaveBeenCalled()
+    );
+    (audioCacheService.getAudioSource as jest.Mock).mockClear();
+
+    act(() => {
+      useSettingsStore.setState({ narratorVoice: 'female' });
+    });
+
+    await waitFor(() => {
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        expect.stringContaining('-female.mp3'),
+        expect.any(String)
+      );
+    });
+  });
+
+  it('clears a stale load error once a re-resolve after a voice change succeeds', async () => {
+    useSettingsStore.setState({ narratorVoice: 'male' });
+    audioCacheService.getAudioSource.mockResolvedValueOnce(null);
+
+    render(<StoryNarration quest={quest} />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Failed to load audio narration')).toBeTruthy()
+    );
+
+    // Simulate the offline file now being reachable, then trigger a
+    // re-resolve the same way the user would: switching the narrator voice
+    // from Settings while this screen stays mounted.
+    audioCacheService.getAudioSource.mockResolvedValue({
+      uri: 'file:///narration.mp3',
+    });
+    act(() => {
+      useSettingsStore.setState({ narratorVoice: 'female' });
+    });
+
+    // Confirm the re-resolve actually ran (mock-call assertion — doesn't
+    // touch the rendered tree) before inspecting the tree itself, so the
+    // second query below isn't racing the still-in-flight async resolve.
+    await waitFor(() =>
+      expect(audioCacheService.getAudioSource).toHaveBeenCalledWith(
+        expect.stringContaining('-female.mp3'),
+        expect.any(String)
+      )
+    );
+
+    // Finding this text proves loadError is falsy again (the two render
+    // branches are mutually exclusive — see StoryNarration.tsx), i.e. the
+    // stale error was cleared and the narration UI is showing instead.
+    expect(await screen.findByText('Listen to this chapter')).toBeTruthy();
   });
 });
