@@ -64,6 +64,17 @@ appId: com.vaedros.unquest
 # still titled "Vaedros Kingdom". This account has completed quest 1 and its
 # follow-up, so that state is not reachable here; it is recorded as a deferred
 # minor in the suite ledger, not chased by this flow.
+#
+# WHETHER THE NAME LOOKUP STILL WORKS is the third gap, and it is the one most
+# able to mislead someone reading a green result. `getMapForQuest`
+# (`map-utils.ts`) returns 'map-1' when it FINDS a match, and returns 'map-1'
+# again from the fallback at the end when it finds nothing — a hit and a total
+# miss produce the same answer. `MAP_NAMES` then turns that into the one name it
+# holds. So a lookup that broke completely and answered 'map-1' for every quest
+# id would still render "Vaedros Kingdom", and the assertion below would still
+# pass. This flow proves the screen shows the right name today; it cannot prove
+# the code that chose the name is working. Nothing available on this screen can,
+# while there is only one map in the data.
 # =============================================================================
 
 # =============================================================================
@@ -119,10 +130,20 @@ appId: com.vaedros.unquest
 
 # The artwork, and its announced name.
 #
-# `map-image` is the id on the `Image` inside the zoomable view. Before it was
-# added, a map that failed to draw was invisible to any assertion — the title
-# chip renders whether or not the picture behind it loaded, so a name-only check
-# is not a render check.
+# `map-image` is the id on the `Image` inside the zoomable view, and what it
+# proves is that the ELEMENT is there: the loaded branch rendered, and
+# `RNImage.resolveAssetSource` handed back dimensions for the asset. Without
+# those dimensions `map.tsx` stays on the loading branch and this element does
+# not exist at all, so the line is a real check on the picture's slot in the
+# screen — something the title chip alone does not give, since the chip renders
+# either way.
+#
+# It is NOT a check that the picture actually drew. The accessibility element
+# appears as soon as the component mounts, and its size is read off the bundled
+# asset entry rather than off a decoded image, so a JPEG that failed to decode
+# would leave the id, the label and the bounds exactly where they are and this
+# line would stay green. A blank map is not something this flow — or any
+# assertion available on this screen — can catch.
 #
 # The text here is the picture's accessibility label, and it is a DIFFERENT
 # string from the title above: `map.tsx` builds it as `${mapName} map`. Both now
