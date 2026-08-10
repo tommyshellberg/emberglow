@@ -1,0 +1,352 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# GUILDS — RENDER SMOKE
+# =============================================================================
+# A guild is a small named group this account could belong to. This file visits
+# the three guild surfaces a guild-LESS account can reach and checks each one
+# renders its own real content:
+#
+#   1. THE GUILD SECTION ON THE PROFILE, in its empty branch — the headline, the
+#      description, and the two buttons that are the only ways into the rest.
+#   2. THE "JOIN A GUILD" SHEET — its invite-code field and its two buttons,
+#      opened by one of those buttons and closed by its own Cancel.
+#   3. THE CREATE-GUILD SCREEN — the name field, the tagline field, the crest
+#      grid, and the submit button sitting DISABLED because the form is empty.
+#
+# NOTHING IS CREATED, JOINED OR EDITED. Guild membership is permanent state on
+# this account: creating one replaces the whole empty branch asserted below with
+# a guild list plus an `add-guild-button` (`guilds-section.tsx:79-94` vs
+# `:108-113`), so this file could never run again and every later flow on the
+# chain would meet a different profile screen. The account must stay guild-less.
+# That is also why no crest is tapped and no invite code is typed.
+#
+# Entry state: authenticated, on any tab EXCEPT profile, account in NO guild.
+# Exit state: unchanged account, sitting on home with the STORY card front, no
+# sheet open. No server write.
+#
+# -----------------------------------------------------------------------------
+# WHY THERE IS NO ANNOUNCEMENT-SHEET BLOCK AT THE TOP OF THIS FILE
+# -----------------------------------------------------------------------------
+# The sibling coverage flows say "the announcement day-slot is spent for this
+# account today". This file was written on a CROSS-DAY run, where that is no
+# longer true — the once-per-day cap compares calendar days
+# (`announcement-store.ts:124-130`), and midnight had passed.
+#
+# It still needs no conditional dismissal, and this is the reason, checked in
+# source rather than assumed: the gate is an effect INSIDE the home screen
+# component (`(app)/index.tsx:139-188`). It re-runs only when one of its
+# dependencies changes — the four `hasSeen*` flags, the throttle stamp, the
+# quest/perk counts, the user. The calendar is not one of them. The home screen
+# stays mounted for the whole suite, so a day boundary alone cannot make a sheet
+# appear; only a fresh mount of home (a relaunch, or `clearState`) can. This
+# file never relaunches. A live hierarchy dump on home before the first run
+# confirmed no sheet was up.
+#
+# If a sheet ever IS up when this file starts, it fails LOUDLY and early rather
+# than quietly: an announcement sheet covers home with a full-screen backdrop
+# that does not trap focus, so the `profile-tab` tap below lands on the scrim,
+# the profile never appears, and the wait right after it times out.
+#
+# The GUILDS announcement is the one this account is queued for
+# (`announcement-store.ts:143-149`: registered, three quests completed). Whoever
+# relaunches this app next should expect it on home ~1.5s after settle, and must
+# dismiss it with the sheet's own non-destructive button.
+#
+# Nothing streak- or date-coupled is asserted anywhere in this file, for the
+# same cross-day reason: the streak tile still shows yesterday's number.
+# =============================================================================
+
+# =============================================================================
+# THE ENTRY CONTRACT — THE PROFILE IS NOT ALREADY IN FRONT
+# =============================================================================
+# An inactive tab's screen is mounted but out of the iOS accessibility tree, so
+# `profile-screen` is absent from every other tab. This line states the file's
+# entry requirement and it is what turns the wait below into "the anchor BECAME
+# present" rather than "it was already there".
+- assertNotVisible:
+    id: 'profile-screen'
+- tapOn:
+    id: 'profile-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
+
+# =============================================================================
+# PIN THE SCROLL POSITION — UP FIRST, THEN DOWN
+# =============================================================================
+# Tab screens stay mounted forever, so the profile keeps whatever scroll
+# position the last flow left it at. `07-invite.yaml` hands it over scrolled DOWN
+# to the friends section, and the guild section sits ABOVE friends
+# (`profile.tsx:179` then `:182`) — so a lone `direction: DOWN` search for the
+# guild buttons would scroll AWAY from them and fail.
+#
+# Scrolling UP to a stats-card anchor first puts the screen at a known place
+# regardless of where it was handed over; the DOWN search then walks back to the
+# guild buttons from above them. `scrollUntilVisible` IS an assertion — it fails
+# the flow if the element never appears — and `centerElement` keeps the buttons
+# clear of the tab bar, which starts at y=758 and would otherwise swallow a tap.
+- scrollUntilVisible:
+    element:
+      id: 'profile-stat-quests'
+    direction: UP
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      id: 'create-guild-button'
+    direction: DOWN
+    centerElement: true
+    visibilityPercentage: 100
+- waitForAnimationToEnd
+
+# =============================================================================
+# THE GUILD SECTION, EMPTY BRANCH
+# =============================================================================
+# The headline and the description are `GUILD_EMPTY_STATE.TITLE` and
+# `.DESCRIPTION` (`guild-strings.ts:126-131`), rendered only by
+# `GuildEmptyState`, which `GuildsSection` picks only when `guildCount === 0`
+# (`guilds-section.tsx:108-113`). So these two lines are not decoration: they say
+# WHICH branch of the section is on screen, and therefore that the account is
+# still guild-less.
+- assertVisible: 'Stronger Together'
+- assertVisible: 'Join a guild to quest with friends and hold each other accountable.'
+- assertVisible:
+    id: 'empty-state-icon'
+
+# THE TWO BUTTONS, each named by id AND label. The label matched here is the
+# ACCESSIBILITY label, not the visible text: both buttons set `accessible={true}`
+# with an `accessibilityLabel` (`guild-empty-state.tsx:43-60`), which collapses
+# each one into a single element and hides its child `Text` from the tree. The
+# visible words are `Create a Guild` and `Join with Code`
+# (`guild-strings.ts:46-47`) and neither is matchable on iOS — checked in a live
+# dump. The anchor audit's table lists these accessibility labels in its "Label"
+# column, which is what caused the confusion; both spellings are recorded here so
+# the next reader does not repeat it.
+- assertVisible:
+    id: 'create-guild-button'
+    text: 'Create a new guild'
+- assertVisible:
+    id: 'join-guild-button'
+    text: 'Join an existing guild with invite code'
+
+# THE OTHER BRANCH IS ABSENT, which is the same statement made the opposite way
+# and is this file's own no-write receipt. `guild-row` is one row per guild and
+# `add-guild-button` is the header action; both render only when the account is
+# in at least one guild (`guilds-section.tsx:79-94`, `:116-150`). Either one
+# appearing means something on this chain joined or created a guild, and this
+# file's entry state is gone for good.
+- assertNotVisible:
+    id: 'guild-row'
+- assertNotVisible:
+    id: 'add-guild-button'
+
+# =============================================================================
+# THE "JOIN A GUILD" SHEET
+# =============================================================================
+# This sheet is the surface SHE-26 was fixed for — before that fix its contents
+# were invisible to iOS accessibility and none of the assertions below could
+# have been written. It is a different component from the invite sheet
+# (`join-guild-modal.tsx` on the shared emberglow `BottomSheet`).
+#
+# `guild-invite-code-input` belongs to this sheet alone, so asserting it absent
+# first is what makes the wait mean "the sheet opened".
+- assertNotVisible:
+    id: 'guild-invite-code-input'
+- tapOn:
+    id: 'join-guild-button'
+- extendedWaitUntil:
+    visible:
+      id: 'guild-invite-code-input'
+    timeout: 15000
+
+# The sheet's own copy: its title, the heading over the field, and the body
+# paragraph. Maestro matches the whole string, so the title cannot be satisfied
+# by the empty state's `Join a guild to quest with friends…` sentence behind the
+# backdrop.
+- assertVisible: 'Join a Guild'
+- assertVisible: 'Enter Your Code'
+- assertVisible: 'Got an invite code from a friend? Enter it below to join their guild and start questing together.'
+
+# THE SUBMIT BUTTON IS ENABLED WITH AN EMPTY CODE FIELD, and that is pinned on
+# purpose. Every other submit button in this app is disabled until its form is
+# valid; this one is only disabled while a join request is in flight
+# (`join-guild-modal.tsx:205-211`, `disabled={isLoading}`), so a user can submit
+# a blank invite code and the flow cannot use `enabled: false` as a guard here.
+# This line records the app as it is today. IT WILL GO RED THE DAY SOMEONE ADDS
+# THE MISSING GUARD — that is the intent, not a fault: flip it to
+# `enabled: false` on that day. Do not loosen it to hide the change.
+#
+# The button is asserted and NEVER tapped: tapping it submits a join request.
+- assertVisible:
+    id: 'join-guild-submit'
+    text: 'Join Guild'
+    enabled: true
+- assertVisible:
+    id: 'join-guild-cancel'
+    text: 'Cancel'
+
+# CLOSE IT BY ITS OWN CANCEL BUTTON — the non-destructive control, by id. The
+# `join-guild-cancel` testID is real (`join-guild-modal.tsx:214`); the anchor
+# audit lists it as missing, which is stale, and that staleness matters: without
+# the id the only alternatives are a `Cancel` text match (generic copy) or a
+# coordinate tap on the backdrop.
+#
+# TWO post-conditions, because this sheet does not trap focus and a tap that
+# missed would still report success: the field it owns goes away, and so does
+# the backdrop that covered the screen.
+- tapOn:
+    id: 'join-guild-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'guild-invite-code-input'
+    timeout: 10000
+- assertNotVisible: 'Bottom sheet backdrop'
+
+# =============================================================================
+# THE CREATE-GUILD SCREEN
+# =============================================================================
+# RE-PIN THE SCROLL BEFORE THE TAP. This is the shape that failed silently twice
+# during the anchor audit: `scrollUntilVisible` followed straight away by
+# `tapOn: create-guild-button` reported success and left the app on HOME instead
+# of on the form. The settle step is the fix, and the post-condition below is
+# what would catch it if the settle were ever not enough.
+- scrollUntilVisible:
+    element:
+      id: 'create-guild-button'
+    direction: DOWN
+    centerElement: true
+    visibilityPercentage: 100
+- waitForAnimationToEnd
+
+# `create-guild-screen` is a real testID today (`guild/create.tsx:95`, passed
+# through `ScreenHeader` onto its wrapper, `screen-header.tsx:84`). The anchor
+# audit lists it as MISSING — stale, and worth saying plainly, because it is the
+# only unambiguous anchor on this screen: the header title `Create Guild` is
+# ALSO the submit button's label, so a text match finds two elements.
+- assertNotVisible:
+    id: 'create-guild-screen'
+- tapOn:
+    id: 'create-guild-button'
+- extendedWaitUntil:
+    visible:
+      id: 'create-guild-screen'
+    timeout: 15000
+
+# A SECOND, INDEPENDENT POST-CONDITION. This is a root-level route pushed over
+# the tabs, so the tab screens leave the accessibility tree while it is up —
+# checked in a live dump. A tap that had silently stayed on the profile (the
+# audit's failure) would leave `profile-screen` exactly where it was. The tab BAR
+# does stay visible on this screen, so it is no use as a check.
+- assertNotVisible:
+    id: 'profile-screen'
+
+# THE FORM'S OWN CONTENT: two fields and their labels.
+- assertVisible:
+    id: 'guild-name-input'
+- assertVisible:
+    id: 'guild-tagline-input'
+- assertVisible: 'Guild Name'
+- assertVisible: 'Tagline (optional)'
+
+# THE CREST GRID — asserted, never tapped, and this is SHE-40's doing.
+# The name field autofocuses (`create.tsx:123`), so the keyboard is up the moment
+# this screen appears, and it covers the lower rows of the grid: measured live,
+# the grid spans y=459-651 and the keyboard starts at y=516. A `tapOn` on a crest
+# down there is a green no-op that presses a key and types a character into the
+# name field instead. This flow does not fight that — it reads the grid out of
+# the accessibility tree, where the covered tiles are still present, and selects
+# nothing.
+#
+# Two of the ten tiles are named, one from the top row (visible) and one from the
+# bottom row (under the keyboard), so this also records that being covered does
+# not remove them from the tree.
+#
+# NO CREST IS SELECTED. If a later flow ever needs to select one, the selection
+# state to assert is the tile's own `accessibilityState.selected` via
+# `icon-button-<id>` (`guild-icon-selector.tsx:38`) — never
+# `selected-indicator-<id>`, which is only in the tree by accident of how UIKit
+# flattens that subtree.
+- assertVisible:
+    id: 'icon-selector-grid'
+- assertVisible:
+    id: 'icon-button-axe'
+    text: 'Select Axe icon'
+- assertVisible:
+    id: 'icon-button-diamond'
+    text: 'Select Diamond icon'
+
+# THE SUBMIT BUTTON IS DISABLED, and it is disabled because this flow filled in
+# nothing: `isFormValid` needs a non-blank name AND a chosen crest
+# (`create.tsx:46`, `:175`). So this single line is both a render check and the
+# proof that the flow created nothing — a run that had typed a name and tapped a
+# crest would arrive here green-lit and one tap from a real guild.
+#
+# A disabled React Native button reaches the tree with no `enabled` attribute at
+# all; `enabled: false` matches that and `enabled: true` does not. Both
+# directions were proven on this screen.
+- assertVisible:
+    id: 'create-guild-submit'
+    text: 'Create Guild'
+    enabled: false
+
+# =============================================================================
+# BACK OUT — NOTHING CREATED
+# =============================================================================
+# Out by the header's own back control (`- back` is a silently-green no-op on
+# iOS). `screen-header-back-button` is one id shared by ~15 screens, so the tap
+# is paired with post-conditions: the screen's own id goes away, and so does the
+# name field that exists nowhere else.
+#
+# WHERE THIS LANDS IS NOT THE PROFILE. Observed twice on this build: leaving the
+# create screen drops the app on the JOURNAL tab, not on the profile tab it was
+# entered from. That is a real navigation oddity and a ticket candidate, but it
+# is deliberately NOT asserted here — a flow that pinned it would have to be
+# rewritten the day it is fixed. The tab tap below makes this file's exit
+# independent of wherever back lands.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    notVisible:
+      id: 'create-guild-screen'
+    timeout: 15000
+- assertNotVisible:
+    id: 'guild-name-input'
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# `home-header` exists nowhere but home. The deck is untouched by this file —
+# home stayed mounted the whole time — but the three lines below state the exit
+# contract the other coverage flows enter on, so a deck left elsewhere by a
+# previous flow is caught here rather than two files later. The Story card is the
+# front card when it has no `Show Story card` child (that label belongs to the
+# tap affordance a BACK card wears) and the footer is on neither of the two
+# branches that would mean a different card.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+- assertNotVisible: 'Show Story card'
+- assertNotVisible:
+    id: 'create-coop-quest-button'
+- assertNotVisible:
+    id: 'create-custom-quest-button'
+
+# =============================================================================
+# END
+# =============================================================================
+# No guild created, none joined, none edited, no invite code typed, no crest
+# selected, no server write, no sheet left open. Same account, same quests, same
+# streak, still guild-less, sitting on home with the Story card front. The
+# profile screen is handed on scrolled to its guild section, which is where this
+# file's own scroll steps expect to start — and they tolerate any other position
+# anyway.
+#
+# WHAT THIS FILE CANNOT COVER, honestly: the guild detail screen
+# (`guild/[id].tsx`), guild edit mode, the invite-code share row, and the join
+# and create success paths. All of them need the account to be IN a guild, which
+# is exactly the state this chain must not enter. Covering them needs a throwaway
+# account, not this one.
