@@ -177,9 +177,18 @@ appId: com.vaedros.unquest
     timeout: 20000
 
 # Out by the header's own back control. `- back` is a silently-green no-op on
-# iOS. The post-condition is the profile header returning: the leaderboard is
-# pushed over the tab bar's screens, so `profile-screen` is out of the tree
-# while the board is up and cannot be left over from before the tap.
+# iOS.
+#
+# The post-condition is the profile header returning, and what makes it
+# discriminate is the same tab mounting the achievements block below explains:
+# the leaderboard is a TAB route hidden from the tab bar (`Tabs.Screen` with
+# `href: null` in `(app)/_layout.tsx`), so opening it makes the profile the
+# INACTIVE tab, and an inactive tab screen leaves the accessibility tree.
+# `profile-screen` is absent for as long as the board is up — checked in a live
+# dump — so it cannot be left over from before the tap.
+#
+# The tab bar itself stays on screen the whole time, unlike on the quest-detail
+# route. No tab id is a usable post-condition here.
 - tapOn:
     id: 'screen-header-back-button'
 - extendedWaitUntil:
@@ -256,7 +265,13 @@ appId: com.vaedros.unquest
 # Four swipes DOWN pin the screen against the top of its own scroll. A ScrollView
 # clamps there, so overshooting costs nothing and the result is the same however
 # far down the screen started — which is what makes it deterministic rather than
-# a guess. Three were enough from the very bottom; the fourth is margin. Vertical
+# a guess. Three were enough from the very bottom; the fourth is margin.
+#
+# `direction: DOWN` here means the OPPOSITE of `direction: DOWN` on the two
+# `scrollUntilVisible` steps above, and the two must not be copied between each
+# other. On `scrollUntilVisible` it names where to keep looking — further down
+# the content. On `swipe` it names the finger's travel — a downward drag, which
+# drags the content back toward its top. Vertical
 # swipes do not page the horizontal carousels (checked in a dump before and
 # after), so this step cannot disturb what the next one is about to fix.
 - repeat:
