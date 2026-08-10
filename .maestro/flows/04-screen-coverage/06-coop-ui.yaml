@@ -1,137 +1,289 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# COOPERATIVE QUEST UI TEST (UI Only, No Multiplayer)
+# COOPERATIVE QUESTS — RENDER SMOKE
 # =============================================================================
-# Tests the cooperative quest UI screens without actual multiplayer coordination
+# Two co-op surfaces, both checked for rendering their real content, and one
+# navigation gate checked for being where it is:
 #
-# Verification:
-#   - Coop menu loads
-#   - Create lobby button works
-#   - Lobby screen displays correctly
-#   - Join lobby option is present
+#   1. THE CO-OP CARD on the home deck — reached by swiping the deck, and read
+#      for the copy it advertises.
+#   2. THE PREMIUM GATE in the footer — the single button that is the app's only
+#      route to the cooperative-quest menu, and which on this build is locked.
+#   3. THE COOPERATIVE QUEST MENU — its no-friends branch, reached by deep link
+#      because of point 2. See the block below; do not "simplify" it back to a
+#      tap without reading that first.
 #
-# Note: This test only verifies UI elements, not actual multiplayer functionality
+# Nothing here creates, joins or runs a cooperative quest, and nothing opens the
+# invite sheet. Those need a second account: `hasFriends` is false forever on a
+# single-account chain, so the menu's four-row branch is unreachable by design
+# (plan Decision 6), and the invite sheet belongs to the invite flow.
+#
+# Entry state: authenticated, on any tab, home deck NOT parked on the Co-op card
+# (any other card, or none — the flow normalises it). Exit state: unchanged
+# account, sitting on home with the STORY card front. No server write.
+#
+# Same-day assumption, shared with the other coverage flows: the announcement
+# day-slot is spent for this account, so no bottom sheet meets this flow on
+# home. A cross-day run could meet one, and it would fail loudly at the first
+# post-condition rather than quietly — which is the intent.
+#
+# -----------------------------------------------------------------------------
+# WHY THE MENU IS OPENED BY DEEP LINK AND NOT BY THE BUTTON ABOVE IT
+# -----------------------------------------------------------------------------
+# `(app)/index.tsx:548-591` gives the co-op card's footer exactly one button,
+# `create-coop-quest-button`, and one flag decides both its label and its job:
+#
+#   hasCoopAccess true  -> label `Cooperative Quests`,   pushes
+#                          /cooperative-quest-menu
+#   hasCoopAccess false -> label `Unlock Cooperative Mode`, opens the premium
+#                          paywall instead
+#
+# The flag comes from `revenueCatService.hasPremiumAccess()`
+# (`revenuecat-service.ts:130-147`), which returns true unconditionally **only
+# when `__DEV__`**. The e2e binary is built `--configuration Release`, so
+# `__DEV__` is false, the answer comes from RevenueCat, and a freshly created
+# `test-…@example.com` account has bought nothing. **Verified in a live dump on
+# this build: the button reads `Unlock Cooperative Mode`.** Nothing else can
+# change it — no server field feeds this flag.
+#
+# So on the binary this suite runs, the button is a paywall trigger and the menu
+# has no in-app route at all (`grep -rn "cooperative-quest-menu" src` finds one
+# navigation, and it is behind this button).
+#
+# Tapping it anyway would be worse than useless: the paywall is
+# `RevenueCatUI.presentPaywall()` (`premium-paywall.tsx:48`), and with no
+# StoreKit configuration on the simulator its ERROR and NOT_PRESENTED branches
+# both raise a NATIVE ALERT (`:54-70`). A native alert is the thing that
+# currently blocks the social-sign-in flow, and it would be left sitting on the
+# device for whichever flow runs next.
+#
+# The deep link is therefore how this file reaches the screen, and it was
+# verified to land on it with the app already running — the home screen stayed
+# mounted underneath, keeping its deck position, so this is a navigation and not
+# a relaunch.
+#
+# WHEN TO CHANGE THIS BACK: if the suite ever runs a Debug build, or the test
+# account is given a co-op entitlement, the button becomes a real route and the
+# `openLink` below should become a `tapOn: {id: create-coop-quest-button}`. The
+# gate assertion further down is what will go red and tell you that day came.
 # =============================================================================
 
-# Navigate to Home
-- tapOn: 'Home'
+# =============================================================================
+# HOME
+# =============================================================================
+# The tab tap is explicit rather than assumed: this file has to work as the
+# first thing run in a session as well as after whatever flow precedes it. Under
+# `.maestro/run-tests.sh` that is `05-settings.yaml`, which ends on the PROFILE
+# tab — so arriving on home is this file's own job.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+
+# THE ENTRY CONTRACT: the deck is not already parked on the Co-op card.
+# `create-coop-quest-button` renders only in the footer's `activeIndex === 2`
+# branch, so its absence says the deck is on some other card. This is what turns
+# the swipe below into an observed change rather than a step that might have
+# been a no-op on an already-correct deck.
+- assertNotVisible:
+    id: 'create-coop-quest-button'
 
 # =============================================================================
-# NAVIGATE TO COOPERATIVE QUESTS
+# BRING THE CO-OP CARD TO THE FRONT
 # =============================================================================
-# Look for cooperative quest option
-- runFlow:
-    when:
-      visible: 'Cooperative'
+# A LOOP, NOT "one right swipe from Story", for the same reason
+# `03-custom-quest.yaml` loops: the deck's position survives tab switches (home
+# stays mounted), resets to Story on relaunch, and also resets to Story when a
+# pending quest is cancelled. Which card is front on arrival is the previous
+# flow's business, not this one's.
+#
+# The stale-closure bug that made every swipe land on the same card was fixed in
+# `3bec637`, so a swipe now advances from wherever the deck actually is. Deck
+# order is story 0 / custom 1 / cooperative 2, a RIGHT swipe is `onAdvance(-1)`
+# (`quest-deck.tsx:102`) and `select()` wraps modulo 3
+# (`use-carousel-state.ts:33`), so:
+#
+#   Story(0)  --RIGHT-->  Co-op(2)                    one swipe
+#   Custom(1) --RIGHT-->  Story(0) --RIGHT--> Co-op(2)  two swipes
+#
+# Two is the worst case; three iterations is one spare. Each iteration is
+# guarded, so once the Co-op card is front the rest do nothing.
+#
+# Confirmed live on the Release build: one right swipe from Story landed on
+# Co-op. The anchor audit's old swipe table describes the pre-fix behaviour and
+# must not be used.
+- repeat:
+    times: 3
     commands:
-      - tapOn: 'Cooperative'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'create-coop-quest-button'
+          commands:
+            - swipe:
+                from:
+                  id: 'quest-deck'
+                direction: RIGHT
+            - waitForAnimationToEnd
 
-# Alternative: might be called "Co-op" or "Multiplayer"
-- runFlow:
-    when:
-      visible: 'Co-op'
-    commands:
-      - tapOn: 'Co-op'
+# TWO assertions, because neither alone says the deck moved:
+#   - `create-coop-quest-button` exists only in the `activeIndex === 2` footer
+#     branch, so its presence is the real state check.
+#   - the missing `Show Co-op card` label is the second half. All three
+#     `deck-card-*` ids sit in the tree at all times — the occluded back cards
+#     stay accessibility elements — and what distinguishes the FRONT card is
+#     that it has no `Show <mode> card` child, because that label belongs to the
+#     Pressable a back card uses as its tap affordance.
+- assertVisible:
+    id: 'create-coop-quest-button'
+- assertNotVisible: 'Show Co-op card'
 
-# =============================================================================
-# COOPERATIVE QUEST MENU
-# =============================================================================
-- assertVisible: 'Create Lobby'
-- assertVisible: 'Join Lobby'
-
-# =============================================================================
-# TEST CREATE LOBBY FLOW
-# =============================================================================
-- tapOn: 'Create Lobby'
-
-# =============================================================================
-# LOBBY SCREEN
-# =============================================================================
-- assertVisible: 'Lobby'
-
-# Should show lobby code
-- runFlow:
-    when:
-      visible: 'Lobby Code'
-    commands:
-      - assertVisible: 'Lobby Code'
-
-# Should show waiting status
-- runFlow:
-    when:
-      visible: 'Waiting for players'
-    commands:
-      - assertVisible: 'Waiting'
-
-# Verify we're the host
-- runFlow:
-    when:
-      visible: 'MaestroHero'
-    commands:
-      - assertVisible: 'MaestroHero'
+# THE CARD'S OWN CONTENT, from `use-home-data.ts:163-174`: the eyebrow, the
+# title, and the description. A card that rendered an empty shell, or another
+# mode's copy, goes red here.
+#
+# HONEST LIMIT, so nobody mistakes these three lines for a state check: a back
+# card's copy reaches the accessibility tree too. Seen live on this build with
+# the Co-op card at the back, all three of these strings were present — so they
+# could pass without the deck having moved at all. (Whether a back card's copy
+# is in the tree is not even stable: a later dump of the same arrangement showed
+# the Co-op card reduced to its `Show Co-op card` wrapper with no text children.
+# Nothing here depends on which way that falls, but do not build an assertion on
+# it.) These lines say "this card renders its own copy"; the two lines above are
+# the only ones that say "and it is in front".
+#
+# The `5 MIN · 15 XP` line the card also shows is deliberately not asserted:
+# the Custom card advertises the identical string, so it would discriminate
+# nothing.
+- assertVisible: 'TEAM CHALLENGE'
+- assertVisible: 'Cooperative Quest'
+- assertVisible: 'Invite a friend on a quest or join a quest and stay off your phone together'
 
 # =============================================================================
-# VERIFY LOBBY CONTROLS
+# THE PREMIUM GATE
 # =============================================================================
-# Should have option to cancel/leave lobby
-- runFlow:
-    when:
-      visible: 'Cancel'
-    commands:
-      - assertVisible: 'Cancel'
-
-- runFlow:
-    when:
-      visible: 'Leave'
-    commands:
-      - assertVisible: 'Leave'
-
-# =============================================================================
-# LEAVE LOBBY (don't actually wait for players)
-# =============================================================================
-- runFlow:
-    when:
-      visible: 'Cancel'
-    commands:
-      - tapOn: 'Cancel'
-
-- runFlow:
-    when:
-      visible: 'Leave'
-    commands:
-      - tapOn: 'Leave'
+# This is the state of the app the suite actually runs, pinned deliberately —
+# see the long block at the top of this file. Combining the id with the label is
+# what makes it discriminate: the id is the same on both sides of the gate, and
+# only the label says which side the build is on.
+#
+# THIS LINE IS COUPLED TO A NON-PREMIUM ACCOUNT, and that coupling is the point.
+# It goes red the day the test account gains co-op access or the suite moves to
+# a Debug build — and on that day the deep link below should become a tap on
+# this very button. It is not a line to "fix" by loosening; read the top block.
+#
+# The `PREMIUM` badge beside it (`index.tsx:559-563`) is rendered by the same
+# flag, so asserting it too would be a second line failing for one cause.
+- assertVisible:
+    id: 'create-coop-quest-button'
+    text: 'Unlock Cooperative Mode'
 
 # =============================================================================
-# VERIFY BACK AT COOP MENU
+# THE COOPERATIVE QUEST MENU
 # =============================================================================
-- assertVisible: 'Create Lobby'
-- assertVisible: 'Join Lobby'
+# `coop-menu-screen` is the ScreenHeader's id on this route and belongs to no
+# other screen, so it is a post-condition the deep link cannot satisfy by
+# accident. Asserting it absent first is what makes the wait mean "it appeared".
+- assertNotVisible:
+    id: 'coop-menu-screen'
+- openLink: 'unquest:///cooperative-quest-menu'
+- extendedWaitUntil:
+    visible:
+      id: 'coop-menu-screen'
+    timeout: 15000
+
+# A SECOND, INDEPENDENT POST-CONDITION. This is a root-level route, not a tab
+# route, so the tab bar is gone while it is up — checked in a live dump. A deep
+# link that had been evicted back to home by the navigation gate would leave the
+# tab bar exactly where it was.
+- assertNotVisible:
+    id: 'new-quest-tab'
+
+# WHICH BRANCH RENDERED. `cooperative-quest-menu.tsx:161` splits on
+# `hasFriends`, and the two branches share no anchors: `coop-empty-state` is the
+# else branch's own container. A single-account chain can only ever see this
+# side, so this is not a choice the flow makes — it is the only reachable state,
+# and asserting it pins that the account really is friendless rather than
+# quietly having gained one.
+#
+# The four `coop-menu-option-*` ids live in the OTHER branch. They are not
+# asserted absent here: `coop-empty-state` already proves which branch rendered,
+# and naming them in a flow file would make them look verified to the grep that
+# builds the suite's unverified-anchor list, which is exactly backwards.
+- assertVisible:
+    id: 'coop-empty-state'
+
+# The header subtitle is the empty state's own discriminator, not decoration:
+# the has-friends branch prints a longer sentence for the same slot
+# (`cooperative-quest-menu.tsx:140-142`) and Maestro matches the whole string,
+# so this cannot be satisfied by the other branch's copy.
+- assertVisible: 'Team up with friends to complete quests together!'
+
+# The empty state's real content, and the CTA row underneath it. The row is a
+# collapsed `ListItem` — iOS reports one element carrying title and subtitle
+# together, so `Add Friends` alone matches nothing and the whole sentence is
+# what has to be named. It is asserted, not tapped: tapping it opens the invite
+# sheet, which is the invite flow's subject, not this one's.
+- assertVisible: 'Add Friends to Get Started'
+- assertVisible:
+    id: 'coop-add-friends-row'
+    text: 'Add Friends, Connect with friends to quest together'
+
+# The info card at the foot of the screen. Only its heading is named: its body
+# is a single element with an embedded newline, which full-string matching makes
+# impractical to assert.
+- assertVisible:
+    id: 'coop-how-it-works'
+- assertVisible: 'How it works'
 
 # =============================================================================
-# TEST JOIN LOBBY UI (without actually joining)
+# BACK TO HOME
 # =============================================================================
-- tapOn: 'Join Lobby'
-
-# Should show input for lobby code
-- runFlow:
-    when:
-      visible: 'Enter Lobby Code'
-    commands:
-      - assertVisible: 'Enter Lobby Code'
-
-      # Go back without entering a code
-      - tapOn:
-          point: '5%, 5%'
-
-# =============================================================================
-# RETURN TO HOME
-# =============================================================================
-- tapOn: 'Home'
-
-- assertVisible: 'Your Journey'
+# Out by the header's own back control — `- back` is a silently-green no-op on
+# iOS. The post-condition is home's header returning, and the tab bar with it;
+# neither can be left over from before the tap, because both were absent while
+# the menu was up.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+- assertVisible:
+    id: 'new-quest-tab'
 
 # =============================================================================
-# COOPERATIVE UI TEST COMPLETE
+# LEAVE THE DECK ON THE STORY CARD
 # =============================================================================
-# Successfully verified coop quest UI screens without multiplayer!
+# The home screen stayed mounted under the menu, so the deck comes back still
+# parked on Co-op — verified in a live dump. Every other coverage flow expects
+# to find Story front, so putting it back is this file's own tidying.
+#
+# One LEFT swipe does it: a left swipe is `onAdvance(+1)`, and 2 + 1 wraps to 0.
+# Verified live. This also restores the state this file's own entry contract
+# needs, so it can run twice in a row.
+- swipe:
+    from:
+      id: 'quest-deck'
+    direction: LEFT
+- waitForAnimationToEnd
+
+# Story is front: it has no `Show Story card` child, and the footer is on
+# neither of the two branches that would mean a different card. The story
+# footer's own id is deliberately NOT used as the check — it is built from the
+# ids of the two choices currently on offer, so it changes with the branch the
+# account is standing on.
+- assertNotVisible: 'Show Story card'
+- assertNotVisible:
+    id: 'create-coop-quest-button'
+- assertNotVisible:
+    id: 'create-custom-quest-button'
+
+# =============================================================================
+# END
+# =============================================================================
+# Nothing created, nothing consumed, no server write, no sheet left open. Same
+# account, same quests, same streak, sitting on home with the Story card front.
