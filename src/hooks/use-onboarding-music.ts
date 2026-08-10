@@ -4,6 +4,7 @@ import {
   useAudioPlayerStatus,
 } from 'expo-audio';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -78,7 +79,26 @@ export const useOnboardingMusic = (
       // flight; without this the continuation would start the music again
       // right after the re-run of this effect paused it.
       if (cancelled) return;
-      player.play();
+      // The user can also LOCK THE PHONE while the call above is in flight —
+      // first-quest explicitly tells them to. iOS refuses to activate an
+      // audio session for a backgrounded app, so play() would throw
+      // (REACT-NATIVE-71). Backgrounded music isn't wanted anyway: skip, and
+      // let the next enabled/focus change start playback back in the flow.
+      // `=== 'background'`, NOT `!== 'active'`: currentState is null until
+      // the native module reports in (and 'unknown' on some Android
+      // launches), so only a KNOWN background state may suppress playback —
+      // the catch below covers whatever slips through.
+      if (AppState.currentState === 'background') return;
+      try {
+        player.play();
+      } catch (error) {
+        // The check above can't fully close the window — the app can
+        // background between it and this synchronous native call, and iOS
+        // then throws "Session activation failed" (REACT-NATIVE-71). Ambient
+        // music failing to start must never surface as an unhandled
+        // rejection.
+        console.warn('Failed to start the onboarding music', error);
+      }
     };
     start();
 
