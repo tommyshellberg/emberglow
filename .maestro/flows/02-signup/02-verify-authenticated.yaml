@@ -6,9 +6,10 @@ appId: com.vaedros.unquest
 # Picks up exactly where 01-request-magic-link.yaml stopped: the sent view,
 # link requested, hero still provisional, onboarding step VIEWING_SIGNUP_PROMPT.
 #
-#   1. Pull this run's link out of Mailpit — filtered by recipient, and only
-#      if it is younger than the token that is inside it
-#   2. Open it; that is what converts the provisional user
+#   1. Pull this run's sign-in token out of Mailpit — filtered by recipient, and
+#      only if the mail is younger than the token that is inside it
+#   2. Build the app's deep link around that token and open it; that is what
+#      converts the provisional user
 #   3. Prove the CONVERSION happened, not merely that a home screen rendered
 #
 # THIS FLOW CLAIMS THE ACCOUNT AND IS ONE-WAY. The provisional user becomes a
@@ -54,7 +55,9 @@ appId: com.vaedros.unquest
 #      get debugged in practice.
 #   3. `poll-magic-link.sh` reads /api/v1/message/latest and does NOT filter by
 #      recipient at all. Keeping it in the loop would mean either fixing it or
-#      inheriting its hazard (below).
+#      inheriting its hazard (below). That script also still looks for the old
+#      `unquest://` link the email no longer sends (see the next block), so it
+#      cannot find a token at all today — no flow uses it.
 #
 # The trade-off: this flow now depends on Maestro's JS runtime and on Mailpit's
 # HTTP API rather than on plain YAML commands. If either changes, the failure
@@ -74,8 +77,42 @@ appId: com.vaedros.unquest
     id: 'send-again-button'
 
 # =============================================================================
-# FETCH THIS RUN'S MAGIC LINK FROM MAILPIT
+# FETCH THIS RUN'S SIGN-IN TOKEN FROM MAILPIT
 # =============================================================================
+# WHAT THE EMAIL CONTAINS, AND WHY THIS FLOW BUILDS THE DEEP LINK ITSELF
+#
+# The sign-in email used to carry the app's own deep link
+# (`unquest://auth/magiclink/verify?token=<jwt>`), and this block used to lift
+# that whole string out of the mail. unquest-server commit `a467d37`
+# (2026-07-26, "fix(auth): link the sign-in email over https so clients stop
+# stripping it") changed that. Both the HTML and the text body now carry ONE
+# link, an https one:
+#
+#   https://api.unquestapp.com/v1/auth/magiclink/open?token=<jwt>
+#
+# That address serves a plain interstitial page whose only button is the same
+# `unquest://auth/magiclink/verify?token=<jwt>` deep link (server
+# `src/utils/magic-link-page.js`, buildDeepLink). It does NOT consume the token,
+# and the token in the https URL is byte-for-byte the token the app needs: the
+# server drops the signed JWT straight into the URL, unaltered
+# (`passport.js:121-128` — the variable is called `encodedToken`, but that is
+# the `jwt.sign()` output, not a URL-encoded string; nothing on that path calls
+# `encodeURIComponent`). So the app-side contract this flow exercises has not
+# moved — only the mail changed.
+#
+# The flow therefore extracts the token and builds the deep link itself, rather
+# than fetching the interstitial and clicking through it. The host in that URL
+# comes from the server's PUBLIC_API_URL, which defaults to the PRODUCTION
+# api.unquestapp.com (`src/config/config.js:38-42`) and is unset locally, so
+# following the link would make this e2e run fail whenever production is down.
+# A local test must not depend on prod being up.
+#
+# The token character class is exactly what a JWT can contain — base64url
+# (`A-Za-z0-9`, `-`, `_`) plus the two dots between its three parts. `%` is
+# deliberately NOT in it: nothing on the server percent-encodes the token, so
+# allowing `%` would guard a case that cannot arise, and what `openLink` would
+# do with a percent-encoded token has never been tested either way.
+#
 # Filtered by recipient, newest first (Mailpit returns search hits in
 # descending Created order — verified on device with two messages to the same
 # address).
@@ -110,21 +147,22 @@ appId: com.vaedros.unquest
             output.found = hits.length;
             output.ageMs = hits.length ? (Date.now() - Date.parse(hits[0].Created)) : -1;
             var html = hits.length ? json(http.get(base + '/api/v1/message/' + hits[0].ID).body).HTML : '';
-            var hit = /unquest:\/\/auth\/magiclink\/verify\?token=[A-Za-z0-9._\-]+/.exec(html);
-            output.magicLink = hit ? hit[0] : 'NO_LINK';
+            var hit = /magiclink\/open\?token=([A-Za-z0-9._\-]+)/.exec(html);
+            output.magicLink = hit ? 'unquest://auth/magiclink/verify?token=' + hit[1] : 'NO_LINK';
           }
       # A message exists, addressed to this run and nobody else.
       - assertTrue: ${output.found >= 1}
       # It is younger than the 20-minute token TTL.
       - assertTrue: ${output.ageMs >= 0 && output.ageMs < 1200000}
-      # And it actually carries a deep link.
+      # And a token really came out of it, so the deep link below is complete.
       - assertTrue: ${output.magicLink != 'NO_LINK'}
 
 # =============================================================================
 # OPEN THE LINK — THIS IS THE CONVERSION
 # =============================================================================
-# `openLink` drives the same `unquest://` scheme the email uses, so the app
-# takes its real deep-link path: expo-router mounts auth/magiclink/verify,
+# `openLink` drives the `unquest://` deep link built above — the same one the
+# email's interstitial page would hand the device — so the app takes its real
+# deep-link path: expo-router mounts auth/magiclink/verify,
 # which calls verifyMagicLinkAndSignIn(token) — server-side that flips
 # isProvisional to false and moves the address onto the provisional user
 # (passport.js CASE 1), client-side it stores real tokens and removes
