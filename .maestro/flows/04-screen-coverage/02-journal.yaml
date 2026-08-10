@@ -1,60 +1,324 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# JOURNAL TEST
+# JOURNAL — THE QUEST LOG, ITS FILTERS, AND TWO QUEST DETAIL SCREENS
 # =============================================================================
-# Tests the journal screen showing completed quests
+# The journal is read-only, so this flow proves the screen reports the account's
+# real history rather than merely rendering a list:
 #
-# Expected State:
-#   - 2 quests completed: "Wake up" and another quest
-#   - Each quest should show XP earned
+#   1. Reach the journal tab
+#   2. Name both story quests by title in the list, without using a row index
+#   3. Drive the mode filter both ways and watch those rows leave and come back
+#   4. Open each story quest's detail screen and check the reward it actually
+#      paid, using the other quest as the control
+#   5. Leave the device on home
+#
+# Entry state: authenticated, on any tab, with the two story quests of phase 03
+# completed. Exit state: unchanged account, sitting on home.
+#
+# -----------------------------------------------------------------------------
+# THE TWO STORY QUESTS THIS FLOW IS BUILT ON
+# -----------------------------------------------------------------------------
+# From `src/app/data/quests.ts`, and both completed by the time any coverage
+# flow runs:
+#
+#   quest-1   "A Confused Awakening"                    reward { xp: 100 }
+#             The onboarding quest. Its 100 is a flat hardcoded number, NOT
+#             derived from a duration, so the dev-mode duration override does
+#             not shrink it.
+#   quest-1b  "Searching the Forest for Signs of Life"  reward 3 * 3 = 9
+#             The second quest. `calculateRewardFromDuration(3)`.
+#
+# A third story quest, `quest-1a` "Awaken in a Dark Forest", is the branch the
+# chain does NOT take — `02-quest-second-part-1.yaml` swipes RIGHT, which is
+# `choices[1]`, i.e. quest-1b. Do not confuse the two: both pay 9 XP, so a flow
+# that named the wrong one would still pass its XP assertion.
+#
+# -----------------------------------------------------------------------------
+# WHY THERE IS NO ROW INDEX ANYWHERE IN THIS FILE
+# -----------------------------------------------------------------------------
+# `.maestro/run-tests.sh` runs the coverage phase as profile -> JOURNAL ->
+# CUSTOM QUEST -> map -> settings -> coop. So under `pnpm e2e` the custom quest
+# `03-custom-quest.yaml` creates does not exist yet when this flow runs, and the
+# newest journal row is a story quest. Run the two files by hand in the other
+# order — which is how they were developed — and the custom quest is row 0
+# instead. Rows are sorted newest-first (`journal-hooks.ts` `sortedQuests`), so
+# every row index shifts.
+#
+# This flow therefore names quests by title and never by position, never asserts
+# that the custom quest is present, absent or anywhere in particular, and holds
+# in both orders. The mechanism that makes that possible:
+#
+#   A COMPLETED ROW COLLAPSES TO ONE ELEMENT CARRYING ITS OWN LABEL. `ListItem`
+#   wraps a completed row in a `Pressable` with
+#   `accessibilityLabel="View details for <title>"`
+#   (`journal-components.tsx`), and iOS reports that single collapsed element —
+#   the row's `+9 XP` trailing text and its `Aug 10 - 2 min - Story` subtitle are
+#   NOT in the tree. So the label is the only text a completed row exposes, and
+#   a combined `{id: journal-entry, text: '...'}` selector picks one specific
+#   row out of however many are on screen.
+#
+#   That label is also the proof the quest COMPLETED. A failed quest gets no
+#   `onPress` (`journal-components.tsx` only pushes for completed quests), so
+#   `ListItem` renders a plain `View` whose label reads `<title>, failed quest`
+#   and whose children stay visible instead. Different string, no push. Nothing
+#   in this flow can be satisfied by a failed row.
+#
+# -----------------------------------------------------------------------------
+# SHE-28 SHOWS UP HERE AS DATA, NOT AS TIMING — READ BEFORE TOUCHING `1 MIN`
+# -----------------------------------------------------------------------------
+# `1 MIN OFFLINE` below is not a typo for the `2 MIN OFFLINE` that
+# `02-quest-second-part-2.yaml` asserts for the SAME quest. Both numbers are
+# real, and which one you see depends on which stored copy the screen renders:
+#
+#   - The quest TEMPLATE the client counts against carries `durationMinutes: 2`
+#     (`quest-template.controller.js`, dev-only story override). That is what
+#     the post-quest completion screen shows.
+#   - The quest RUN the server records carries `durationMinutes: 1`
+#     (`quest-run.controller.js`, a different dev-only override that disagrees
+#     with the first). The journal list is built from quest RUNS
+#     (`useQuestRuns` -> `transformQuestRun`), and the row hands that record
+#     straight to the detail screen as a route param, so a journal-opened
+#     detail renders the run's 1.
+#
+# The disagreement is Linear SHE-28. This flow pins the RUN record's copy
+# because that is what this screen renders. DO NOT "reconcile" the two numbers
+# to make some future flow pass — that would bury the bug.
 # =============================================================================
 
-# Navigate to Journal tab
-- tapOn: 'Journal'
-
 # =============================================================================
-# JOURNAL SCREEN
+# THE JOURNAL TAB
 # =============================================================================
-- assertVisible: 'Journal'
-- assertVisible: 'Completed Quests'
-
-# =============================================================================
-# VERIFY COMPLETED QUESTS LIST
-# =============================================================================
-# First quest from onboarding
-- assertVisible: 'Wake up'
-
-# Should show XP earned
-- assertVisible: '50 XP'
-
-# =============================================================================
-# VIEW QUEST DETAILS
-# =============================================================================
-- tapOn: 'Wake up'
-
-# Verify quest detail view
-- assertVisible: 'Quest Details'
-- assertVisible: 'Wake up'
-- assertVisible: '50'
-
-# Verify duration or other quest metadata
-- runFlow:
-    when:
-      visible: 'Duration'
-    commands:
-      - assertVisible: '2 minutes'
-
-# Go back to journal
+# The tab tap is explicit rather than assumed: this file has to work as the
+# first thing run in a session as well as after whatever flow precedes it.
+#
+# `journal-screen` is the ScreenHeader's id on this route, so it names something
+# only this screen has. That matters twice over: a green tap on iOS proves only
+# that a touch was dispatched, and inactive tab screens detach from the
+# accessibility tree entirely, so this id cannot be left over from a previous
+# screen.
 - tapOn:
-    point: '5%, 5%'  # Back button
+    id: 'journal-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'journal-screen'
+    timeout: 15000
+
+# The screen's own entry contract, asserted rather than assumed. Both filter
+# rows are React state local to the journal screen, and the screen stays mounted
+# while other tabs are in front of it — so a previous visit could have left a
+# filter applied and every row assertion below would then be reading a filtered
+# list. `selected` is a stated accessibility contract written in
+# `journal-components.tsx`, not an artifact of how iOS flattens the view.
+- assertVisible:
+    id: 'journal-filter-all'
+    selected: true
+- assertVisible:
+    id: 'journal-filter-status-all'
+    selected: true
+
+# Both story quests, by name, with no idea where they sit. See "WHY THERE IS NO
+# ROW INDEX" above for why the label is the only text a completed row exposes
+# and why matching it also proves the quest completed rather than failed.
+- assertVisible:
+    id: 'journal-entry'
+    text: 'View details for A Confused Awakening'
+- assertVisible:
+    id: 'journal-entry'
+    text: 'View details for Searching the Forest for Signs of Life'
 
 # =============================================================================
-# VERIFY BACK AT JOURNAL
+# THE MODE FILTER, DRIVEN BOTH WAYS
 # =============================================================================
-- assertVisible: 'Completed Quests'
-- assertVisible: 'Wake up'
+# CUSTOM is the filter to select here, and the choice is the whole point.
+#
+# The obvious test — select STORY and check the custom quest disappears —
+# asserts the custom quest's absence, and under the runner's order that quest
+# does not exist yet, so the assertion would pass without the filter doing
+# anything at all. A fixture equal to the fallback proves nothing.
+#
+# Selecting CUSTOM inverts that. The two story quests certainly exist in every
+# order, and a custom filter must exclude both of them, so their disappearance
+# is a real consequence of the tap in both orders. Nothing here depends on what
+# the custom filter leaves behind.
+- tapOn:
+    id: 'journal-filter-custom'
+- waitForAnimationToEnd
+
+# Asserting the OLD chip is no longer selected is half the value: a component
+# that added the new selection without clearing the old one would pass the first
+# line alone.
+- assertVisible:
+    id: 'journal-filter-custom'
+    selected: true
+- assertVisible:
+    id: 'journal-filter-all'
+    selected: false
+- assertNotVisible:
+    id: 'journal-entry'
+    text: 'View details for A Confused Awakening'
+- assertNotVisible:
+    id: 'journal-entry'
+    text: 'View details for Searching the Forest for Signs of Life'
+
+# Back to All, and the rows come back. Without this half, a filter that dropped
+# every row unconditionally — or a list that failed to render at all — would
+# satisfy the block above. It also restores the screen state the detail taps
+# below need, and leaves the journal unfiltered for whoever visits it next.
+- tapOn:
+    id: 'journal-filter-all'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'journal-filter-all'
+    selected: true
+- assertVisible:
+    id: 'journal-filter-custom'
+    selected: false
+- assertVisible:
+    id: 'journal-entry'
+    text: 'View details for A Confused Awakening'
+- assertVisible:
+    id: 'journal-entry'
+    text: 'View details for Searching the Forest for Signs of Life'
 
 # =============================================================================
-# JOURNAL TEST COMPLETE
+# QUEST DETAIL 1 OF 2 — THE SECOND STORY QUEST (quest-1b)
 # =============================================================================
+# `quest-detail-screen` is the route's own root id, and it is the post-condition
+# for the row tap. The tab bar is a second, independent one: this route is
+# pushed OVER the tabs, so `journal-tab` leaves the tree entirely. A tap that
+# was swallowed — by an announcement sheet's scrim, say — would report success
+# and leave the tab bar exactly where it was.
+- tapOn:
+    id: 'journal-entry'
+    text: 'View details for Searching the Forest for Signs of Life'
+- extendedWaitUntil:
+    visible:
+      id: 'quest-detail-screen'
+    timeout: 15000
+- assertNotVisible:
+    id: 'journal-tab'
+
+# What this screen must say, and where each string comes from.
+#
+#   STORY QUEST     the eyebrow, and it is doing TWO jobs.
+#                   `QuestCompleteHeader.tsx` builds it as
+#                   `getQuestModeLabel(mode)` plus ` · COMPLETE`, appending the
+#                   suffix only when `fromJournal` is false. The journal pushes
+#                   `from: 'journal'`, so the bare mode label is what a
+#                   journal-opened detail must show. Matching is full-string, so
+#                   this line would go red against `STORY QUEST · COMPLETE` —
+#                   i.e. it also asserts this is a journal re-open and not the
+#                   post-quest screen. It rules out the custom quest too, whose
+#                   eyebrow reads `CUSTOM QUEST`.
+#   the title       the row tap opened the quest it named.
+#   +9 XP          `QuestComplete.tsx` renders
+#                   `<Badge tone="warm">{`+${adjustedXP} XP`}</Badge>` from
+#                   `getCurrentUserAdjustedXP`, i.e. read off the persisted run
+#                   record rather than recomputed from a constant. quest-1b's
+#                   reward is `calculateRewardFromDuration(3)` = 9.
+#                   NOTE this is the PERK-ADJUSTED figure. The suite's account
+#                   has no perks, so adjusted equals base; an account that had
+#                   unlocked a reward perk would legitimately show more, and
+#                   this line is coupled to a fresh chain because of it.
+#   1 MIN OFFLINE   the RUN record's duration. This is SHE-28 — see the header
+#                   block before changing it.
+#
+# `AUG 10, 2026` also renders here, from the run's real date. Never assert it.
+#
+# The `\+` escape is kept for portability but is not what makes the XP line
+# bite: the unescaped form matches too on Maestro 2.0.10. The digit is what
+# discriminates.
+- assertVisible: 'STORY QUEST'
+- assertVisible: 'Searching the Forest for Signs of Life'
+- assertVisible: '\+9 XP'
+- assertVisible: '1 MIN OFFLINE'
+
+# The success-tone `Complete` badge is rendered only when `fromJournal` is false
+# (`QuestComplete.tsx`), so it must NOT be here. This line is the assertion that
+# would catch that suppression breaking — and it is the reason a journal flow
+# must not copy the post-quest flow's `assertVisible: 'COMPLETE'`, which would
+# be red against a perfectly correct app.
+- assertNotVisible: 'COMPLETE'
+
+# Leave by the screen's own control. `- back` is a silently-green no-op on iOS,
+# and `screen-header-back-button` belongs to a different component (~15 screens
+# share it) that this route does not use on the completed branch. The detail's
+# back disc has its own id.
+#
+# Post-condition: the tab bar returning is what proves the pop happened, and it
+# cannot be satisfied by the detail screen still being up.
+- tapOn:
+    id: 'quest-detail-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'journal-tab'
+    timeout: 15000
+- assertVisible:
+    id: 'journal-screen'
+
+# =============================================================================
+# QUEST DETAIL 2 OF 2 — THE ONBOARDING QUEST (quest-1), AND WHY IT IS HERE
+# =============================================================================
+# This is not a second helping of the same screen. The two details are each
+# other's control: same component, same account, same session, two different
+# persisted records. `+100 XP` here and `+9 XP` above cannot both be produced by
+# a screen that ignores its input, and a row tap that ignored the title it named
+# would open whatever row happened to be first — which on a hand-run device is
+# the custom quest, at `+3 XP` under a `CUSTOM QUEST` eyebrow.
+#
+# quest-1's 100 is a flat hardcoded reward rather than a duration-derived one,
+# so this line also pins the one reward in the story data that a duration change
+# should NOT move.
+- tapOn:
+    id: 'journal-entry'
+    text: 'View details for A Confused Awakening'
+- extendedWaitUntil:
+    visible:
+      id: 'quest-detail-screen'
+    timeout: 15000
+- assertNotVisible:
+    id: 'journal-tab'
+- assertVisible: 'STORY QUEST'
+- assertVisible: 'A Confused Awakening'
+- assertVisible: '\+100 XP'
+
+# The other quest's title is absent from this screen. Without this the flow
+# would still pass if the detail route somehow rendered the previously-viewed
+# quest, because every other line here is satisfiable by a screen that changed
+# nothing except its XP badge.
+- assertNotVisible: 'Searching the Forest for Signs of Life'
+
+# Deliberately NO duration assertion on this screen. Both story quests' run
+# records carry `durationMinutes: 1`, so `1 MIN OFFLINE` is identical on both
+# details — asserting it twice would add a second line that fails for the same
+# single cause, while telling a reader it discriminates between the quests. It
+# does not. The wrong-value mutation recorded in the report is the only real
+# evidence for that line, and it lives on the detail above.
+- tapOn:
+    id: 'quest-detail-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'journal-tab'
+    timeout: 15000
+- assertVisible:
+    id: 'journal-screen'
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# The journal changes nothing, so the only state this flow owes its successors
+# is the screen it leaves them on. Home is what `04-screen-coverage`'s other
+# flows expect, and the filter chips were already put back to All above.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+
+# =============================================================================
+# END
+# =============================================================================
+# Nothing created, nothing consumed, no server write. Same account, same three
+# (or two, under the runner's order) journal rows, sitting on the home screen.
