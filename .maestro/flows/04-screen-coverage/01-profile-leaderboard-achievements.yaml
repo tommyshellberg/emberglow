@@ -1,89 +1,385 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# PROFILE → LEADERBOARD → ACHIEVEMENTS TEST
+# PROFILE -> LEADERBOARD -> ACHIEVEMENTS
 # =============================================================================
-# Tests the profile screen and navigation to leaderboard and achievements
+# Three screens, two depths, one trip:
 #
-# Expected State:
-#   - Level: 1 (or 2)
-#   - XP: 100
-#   - Quests completed: 2
-#   - Streak: Day 2
+#   1. PROFILE — render smoke. The screen is reached from the tab bar and it
+#      shows the two links this flow needs. Nothing else about it is asserted
+#      here; `03-fresh-authenticated/01-profile-verification.yaml` is the flow
+#      that checks the character's numbers, and duplicating it would mean two
+#      files failing for one cause.
+#   2. LEADERBOARD — render smoke. The board loaded from the server, it is
+#      showing the default board (global scope, quests metric), and this
+#      account's own row is on it.
+#   3. ACHIEVEMENTS — deep. Real values: the streak progress this account has
+#      earned, on two different cards, and the fact that the first streak
+#      award is NOT yet unlocked.
+#
+# Entry state: authenticated, on the home screen (any tab other than profile
+# works). Exit state: unchanged account, sitting on home. Nothing here writes:
+# no quest is started, no invite is sent, no name is edited.
+#
+# -----------------------------------------------------------------------------
+# THE RULE THAT SHAPES THIS WHOLE FILE: IT MUST HOLD AT TWO AND AT THREE QUESTS
+# -----------------------------------------------------------------------------
+# `.maestro/run-tests.sh` runs the coverage phase as PROFILE -> journal ->
+# custom quest -> map -> settings -> co-op. So under `pnpm e2e` this file runs
+# FIRST, and the custom quest that `03-custom-quest.yaml` creates does not
+# exist yet: the account has TWO completed quests (the two story quests).
+# Run the coverage files by hand in the order they were developed — which is
+# how the device sat while this flow was written — and the account has THREE.
+#
+# The achievements screen counts quests, so that difference moves real numbers
+# on it. `achievements.tsx` builds nine awards from three live sources:
+#
+#   streak trio   `useCharacterStore.dailyQuestStreak`         -> 1 either way
+#   quest trio    `useQuestStore.getCompletedQuests().length`  -> 2 or 3
+#   minutes trio  the same list's `durationMinutes`, summed    -> 2 or 3
+#
+# Award by award, at two quests and at three:
+#
+#   First Steps     streak 2 days     1/2   locked   |  1/2   locked
+#   Committed       streak 10 days    1/10  locked   |  1/10  locked
+#   Unstoppable     streak 30 days    1/30  locked   |  1/30  locked
+#   Quest Beginner  3 quests          2/3   locked   |  3/3   UNLOCKED
+#   Quest Adventurer / Quest Master   2/25, 2/100    |  3/25, 3/100
+#   Time Saver / Guardian / Lord      2/10, 2/100 …  |  3/10, 3/100 …
+#
+# Only the streak trio's numbers are the same in both orders, and NO award is
+# unlocked in both. That is why the deep assertions below all sit on the streak
+# carousel, why the Quest Completion card is checked for its copy and never for
+# its progress or its ribbon, and why the "N/9 Unlocked" count in the screen
+# subtitle (0/9 or 1/9) is never named.
+#
+# -----------------------------------------------------------------------------
+# SHE-44 — WHY NO NUMBER FROM THE PROFILE SCREEN IS ASSERTED HERE
+# -----------------------------------------------------------------------------
+# The profile screen's three stat tiles read `user.totalQuestsCompleted` and
+# `user.totalMinutesOffPhone` (`profile.tsx`), and `useUserStore.user` is a
+# snapshot taken when the account signed in — nothing on the profile screen
+# refreshes it. On the chain this suite builds, that snapshot was taken after
+# the FIRST quest, so the tiles read `1 quests completed` / `1 minutes saved`
+# for the rest of the session. Seen live again while this flow was written.
+#
+# The achievements screen has no such staleness: it counts the local quest
+# store, which is why the two screens disagree. That disagreement IS SHE-44.
+# The dedicated profile flow is the one fighting it (it is red on the stale
+# tile, deliberately, pending Tommy's ruling); this file must not fight it a
+# second time, so it asserts nothing from that row.
+#
+# The XP readout is fresh — it comes from the character store, which the quest
+# payout updates — but it is NOT order-independent: `9 / 150 XP` at two quests,
+# `12 / 150 XP` at three, because the custom quest pays 3 XP. It belongs to the
+# dedicated profile flow and is not repeated here.
 # =============================================================================
 
-# Navigate to Profile
-- tapOn: 'Profile'
+# =============================================================================
+# THE ENTRY CONTRACT — THE PROFILE IS NOT ALREADY IN FRONT
+# =============================================================================
+# React Navigation keeps an inactive tab's screen mounted but takes it out of
+# the iOS accessibility tree, so `profile-screen` is absent from every other
+# tab; checked in a live dump on home for this build. This line is what turns
+# the wait below from "the anchor is present" into "the anchor BECAME present",
+# and it states the file's entry requirement: start from any tab but profile.
+- assertNotVisible:
+    id: 'profile-screen'
 
 # =============================================================================
-# PROFILE SCREEN
+# THE PROFILE TAB
 # =============================================================================
-- assertVisible: 'MaestroHero'
-- assertVisible: 'Level'
-
-# Verify XP after 2 quests (50 + 50 = 100)
-- assertVisible: '100'
-
-# Verify streak
-- assertVisible: '2'
-- assertVisible: 'Day Streak'
-
-# =============================================================================
-# LEADERBOARD
-# =============================================================================
-- assertVisible: 'Leaderboard'
-- tapOn: 'Leaderboard'
-
-# Verify leaderboard loaded
-- assertVisible: 'Friends'
-- assertVisible: 'Global'
-
-# Test switching tabs
-- tapOn: 'Global'
-
-# Our test user should appear in the list
-- assertVisible: 'MaestroHero'
-
-# Switch to Friends tab
-- tapOn: 'Friends'
-
-# Go back to profile
+# `profile-screen` is the id on this route's ScreenHeader and belongs to no
+# other screen, so it can only be satisfied by a tap that actually landed. A
+# green `tapOn` on iOS proves only that a touch was dispatched.
 - tapOn:
-    point: '5%, 5%'  # Back button area
+    id: 'profile-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
+
+# The two links this flow uses, named by id AND by the whole sentence iOS
+# reports for them. Each row is one accessible element built from a title and a
+# subtitle (`profile-components.tsx`), so `Leaderboard` on its own matches
+# nothing — Maestro compares the whole string.
+#
+# These two are the only profile content asserted here, and they are asserted
+# because they are affordances this flow is about to use, not because they are
+# account data. The dedicated profile flow deliberately left them to this file.
+#
+# The third card, Skills & Perks, is skipped on purpose: its subtitle counts
+# unlocked perks and changes as the account earns them.
+- assertVisible:
+    id: 'profile-action-leaderboard'
+    text: 'Leaderboard, See how others are doing'
+- assertVisible:
+    id: 'profile-action-achievements'
+    text: 'Achievements, Track your progress'
 
 # =============================================================================
-# ACHIEVEMENTS
+# LEADERBOARD — RENDER SMOKE
 # =============================================================================
-- assertVisible: 'Achievements'
-- tapOn: 'Achievements'
-
-# Verify achievements screen loaded
-- assertVisible: 'Achievements'
-
-# Should see achievement cards
-- runFlow:
-    when:
-      visible: 'First Steps'
-    commands:
-      - assertVisible: 'Complete your first quest'
-
-# Verify locked achievements are shown
-- runFlow:
-    when:
-      visible: 'Locked'
-    commands:
-      - assertVisible: 'Locked'
-
-# Go back to profile
+# `leaderboard.tsx` has THREE headers — one for loading, one for the error
+# card, one for the loaded board — and all three print the word "Leaderboard".
+# Phase A gave them separate ids, so `leaderboard-screen` now names the loaded
+# board only. A server that is down or slow lands on `leaderboard-error` or
+# `leaderboard-loading` instead and this wait goes red, which is what it is
+# for. (Neither of those two states can be produced on demand, so no flow in
+# this suite asserts them.)
+#
+# 20s because the board waits on two HTTP requests (stats and friends) before
+# it can leave its loading branch.
 - tapOn:
-    point: '5%, 5%'  # Back button area
+    id: 'profile-action-leaderboard'
+- extendedWaitUntil:
+    visible:
+      id: 'leaderboard-screen'
+    timeout: 20000
+
+# The board's own default state, and it is a precondition for the row below,
+# not decoration: the row's text ends in "N quests", which is the QUESTS
+# metric's wording, over the GLOBAL scope's data. `selected` is a stated
+# accessibility contract (`scope-toggle.tsx`, `leaderboard-tabs.tsx`), not
+# something iOS inferred.
+- assertVisible:
+    id: 'leaderboard-scope-global'
+    selected: true
+- assertVisible:
+    id: 'leaderboard-metric-quests'
+    selected: true
+
+# THIS ACCOUNT IS ON THE BOARD. `leaderboard-item.tsx` builds each row's label
+# as "<rank>, <name>[, you][, friend], <metric>", where the rank reads
+# "Your position" for the current user's row when it sits outside the top ten
+# and "Rank N" when it is inside. This account has 2 or 3 quests against other
+# dev-database accounts holding 17 to 53, so today it is the separated row
+# under the "• • •" divider — but the assertion covers both spellings.
+#
+# `scrollUntilVisible` IS the assertion: it fails the flow when the element
+# never appears. One scroll reached the row while this was written.
+#
+# What is deliberately loose, and why:
+#   `.*, `      absorbs "Rank 7" vs "Your position" — a rank on a shared dev
+#               database is other people's data and moves without notice.
+#   `\d+ quests`  absorbs 2 vs 3 (see the order-independence block above).
+# What is pinned: the hero name, and the ", you" that marks the row as this
+# account's own. A board that lost track of who the viewer is would go red.
+#
+# NOTHING else on this screen is asserted. Every other row, and the podium, is
+# another test account's record on the local backend — `Greg the Destroyer, 53`
+# today, anything tomorrow.
+- scrollUntilVisible:
+    element:
+      id: 'leaderboard-row'
+      text: '.*, MaestroHero, you, \d+ quests'
+    direction: DOWN
+    timeout: 20000
+
+# Out by the header's own back control. `- back` is a silently-green no-op on
+# iOS. The post-condition is the profile header returning: the leaderboard is
+# pushed over the tab bar's screens, so `profile-screen` is out of the tree
+# while the board is up and cannot be left over from before the tap.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
 
 # =============================================================================
-# VERIFY BACK AT PROFILE
+# ACHIEVEMENTS — THE DEEP HALF
 # =============================================================================
-- assertVisible: 'MaestroHero'
-- assertVisible: 'Level'
+# The scroll is MANDATORY, not tidiness. On a profile screen at rest the
+# achievements row sits at [33,734][360,803] while the tab bar starts at y=758,
+# so the row's centre — the point `tapOn` aims at — is UNDERNEATH the tab bar.
+# A tap there reports success, hits the tab bar, and the flow then fails at the
+# wait below with no clue why. Measured in a live dump on this build.
+- scrollUntilVisible:
+    element:
+      id: 'profile-action-achievements'
+    direction: DOWN
+    centerElement: true
+    visibilityPercentage: 100
+- tapOn:
+    id: 'profile-action-achievements'
+- extendedWaitUntil:
+    visible:
+      id: 'achievements-screen'
+    timeout: 15000
+
+# -----------------------------------------------------------------------------
+# HOW THE CARDS ARE ADDRESSED
+# -----------------------------------------------------------------------------
+# Nine awards live in three horizontal carousels, and every card carries the
+# SAME id, `achievement-card`. Two things make that workable:
+#
+#   - The cards do not collapse. Unlike the profile rows and the leaderboard
+#     rows, each card's title, description and progress reach the tree as
+#     separate elements.
+#   - Only the carousel's CURRENT card is in the tree at all. Its siblings are
+#     absent until swiped to, so a section contributes exactly one card.
+#
+# `containsDescendants` is therefore how a value gets tied to the award it
+# belongs to, instead of to whatever element on the screen happens to carry
+# that string. Proved on device: pairing `1/2` with the WRONG card's title
+# ("Quest Beginner") fails, while pairing it with "First Steps" passes.
+- assertVisible: 'Daily Streak achievements'
+
+# -----------------------------------------------------------------------------
+# PUT THE STREAK CAROUSEL BACK ON ITS FIRST CARD — A REAL BUG BIT HERE
+# -----------------------------------------------------------------------------
+# This screen does NOT start on card 1 every time. Both back controls on this
+# route call `router.push('/profile')` rather than popping, so the achievements
+# screen is never torn down — it stays mounted for the rest of the app session
+# and keeps the carousel exactly where the last visit left it. Coming back in
+# lands on that same card.
+#
+# Observed, not theorised: the first end-to-end run of this file failed on the
+# First Steps assertion below, and the dump showed the carousel still parked on
+# "Committed" from an earlier visit in the same session.
+#
+# A restore step at the end of the flow would not fix that, because the case
+# that bites is a run that ABORTED half way and never reached its own cleanup.
+# So the reset lives at the START, and it is bounded: three cards, so at most
+# two swipes back. When the carousel is already on card 1 the guard is false and
+# nothing happens.
+#
+# `scrollUntilVisible` cannot do this job — direction LEFT and direction RIGHT
+# were both tried on the parked carousel and moved it zero pixels. A swipe with
+# explicit coordinates does move it, so that is what this uses.
+- repeat:
+    times: 2
+    commands:
+      - runFlow:
+          when:
+            notVisible: 'First Steps'
+          commands:
+            - swipe:
+                start: '10%, 42%'
+                end: '80%, 42%'
+            - waitForAnimationToEnd
+
+# THE REAL VALUE. `1/2` is this account's day streak against First Steps'
+# two-day requirement, read from the character store — the same 1 the profile
+# screen's streak tile shows, and the same 1 the dedicated profile flow asserts
+# as "1 day streak" on the previous screen.
+#
+# This couples the flow to a chain built TODAY. The streak lapses if the
+# account is left overnight, and then this reads 0/2. That is the same coupling
+# the dedicated profile flow already carries, and it fails loudly rather than
+# quietly: a lapsed streak is a different account state, not a flake.
+- assertVisible:
+    id: 'achievement-card'
+    containsDescendants:
+      - text: 'First Steps'
+      - text: '1/2'
+
+# AND IT IS STILL LOCKED. An unlocked card grows a ribbon whose accessibility
+# label is "Achievement unlocked" (`achievements.tsx`); a locked one has no
+# such child. Scoping the check to the First Steps card is what makes it mean
+# "this award is locked" rather than "no award anywhere is unlocked" — the
+# second sentence is false on a device that has three quests, where Quest
+# Beginner IS unlocked in the next carousel down.
+#
+# Not a vacuous line: on the three-quest device the same selector shape, aimed
+# at Quest Beginner, FINDS the ribbon. So the shape can see a ribbon when one
+# exists, and this assertion goes red the day a one-day streak starts unlocking
+# a two-day award.
+- assertNotVisible:
+    id: 'achievement-card'
+    containsDescendants:
+      - text: 'First Steps'
+      - text: 'Achievement unlocked'
+
+# -----------------------------------------------------------------------------
+# THE SECOND STREAK CARD — ONE LIVE VALUE, TWO DIFFERENT REQUIREMENTS
+# -----------------------------------------------------------------------------
+# Committed is the same category's next tier: same streak, requirement 10.
+# Reaching it proves three separate things that the first card cannot:
+#
+#   - the carousel actually pages (the swipe moved something)
+#   - each card renders its OWN requirement — `1/10` beside the first card's
+#     `1/2` rules out a screen that prints one shared string nine times
+#   - the numerator really is the live streak, since it stayed 1 across a
+#     denominator change
+#
+# The "before" assertion is what makes the swipe evidence rather than motion:
+# Committed is genuinely absent from the tree until the carousel pages to it,
+# so the wait after the swipe cannot be satisfied by the screen standing still.
+# The swipe's start point sits inside the card (80% of the width, 42% of the
+# height) so the gesture lands on the carousel and not on the page behind it.
+- assertNotVisible: 'Committed'
+- swipe:
+    start: '80%, 42%'
+    end: '10%, 42%'
+- extendedWaitUntil:
+    visible:
+      id: 'achievement-card'
+      containsDescendants:
+        - text: 'Committed'
+        - text: '1/10'
+    timeout: 10000
+
+# And the card it replaced is gone. Without this line a carousel that somehow
+# showed both cards at once — or a screen that appended rather than paged —
+# would satisfy everything above.
+- assertNotVisible: 'First Steps'
+
+# -----------------------------------------------------------------------------
+# THE QUEST COMPLETION CAROUSEL — COPY ONLY, ON PURPOSE
+# -----------------------------------------------------------------------------
+# The second section is checked for having rendered its own award, and that is
+# all. Its progress (`2/3` or `3/3`) and its ribbon (locked or unlocked) are
+# exactly the two things the order-independence block above rules out, because
+# both are driven by the completed-quest count that the custom quest moves.
+#
+# That count is also the SHE-44 number: this screen reads the LOCAL quest
+# store, while the profile screen one tap away reads a stale server snapshot.
+# Asserting it here would pin this flow to whichever side of that bug wins, so
+# it stays unasserted until SHE-44 is settled.
+- assertVisible: 'Quest Completion achievements'
+- assertVisible:
+    id: 'achievement-card'
+    containsDescendants:
+      - text: 'Quest Beginner'
+      - text: 'Complete 3 quests'
+
+# The third carousel, Time Saved, is not visited. It is below the fold, all
+# three of its numbers move with the quest count, and its locked state would
+# repeat what the streak cards already prove. Scrolling to it would add
+# commands and no evidence.
 
 # =============================================================================
-# PROFILE NAVIGATION COMPLETE
+# BACK TO HOME
 # =============================================================================
+# Out of achievements the same way as out of the leaderboard, then home by the
+# tab bar. `home-header` exists nowhere but home, so the pair also
+# discriminates.
+#
+# The profile screen is handed back scrolled down to its action cards. That is
+# harmless — no flow in this phase reads the profile, and this file's own
+# scroll step tolerates it — but it is worth knowing when re-running by hand.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+
+# =============================================================================
+# END
+# =============================================================================
+# Nothing created, nothing consumed, no server write. Same account, same
+# completed quests, same streak, sitting on home.
+#
+# Two pieces of screen state DO survive, both harmless and both handled by this
+# file's own steps the next time it runs: the profile is left scrolled to its
+# action cards, and the still-mounted achievements screen is left with its
+# streak carousel on the second card.
