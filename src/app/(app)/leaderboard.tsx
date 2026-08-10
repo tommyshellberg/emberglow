@@ -115,6 +115,7 @@ export default function LeaderboardScreen() {
         <FocusAwareStatusBar />
         <ScreenContainer>
           <ScreenHeader
+            testID="leaderboard-loading"
             title={STRINGS.title}
             subtitle={STRINGS.subtitle}
             showBackButton
@@ -138,6 +139,7 @@ export default function LeaderboardScreen() {
         <FocusAwareStatusBar />
         <ScreenContainer>
           <ScreenHeader
+            testID="leaderboard-error"
             title={STRINGS.title}
             subtitle={STRINGS.subtitle}
             showBackButton
@@ -175,6 +177,7 @@ export default function LeaderboardScreen() {
       <ScreenContainer>
         {/* Header */}
         <ScreenHeader
+          testID="leaderboard-screen"
           title={STRINGS.title}
           subtitle={STRINGS.subtitle}
           showBackButton

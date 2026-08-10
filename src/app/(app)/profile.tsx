@@ -105,6 +105,7 @@ export default function ProfileScreen() {
       <ScreenContainer>
         {/* Header */}
         <ScreenHeader
+          testID="profile-screen"
           title="Profile"
           subtitle="Track your journey, stats, and connect with friends."
         />

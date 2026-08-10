@@ -99,6 +99,7 @@ export function FilterChips({
       >
         <Chip
           tone="ember"
+          testID="journal-filter-all"
           selected={filter === 'all'}
           onPress={() => onFilterChange('all')}
           accessibilityRole="button"
@@ -109,6 +110,7 @@ export function FilterChips({
         </Chip>
         <Chip
           tone="ember"
+          testID="journal-filter-story"
           selected={filter === 'story'}
           onPress={() => onFilterChange('story')}
           accessibilityRole="button"
@@ -119,6 +121,7 @@ export function FilterChips({
         </Chip>
         <Chip
           tone="ember"
+          testID="journal-filter-custom"
           selected={filter === 'custom'}
           onPress={() => onFilterChange('custom')}
           accessibilityRole="button"
@@ -129,6 +132,7 @@ export function FilterChips({
         </Chip>
         <Chip
           tone="ember"
+          testID="journal-filter-coop"
           selected={filter === 'cooperative'}
           onPress={() => onFilterChange('cooperative')}
           accessibilityRole="button"
@@ -145,6 +149,7 @@ export function FilterChips({
         entering={riseIn(2)}
       >
         <Chip
+          testID="journal-filter-status-all"
           selected={statusFilter === 'all'}
           onPress={() => onStatusFilterChange('all')}
           accessibilityRole="button"
@@ -154,6 +159,7 @@ export function FilterChips({
           All status
         </Chip>
         <Chip
+          testID="journal-filter-status-completed"
           selected={statusFilter === 'completed'}
           onPress={() => onStatusFilterChange('completed')}
           accessibilityRole="button"
@@ -163,6 +169,7 @@ export function FilterChips({
           Completed
         </Chip>
         <Chip
+          testID="journal-filter-status-failed"
           selected={statusFilter === 'failed'}
           onPress={() => onStatusFilterChange('failed')}
           accessibilityRole="button"

@@ -49,7 +49,7 @@ export function EmailInputView({
   };
 
   return (
-    <View>
+    <View testID="login-email-step">
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{subtitle}</Text>
 

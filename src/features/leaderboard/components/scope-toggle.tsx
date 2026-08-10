@@ -23,6 +23,7 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
     <View style={styles.container}>
       {/* Friends Toggle */}
       <Pressable
+        testID="leaderboard-scope-friends"
         onPress={() => onScopeChange('friends')}
         style={[styles.option, scope === 'friends' && styles.optionSelected]}
         accessible
@@ -40,6 +41,7 @@ export function ScopeToggle({ scope, onScopeChange }: ScopeToggleProps) {
 
       {/* Global Toggle */}
       <Pressable
+        testID="leaderboard-scope-global"
         onPress={() => onScopeChange('global')}
         style={[styles.option, scope === 'global' && styles.optionSelected]}
         accessible

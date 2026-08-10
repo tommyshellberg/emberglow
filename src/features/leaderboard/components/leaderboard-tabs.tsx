@@ -61,6 +61,14 @@ export function LeaderboardTabs({
         return (
           <Pressable
             key={tab.type}
+            // `streak` is the only tab whose key is singular; the e2e suite
+            // names all three anchors in the plural, so spell it out here
+            // rather than deriving an id that reads `…-streak`.
+            testID={
+              tab.type === 'streak'
+                ? 'leaderboard-metric-streaks'
+                : `leaderboard-metric-${tab.type}`
+            }
             onPress={() => onTypeChange(tab.type)}
             style={[styles.tab, isSelected && styles.tabSelected]}
             accessible

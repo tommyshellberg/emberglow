@@ -75,7 +75,7 @@ const menuOptions: MenuOption[] = [
 // View styled from theme tokens.
 function HowItWorksCard({ style }: { style?: object }) {
   return (
-    <View style={[styles.infoCard, style]}>
+    <View testID="coop-how-it-works" style={[styles.infoCard, style]}>
       <Info size={20} color={colors.text.accent} style={styles.infoCardIcon} />
       <View style={styles.infoCardBody}>
         <Text style={styles.infoCardTitle}>How it works</Text>
@@ -147,6 +147,7 @@ export default function CooperativeQuestMenu() {
 
       <ScreenContainer fullScreen>
         <ScreenHeader
+          testID="coop-menu-screen"
           title="Cooperative Quests"
           subtitle={subtitle}
           showBackButton
@@ -164,6 +165,7 @@ export default function CooperativeQuestMenu() {
               {menuOptions.map((option) => (
                 <View key={option.id} style={styles.rowCard}>
                   <ListItem
+                    testID={`coop-menu-option-${option.id}`}
                     title={option.title}
                     subtitle={option.description}
                     leading={option.icon}
@@ -182,7 +184,7 @@ export default function CooperativeQuestMenu() {
         ) : (
           <>
             {/* No Friends Message */}
-            <View style={styles.emptyState}>
+            <View testID="coop-empty-state" style={styles.emptyState}>
               <Users size={64} color={colors.text.muted} />
               <Text style={styles.emptyStateTitle}>
                 Add Friends to Get Started
@@ -196,6 +198,7 @@ export default function CooperativeQuestMenu() {
             {/* Add Friends row */}
             <View style={styles.rowCard}>
               <ListItem
+                testID="coop-add-friends-row"
                 title="Add Friends"
                 subtitle="Connect with friends to quest together"
                 leading={<UserPlus size={20} color={colors.text.accent} />}

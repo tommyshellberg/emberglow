@@ -406,7 +406,10 @@ export const ContactsImportModal = forwardRef<
       ref={sheet.ref}
       title={viewState === 'results' ? 'Invites Sent!' : 'Invite Friends'}
     >
-      {renderContent()}
+      {/* One anchor for "the invite sheet is open", whichever step is
+          showing. It sits here rather than on `BottomSheet` because
+          `BottomSheetModalProps` has no `testID`. */}
+      <View testID="invite-sheet">{renderContent()}</View>
     </BottomSheet>
   );
 });

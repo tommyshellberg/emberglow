@@ -64,7 +64,10 @@ export default function MapScreen() {
   // Show loading state while fetching highest quest or image dimensions
   if (isLoading || !imageDimensions) {
     return (
-      <View className="flex-1 items-center justify-center bg-[rgba(61,73,78,0.92)]">
+      <View
+        testID="map-loading"
+        className="flex-1 items-center justify-center bg-[rgba(61,73,78,0.92)]"
+      >
         <FocusAwareStatusBar />
         <Text className="text-lg text-primary-300">Loading map...</Text>
       </View>
@@ -72,12 +75,12 @@ export default function MapScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[rgba(61,73,78,0.92)]">
+    <View testID="map-screen" className="flex-1 bg-[rgba(61,73,78,0.92)]">
       <FocusAwareStatusBar />
 
       {/* Map Title */}
       <View className="absolute left-4 top-10 z-10 rounded-lg bg-black/50 px-3 py-1 backdrop-blur-sm">
-        <Text className="text-xl font-bold text-white">
+        <Text testID="map-title" className="text-xl font-bold text-white">
           {getMapNameForQuest(highestQuestId)}
         </Text>
       </View>
@@ -102,6 +105,10 @@ export default function MapScreen() {
         >
           <Image
             key={`map-${highestQuestId}`}
+            testID="map-image"
+            accessible={true}
+            accessibilityRole="image"
+            accessibilityLabel="Vaedros map"
             source={mapImageSource}
             style={{
               width: imageDimensions.width,
