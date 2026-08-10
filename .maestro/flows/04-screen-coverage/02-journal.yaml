@@ -120,9 +120,28 @@ appId: com.vaedros.unquest
 # Both story quests, by name, with no idea where they sit. See "WHY THERE IS NO
 # ROW INDEX" above for why the label is the only text a completed row exposes
 # and why matching it also proves the quest completed rather than failed.
-- assertVisible:
-    id: 'journal-entry'
-    text: 'View details for A Confused Awakening'
+#
+# THE FIRST ROW GETS A WAIT, AND ONLY THE FIRST. `journal-screen` above is the
+# ScreenHeader's id and paints the instant the route mounts; the rows come from
+# a network fetch (`useQuestRuns`, `journal.tsx`) and until it resolves the list
+# area renders "Loading your quest history..." instead. The two chip assertions
+# in between read local state and cost no real time, so a bare assert here would
+# be racing a live HTTP round trip.
+#
+# It usually wins that race because `03-fresh-authenticated/04-navigation-tabs`
+# has already opened the journal and TanStack Query's cache is warm. But
+# `coverage` is a supported standalone phase, and the flow that precedes this
+# one in it never opens the journal — so a coverage-only run arrives here with a
+# COLD cache. 20s on the same selector is what
+# `04-navigation-tabs.yaml` already spends for exactly this reason.
+#
+# Only the FIRST row needs it. Once the fetch has resolved, every row in the
+# response is in the tree together, so the second one is not a separate wait.
+- extendedWaitUntil:
+    visible:
+      id: 'journal-entry'
+      text: 'View details for A Confused Awakening'
+    timeout: 20000
 - assertVisible:
     id: 'journal-entry'
     text: 'View details for Searching the Forest for Signs of Life'
