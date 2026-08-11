@@ -1,0 +1,398 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# LOGIN SCREEN (SOCIAL SIGN-IN CHOOSER) — RENDER SMOKE. DESTROYS THE ACCOUNT.
+# =============================================================================
+# This file logs the signed-in account out and checks that the login screen
+# renders its real content: the Apple and Google buttons, the email path, the
+# legal line and the way back to onboarding.
+#
+# READ THIS BEFORE RUNNING IT ANYWHERE.
+#
+# **This flow signs the device out on purpose, and nothing puts it back.** It is
+# the LAST file of the coverage tier for exactly that reason. Every earlier flow
+# in `04-screen-coverage/` needs a signed-in account with quest history; after
+# this one the device is on the login screen with no session, and the only way
+# back is to build a whole new account from scratch — onboarding part 1, the
+# 140-second wait, part 2, then the signup pair with a brand new
+# `test-<epoch>@example.com` address.
+#
+# So: run this last, or run it alone. Do not put it in the middle of a suite.
+#
+# THE ACCOUNT ITSELF IS NOT DELETED. Logout drops the local session; the row
+# stays in the database. This file never touches the database.
+#
+# -----------------------------------------------------------------------------
+# NO OAUTH, EVER — THE ONE RULE THIS FILE EXISTS TO KEEP
+# -----------------------------------------------------------------------------
+# Depth ruling from Tommy: render smoke only. The Apple and Google buttons are
+# asserted and NEVER TAPPED.
+#
+# Tapping either one hands control to an external sign-in session — Apple's
+# system sheet or a Google web session — which is outside the app, outside
+# Maestro's app-scoped view of the screen, and cannot be driven or dismissed
+# reliably by a test. It would also mint or re-bind a real account against a
+# real identity provider. There is no version of this that belongs in an
+# automated suite, so there is no conditional and no environment flag here that
+# could turn it on: the buttons are read, and that is the whole interaction.
+#
+# The one tap this file makes on the login screen is `continue-with-email-button`
+# into the email step and straight back out again. That step is where a
+# magic-link request lives, and this file DOES NOT MAKE ONE — it never types an
+# address and never presses the send button. Sending a real sign-in link is
+# phase 02's job, on a freshly built chain.
+#
+# -----------------------------------------------------------------------------
+# WHY LOGGING OUT IS THE ONLY WAY TO SEE THIS SCREEN
+# -----------------------------------------------------------------------------
+# `openLink: unquest:///login` on a signed-in account does not work — it lands
+# back on home. `login.tsx:38-41` redirects to `/` whenever the auth status is
+# `signIn` without a provisional session, and on top of that the navigation gate
+# treats `login` as a screen it owns and replaces into `(app)`. Both have to be
+# false before the screen will stay up, and only a real logout makes them false.
+#
+# That is why this unit was left until last rather than written cheaply with a
+# deep link like the co-op and events flows.
+#
+# -----------------------------------------------------------------------------
+# THE LOGOUT CONFIRM ALERT, AND WHY THE TAP LOOKS THE WAY IT DOES
+# -----------------------------------------------------------------------------
+# `settings.tsx:758-770` raises a native alert:
+# title `Logout`, message `Are you sure you want to logout?`, actions `Cancel`
+# and a destructive `Logout`.
+#
+# The word `Logout` is therefore on screen more than once — on the Settings
+# button that opened the alert, on the alert's title, and on the alert's
+# confirm action. Measured live on this build with the alert up: Maestro sees
+# **three** matching elements. (The raw accessibility dump shows four, because
+# the alert's container repeats its own title, but Maestro's matcher collapses
+# one of them. An older audit of this screen says "four" and tells you to tap
+# index 3 — that is wrong on this build and would fail with "Element not
+# found".)
+#
+# A plain `tapOn: 'Logout'` takes the FIRST match, which is the Settings button
+# — so it re-opens the alert that is already open and the flow makes no
+# progress while looking perfectly green.
+#
+# An index would fix that and would be fragile in the worst way: if the alert
+# ever fails to appear, `index: 0` is the Settings button and the tap silently
+# lands on it. The selector below cannot do that. Both of its filters are
+# anchored to things that exist ONLY while the alert is up — the `Cancel`
+# action beside the confirm button, and the confirm message above it — so with
+# no alert on screen it matches nothing at all and fails loudly instead of
+# tapping the wrong thing. Verified live, both ways: with the alert up it
+# resolves to exactly one element and provably excludes
+# `settings-logout-button`; with the alert dismissed it matches nothing while
+# that button is still plainly visible.
+#
+# -----------------------------------------------------------------------------
+# THE "SESSION EXPIRED" ALERT AFTER LOGOUT (SHE-48)
+# -----------------------------------------------------------------------------
+# `use-token-refresh-error-handler.ts:27-41` raises a second native alert —
+# title `Session Expired`, one action `Sign In` — whenever the API client gives
+# up refreshing the access token. After a logout the token is gone, so any
+# request still in flight can trigger it.
+#
+# It can arrive more than once. The handler holds a flag that stops a second
+# alert stacking on the first (`:23`, `:25`), but tapping `Sign In` clears that
+# flag (`:34`), so the very next exhausted refresh is free to raise it again.
+# That is the "storm" SHE-48 describes: not several alerts at once, but one
+# alert that keeps coming back, each dismissal re-arming the next.
+#
+# This matters beyond tidiness. A native alert does not remove the screen
+# underneath from the accessibility tree, so assertions still pass while it is
+# up — but taps are swallowed by it. A flow that ignored this would assert its
+# way through happily and then lose a tap with no explanation.
+#
+# The block below is therefore placed BEFORE anything on this screen is tapped,
+# and it is bounded rather than a `while` loop: a fixed number of passes, each
+# one dismissing the alert only if it is actually there. If the storm outlives
+# the budget the `assertNotVisible` straight after goes red, which is the
+# honest outcome — better than a loop that spins until the whole run times out.
+#
+# Dismissing it is safe here. `Sign In` calls `signOut()` and replaces to
+# `/login` (`:35-36`), which is where this flow already is, so tapping it is a
+# no-op for navigation.
+#
+# WHAT WAS ACTUALLY SEEN ON THIS BUILD is recorded in the task report next to
+# this file. The block stays regardless of that observation: the alert is
+# raised by a network timing race, not by anything this flow controls, so "it
+# did not happen on my run" is not a reason to assume it cannot.
+#
+# -----------------------------------------------------------------------------
+# THE ANNOUNCEMENT SHEET
+# -----------------------------------------------------------------------------
+# Unlike the sibling coverage flows, this one MOVES a dependency of the
+# home-screen announcement effect: that effect watches the `user` object
+# (`(app)/index.tsx`), and logging out is precisely a change to `user`. The
+# GUILDS sheet is next in line on this chain (the branching one was presented
+# and permanently dismissed on 2026-08-10).
+#
+# No conditional block guards against it here, for one reason: by the time
+# `user` changes, this flow has already left home for Settings and is about to
+# leave the app's tab group entirely for `/login`, which unmounts the effect's
+# whole component tree. A sheet that presents on home cannot cover the login
+# screen.
+#
+# If a sheet IS up when this file starts, it fails loudly and immediately: the
+# very first `tapOn: settings-tab` would be swallowed by the sheet's backdrop
+# and the `settings-screen` assertion after it would go red. Should that happen,
+# dismiss the sheet by its own non-destructive button and start again. For the
+# guilds sheet that button is `Maybe Later`
+# (`guilds-announcement-modal.tsx:111`) — NOT `Create a Guild` (`:106`), which
+# navigates into guild creation. That modal carries no testIDs at all, so its
+# buttons can only be named by their labels; name them by label, never by
+# coordinate.
+# =============================================================================
+
+# =============================================================================
+# SETTINGS — CONFIRM WHAT IS ABOUT TO BE DESTROYED
+# =============================================================================
+# The login screen must not already be up: this turns the wait for it further
+# down into "it appeared" rather than "it was already there", which is the
+# difference between proving a logout happened and proving nothing.
+- assertNotVisible:
+    id: 'login-chooser'
+
+- tapOn:
+    id: 'settings-tab'
+- assertVisible:
+    id: 'settings-screen'
+
+# THE ACCOUNT ORACLE, read from the app rather than assumed. This is the app's
+# own answer to "who am I signed in as", and it is the cheapest one there is —
+# no database query, no guess from a config file.
+#
+# Matched as a pattern, not as a literal address, and that is deliberate. This
+# flow destroys the chain it runs on, so the NEXT account to reach this line
+# will be a different one: the rebuild mints a fresh `test-<epoch>@example.com`.
+# A hardcoded address would go red on every rebuilt chain for no good reason,
+# while the pattern still fails on a guest account, on a hand-made address, or
+# on a `@unquest.test` address (which the server rejects — never use that TLD).
+- assertVisible:
+    id: 'settings-account-email'
+    text: 'test-[0-9]+@example\.com'
+
+# THE LOGOUT BUTTON IS THE CONVERTED-ACCOUNT BRANCH. `settings.tsx:149-167`
+# renders `Logout` only for `user && !isGuest`, and renders `Start Over` in its
+# place for a guest. So these two lines together say the app is holding a real
+# converted account — which is what makes the logout below meaningful, and what
+# a provisional-session chain would fail on.
+- assertVisible:
+    id: 'settings-logout-button'
+    text: 'Logout'
+- assertNotVisible: 'Start Over'
+
+# =============================================================================
+# THE POINT OF NO RETURN
+# =============================================================================
+- assertNotVisible: 'Are you sure you want to logout?'
+- tapOn:
+    id: 'settings-logout-button'
+- extendedWaitUntil:
+    visible: 'Are you sure you want to logout?'
+    timeout: 10000
+
+# `Cancel` is asserted for two reasons. It says the alert rendered both of its
+# actions rather than half of one, and it is the anchor the confirm tap below
+# is aimed relative to — so if it were missing, the next command would fail
+# loudly here instead of tapping something unintended.
+- assertVisible: 'Cancel'
+
+# THE DESTRUCTIVE TAP. See the long block at the top for why this is written
+# with two relative filters and no index. Short version: `Logout` is ambiguous,
+# the Settings button is the first match, and both filters below are anchored to
+# elements that exist only while this alert is on screen.
+- tapOn:
+    text: 'Logout'
+    rightOf:
+      text: 'Cancel'
+    below:
+      text: 'Are you sure you want to logout?'
+
+# =============================================================================
+# THE LOGIN SCREEN
+# =============================================================================
+# `signOut()` then `router.replace('/login')` (`settings.tsx:764-766`). No
+# params, so the screen takes the `signin` framing from `copy.ts` — the
+# returning-user copy asserted below, not the `convert` copy.
+#
+# Generous timeout: `signOut()` is awaited and does network and storage work
+# before the navigation happens.
+- extendedWaitUntil:
+    visible:
+      id: 'login-chooser'
+    timeout: 30000
+
+# THE SECOND, INDEPENDENT POST-CONDITION. `/login` is a root route, so the whole
+# tab bar leaves the tree. A logout that had failed — or a screen that had been
+# evicted back into the app — would leave the tabs exactly where they were, and
+# the chooser assertion on its own could not tell the difference.
+- assertNotVisible:
+    id: 'settings-tab'
+- assertNotVisible:
+    id: 'settings-screen'
+
+# CLEAR THE SESSION-EXPIRED STORM BEFORE TAPPING ANYTHING. See the SHE-48 block
+# at the top. Each pass dismisses the alert only if it is actually there, so on
+# a run where it never appears this costs a few hundred milliseconds and does
+# nothing.
+#
+# `Sign In` is matched unscoped because nothing else on this screen carries that
+# text: the copy here is `Welcome back`, `Continue with Apple`,
+# `Continue with Google`, `Continue with email`, `New here? Create a hero` and
+# the terms line. Maestro matches the whole string, so `Other ways to sign in`
+# on the email step does not match it either.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible: 'Session Expired'
+          commands:
+            - tapOn: 'Sign In'
+            - waitForAnimationToEnd
+
+# THE QUIET-EXIT RECEIPT, and the budget check for the loop above. If the storm
+# is still firing after six dismissals, this is where the run goes red.
+- assertNotVisible: 'Session Expired'
+
+# THE RETURNING-USER COPY. `LOGIN_COPY.signin` in `copy.ts`. These two strings
+# are what separate this framing from the `convert` one, which says
+# `Save your progress` and names the hero instead — so they assert not just
+# that a login screen rendered, but that the right one did.
+- assertVisible: 'Welcome back'
+- assertVisible: 'Your hero, quest history, and guild are waiting.'
+
+# =============================================================================
+# THE SOCIAL BUTTONS — READ, NEVER TAPPED
+# =============================================================================
+# `social-sign-in-buttons.tsx`. Apple's is the real native
+# `AppleAuthenticationButton` wrapped in a plain View (`:395`, `:406`); Google's
+# is an Emberglow `Button` (`:425`). Both ids are asserted, neither is tapped —
+# see the NO OAUTH block at the top of this file.
+#
+# Apple's visible label is drawn and localized by the operating system, so there
+# is no string here worth asserting; the wrapper and the button are named by id
+# alone. Google's accessibility label IS ours (`:436-439`), so it is pinned.
+- assertVisible:
+    id: 'apple-sign-in-wrapper'
+- assertVisible:
+    id: 'apple-sign-in-button'
+- assertVisible:
+    id: 'google-sign-in-button'
+    text: 'Continue with Google'
+
+# NEITHER PROVIDER IS MID-FLIGHT. Both of these render only while a social
+# sign-in is in progress (`:99`, `:383`), and while one is, the other button is
+# dimmed and stops taking touches. So these two lines are this file's receipt
+# that it started no OAuth attempt — the single thing it most needs to be able
+# to prove.
+- assertNotVisible:
+    id: 'social-sign-in-spinner'
+- assertNotVisible:
+    id: 'apple-sign-in-progress'
+
+# `social-signin-divider` IS DELIBERATELY NOT ASSERTED. It is a real testID in
+# source that no flow can ever bind to: `social-divider.tsx:29-37` puts
+# `accessibilityElementsHidden` and `importantForAccessibility="no-hide-descendants"`
+# on the very view that carries it, because the "or" rule between the buttons is
+# decorative and a screen reader should skip it. That is correct behaviour, not
+# a bug — but an old handoff document lists the id as usable, and anyone who
+# copies it in will get "Element not found" and go hunting in the wrong place.
+
+# =============================================================================
+# THE EMAIL PATH
+# =============================================================================
+- assertVisible:
+    id: 'continue-with-email-button'
+    text: 'Continue with email'
+
+# The legal line and the route back into onboarding. `start-over-link` renders
+# only under the `signin` framing (`copy.ts` `showStartNewLink`), so its presence
+# is a third statement about which framing this is.
+#
+# IT IS NOT TAPPED. It opens a confirmation whose primary action deletes the
+# local hero and restarts onboarding — the one genuinely destructive control on
+# this screen beyond the logout that has already happened.
+- assertVisible:
+    id: 'legal-consent'
+- assertVisible: 'Terms and Privacy Policy'
+- assertVisible:
+    id: 'start-over-link'
+    text: 'New here? Create a hero'
+
+# =============================================================================
+# INTO THE EMAIL STEP AND BACK — NO LINK REQUESTED
+# =============================================================================
+# The chooser and the email step are two branches of one component
+# (`login-form.tsx`), so the step that leaves really does unmount: each
+# assertion below names something the other step cannot produce. That is what
+# makes this a proof the email path is live rather than merely painted.
+#
+# NOTHING IS TYPED AND NOTHING IS SENT. `login-button` is read and never
+# pressed.
+- assertNotVisible:
+    id: 'login-email-step'
+- tapOn:
+    id: 'continue-with-email-button'
+- extendedWaitUntil:
+    visible:
+      id: 'login-email-step'
+    timeout: 10000
+- assertNotVisible:
+    id: 'login-chooser'
+
+# The email step's own copy, from `LOGIN_COPY.signin`. `Sign in with email` is
+# the string that separates this intent from `convert`, which titles the same
+# step `Sign up with email`.
+- assertVisible: 'Sign in with email'
+- assertVisible: "We'll send a sign-in link to your email. No password needed."
+- assertVisible:
+    id: 'email-input'
+
+# THE SEND BUTTON IS DISABLED ON AN EMPTY FIELD, and that is asserted as a
+# disabled state rather than skipped. A disabled React Native button reaches the
+# accessibility tree with no `enabled` attribute at all, so the pair below is the
+# way to say it: the element is there, and it is not enabled.
+#
+# THIS GOES RED THE DAY THE GUARD IS REMOVED. That is the intent — flip it, do
+# not loosen it. It is also the only thing standing between a stray tap on this
+# screen and a real sign-in email.
+#
+# `login-button` is named by id on purpose: its accessibility label reads
+# `Send login link` while the words on screen read `Send sign-in link`. Two
+# different strings for one button, so a flow written from a screenshot and a
+# flow written from a hierarchy dump would both "work" while matching different
+# things.
+- assertVisible:
+    id: 'login-button'
+- assertNotVisible:
+    id: 'login-button'
+    enabled: true
+
+# BACK TO THE CHOOSER. `back-to-chooser-link` has the same label split as
+# `login-button` — the touchable announces `Other ways to sign in`, the text
+# inside it reads `← Other ways to sign in` — so it too is tapped by id.
+- tapOn:
+    id: 'back-to-chooser-link'
+- extendedWaitUntil:
+    visible:
+      id: 'login-chooser'
+    timeout: 10000
+- assertNotVisible:
+    id: 'login-email-step'
+- assertVisible: 'Welcome back'
+
+# =============================================================================
+# END — THE DEVICE IS LOGGED OUT AND STAYS THAT WAY
+# =============================================================================
+# Last check that the screen is quiet: no alert re-armed itself during the two
+# taps above. A run that ends with this alert up leaves the next session's first
+# command landing on a scrim.
+- assertNotVisible: 'Session Expired'
+
+# Exit state: the login chooser, no session, no account on the device. There is
+# no exit contract to hand to a following flow here, because nothing in the
+# coverage tier can run after this one. The next session rebuilds the chain from
+# onboarding — see the task report beside this file for exactly what that means.
