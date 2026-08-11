@@ -9,12 +9,16 @@
 #   onboarding  01-onboarding/*        — fresh install through the first quest
 #   signup      02-signup/*            — magic link + provisional -> full account
 #   fresh       03-fresh-authenticated/* — second quest, tabs, profile numbers
-#   coverage    04-screen-coverage/*
-#   smoke       05-smoke/*
+#   coverage    04-screen-coverage/01..09 — every screen, still signed in
+#   smoke       05-smoke/*             — fast critical-path check
+#   social      04-screen-coverage/10-social-login.yaml — SIGNS THE DEVICE OUT
 #
 # The suite is ONE user's state chain: each phase inherits the previous phase's
 # end state. Running a later phase on its own only works if an earlier run left
 # the device in the right place.
+#
+# `all` ends with the `social` phase, so a full run finishes on the login screen
+# with no session. That is deliberate — see note 7.
 #
 # -----------------------------------------------------------------------------
 # WHY THIS SCRIPT LOOKS THE WAY IT DOES — read before changing any of it
@@ -43,8 +47,17 @@
 #    02-verify-authenticated.yaml is self-contained: it reads Mailpit itself via
 #    `evalScript` + `http.get` filtered by recipient, and opens the deep link
 #    with `openLink`. There is no poll-magic-link.sh call and no
-#    `xcrun simctl openurl` step. (.maestro/scripts/poll-magic-link.sh still
-#    exists on disk; it is simply no longer part of the run.)
+#    `xcrun simctl openurl` step.
+#    `.maestro/scripts/poll-magic-link.sh` still exists on disk and is invoked
+#    by NOTHING — not this runner, not any flow (grep the repo). Linear SHE-55
+#    asks to fix it or delete it. It is deliberately left alone here: the two
+#    signup flows quote it at length as the worked example of the bug they were
+#    written to avoid (it reads Mailpit's latest message without filtering by
+#    recipient, so it can hand back another run's link), and deleting the file
+#    would leave four comments in those flows naming something that no longer
+#    exists. Editing flow files is out of this script's remit. Whoever closes
+#    SHE-55 should delete the script and those four comment references in one
+#    commit; until then, do not wire it back in.
 #
 # 4. PHASE 03 DOES NOT RUN IN FILENAME ORDER.
 #    01-profile-verification.yaml runs LAST despite its `01-` prefix: its
@@ -53,23 +66,65 @@
 #    across units F/H/I. The file's own header says the same. Hence this script
 #    drives an explicit ordered list, never a directory glob.
 #
-# 5. PHASES NEVER SHORT-CIRCUIT, AND KNOWN-STALE FLOWS RUN LAST.
-#    Units G and J-Q are deferred, so some flows are still stale and WILL fail.
-#    They stay wired in — a hidden failure is worse than a red one. But a stale
-#    flow must not take a verified one down with it, and that needs two
-#    properties, not one:
+# 5. PHASES NEVER SHORT-CIRCUIT, AND TWO FLOWS ARE STILL MARKED UNREVIVED.
+#    Every flow of phases 01-04 has now been rewritten and watched green on a
+#    device, EXCEPT these two:
+#      - 04-screen-coverage/05-settings.yaml — last touched in July 2026 on the
+#        old branch. No unit re-ran it. Its first two steps are corroborated
+#        second-hand (10-social-login.yaml taps `settings-tab` and asserts
+#        `settings-screen` on a live device), its three text assertions are not.
+#        It may well pass; it has simply never been proven to.
+#      - 05-smoke/critical-paths.yaml — visibly stale (it asserts 'MaestroHero'
+#        and taps a bare screen coordinate). Expected to fail.
+#    They stay wired in — a hidden failure is worse than a red one — under
+#    `add_stale`, which labels them in the output and counts their failure as
+#    expected. Two properties keep them from taking a verified flow down:
 #      (a) run-and-collect: a failing flow never stops the rest of its phase;
-#      (b) known-unrevived flows run in a labelled tail AFTER the verified ones.
-#    (b) is load-bearing because 03-streak-celebration.yaml is destructive on
-#    failure: it taps into the profile tab, fails its `text: '2'` streak
-#    assertion, and never reaches its return-to-home tap — leaving the app off
-#    the home screen that 04-navigation-tabs and 01-profile-verification both
-#    declare as their entry state.
+#      (b) no flow that follows an unrevived one may depend on where it stops.
+#    (b) holds by inspection today. 05-settings.yaml sits in the middle of the
+#    coverage order because 06-coop-ui.yaml is written to follow it, and a
+#    05-settings failure can only strand the device on the settings tab —
+#    06-coop-ui.yaml opens with an explicit `new-quest-tab` tap and recovers
+#    from any tab. critical-paths.yaml has nothing after it but `social`, which
+#    also opens with its own tab tap.
 #    Once one link in a state chain breaks, later failures are usually cascades
 #    rather than independent defects. The summary says so rather than pretending
 #    each line is a separate bug.
 #
-# 6. THE PURGE ONLY RUNS FOR PHASES THAT CREATE A NEW USER.
+# 6. THE COVERAGE ORDER IS FILE-NAME ORDER, AND THE FLOWS WERE WRITTEN FOR IT.
+#    01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08 -> 09. This list is the
+#    authoritative order; several flows quote it in their own headers. The
+#    couplings, all of them one-directional:
+#      - 02-journal before 03-custom-quest. The custom quest adds a journal row
+#        and +3 XP. Journal was deliberately written order-independent (no row
+#        indexes, deep assertions on the two story quests only), so the other
+#        order also works — but ONE order has to be the documented one, and this
+#        is it. Same reason 01-profile-leaderboard-achievements runs first: its
+#        header states the account has two completed quests at that point.
+#      - 05-settings before 06-coop-ui. Settings ends on the PROFILE tab.
+#        06-coop-ui taps its way back to home and says so in its header.
+#      - 06-coop-ui before 07-invite and 08-guild. Both of those require an
+#        entry tab that is NOT profile, and assert `profile-screen` absent as
+#        their first command; 06-coop-ui ends on home.
+#      - 08-guild before 09-scheduled. 09-scheduled deep-links immediately and
+#        never normalises its tab, so it needs a predecessor that ends on home
+#        with the Story deck card front. That is exactly 08-guild's stated exit
+#        state. If 09 is ever run on its own, tap into home first.
+#
+# 7. 10-social-login.yaml IS NOT IN THE COVERAGE PHASE. IT IS THE `social`
+#    PHASE, AND `all` RUNS IT LAST OF EVERYTHING.
+#    That flow logs the account out on purpose and nothing puts it back; the
+#    only way to a signed-in device afterwards is a fresh chain (onboarding,
+#    the 135s wait, part 2, then the signup pair with a new address). File-name
+#    order would have run it in the middle of the coverage tier and left every
+#    later flow — and the whole smoke phase — running logged out.
+#    Keeping it out of `coverage` rather than merely last inside it buys one
+#    more thing: `pnpm e2e:coverage` can be re-run against the same account as
+#    many times as you like.
+#    So a full `pnpm e2e` ends signed out BY DESIGN. Re-running `pnpm e2e`
+#    starts from onboarding with `clearState`, so that is a valid resting place.
+#
+# 8. THE PURGE ONLY RUNS FOR PHASES THAT CREATE A NEW USER.
 #    See purge_stale_state() for the reasoning.
 # =============================================================================
 
@@ -133,6 +188,13 @@ FLOW_COVERAGE_CUSTOM=".maestro/flows/04-screen-coverage/03-custom-quest.yaml"
 FLOW_COVERAGE_MAP=".maestro/flows/04-screen-coverage/04-map.yaml"
 FLOW_COVERAGE_SETTINGS=".maestro/flows/04-screen-coverage/05-settings.yaml"
 FLOW_COVERAGE_COOP=".maestro/flows/04-screen-coverage/06-coop-ui.yaml"
+FLOW_COVERAGE_INVITE=".maestro/flows/04-screen-coverage/07-invite.yaml"
+FLOW_COVERAGE_GUILD=".maestro/flows/04-screen-coverage/08-guild.yaml"
+FLOW_COVERAGE_SCHEDULED=".maestro/flows/04-screen-coverage/09-scheduled.yaml"
+
+# Lives in 04-screen-coverage/ but is NOT part of the coverage phase — see
+# note 7. Its own phase, run last by `all`.
+FLOW_SOCIAL_LOGIN=".maestro/flows/04-screen-coverage/10-social-login.yaml"
 
 FLOW_SMOKE_CRITICAL=".maestro/flows/05-smoke/critical-paths.yaml"
 
@@ -184,21 +246,32 @@ build_steps() {
     add_flow "$FLOW_QUEST2_PART_2"
     add_flow "$FLOW_NAV_TABS"
     add_flow "$FLOW_PROFILE"
-    # Known-unrevived tail — after the verified flows, see note 5.
-    add_stale "$FLOW_STREAK"
+    # Rewritten and green on device (unit G). It enters through the profile
+    # tab and hands back to home, so it stays last in the phase.
+    add_flow "$FLOW_STREAK"
   fi
 
   if [ "$phase" = "all" ] || [ "$phase" = "coverage" ]; then
-    add_stale "$FLOW_COVERAGE_PROFILE"
-    add_stale "$FLOW_COVERAGE_JOURNAL"
-    add_stale "$FLOW_COVERAGE_CUSTOM"
-    add_stale "$FLOW_COVERAGE_MAP"
-    add_stale "$FLOW_COVERAGE_SETTINGS"
-    add_stale "$FLOW_COVERAGE_COOP"
+    # File-name order, and the flows were written for it — see note 6 for the
+    # four couplings. 10-social-login.yaml is NOT here; see note 7.
+    add_flow "$FLOW_COVERAGE_PROFILE"
+    add_flow "$FLOW_COVERAGE_JOURNAL"
+    add_flow "$FLOW_COVERAGE_CUSTOM"
+    add_flow "$FLOW_COVERAGE_MAP"
+    add_stale "$FLOW_COVERAGE_SETTINGS"   # never re-run this project — note 5
+    add_flow "$FLOW_COVERAGE_COOP"
+    add_flow "$FLOW_COVERAGE_INVITE"
+    add_flow "$FLOW_COVERAGE_GUILD"
+    add_flow "$FLOW_COVERAGE_SCHEDULED"
   fi
 
   if [ "$phase" = "all" ] || [ "$phase" = "smoke" ]; then
     add_stale "$FLOW_SMOKE_CRITICAL"
+  fi
+
+  # LAST, always. This signs the device out and nothing signs it back in.
+  if [ "$phase" = "all" ] || [ "$phase" = "social" ]; then
+    add_flow "$FLOW_SOCIAL_LOGIN"
   fi
 }
 
@@ -302,9 +375,9 @@ preflight() {
 # points that create a new user — for them the purge delivers its guarantee
 # ("a crashed run never poisons the next one").
 #
-# `signup`, `fresh`, `coverage` and `smoke` are CONTINUATION phases: they run
-# against the account a previous run left on the device. Purging there would
-# delete exactly the user their own flows need.
+# `signup`, `fresh`, `coverage`, `smoke` and `social` are CONTINUATION phases:
+# they run against the account a previous run left on the device. Purging there
+# would delete exactly the user their own flows need.
 # -----------------------------------------------------------------------------
 purge_stale_state() {
   log_info "Purging stale e2e state..."
@@ -387,10 +460,10 @@ execute_steps() {
 PHASE="${1:-all}"
 
 case "$PHASE" in
-  all|onboarding|signup|fresh|coverage|smoke) ;;
+  all|onboarding|signup|fresh|coverage|smoke|social) ;;
   *)
     log_fail "invalid phase: ${PHASE}"
-    echo "Valid phases: all, onboarding, signup, fresh, coverage, smoke"
+    echo "Valid phases: all, onboarding, signup, fresh, coverage, smoke, social"
     exit 1
     ;;
 esac
@@ -410,6 +483,13 @@ echo "  Mailpit:     ${MAILPIT_URL}"
 echo "  MongoDB:     ${MONGODB_URI}"
 echo "  Quest wait:  ${QUEST_WAIT_SECONDS}s"
 echo ""
+
+# Say it before the run, not only in the summary: these two phases end on the
+# login screen with no session, and the account cannot be signed back in.
+if [ "$PHASE" = "all" ] || [ "$PHASE" = "social" ]; then
+  log_warn "this phase ends SIGNED OUT — 10-social-login.yaml logs the device out and nothing signs it back in. The next signed-in run must start from 'onboarding' or 'all'."
+  echo ""
+fi
 
 build_steps "$PHASE"
 preflight
@@ -461,7 +541,7 @@ echo "  Test email: ${TEST_EMAIL}"
 
 if [ "$UNEXPECTED_PASS" -gt 0 ]; then
   echo ""
-  log_warn "${UNEXPECTED_PASS} flow(s) marked known-unrevived passed — move them out of the tail in build_steps()"
+  log_warn "${UNEXPECTED_PASS} flow(s) marked known-unrevived passed — flip their add_stale to add_flow in build_steps() and update note 5"
 fi
 
 echo ""
