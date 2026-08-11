@@ -429,6 +429,29 @@ describe('ProfileScreen', () => {
     });
   });
 
+  describe('Stats freshness', () => {
+    // The stats above prefer the user store over the local quest list, and the
+    // store otherwise holds whatever the server said at sign-in. This mount
+    // call is what refreshes it (the hook writes the response into the store —
+    // see use-profile-data.test.tsx). Without this test, deleting the mount
+    // effect would leave the stale-stats bug back in place with every suite
+    // still green.
+    it('asks the server for the current user on mount', () => {
+      const mockUseProfileData = jest.requireMock(
+        '@/lib/hooks/use-profile-data'
+      ).useProfileData;
+      const fetchUserDetails = jest.fn();
+      mockUseProfileData.mockReturnValue({
+        userEmail: 'test@example.com',
+        fetchUserDetails,
+      });
+
+      render(<ProfileScreen />);
+
+      expect(fetchUserDetails).toHaveBeenCalled();
+    });
+  });
+
   describe('Navigation', () => {
     it('navigates to leaderboard when card is pressed', async () => {
       const { user } = setup(<ProfileScreen />);
