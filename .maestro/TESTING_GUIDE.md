@@ -44,7 +44,7 @@ This approach provides:
 │   │   ├── 04-map.yaml
 │   │   ├── 05-settings.yaml
 │   │   └── 06-coop-ui.yaml
-│   └── 05-regression/
+│   └── 05-smoke/
 │       └── critical-paths.yaml          # Quick smoke test
 ├── scripts/
 │   └── convert-provisional-user.js      # DB conversion script
@@ -191,7 +191,7 @@ maestro test .maestro/flows/03-fresh-authenticated/
 maestro test .maestro/flows/04-screen-coverage/
 
 # Phase 5: Quick regression test
-maestro test .maestro/flows/05-regression/
+maestro test .maestro/flows/05-smoke/
 ```
 
 ⚠️ **Note**: Onboarding tests are split into two parts with a 15-second wait. Use `./run-tests.sh onboarding` instead of running manually.

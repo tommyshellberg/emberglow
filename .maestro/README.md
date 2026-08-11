@@ -151,7 +151,7 @@ were gated behind PR labels, so in practice they weren't running on most PRs any
 
 Instead:
 
-- `.husky/pre-push` runs the fast `05-regression/critical-paths.yaml` smoke flow
+- `.husky/pre-push` runs the fast `05-smoke/critical-paths.yaml` smoke flow
   automatically before every `git push`, when a device/emulator is connected with
   the app already running. It skips (doesn't block) if no device is available.
 - Before opening or merging a PR with app-facing changes, run the fuller suite

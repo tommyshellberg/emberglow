@@ -54,4 +54,4 @@ flows:
   - flows/04-screen-coverage/*
 
   # Phase 5: Regression Tests (optional, can be run separately)
-  # - flows/05-regression/*
+  # - flows/05-smoke/*

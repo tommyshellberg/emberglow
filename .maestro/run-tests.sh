@@ -10,7 +10,7 @@
 #   signup      02-signup/*            — magic link + provisional -> full account
 #   fresh       03-fresh-authenticated/* — second quest, tabs, profile numbers
 #   coverage    04-screen-coverage/*
-#   smoke       05-regression/*
+#   smoke       05-smoke/*
 #
 # The suite is ONE user's state chain: each phase inherits the previous phase's
 # end state. Running a later phase on its own only works if an earlier run left
@@ -134,10 +134,7 @@ FLOW_COVERAGE_MAP=".maestro/flows/04-screen-coverage/04-map.yaml"
 FLOW_COVERAGE_SETTINGS=".maestro/flows/04-screen-coverage/05-settings.yaml"
 FLOW_COVERAGE_COOP=".maestro/flows/04-screen-coverage/06-coop-ui.yaml"
 
-# Unit Q renames 05-regression/ -> 05-smoke/. Until it runs, the phase named
-# `smoke` points at the directory that actually exists. Preflight fails loudly
-# if this ever stops being true.
-FLOW_SMOKE_CRITICAL=".maestro/flows/05-regression/critical-paths.yaml"
+FLOW_SMOKE_CRITICAL=".maestro/flows/05-smoke/critical-paths.yaml"
 
 # -----------------------------------------------------------------------------
 # Logging
