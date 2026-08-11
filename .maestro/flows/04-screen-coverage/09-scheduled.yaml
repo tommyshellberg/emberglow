@@ -27,15 +27,37 @@ appId: com.vaedros.unquest
 # -----------------------------------------------------------------------------
 # WHY THE LIST IS OPENED BY DEEP LINK AND NOT BY A TAP
 # -----------------------------------------------------------------------------
-# There is no tappable route to this screen on this account, and it is blocked
-# TWICE over. `grep -rn "/scheduled-quest" src` finds exactly one in-app
-# navigation to it: the `Public Events` row of the cooperative-quest menu
-# (`cooperative-quest-menu.tsx:56-62`). That row lives inside the menu's
-# `hasFriends` branch (`:161`), and this is a single-account chain with zero
-# friends, so the row never renders. The menu itself is behind the RevenueCat
-# premium gate as well — see the long block at the top of `06-coop-ui.yaml`,
-# which explains why tapping that gate on this build raises a native alert and
-# must not be done.
+# There is no tappable route to this screen on this account.
+# `grep -rn "/scheduled-quest" src` finds THREE navigations to it in app code,
+# and none of them is reachable here:
+#
+#   1. `cooperative-quest-menu.tsx:61` — the `Public Events` row of the
+#      cooperative-quest menu. That row is one of four in `menuOptions`, and
+#      the whole list renders only inside the menu's `hasFriends` branch
+#      (`:161-179`). This is a single-account chain with zero friends, so the
+#      list never renders; the no-friends branch (`:186-215`) offers an empty
+#      state, an Add Friends row and an info card, and no route to events.
+#   2. `join-cooperative-quest.tsx:249` — a `Browse public events` button
+#      (`testID: browse-public-events`) in that screen's no-invitations empty
+#      state. Unreachable for the same reason one step removed: the only way
+#      to `/join-cooperative-quest` is the `Join Quest` row of the SAME
+#      `menuOptions` list (`cooperative-quest-menu.tsx:54`), so it too sits
+#      behind `hasFriends`.
+#   3. `_layout.tsx:243` and `:247` — the push-notification handler. This one
+#      is NOT gated by anything in the UI, and it deserves saying plainly: a
+#      `scheduled_quest_starting_soon`, `_started` or `_cancelled` push routes
+#      to `/scheduled-quest/<id>` a second after it is opened, and a
+#      `scheduled_quest_kicked` push routes to `/scheduled-quest`. So a
+#      notification can drop a future run onto this screen FROM ANYWHERE, mid
+#      flow, with no tap from the test. It cannot fire on this chain today —
+#      the account has no event to be reminded about, kicked from or cancelled
+#      on, which is exactly the state this file preserves — but it is the way
+#      this screen could appear uninvited, and any flow that starts failing at
+#      an unrelated post-condition should check for it.
+#
+# On top of all that, the co-op menu itself is behind the RevenueCat premium
+# gate — see the long block at the top of `06-coop-ui.yaml`, which explains why
+# tapping that gate on this build raises a native alert and must not be done.
 #
 # So the deep link is the only way in. This is the same ruling Tommy gave for
 # unit L. Verified live: the link lands on the screen with home still mounted
@@ -53,10 +75,12 @@ appId: com.vaedros.unquest
 # -----------------------------------------------------------------------------
 # Same reasoning as `08-guild.yaml`, and it was re-checked in source for this
 # file. The announcement gate is an effect inside the HOME screen component
-# (`(app)/index.tsx:139-188`). It runs on mount and whenever one of its
-# dependencies changes — the four `hasSeen*` flags, the throttle stamp, the
-# completed-quest count, the available-perk count, the user object. The calendar
-# is not a dependency, so a day boundary alone cannot present a sheet.
+# (`(app)/index.tsx:140-189`). It runs on mount and whenever one of its
+# dependencies changes — its dependency array (`:174-189`) is the four
+# `hasSeen*` flags, the throttle stamp, the first-branch flag, the user object,
+# the completed-quest count, the available-perk count and the four modal refs.
+# The calendar is not among them, so a day boundary alone cannot present a
+# sheet.
 #
 # This file relaunches nothing and completes no quest, so it moves none of those
 # dependencies. A live hierarchy dump on home before the first run confirmed no
@@ -67,9 +91,12 @@ appId: com.vaedros.unquest
 # nothing here would reach its post-condition.
 #
 # WHICH SHEET IS NEXT IN LINE, for whoever meets it: the GUILDS one.
-# `getAnnouncementToShow` (`announcement-store.ts:132-149`) returns the first
+# `getAnnouncementToShow` (`announcement-store.ts:118-160`) returns the first
 # UNSEEN announcement whose precondition is met, in a fixed order — branching,
-# skill tree, guilds, narrator voice. The branching sheet was presented and
+# skill tree, guilds, narrator voice (`:132-157`) — after the once-per-day cap
+# at the top of the function (`:124-130`) has let it through — that cap is
+# checked before the priority list, so on a day when any sheet has already
+# shown, nothing shows at all. The branching sheet was presented and
 # dismissed on this chain on 2026-08-10, so `hasSeenBranchingAnnouncement` is
 # permanently true and guilds is now first in that order. Dismiss it with its own
 # non-destructive button, never by coordinate.
@@ -288,10 +315,11 @@ appId: com.vaedros.unquest
     id: 'event-max-participants-5'
     text: '5'
 
-# The reward preview is computed, not fixed: 30 minutes x `XP_PER_MINUTE` = 3
-# (`create.tsx:24`, `:157`). It is the only line on this screen that would move
-# if the duration slider had been touched, so it is a second reading of the
-# form's untouched state as well as a render check.
+# The reward preview is computed, not fixed: 30 minutes x 3 XP per minute = 90,
+# where the 3 is `XP_PER_MINUTE` (`create.tsx:24`, used at `:157`). It is the
+# only line on this screen that would move if the duration slider had been
+# touched, so it is a second reading of the form's untouched state as well as a
+# render check.
 - assertVisible: 'Reward: ~90 XP for finishing'
 
 # NEITHER ERROR SLOT IS SHOWING. Both are conditional on a submit having happened
