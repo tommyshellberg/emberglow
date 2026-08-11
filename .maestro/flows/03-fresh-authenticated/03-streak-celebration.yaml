@@ -4,9 +4,10 @@ appId: com.vaedros.unquest
 # STREAK CELEBRATION
 # =============================================================================
 # Owns every assertion about what the streak-celebration screen says. Entry
-# state is the home screen as `02-quest-second-part-2.yaml` leaves it: signed in
-# as ${TEST_EMAIL}, two completed quests (quest-1 + quest-1b), Level 2,
-# 109 XP, and a streak of 1.
+# state is the home screen as `02-quest-second-part-2.yaml` leaves it: a signed-in
+# account with two completed quests (quest-1 + quest-1b), Level 2, 109 XP, and a
+# streak of 1. This file needs no `TEST_EMAIL` of its own — it never names the
+# account.
 #
 #   1. Profile tab, and the streak tile's own value
 #   2. Tap the tile to open the celebration screen
@@ -48,6 +49,17 @@ appId: com.vaedros.unquest
 # run twice on one chain, and could never run at all except immediately after
 # quest 2.
 #
+# THE GAP THAT LEAVES, SAID PLAINLY: nothing committed asserts what the
+# AUTO-SHOWN screen says. Part 2 waits for `streak-continue-button` and taps it,
+# and that is the whole of its interest in this screen — by design, it is on its
+# way to the quest result. So if the auto-show regressed to a blank screen with
+# a working button on it, part 2 would stay green and this file would not be
+# looking. The content assertions below run on the tile route only. The two
+# routes mount the same component with the same props, which is why this is a
+# small gap rather than a hole, but it is a real one: closing it needs
+# assertions inside part 2's own interception window, which is part 2's file to
+# change, not this one.
+#
 # The profile streak tile is a real second door: `stats-card.tsx:104-110` is a
 # `Pressable` that pushes `/streak-celebration`. That makes this file
 # re-runnable and order-independent, and it covers a user-facing affordance
@@ -71,14 +83,30 @@ appId: com.vaedros.unquest
 # without relaunching cannot raise one mid-session — but a cross-day chain that
 # enters this file straight after a relaunch can. Naming the backdrop makes that
 # case fail here, with the occluder named, instead of somewhere confusing later.
+#
+# UNPROVEN, and it matters: this line has never been watched failing. No sheet
+# appeared at any point while this file was written, and an `assertNotVisible`
+# against a string that names nothing passes forever. What IS established is
+# that the string names a real thing on this build — unit M dumped the invite
+# sheet's backdrop live and read `Bottom sheet backdrop` at `[0,59][393,852]`
+# (`04-screen-coverage/07-invite.yaml`, and the app does not override
+# @gorhom's default label, so every sheet in the app reports the same one).
+# What is NOT established is that an ANNOUNCEMENT sheet reports it too, and
+# `02-quest-second-part-2.yaml`'s session-6 red does not help: that was a wait
+# for the backdrop to APPEAR timing out with no sheet on screen, which is the
+# same direction as this line, not the opposite one. To prove this line, open
+# any sheet and watch it go red — see the deferred list in unit G's report.
 - assertNotVisible: 'Bottom sheet backdrop'
 
 # =============================================================================
 # PROFILE — THE STREAK TILE AND ITS VALUE
 # =============================================================================
 # `streak-display` is the tile, not the digits: the number renders through
-# `AnimatedNumber`, whose displayed value trails the real one during a count-up,
-# so an id on the digits would be read mid-animation (stats-card.tsx:104-107).
+# `AnimatedNumber` (stats-card.tsx:116-120), whose displayed value trails the
+# real one during a count-up, so an id on the digits would be read
+# mid-animation — the reason the component's own comment gives at :105-107 for
+# putting the testID on the tile at :108.
+#
 # The tile sets `accessible`, and its label `<N> day streak` is built straight
 # from the prop — no animation, no default — so the label is where the value
 # assertion belongs.
