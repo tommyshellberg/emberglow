@@ -43,6 +43,12 @@
 #   flows/01-onboarding/*    Needs a 135s wait between part 1 and part 2. A
 #                            directory run would start part 2 immediately and
 #                            fail the quest.
+#   02-quest-second-part-1   The second story quest, split over the same kind of
+#   02-quest-second-part-2   135s wait as onboarding. Part 1 starts the quest and
+#                            part 2 unlocks it, and unlocking before 120s FAILS
+#                            the quest (run-tests.sh note 2). Only the runner can
+#                            put a wait between two flows, so listing this pair
+#                            here would guarantee a red part 2.
 #   flows/02-signup/*        Needs TEST_EMAIL. The address is generated per run
 #                            by run-tests.sh and has no default here.
 #   10-social-login.yaml     Signs the device out and nothing signs it back in.
@@ -51,9 +57,12 @@
 #                            file-name order — in the middle — and every flow
 #                            after it would run logged out.
 #
-# The flows that ARE listed still assume a signed-in account with two completed
-# story quests on the device. Build that with `pnpm e2e:onboarding`, then
-# `pnpm e2e:signup`, or just use `pnpm e2e`.
+# The flows that ARE listed still assume a signed-in account with BOTH story
+# quests already complete — `01-profile-verification.yaml` asserts `9 / 150 XP`,
+# which is only true after the second one. Since the pair that completes it is
+# not listed here, a directory run has to be preceded by the runner:
+# `pnpm e2e:onboarding`, `pnpm e2e:signup`, `pnpm e2e:fresh`. Or just use
+# `pnpm e2e` and skip the directory run altogether.
 # =============================================================================
 
 # `utils/` holds shared sub-flows (hide-keyboard) meant to be called with
@@ -78,8 +87,6 @@ executionOrder:
 # Maestro orders these itself. The runner's order is the authoritative one and
 # the flow headers document it.
 flows:
-  - flows/03-fresh-authenticated/02-quest-second-part-1.yaml
-  - flows/03-fresh-authenticated/02-quest-second-part-2.yaml
   - flows/03-fresh-authenticated/04-navigation-tabs.yaml
   - flows/03-fresh-authenticated/01-profile-verification.yaml
   - flows/03-fresh-authenticated/03-streak-celebration.yaml

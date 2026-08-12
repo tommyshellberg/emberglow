@@ -26,29 +26,37 @@ This approach provides:
 
 ```
 .maestro/
-├── config.yaml                          # Master test configuration
+├── config.yaml                          # Guard rails for `maestro test .maestro/`
+├── run-tests.sh                         # The supported entry point (`pnpm e2e`)
 ├── flows/
 │   ├── 01-onboarding/
-│   │   └── onboarding-full.yaml        # Complete guest onboarding flow
-│   ├── 02-conversion/
-│   │   └── convert-provisional.yaml    # Convert provisional → full user
+│   │   ├── onboarding-part-1.yaml      # Guest onboarding, starts the quest
+│   │   └── onboarding-part-2.yaml      # Unlocks it — needs a 135s gap first
+│   ├── 02-signup/
+│   │   ├── 01-request-magic-link.yaml  # Provisional -> full user, part 1
+│   │   └── 02-verify-authenticated.yaml # Reads Mailpit, opens the deep link
 │   ├── 03-fresh-authenticated/
-│   │   ├── 01-profile-verification.yaml   # Verify Level 1, 50 XP state
-│   │   ├── 02-quest-second.yaml          # Complete 2nd quest
-│   │   ├── 03-streak-celebration.yaml    # Verify Day 2 streak
-│   │   └── 04-navigation-tabs.yaml       # Test tab navigation
+│   │   ├── 01-profile-verification.yaml   # Character numbers (runs LAST)
+│   │   ├── 02-quest-second-part-1.yaml    # 2nd story quest, starts it
+│   │   ├── 02-quest-second-part-2.yaml    # Unlocks it — 135s gap first
+│   │   ├── 03-streak-celebration.yaml     # Verify Day 2 streak
+│   │   └── 04-navigation-tabs.yaml        # Test tab navigation
 │   ├── 04-screen-coverage/
 │   │   ├── 01-profile-leaderboard-achievements.yaml
 │   │   ├── 02-journal.yaml
 │   │   ├── 03-custom-quest.yaml
 │   │   ├── 04-map.yaml
 │   │   ├── 05-settings.yaml
-│   │   └── 06-coop-ui.yaml
+│   │   ├── 06-coop-ui.yaml
+│   │   ├── 07-invite.yaml
+│   │   ├── 08-guild.yaml
+│   │   ├── 09-scheduled.yaml
+│   │   └── 10-social-login.yaml        # SIGNS THE DEVICE OUT — own phase, last
 │   └── 05-smoke/
-│       └── critical-paths.yaml          # Quick smoke test
+│       └── critical-paths.yaml          # Quick smoke test (known stale)
 ├── scripts/
-│   └── convert-provisional-user.js      # DB conversion script
-└── utils/                               # Reusable test utilities
+│   └── poll-magic-link.sh               # Dead, called by nothing (Linear SHE-55)
+└── utils/                               # Reusable sub-flows, tagged `util`
 ```
 
 ## Prerequisites
@@ -167,32 +175,30 @@ pnpm e2e:regression   # Quick smoke tests
 ```
 
 The `pnpm e2e` script uses `.maestro/run-tests.sh` which:
-- ✅ Automatically generates unique test email with timestamp
-- ✅ Handles split onboarding test with proper 15-second wait between parts
+- ✅ Automatically generates a unique `test-<epoch>@example.com` address per run
+- ✅ Waits 135 seconds between the two halves of each story quest
+- ✅ Purges Mailpit and the matching users before a run that creates an account
+- ✅ Runs every flow even after one fails, then summarises
 - ✅ Provides clear progress output with colors
-- ✅ Captures screenshots on failure
 - ✅ Shows test duration summary
 
 ### Run Individual Test Phases (Advanced)
 
+Always go through the runner. Every phase below needs something a bare
+`maestro test <dir>` cannot give it — the generated `TEST_EMAIL`, the 135-second
+quest waits, or an order that is not file-name order.
+
 ```bash
-# Phase 1: Onboarding (split test - use run-tests.sh instead)
-./run-tests.sh onboarding
-
-# Phase 2: Conversion
-maestro test .maestro/flows/02-conversion/ \
-  --env TEST_EMAIL="test-1234567890@unquest.test" \
-  --env MONGODB_URI="mongodb://localhost:27017/unquest-dev"
-
-# Phase 3: Fresh authenticated tests
-maestro test .maestro/flows/03-fresh-authenticated/
-
-# Phase 4: Screen coverage tests
-maestro test .maestro/flows/04-screen-coverage/
-
-# Phase 5: Quick regression test
-maestro test .maestro/flows/05-smoke/
+.maestro/run-tests.sh onboarding  # fresh install through the first quest
+.maestro/run-tests.sh signup      # magic link, provisional -> full account
+.maestro/run-tests.sh fresh       # second quest, tabs, profile numbers
+.maestro/run-tests.sh coverage    # 04-screen-coverage/01..09, still signed in
+.maestro/run-tests.sh smoke       # fast critical-path check
+.maestro/run-tests.sh social      # 10-social-login.yaml — SIGNS THE DEVICE OUT
 ```
+
+Each phase inherits the previous phase's end state, so running a later one on
+its own only works if an earlier run left the device in the right place.
 
 ⚠️ **Note**: Onboarding tests are split into two parts with a 15-second wait. Use `./run-tests.sh onboarding` instead of running manually.
 
@@ -214,9 +220,10 @@ maestro test .maestro/flows/01-onboarding/onboarding-full.yaml --debug
 - **XP**: 50
 - **Quests Completed**: 1 ("Wake up")
 - **Streak**: Day 1
-- **Email**: test-{TIMESTAMP}@unquest.test
+- **Email**: test-{TIMESTAMP}@example.com — NOT `.test`. The server's email
+  validator rejects the `.test` TLD with a 400. See `run-tests.sh` note 1.
 
-### After Conversion (Phase 2)
+### After Signup (Phase 2)
 - **User Type**: Full authenticated user
 - **State**: Same as above but `isProvisional: false`
 

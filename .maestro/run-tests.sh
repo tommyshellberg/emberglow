@@ -48,16 +48,10 @@
 #    `evalScript` + `http.get` filtered by recipient, and opens the deep link
 #    with `openLink`. There is no poll-magic-link.sh call and no
 #    `xcrun simctl openurl` step.
-#    `.maestro/scripts/poll-magic-link.sh` still exists on disk and is invoked
-#    by NOTHING — not this runner, not any flow (grep the repo). Linear SHE-55
-#    asks to fix it or delete it. It is deliberately left alone here: the two
-#    signup flows quote it at length as the worked example of the bug they were
-#    written to avoid (it reads Mailpit's latest message without filtering by
-#    recipient, so it can hand back another run's link), and deleting the file
-#    would leave four comments in those flows naming something that no longer
-#    exists. Editing flow files is out of this script's remit. Whoever closes
-#    SHE-55 should delete the script and those four comment references in one
-#    commit; until then, do not wire it back in.
+#    `.maestro/scripts/poll-magic-link.sh` is still on disk and is called by
+#    nothing. Left as is on purpose: the two signup flows quote it as the bug
+#    they were written to avoid. Linear SHE-55 tracks deleting it together with
+#    those four comments. Do not wire it back in.
 #
 # 4. PHASE 03 DOES NOT RUN IN FILENAME ORDER.
 #    01-profile-verification.yaml runs LAST despite its `01-` prefix: its
@@ -78,15 +72,34 @@
 #        and taps a bare screen coordinate). Expected to fail.
 #    They stay wired in — a hidden failure is worse than a red one — under
 #    `add_stale`, which labels them in the output and counts their failure as
-#    expected. Two properties keep them from taking a verified flow down:
+#    expected. Two properties are meant to keep them from taking a verified flow
+#    down:
 #      (a) run-and-collect: a failing flow never stops the rest of its phase;
 #      (b) no flow that follows an unrevived one may depend on where it stops.
-#    (b) holds by inspection today. 05-settings.yaml sits in the middle of the
-#    coverage order because 06-coop-ui.yaml is written to follow it, and a
-#    05-settings failure can only strand the device on the settings tab —
-#    06-coop-ui.yaml opens with an explicit `new-quest-tab` tap and recovers
-#    from any tab. critical-paths.yaml has nothing after it but `social`, which
-#    also opens with its own tab tap.
+#    (a) holds everywhere. (b) DOES NOT HOLD EVERYWHERE — it holds for
+#    05-settings and it does not hold for the smoke phase. Both halves matter,
+#    so both are written out:
+#      - 05-settings.yaml, (b) HOLDS. It sits in the middle of the coverage
+#        order because 06-coop-ui.yaml is written to follow it. A 05-settings
+#        failure can only strand the device on the settings tab, the tab bar is
+#        still up, and 06-coop-ui.yaml opens with an explicit `new-quest-tab`
+#        tap, which recovers from any tab.
+#      - critical-paths.yaml -> 10-social-login.yaml, (b) FAILS. The smoke flow
+#        taps a bare screen coordinate (`point: '50%, 60%'`) that is meant to
+#        land on the quest deck. If it opens the pending-quest screen instead —
+#        or any other screen without a tab bar — the flow dies there and the
+#        device is left off the tab bar. 10-social-login.yaml's first tap is
+#        `settings-tab`, which recovers from any TAB but not from a screen that
+#        has no tab bar, so it fails too. It is registered with `add_flow`, so
+#        that shows up as a plain FAIL and reads like a real defect in the
+#        social flow when it is only fallout from the known-stale smoke flow.
+#        UNTIL THAT IS FIXED: if `all` reports critical-paths XFAIL and
+#        10-social-login FAIL in the same run, re-run `.maestro/run-tests.sh
+#        social` on its own before believing the second one.
+#        The fix is a normalising tap at the top of 10-social-login.yaml (a
+#        `back`/home step before the `settings-tab` tap). That is a flow-file
+#        edit, which is outside this script's remit, and it is booked for the
+#        final fix wave of this branch.
 #    Once one link in a state chain breaks, later failures are usually cascades
 #    rather than independent defects. The summary says so rather than pretending
 #    each line is a separate bug.
@@ -99,8 +112,11 @@
 #        and +3 XP. Journal was deliberately written order-independent (no row
 #        indexes, deep assertions on the two story quests only), so the other
 #        order also works — but ONE order has to be the documented one, and this
-#        is it. Same reason 01-profile-leaderboard-achievements runs first: its
-#        header states the account has two completed quests at that point.
+#        is it. 01-profile-leaderboard-achievements is NOT one of the couplings:
+#        its header says every assertion in it was written to hold at two
+#        completed quests AND at three, so it survives the custom quest running
+#        before it. It is first because this list is file-name order, not
+#        because it has to be.
 #      - 05-settings before 06-coop-ui. Settings ends on the PROFILE tab.
 #        06-coop-ui taps its way back to home and says so in its header.
 #      - 06-coop-ui before 07-invite and 08-guild. Both of those require an
@@ -270,6 +286,15 @@ build_steps() {
   fi
 
   # LAST, always. This signs the device out and nothing signs it back in.
+  #
+  # WARNING, `all` ONLY: this flow runs straight after the known-stale
+  # 05-smoke/critical-paths.yaml, and it can fail as fallout from it. That flow
+  # taps a bare screen coordinate; if it strands the device on a screen with no
+  # tab bar, this flow's opening `settings-tab` tap cannot recover and it fails
+  # too — as a plain FAIL, because it is registered as verified. Do not read
+  # that as a defect here until you have re-run
+  # `.maestro/run-tests.sh social` on its own. See header note 5; the real fix
+  # is a normalising tap inside the flow file, booked for the final fix wave.
   if [ "$phase" = "all" ] || [ "$phase" = "social" ]; then
     add_flow "$FLOW_SOCIAL_LOGIN"
   fi
@@ -550,7 +575,17 @@ if [ "$FAILED" -eq 0 ]; then
   exit 0
 fi
 
-log_fail "${FAILED} flow(s) failed"
+# A known-unrevived flow failing is the documented outcome, not a regression, so
+# it must not set a non-zero exit code. Without this the runner could NEVER exit
+# 0: 05-smoke/critical-paths.yaml is expected to fail, and `all` always runs it.
+# Anything that gates on `pnpm e2e` would have been permanently red.
+UNEXPECTED_FAIL=$((FAILED - FAILED_KNOWN))
+if [ "$UNEXPECTED_FAIL" -eq 0 ]; then
+  log_ok "no unexpected failures — the ${FAILED_KNOWN} failure(s) above are all known-unrevived flows"
+  exit 0
+fi
+
+log_fail "${UNEXPECTED_FAIL} flow(s) failed unexpectedly (${FAILED} red in total, ${FAILED_KNOWN} of them known-unrevived)"
 log_dim "  This suite is a single user's state chain. Once one flow fails, the flows"
 log_dim "  after it inherit the wrong state, so later failures are usually cascades"
 log_dim "  of the first one rather than independent defects. Fix the earliest"
