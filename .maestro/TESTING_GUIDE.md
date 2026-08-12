@@ -118,9 +118,12 @@ contribution.)
   clocks. Do not optimise it.
 - Purges Mailpit and the matching test users before a run that creates an
   account, so a crashed run cannot poison the next one.
-- Runs phase 03 in a verified order that is **not** file-name order:
-  `01-profile-verification.yaml` runs LAST, because its `9 / 150 XP` assertion
-  only holds once the second quest is done.
+- Runs phase 03 in a verified order that is **not** file-name order. Despite its
+  `01-` prefix, `01-profile-verification.yaml` runs after both halves of the
+  second quest and after `04-navigation-tabs.yaml`, because its `9 / 150 XP`
+  assertion only holds once the second quest is complete. The phase then ends
+  with `03-streak-celebration.yaml`, which enters through the profile tab and
+  hands the device back to home.
 - Keeps going after a failure and summarises at the end.
 
 ### Exit codes
@@ -240,6 +243,13 @@ cannot hide.
 - assertVisible: 'LEVEL 2'
 - assertVisible: '9 / 150 XP'
 ```
+
+**Maestro 2.0.10 matches text as a case-insensitive FULL-STRING regex.** So
+`'9 / 150 XP'` binds to that exact readout, while `'.*9 / 150 XP.*'` would also
+match `109 / 150 XP` — which is precisely the confusion the assertion exists to
+catch. Do not "relax" an assertion into the wildcard form. The trap is worked
+through, with the on-device proof, in
+`03-fresh-authenticated/01-profile-verification.yaml:57-71`.
 
 **Standing ruling: if an assertion disagrees with the app, stop and work out
 which side is wrong. Never edit the expectation to match the app.** That rule
