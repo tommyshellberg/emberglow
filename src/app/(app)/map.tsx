@@ -40,9 +40,11 @@ export default function MapScreen() {
   );
 
   // The visible title and the screen-reader label for the picture must come
-  // from the same call. `getMapNameForQuest` returns a different name once the
-  // player unlocks a later quest (Vaedros Kingdom, Darkwood Forest, ...), so a
-  // hardcoded label would announce a place the user is not looking at.
+  // from the same call, so the two can never disagree. Today
+  // `getMapNameForQuest` returns "Vaedros Kingdom" for every quest that exists
+  // (the map data has a single entry); other names appear only in a Jest mock.
+  // The shared lookup is what keeps a hardcoded label from announcing the
+  // wrong place if more maps ever land.
   const mapName = getMapNameForQuest(highestQuestId);
 
   // Get actual image dimensions
