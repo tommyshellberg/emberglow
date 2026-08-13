@@ -18,7 +18,10 @@ describe('InviteConfirmModal', () => {
   });
 
   test('names the inviter; confirm claims and clears', async () => {
-    (claimInvite as jest.Mock).mockResolvedValue({ status: 'created', invitationId: 'x' });
+    (claimInvite as jest.Mock).mockResolvedValue({
+      status: 'created',
+      invitationId: 'x',
+    });
 
     render(<InviteConfirmModal />);
     expect(screen.getByText(/Freya invited you/i)).toBeTruthy();

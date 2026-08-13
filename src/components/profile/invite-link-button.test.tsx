@@ -8,15 +8,22 @@ import { InviteLinkButton } from './invite-link-button';
 
 jest.mock('@/lib/services/invite-link', () => ({ getInviteLink: jest.fn() }));
 jest.mock('@/lib/posthog');
-jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as any);
+jest
+  .spyOn(Share, 'share')
+  .mockResolvedValue({ action: Share.sharedAction } as any);
 
 describe('InviteLinkButton', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as any);
+    jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: Share.sharedAction } as any);
   });
   test('press → fetch link → share sheet with the src-tagged URL', async () => {
-    (getInviteLink as jest.Mock).mockResolvedValue({ code: 'A1B2C3D4', url: 'https://emberglowapp.com/i/A1B2C3D4' });
+    (getInviteLink as jest.Mock).mockResolvedValue({
+      code: 'A1B2C3D4',
+      url: 'https://emberglowapp.com/i/A1B2C3D4',
+    });
 
     render(<InviteLinkButton />);
     fireEvent.press(screen.getByTestId('invite-link-button'));
@@ -24,7 +31,9 @@ describe('InviteLinkButton', () => {
     await waitFor(() => {
       expect(Share.share).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('https://emberglowapp.com/i/A1B2C3D4?src=profile'),
+          message: expect.stringContaining(
+            'https://emberglowapp.com/i/A1B2C3D4?src=profile'
+          ),
         })
       );
     });
@@ -47,8 +56,13 @@ describe('InviteLinkButton', () => {
   });
 
   test('user dismisses share sheet → no PostHog capture', async () => {
-    (getInviteLink as jest.Mock).mockResolvedValue({ code: 'A1B2C3D4', url: 'https://emberglowapp.com/i/A1B2C3D4' });
-    (Share.share as jest.Mock).mockResolvedValueOnce({ action: Share.dismissedAction });
+    (getInviteLink as jest.Mock).mockResolvedValue({
+      code: 'A1B2C3D4',
+      url: 'https://emberglowapp.com/i/A1B2C3D4',
+    });
+    (Share.share as jest.Mock).mockResolvedValueOnce({
+      action: Share.dismissedAction,
+    });
 
     render(<InviteLinkButton />);
     fireEvent.press(screen.getByTestId('invite-link-button'));
