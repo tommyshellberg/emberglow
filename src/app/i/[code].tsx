@@ -3,17 +3,22 @@ import React, { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 
 import { getAccessToken } from '@/api/token';
-import { resolveInviteCode } from '@/lib/services/invite-link';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
+import { checkInviteMatch } from '@/lib/invite/check-invite-match';
 import { useInviteStore } from '@/store/invite-store';
 import { colors } from '@/theme';
 
 /**
  * Universal-link entry point for `https://emberglowapp.com/i/{code}`.
  *
- * With an existing session, resolve the code immediately and queue the
- * confirm modal via the invite store. Without one, stash the code —
- * Task 12's stash-first path finishes the job after provisional account
- * creation during onboarding.
+ * Always stash, never resolve here: `checkInviteMatch` is the single
+ * consumer, and it owns the isSelf/alreadyFriends filter and the
+ * keep-the-stash-on-transport-failure retry policy. Resolving inline
+ * duplicated both and got both wrong. With any session (full account or
+ * provisional guest — the API client authenticates either), kick the
+ * consumer off immediately so the confirm modal is queued by the time home
+ * mounts; without one, the stash waits for onboarding or the next home
+ * mount to consume it.
  */
 export default function InviteLinkScreen() {
   const params = useLocalSearchParams();
@@ -24,25 +29,15 @@ export default function InviteLinkScreen() {
     if (ran.current) return;
     ran.current = true;
 
-    async function run() {
-      if (getAccessToken()) {
-        try {
-          const resolved = await resolveInviteCode(code);
-          useInviteStore.getState().setPendingInvite({
-            code: resolved.code,
-            inviterName: resolved.inviter.characterName,
-          });
-        } catch {
-          // Resolve failure: nothing to queue, just fall through to redirect.
-        }
-      } else {
-        useInviteStore.getState().stashCode(code);
-      }
+    useInviteStore.getState().stashCode(code);
 
-      router.replace('/');
+    if (getAccessToken() || hasProvisionalSession()) {
+      // Fire and forget: checkInviteMatch never throws, and navigation must
+      // not wait on the network — the stash survives any failure.
+      void checkInviteMatch();
     }
 
-    run();
+    router.replace('/');
   }, [code]);
 
   return <View style={{ flex: 1, backgroundColor: colors.surface.app }} />;
