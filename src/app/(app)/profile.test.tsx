@@ -441,7 +441,10 @@ describe('ProfileScreen', () => {
         '@/lib/hooks/use-profile-data'
       ).useProfileData;
       const fetchUserDetails = jest.fn();
-      mockUseProfileData.mockReturnValue({
+      // `mockReturnValueOnce`, not `mockReturnValue`: a lasting return value
+      // would survive `clearAllMocks` (which clears calls, not
+      // implementations) and leak into later tests in this file.
+      mockUseProfileData.mockReturnValueOnce({
         userEmail: 'test@example.com',
         fetchUserDetails,
       });

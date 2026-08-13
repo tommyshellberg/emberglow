@@ -17,6 +17,10 @@ export function useProfileData() {
       useUserStore.getState().setUser(details);
       setUserEmail(details.email.toLowerCase());
     } catch (error) {
+      // Deliberate swallow: on a failed fetch the store keeps its last
+      // snapshot, so the profile shows stale-but-real numbers instead of
+      // crashing or blanking. Covered by "keeps the existing snapshot when
+      // the fetch fails" in use-profile-data.test.tsx.
       console.error('Failed to fetch user details:', error);
     }
   }, []);

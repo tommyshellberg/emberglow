@@ -1,5 +1,6 @@
 import * as userService from '@/lib/services/user';
 import { act, renderHook, waitFor } from '@/lib/test-utils';
+import type { User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
 import { useProfileData } from './use-profile-data';
@@ -20,19 +21,21 @@ const mockGetUserDetails = userService.getUserDetails as jest.Mock;
 // completed quest when it signed in. Every number below differs from the
 // server response used in the tests, so an assertion cannot pass by the
 // store simply keeping what it already had.
+// `Partial<User> as User` rather than `as any`: a rename of a `User` field
+// these fixtures touch now fails type-check instead of passing silently.
 const STALE_USER = {
   id: 'user-1',
   email: 'chain@example.com',
   totalQuestsCompleted: 1,
   totalMinutesOffPhone: 2,
-} as any;
+} satisfies Partial<User> as User;
 
 const FRESH_SERVER_USER = {
   id: 'user-1',
   email: 'Chain@Example.com',
   totalQuestsCompleted: 2,
   totalMinutesOffPhone: 4,
-} as any;
+} satisfies Partial<User> as User;
 
 describe('useProfileData', () => {
   beforeEach(() => {
