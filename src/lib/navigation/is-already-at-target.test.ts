@@ -23,7 +23,7 @@ describe('isAlreadyAtTarget', () => {
   describe('screens the user navigated to themselves', () => {
     // Captured from a real Android SDK 53 session: tapping "Cooperative Quests"
     // pushes /cooperative-quest-menu — a ROOT-level route, not one inside the
-    // (app) group. The resolver keeps returning its Priority 5 fall-through
+    // (app) group. The resolver keeps returning its Priority 6 fall-through
     // 'app' because nothing special is happening, and the gate replace()d the
     // user straight back to the Play screen before the menu could be read.
     //
@@ -73,7 +73,7 @@ describe('isAlreadyAtTarget', () => {
     //
     // The resolver only names 'streak-celebration' while
     // shouldShowStreakCelebration is true, so a user who taps in when it is
-    // false gets the Priority 5 fall-through 'app', and a strict
+    // false gets the Priority 6 fall-through 'app', and a strict
     // resolver-owns-this match read their deliberate arrival as a stale one.
     it('leaves the user on the streak screen they tapped into', () => {
       expect(

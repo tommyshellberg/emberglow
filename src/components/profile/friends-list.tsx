@@ -162,6 +162,7 @@ export function FriendsList({
             variant="primary"
             fullWidth
             onPress={onInvite}
+            testID="invite-friends-empty-cta"
           />
         </View>
       )}

@@ -7,6 +7,7 @@ import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { Button, FocusAwareStatusBar, Text, View } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types'; // Import Quest type for better type safety
@@ -22,9 +23,12 @@ export default function FirstQuestResultScreen() {
   // have an account yet. A character-less social account is routed back through
   // onboarding while already authenticated (see navigation-state-resolver), and
   // asking that user to "create an account" is asking for the one they are
-  // signed into. Decided once so both transitions below stay in agreement.
+  // signed into. BUT a provisional session also hydrates with status 'signIn'
+  // (see auth hydrate()), and a guest is exactly who the prompt is for — so
+  // 'signIn' only skips the prompt when no provisional keys are on disk —
+  // the same shared check the resolver's gate uses.
   const stepAfterFirstQuest =
-    authStatus === 'signIn'
+    authStatus === 'signIn' && !hasProvisionalSession()
       ? OnboardingStep.COMPLETED
       : OnboardingStep.VIEWING_SIGNUP_PROMPT;
   const resetFailedQuest = useQuestStore((state) => state.resetFailedQuest);

@@ -56,6 +56,32 @@ describe('BottomSheet', () => {
 
     expect(lastCallProps.onDismiss).toBe(onDismiss);
   });
+
+  // @gorhom/bottom-sheet defaults `accessible` to true and puts it on the one
+  // view that wraps every child. On iOS that makes the whole sheet a single
+  // accessibility element: UIKit drops every descendant and reads the library's
+  // own "Bottom Sheet" label instead. VoiceOver users reached nothing inside a
+  // sheet, and no testID inside one was findable (SHE-26).
+  //
+  // Jest cannot reproduce the UIKit behaviour itself — collapsing descendants is
+  // something the platform does, not something React Native models — so this
+  // asserts the prop contract that stops it. The on-device accessibility dump in
+  // the task A1 report is the evidence that the contract has the intended effect.
+  it('opts the sheet out of being a single accessibility element', () => {
+    render(
+      <BottomSheet title="New: Skill Trees">
+        <Text>Unlock perks that grow with your journey.</Text>
+      </BottomSheet>
+    );
+
+    const mockedBottomSheetModal = BottomSheetModal as unknown as jest.Mock;
+    const lastCallProps =
+      mockedBottomSheetModal.mock.calls[
+        mockedBottomSheetModal.mock.calls.length - 1
+      ][0];
+
+    expect(lastCallProps.accessible).toBe(false);
+  });
 });
 
 describe('useEmberglowBottomSheet', () => {

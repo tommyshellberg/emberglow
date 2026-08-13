@@ -75,6 +75,7 @@ export default function JournalScreen() {
         {/* Header */}
         <Animated.View entering={riseIn(0)}>
           <ScreenHeader
+            testID="journal-screen"
             title="Journal"
             subtitle="Every quest leaves a mark."
             animate={false}

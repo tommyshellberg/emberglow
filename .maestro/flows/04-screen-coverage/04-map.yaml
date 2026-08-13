@@ -1,82 +1,179 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# MAP SCREEN TEST
+# MAP — RENDER SMOKE
 # =============================================================================
-# Tests the map screen functionality
+# The map tab shows one picture of the kingdom and its name. There is nothing
+# on it to drive: no buttons, no list, no state the flow could change. So this
+# flow proves exactly three things and stops:
 #
-# Verification:
-#   - Map renders correctly
-#   - POI markers display
-#   - Map controls are functional
+#   1. The map tab tap lands on the map route
+#   2. The route rendered its real content — the name the account should see,
+#      and the artwork element itself
+#   3. Navigation back out works
+#
+# Entry state: authenticated, on any tab other than the map. Exit state:
+# unchanged account, sitting on home.
+#
+# -----------------------------------------------------------------------------
+# WHY THIS FILE IS SHORT — AND WHY THE OLD ONE WAS LONGER AND PROVED LESS
+# -----------------------------------------------------------------------------
+# The version this replaces tapped `+` and `-` zoom buttons, looked for a
+# "Your Locations" heading, and swiped the map left and right. None of those
+# exist. `src/app/(app)/map.tsx` renders a title, a `ReactNativeZoomableView`
+# and one `Image` — there are no zoom controls and no points-of-interest list on
+# this screen. Each of those steps was wrapped in `runFlow: when: visible:`, so
+# when the element was absent the block was skipped and the flow stayed green.
+# The two swipes were unconditional but asserted nothing afterwards, and a swipe
+# reporting success on iOS proves only that a touch was dispatched.
+#
+# The zoomable view is also not something a flow can check. It exposes no id, no
+# label and no value, and the picture inside it is larger than the screen, so
+# "did the pan move anything" is not observable from the accessibility tree.
+# Driving it would produce more green commands and no more evidence.
+#
+# -----------------------------------------------------------------------------
+# "VAEDROS KINGDOM" IS NOT UNIQUE TO THIS SCREEN — THE ids ARE WHAT MAKE IT BITE
+# -----------------------------------------------------------------------------
+# The name comes from `getMapNameForQuest` (`map-utils.ts`), which reads
+# `MAP_NAMES` in `src/app/data/maps.ts`. That record has exactly one entry today
+# (`MapId` is the single-member type `'map-1'`), so "Vaedros Kingdom" is the
+# only string the function can return, for this account or any other.
+#
+# HOME renders the same string. `use-home-data.ts` puts `currentMapName` in the
+# quest-deck card's subtitle and `quest-card.tsx` draws it as an eyebrow, so a
+# map-tab tap that was swallowed and left the app on home would satisfy a bare
+# `assertVisible: 'Vaedros Kingdom'` on its own — Maestro's text matching is
+# case-insensitive, so the card's upper-case rendering matches too. Every name
+# assertion below is therefore a conjunction of an id with the text, and the ids
+# used (`map-title`, `map-image`) exist on this route and nowhere else.
+#
+# -----------------------------------------------------------------------------
+# WHAT IS DELIBERATELY NOT ASSERTED
+# -----------------------------------------------------------------------------
+# `map-loading` (the `isLoading || !imageDimensions` branch) is never named. It
+# is the other half of the same `if`, it lasts as long as one HTTP request plus
+# an asset lookup, and a flow that waited for it would be racing it. Waiting for
+# `map-screen` — the id on the loaded branch's root — absorbs the loading state
+# instead of competing with it.
+#
+# WHICH PICTURE is not asserted either, and this is a known gap rather than an
+# oversight. The name and the image come from two different lookups:
+# `getMapNameForQuest` (one name, always) and `getPreRenderedMapForQuest` (31
+# files, keyed by quest number). Past quest 5 a player sees a later drawing
+# still titled "Vaedros Kingdom". This account has completed quest 1 and its
+# follow-up, so that state is not reachable here; it is recorded as a deferred
+# minor in the suite ledger, not chased by this flow.
+#
+# WHETHER THE NAME LOOKUP STILL WORKS is the third gap, and it is the one most
+# able to mislead someone reading a green result. `getMapForQuest`
+# (`map-utils.ts`) returns 'map-1' when it FINDS a match, and returns 'map-1'
+# again from the fallback at the end when it finds nothing — a hit and a total
+# miss produce the same answer. `MAP_NAMES` then turns that into the one name it
+# holds. So a lookup that broke completely and answered 'map-1' for every quest
+# id would still render "Vaedros Kingdom", and the assertion below would still
+# pass. This flow proves the screen shows the right name today; it cannot prove
+# the code that chose the name is working. Nothing available on this screen can,
+# while there is only one map in the data.
 # =============================================================================
 
-# Navigate to Map tab
-- tapOn: 'Map'
+# =============================================================================
+# THE ENTRY CONTRACT — THE MAP IS NOT ALREADY IN FRONT
+# =============================================================================
+# This is what turns the post-condition below from "the anchor is present" into
+# "the anchor BECAME present". React Navigation keeps an inactive tab's screen
+# mounted but takes it out of the accessibility tree, so `map-screen` is absent
+# from every other tab; verified in a live dump on home for this build. Without
+# this line a tap that never moved the app could still be followed by a green
+# `map-screen` assertion if that screen ever stopped detaching.
+#
+# It also states the file's entry requirement: run this flow from any tab except
+# the map. Under `.maestro/run-tests.sh` the preceding coverage flow leaves the
+# device on home.
+- assertNotVisible:
+    id: 'map-screen'
 
 # =============================================================================
-# VERIFY MAP SCREEN LOADS
+# THE MAP TAB
 # =============================================================================
-- assertVisible: 'Map'
+# `map-screen` is the root `View` of the loaded branch of `map.tsx` and belongs
+# to no other route, so it names something that exists only after this tap
+# succeeds. The generous timeout is for what happens behind it: the screen waits
+# on the `useHighestCompletedQuest` request and then on
+# `Image.resolveAssetSource` before it can leave the loading branch. 20s is what
+# `03-fresh-authenticated/04-navigation-tabs.yaml` already spends on this
+# screen.
+- tapOn:
+    id: 'map-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'map-screen'
+    timeout: 20000
 
-# Wait for map to render
-
-# =============================================================================
-# VERIFY MAP CONTROLS
-# =============================================================================
-# Check for zoom controls
-- runFlow:
-    when:
-      visible: '+'
-    commands:
-      - assertVisible: '+'  # Zoom in
-      - assertVisible: '-'  # Zoom out
-
-# =============================================================================
-# VERIFY MAP INTERACTIONS
-# =============================================================================
-# Test zoom in
-- runFlow:
-    when:
-      visible: '+'
-    commands:
-      - tapOn: '+'
-
-# Test zoom out
-- runFlow:
-    when:
-      visible: '-'
-    commands:
-      - tapOn: '-'
+# The home screen is gone. `map-screen` above already implies this on a build
+# where inactive tabs detach — but that detachment is an observed behaviour of
+# React Navigation, not a contract this app states anywhere, and `assertVisible`
+# passes against an element that is on screen but covered. This line names the
+# one failure that would otherwise be invisible: a swallowed tab tap that leaves
+# the app sitting on home. It costs one command.
+- assertNotVisible:
+    id: 'home-header'
 
 # =============================================================================
-# VERIFY POI MARKERS
+# THE SCREEN'S REAL CONTENT
 # =============================================================================
-# Map should show points of interest markers
-# These might not be visible immediately, so this is optional
-- runFlow:
-    when:
-      visible: 'Your Locations'
-    commands:
-      - assertVisible: 'Your Locations'
+# The kingdom name, read off the title chip itself rather than off whatever
+# element on screen happens to carry that string.
+- assertVisible:
+    id: 'map-title'
+    text: 'Vaedros Kingdom'
+
+# The artwork, and its announced name.
+#
+# `map-image` is the id on the `Image` inside the zoomable view, and what it
+# proves is that the ELEMENT is there: the loaded branch rendered, and
+# `RNImage.resolveAssetSource` handed back dimensions for the asset. Without
+# those dimensions `map.tsx` stays on the loading branch and this element does
+# not exist at all, so the line is a real check on the picture's slot in the
+# screen — something the title chip alone does not give, since the chip renders
+# either way.
+#
+# It is NOT a check that the picture actually drew. The accessibility element
+# appears as soon as the component mounts, and its size is read off the bundled
+# asset entry rather than off a decoded image, so a JPEG that failed to decode
+# would leave the id, the label and the bounds exactly where they are and this
+# line would stay green. A blank map is not something this flow — or any
+# assertion available on this screen — can catch.
+#
+# The text here is the picture's accessibility label, and it is a DIFFERENT
+# string from the title above: `map.tsx` builds it as `${mapName} map`. Both now
+# come from one `getMapNameForQuest` call, which is what commit `b843668` fixed
+# — the label used to be the hardcoded "Vaedros map" while the visible title
+# said "Vaedros Kingdom", so a screen reader announced a name the user could not
+# see. This line is what would go red if that regressed: Maestro matches the
+# whole string, so "Vaedros map" does not satisfy "Vaedros Kingdom map".
+- assertVisible:
+    id: 'map-image'
+    text: 'Vaedros Kingdom map'
 
 # =============================================================================
-# TEST MAP GESTURES
+# BACK TO HOME
 # =============================================================================
-# Pan the map
-- swipe:
-    start: 60%, 50%
-    end: 40%, 50%
-    duration: 500
-
-
-# Pan back
-- swipe:
-    start: 40%, 50%
-    end: 60%, 50%
-    duration: 500
-
+# By the tab bar, not by `- back`: a hardware-style back on iOS reports success
+# and does nothing.
+#
+# The map writes nothing and reads one cached request, so the only state this
+# flow owes the flows after it is the screen it leaves them on. Home is what the
+# rest of `04-screen-coverage` expects.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
 
 # =============================================================================
-# MAP TEST COMPLETE
+# END
 # =============================================================================
+# Nothing created, nothing consumed, no server write. Same account, sitting on
+# home.

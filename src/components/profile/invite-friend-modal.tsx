@@ -1,4 +1,4 @@
-import { type BottomSheetModal } from '@gorhom/bottom-sheet';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import React from 'react';
 import { Controller } from 'react-hook-form';
 

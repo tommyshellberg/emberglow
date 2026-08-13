@@ -1,66 +1,260 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# PROFILE VERIFICATION TEST - Fresh Authenticated User
+# PROFILE VERIFICATION
 # =============================================================================
-# Verifies the profile screen shows correct values after onboarding + conversion
+# The suite's only assertion of the character's NUMBERS. Everything below is a
+# value check: level, XP, quests completed, streak, hero identity. Navigation
+# to the profile tab is proved by 04-navigation-tabs.yaml and is only a means
+# to an end here — the anchor this file waits on happens to double as the
+# arrival proof, which is why there is no separate navigation assertion.
 #
-# Expected State:
-#   - User is authenticated (not provisional)
-#   - Level: 1
-#   - XP: 50 (from first quest)
-#   - Quests completed: 1
-#   - Streak: Day 1
-#   - Character name: MaestroHero
+# -----------------------------------------------------------------------------
+# ⚠ RUN ORDER — THIS FILE RUNS **LAST** IN PHASE 03, DESPITE THE `01-` PREFIX
+# -----------------------------------------------------------------------------
+# It must run AFTER `02-quest-second-part-1.yaml` and `02-quest-second-part-2.yaml`.
+# `9 / 150 XP` is only true once the SECOND quest is complete; after the
+# onboarding quest alone it is `0 / 150 XP` (which is what
+# `02-signup/02-verify-authenticated.yaml` asserts at that earlier point).
+# Runner order for phase 03 is therefore:
+#     02-quest-second-part-1  ->  wait 135s  ->  02-quest-second-part-2
+#     ->  04-navigation-tabs  ->  01-profile-verification
+# The filename is left alone deliberately: renaming it is a separate change and
+# the runner drives an explicit list, not a glob.
+#
+# -----------------------------------------------------------------------------
+# ENTRY STATE
+# -----------------------------------------------------------------------------
+# Authenticated as ${TEST_EMAIL}, hero MaestroHero / alchemist, Level 2,
+# 109 total XP, streak 1, two completed quests (quest-1, quest-1b), the next
+# story decision armed on home. 04-navigation-tabs.yaml leaves the app on the
+# home screen, but the opening tab tap makes this file work from any tab.
+#
+# READ-ONLY with respect to that state: no quest is started, the decision
+# slider is never touched, and `streak-display` is asserted but NEVER tapped —
+# it is a Pressable that pushes /streak-celebration (stats-card.tsx:99-108).
+#
+# -----------------------------------------------------------------------------
+# WHERE EVERY NUMBER COMES FROM — all checked-in data, nothing observed
+# -----------------------------------------------------------------------------
+#   data/quests.ts:23        quest-1 pays a FLAT `reward: {xp: 100}` (not
+#                            duration-derived, so the dev-mode duration
+#                            override does not shrink it)
+#   quest-1a / quest-1b      `calculateRewardFromDuration(3)` = 3 * 3 = 9
+#   level-progression.js     L1 totalXPRequired 0 · L2 100 · L3 250
+#   character-store.ts:85    levels up on `>=`, so 100 lands exactly on L2
+#   profile-card.tsx:63-71   xp     = totalXP - currentLevel.totalXPRequired
+#                            xpNext = next.totalXPRequired - current.totalXPRequired
+#   xp-bar.tsx:74-86         renders `Level {level}` and `{xp} / {xpNext} XP`
+#
+# 100 + 9 = 109 total  ->  109 - 100 = 9  and  250 - 100 = 150  ->  `9 / 150 XP`.
+# Confirmed against Mongo for this account: `level: 2, currentXP: 109`.
+#
+# A curve change, a reward change, or a client/server XP disagreement SHOULD
+# fail this flow. If it ever does, do not edit the expectation to match the
+# app — find out which side moved first.
+#
+# -----------------------------------------------------------------------------
+# WHY THE XP ASSERTION IS A FULL STRING AND MUST STAY ONE
+# -----------------------------------------------------------------------------
+# Maestro 2.0.10 matches text as a FULL-STRING regex. `'9 / 150 XP'` therefore
+# binds to that exact readout. Writing it as `'.*9 / 150 XP.*'` would ALSO
+# match `109 / 150 XP` — i.e. it would keep passing under exactly the
+# lifetime-total-vs-level-relative confusion this assertion exists to catch.
+# XPBar shows progress toward the NEXT level, never the lifetime total.
+#
+# Proved on device rather than assumed, using the level readout (whose real
+# value `LEVEL 2` is a superstring of `EVEL 2`, the same shape as `109 / 150 XP`
+# being a superstring of `9 / 150 XP`):
+#     text: '.*EVEL 2.*'  -> PASSES against "LEVEL 2"
+#     text: 'EVEL 2'      -> FAILS
+# Do not "fix" any assertion in this file into the wildcard form.
+#
+# -----------------------------------------------------------------------------
+# EVERY SELECTOR THIS FILE USED TO CARRY WAS DEAD — do not reinstate any of them
+# -----------------------------------------------------------------------------
+#   tapOn text 'Profile' index 0   Tab ids are declared as `tabBarButtonTestID`
+#                                  (`(app)/_layout.tsx:155-205`), and the tab's
+#                                  a11y text is "Profile, tab, 4 of 17" — no
+#                                  full-string match. The only element whose
+#                                  whole text is 'Profile' is the ScreenHeader
+#                                  title ON the profile screen, so `index: 0`
+#                                  was an ordering gamble on an element that is
+#                                  not reachable until after the tap succeeds.
+#   text 'Level 1'                 Wrong by construction: the FIRST quest
+#                                  already promotes to Level 2.
+#   text '50'                      There has never been a 50-XP state — quest-1
+#                                  pays a flat 100.
+#   text '1'  /  text 'XP'         Bare tokens that bind to whatever element
+#                                  happens to expose exactly that string.
+#                                  Verified: `'1'` FAILS on this screen (the
+#                                  streak digits are not their own element —
+#                                  see the stats block below) while the home
+#                                  screen's header streak badge IS
+#                                  `accessibilityText=1` at [373,82][414,107].
+#                                  A bare-token assertion that migrates between
+#                                  screens like that proves nothing.
+#   'Leaderboard' / 'Achievements' Verified failing: the ActionCards rows are
+#                                  accessible containers reading
+#                                  "Leaderboard, See how others are doing" and
+#                                  "Achievements, Track your progress". They
+#                                  are also link affordances, not profile
+#                                  values, and belong to the screen-coverage
+#                                  flow rather than here.
 # =============================================================================
 
-# Navigate to Profile tab
+# =============================================================================
+# DEV BUILD ONLY — CLEAR THE LogBox TOAST OFF THE TAB BAR
+# =============================================================================
+# MANDATORY, not defensive. The dev-build LogBox toast sits at [10,844][420,912]
+# and the tab bar at [0,842][430,932]; `profile-tab` is [258,843][344,898], so
+# its centre (301,870) is underneath the toast. A covered `tapOn` reports
+# SUCCESS on iOS while the app does not move — and worse, it opens the
+# full-screen LogBox inspector, whose Dismiss/Minimize footer then sits on top
+# of the tab row.
+#
+# Same block as 04-navigation-tabs.yaml and 02-quest-second-part-1.yaml. It
+# matches LogBox's own shape (a count badge that reads `!` for one log and the
+# number beyond that, joined to the message), not the message text, so it is
+# independent of whatever the app happened to log. A release build has no
+# LogBox, nothing matches, and the whole block is skipped.
+#
+# Deleting this block WITH A TOAST ON SCREEN fails at the arrival wait below;
+# restoring it goes green against the same toast. Both directions were watched
+# on 2026-07-26. When repeating that mutation, note that Metro's watcher covers
+# the project directory and a Fast Refresh calls `LogBox.clearAllLogs()` —
+# confirm the toast and run with NO file edit in between, or the deletion
+# passes for the wrong reason.
+- runFlow:
+    when:
+      visible: '(!|\d+), .*'
+    commands:
+      - tapOn: '(!|\d+), .*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Dismiss'
+                commands:
+                  - tapOn: 'Dismiss'
+- assertNotVisible: '(!|\d+), .*'
+
+# =============================================================================
+# PROFILE TAB
+# =============================================================================
+# `profile-xp-level` is the post-condition for the tap as well as the first
+# value anchor: it is a child id of the XPBar in the profile hero card
+# (`profile-card.tsx:209-215`) and inactive tab screens genuinely detach from
+# the iOS hierarchy, so it cannot be satisfied from any other tab. A swallowed
+# tab tap fails here rather than later.
+#
+# NOT `profile-xp`: `profile-card.tsx:210` sets that testID on the XPBar
+# container and RN collapses the view — it never reaches the hierarchy. Only
+# `profile-xp-level`, `profile-xp-xp` and `xp-bar-fill` are addressable.
+#
+# `extendedWaitUntil` rather than `assertVisible` because the card mounts
+# behind the tab transition; the values themselves come from the persisted
+# character store and are correct on first render.
 - tapOn:
-    text: 'Profile'
-    index: 0  # Tab button
+    id: 'profile-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-xp-level'
+    timeout: 15000
 
 # =============================================================================
-# VERIFY CHARACTER INFORMATION
+# LEVEL AND XP — the assertions this whole file exists for
 # =============================================================================
-# Character name from onboarding
+# Pinned by id AND text so neither can drift onto another element.
+#
+# Casing: the source strings are `Level {level}` and `{xp} / {xpNext} XP`
+# (xp-bar.tsx:79,84); `xp-bar.tsx:117` puts `textTransform: 'uppercase'` on the
+# level Text, and iOS reports the TRANSFORMED string, so the hierarchy reads
+# `LEVEL 2`. Written as the tree reports it, matching the sibling assertion in
+# 02-signup/02-verify-authenticated.yaml. Matching is case-INsensitive on
+# Maestro 2.0.10, so `Level 2` would bind identically — the casing is
+# documentation, not the thing making this bite.
+#
+# Watched failing on the live screen, one variable each:
+#   id profile-xp-level  text 'LEVEL 3'        -> RED
+#   id profile-xp-xp     text '109 / 150 XP'   -> RED   (the lifetime-total
+#                                                        spelling — the exact
+#                                                        confusion being caught)
+- assertVisible:
+    id: 'profile-xp-level'
+    text: 'LEVEL 2'
+- assertVisible:
+    id: 'profile-xp-xp'
+    text: '9 / 150 XP'
+
+# =============================================================================
+# HERO IDENTITY
+# =============================================================================
+# `MaestroHero` is typed by 01-onboarding/onboarding-part-1.yaml and survives
+# the magic-link conversion (completeSignIn overwrites the character store from
+# the server's copy). Full-string, so it also catches the trailing space the
+# keyboard used to type into the name field.
+#
+# The eyebrow is a SECOND, independent render of the same level — it comes from
+# `character.level` through EyebrowLabel (`profile-card.tsx:205-207`), not
+# through XPBar's arithmetic — and it is the only place in phase 03 that
+# asserts the character CLASS. EyebrowLabel uppercases its own text and iOS
+# reports the transformed string; the separator is U+00B7 MIDDLE DOT.
 - assertVisible: 'MaestroHero'
+- assertVisible: 'LEVEL 2 · ALCHEMIST'
 
 # =============================================================================
-# VERIFY EXACT LEVEL
+# STATS TILES
 # =============================================================================
+# Each tile in `stats-card.tsx:71-116` is `accessible={true}` with an
+# `accessibilityLabel`, so iOS collapses the digits and the caption into ONE
+# element whose entire text is the label. That is why there is no element
+# reading just `2` or just `1` to assert against, and why the tile testID sits
+# on the container rather than on the number: the digits render through
+# `AnimatedNumber` and trail the real value during the count-up, whereas the
+# label carries the final value from first render.
+#
+#   `2 quests completed`  <- user?.totalQuestsCompleted ?? completedQuests.length
+#                            (profile.tsx:97). This account has no server
+#                            counter, so it is the local completed-quest list:
+#                            quest-1 + quest-1b.
+#   `1 day streak`        <- useCharacterStore.dailyQuestStreak. Pinned by id
+#                            too, since `streak-display` is the one id on this
+#                            screen 04-navigation-tabs.yaml also uses and the
+#                            text is what makes this assertion different from
+#                            that flow's existence check.
+#
+# ASSERTED, NEVER TAPPED — `streak-display` is a Pressable that pushes
+# /streak-celebration, which would leave the app off the profile screen.
+#
+# `2 minutes saved` is deliberately NOT asserted. It sums `durationMinutes`
+# over the completed-quest records, and those records carry the SHE-28 dev-mode
+# value (1) while every other screen renders the template's 2. Asserting it
+# would pin this flow to a known, ticketed inconsistency and break it the day
+# SHE-28 is fixed. The count and the streak have no such ambiguity.
+#
+# Watched failing, one variable each:
+#   '3 quests completed'                      -> RED
+#   id streak-display  text '2 day streak'    -> RED
+- assertVisible: '2 quests completed'
 - assertVisible:
-    text: 'Level 1'
+    id: 'streak-display'
+    text: '1 day streak'
 
 # =============================================================================
-# VERIFY EXACT XP VALUE
+# HAND BACK TO THE HOME SCREEN
 # =============================================================================
-# Should be 50 XP from completing the first quest
-- assertVisible:
-    text: '50'
-
-# Verify XP label context
-- assertVisible:
-    text: 'XP'
-
-# =============================================================================
-# VERIFY STREAK
-# =============================================================================
-# Should show Day 1 streak
-- assertVisible:
-    text: '1'
-
-# Verify streak context
-- assertVisible:
-    text: 'Day Streak'
-
-# =============================================================================
-# VERIFY PROFILE ACTIONS
-# =============================================================================
-# Verify key profile buttons/sections are present
-- assertVisible: 'Leaderboard'
-- assertVisible: 'Achievements'
-
-# =============================================================================
-# PROFILE VERIFICATION COMPLETE
-# =============================================================================
-# All values match expected state for fresh authenticated user!
+# Same convention as 02-signup/02-verify-authenticated.yaml and
+# 04-navigation-tabs.yaml: end on home so the next phase starts from a known
+# screen rather than from whichever tab the last assertion needed. `home-header`
+# exists nowhere but home, so this pair also discriminates.
+#
+# The account is unchanged by this flow: still Level 2 / 109 XP / streak 1,
+# two completed quests, the two-choice story decision still armed.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000

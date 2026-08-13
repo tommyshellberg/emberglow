@@ -37,6 +37,7 @@ type ChipProps = {
    */
   selected?: boolean;
   onPress?: () => void;
+  testID?: string;
   accessibilityRole?: AccessibilityRole;
   accessibilityLabel?: string;
   accessibilityHint?: string;
@@ -64,6 +65,7 @@ export function Chip({
   tone = 'default',
   selected,
   onPress,
+  testID,
   accessibilityRole,
   accessibilityLabel,
   accessibilityHint,
@@ -75,6 +77,7 @@ export function Chip({
   if (selected === undefined) {
     return (
       <Container
+        testID={testID}
         className={twMerge(
           'self-start px-3 py-1 rounded-full bg-gray-200/20',
           className
@@ -108,6 +111,7 @@ export function Chip({
 
   return (
     <Container
+      testID={testID}
       style={containerStyle}
       onPress={onPress}
       accessibilityRole={accessibilityRole}

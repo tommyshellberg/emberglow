@@ -118,6 +118,8 @@ function AccountSection({
     <>
       <View style={styles.card}>
         <ListItem
+          testID="settings-row-account"
+          subtitleTestID="settings-account-email"
           leading={
             <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
           }
@@ -146,7 +148,12 @@ function AccountSection({
 
       {user && !isGuest && (
         <View style={styles.logoutWrapper}>
-          <Button variant="secondary" label="Logout" onPress={onLogout} />
+          <Button
+            testID="settings-logout-button"
+            variant="secondary"
+            label="Logout"
+            onPress={onLogout}
+          />
         </View>
       )}
       {isGuest && (
@@ -163,6 +170,7 @@ function AccountSection({
 }
 
 type TimeSubRowProps = {
+  testID: string;
   showPicker: boolean;
   onRequestShowPicker: () => void;
   value: Date;
@@ -173,6 +181,7 @@ type TimeSubRowProps = {
 /** Shared "Reminder Time" / "Streak Warning time" nested row — value pill that
  * swaps for the native DateTimePicker in place when tapped. */
 function TimeSubRow({
+  testID,
   showPicker,
   onRequestShowPicker,
   value,
@@ -183,6 +192,7 @@ function TimeSubRow({
     <>
       <View style={styles.divider} />
       <ListItem
+        testID={testID}
         style={styles.subRow}
         title="Reminder Time"
         trailing={
@@ -258,6 +268,7 @@ function PreferencesSection({
 
       <View style={styles.card}>
         <ListItem
+          testID="settings-row-timezone"
           leading={<Globe size={ICON_SIZE} color={colors.text.accent} />}
           title="Timezone"
           subtitle={selectedTimezoneLabel}
@@ -273,6 +284,7 @@ function PreferencesSection({
 
         <View style={styles.divider} />
         <ListItem
+          testID="settings-row-notifications"
           leading={
             <Feather name="mic" size={ICON_SIZE} color={colors.text.accent} />
           }
@@ -290,6 +302,7 @@ function PreferencesSection({
           subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
           trailing={
             <Switch
+              testID="settings-toggle-notifications"
               checked={notificationsEnabled}
               onChange={onNotificationsToggle}
             />
@@ -301,6 +314,7 @@ function PreferencesSection({
           <>
             <View style={styles.divider} />
             <ListItem
+              testID="settings-row-daily-reminder"
               leading={
                 <Feather
                   name="clock"
@@ -312,6 +326,7 @@ function PreferencesSection({
               subtitle={dailyReminderEnabled ? 'Enabled' : 'Disabled'}
               trailing={
                 <Switch
+                  testID="settings-toggle-daily-reminder"
                   checked={dailyReminderEnabled}
                   onChange={onToggleReminder}
                 />
@@ -320,6 +335,7 @@ function PreferencesSection({
 
             {dailyReminderEnabled && (
               <TimeSubRow
+                testID="settings-row-reminder-time"
                 showPicker={showTimePicker}
                 onRequestShowPicker={onRequestShowTimePicker}
                 value={reminderTimeValue}
@@ -330,11 +346,13 @@ function PreferencesSection({
 
             <View style={styles.divider} />
             <ListItem
+              testID="settings-row-streak-warning"
               leading={<Flame size={ICON_SIZE} color={colors.text.accent} />}
               title="Streak Warning"
               subtitle={streakWarningEnabled ? 'Enabled' : 'Disabled'}
               trailing={
                 <Switch
+                  testID="settings-toggle-streak-warning"
                   checked={streakWarningEnabled}
                   onChange={onToggleStreakWarning}
                 />
@@ -343,6 +361,7 @@ function PreferencesSection({
 
             {streakWarningEnabled && (
               <TimeSubRow
+                testID="settings-row-streak-warning-time"
                 showPicker={showStreakTimePicker}
                 onRequestShowPicker={onRequestShowStreakTimePicker}
                 value={streakTimeValue}
@@ -577,6 +596,7 @@ function TimezoneModalList({
       {TIMEZONES.map((timezone) => (
         <ListItem
           key={timezone.value}
+          testID={`timezone-option-${timezone.value}`}
           title={timezone.label}
           trailing={
             selectedTimezone === timezone.value ? (

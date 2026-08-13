@@ -58,6 +58,10 @@ jest.mock('@/components/login/social-sign-in-buttons', () => {
           onPress={() => onSuccess('app', 'existing-account-login', 'google')}
         />
         <Pressable
+          testID="mock-social-success-onboarding-target"
+          onPress={() => onSuccess('onboarding', 'created', 'google')}
+        />
+        <Pressable
           testID="mock-social-error-email-in-use"
           onPress={() => onError('email-in-use')}
         />
@@ -78,6 +82,7 @@ jest.mock('react-native-flash-message', () => ({
 // Mock stores
 const mockOnboardingStore = {
   setCurrentStep: mockSetOnboardingStep,
+  isOnboardingComplete: jest.fn(() => false),
 };
 
 jest.mock('@/store/onboarding-store', () => ({
@@ -114,6 +119,14 @@ describe('QuestCompletedSignupScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // jest.clearAllMocks() above only clears call history — it does not
+    // undo a prior .mockReturnValue()/.mockImplementation() (that's
+    // mockReset's job, which would also wipe every other mock in this
+    // file). mockOnboardingStore.isOnboardingComplete is a module-level
+    // jest.fn() shared across every test, so without re-establishing its
+    // default here, a test that calls .mockReturnValue(true) would leak
+    // that value into every later test that doesn't set it explicitly.
+    mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
     mockUseOnboardingStore.mockImplementation((selector) =>
       selector(mockOnboardingStore as any)
     );
@@ -308,6 +321,36 @@ describe('QuestCompletedSignupScreen', () => {
       });
     });
 
+    // The screen used to delegate its exit entirely to the conversion gate.
+    // That relies on a store write to re-render the resolver, and
+    // `completeSignIn` swallows a failed `getUserDetails()` while still
+    // resolving 'app' — so neither store is written, auth status was already
+    // 'signIn', nothing re-renders, and the user sits on the wall holding a
+    // valid real account. Navigating on the target the callback already
+    // carries costs one line (same shape as login-form.tsx).
+    it('lands a converted user in the app rather than waiting for the gate', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-google'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
+      });
+    });
+
+    // The target is not always 'app': a social identity that resolves to a
+    // hero-less account is routed back through onboarding. Hardcoding '/(app)/'
+    // would strand that user on a Play screen with no character.
+    it('honours an onboarding target instead of assuming the app', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-onboarding-target'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
+      });
+    });
+
     it('fires signup_completed with the provider on a successful apple sign-in', async () => {
       const { getByTestId } = render(<QuestCompletedSignupScreen />);
 
@@ -361,6 +404,53 @@ describe('QuestCompletedSignupScreen', () => {
           })
         );
       });
+    });
+  });
+
+  describe('Conversion gate variant', () => {
+    it("shows the player's real standing when arriving via the conversion gate (onboarding complete)", () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      // Extend the character fixture for this test: a leaked veteran. Uses the
+      // file's existing mockUseCharacterStore double (defined at ~line 109),
+      // mirroring the beforeEach wiring at ~line 121.
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({
+          character: { ...mockCharacterFixture, level: 5, currentXP: 1012 },
+        })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Level 5 hero')).toBeTruthy();
+      expect(getByText('1012 XP')).toBeTruthy();
+      expect(queryByText('Quest one · complete')).toBeNull();
+    });
+
+    // The gate path's copy makes a FACTUAL CLAIM about the player's standing,
+    // so its fallbacks can't be the harmless generic ones the normal path
+    // uses: `?? 1` / `?? 0` would tell a level-40 veteran whose character
+    // hasn't loaded that they are a level 1 hero with 0 XP. Falling back to
+    // the first-quest framing is at worst vague; the alternative is wrong.
+    it('does not assert a standing it cannot know when the character has not loaded', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({ character: null })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(queryByText('Level 1 hero')).toBeNull();
+      expect(queryByText('0 XP')).toBeNull();
+      expect(getByText('Quest one · complete')).toBeTruthy();
+    });
+
+    it('keeps the first-quest copy for the normal onboarding arrival', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Quest one · complete')).toBeTruthy();
+      expect(queryByText(/hero$/)).toBeNull();
     });
   });
 });

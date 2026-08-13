@@ -59,6 +59,7 @@ export default function CustomQuestScreen() {
 
       <ScreenContainer>
         <ScreenHeader
+          testID="custom-quest-screen"
           title={SCREEN_TITLE}
           subtitle={SCREEN_SUBTITLE}
           showBackButton

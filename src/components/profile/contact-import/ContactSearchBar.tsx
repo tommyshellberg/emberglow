@@ -18,6 +18,7 @@ export const ContactSearchBar: React.FC<ContactSearchBarProps> = ({
       <View style={styles.field}>
         <Search size={18} color={colors.text.muted} />
         <TextInput
+          testID="invite-search-input"
           value={value}
           onChangeText={onChangeText}
           placeholder="Search contacts"

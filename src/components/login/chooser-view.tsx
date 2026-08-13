@@ -65,7 +65,7 @@ export function ChooserView({
   const copy = LOGIN_COPY[intent];
 
   return (
-    <View>
+    <View testID="login-chooser">
       <Text style={styles.title}>{copy.chooserTitle}</Text>
       <Text style={styles.body}>{copy.chooserSubtitle(heroName)}</Text>
 

@@ -104,12 +104,14 @@ export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
 
         <View style={styles.actions}>
           <Button
+            testID="branching-announcement-restart"
             label={isResetting ? 'Resetting...' : 'Restart at Branching Point'}
             onPress={handleRestart}
             disabled={isResetting}
             fullWidth
           />
           <Button
+            testID="branching-announcement-continue"
             label="Continue Current Journey"
             variant="ghost"
             onPress={handleContinue}

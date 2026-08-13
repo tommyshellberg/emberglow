@@ -1,0 +1,381 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# INVITE A FRIEND — DEEP
+# =============================================================================
+# One surface, two steps, and the real values on both:
+#
+#   1. THE PROFILE FRIENDS SECTION — the account has no friends, the section
+#      says so with a live count, and it offers the one control that opens the
+#      invite sheet on a friendless account.
+#   2. THE INVITE SHEET, STEP 1 (the contacts list) — its two buttons, and the
+#      fact that the "invite the people you ticked" button is DISABLED because
+#      nothing is ticked.
+#   3. THE INVITE SHEET, STEP 2 (the manual email form) — reached by the
+#      button, the address typed into it is read back out of the field, and the
+#      send button flips from disabled to enabled because of that typing.
+#
+# NOTHING IS SENT. See "WHY NO INVITE IS SENT" below — this is a deliberate
+# stop, not an oversight.
+#
+# Entry state: authenticated, on any tab EXCEPT profile. Exit state: unchanged
+# account, sitting on home with the STORY card front, no sheet open, still zero
+# friends and zero invitations. No server write.
+#
+# Same-day assumption, shared with the other coverage flows: the announcement
+# day-slot is spent for this account, so no announcement sheet meets this flow.
+# A cross-day run could meet one; it would fail loudly at the `invite-sheet`
+# wait below (an announcement sheet does not carry that id) rather than quietly.
+#
+# -----------------------------------------------------------------------------
+# WHY NO INVITE IS SENT
+# -----------------------------------------------------------------------------
+# The brief allowed one invite to a fresh `@example.com` address if sending were
+# cheap and non-destructive. It is not non-destructive:
+#
+# `sendBulkInvites` (`use-friend-management.ts:279`) posts to the friends bulk
+# invite endpoint, and the resulting PENDING OUTGOING INVITATION comes straight
+# back from `getUserInvitations('pending')` into `combinedData`
+# (`use-friend-management.ts:99-140`). The profile friends section then leaves
+# its empty branch for good on this account: `Friends · 0` becomes
+# `Friends · 1`, the empty card disappears, and with it
+# `invite-friends-empty-cta` — which is this flow's own entry control
+# (`friends-list.tsx:98` vs `:150`). One send would make this file unable to run
+# a second time, and would hand the next flow on the chain a different profile
+# screen.
+#
+# So the flow drives the form to the last state before the network call and
+# stops there. What is NOT covered as a result, honestly: the sending spinner,
+# the results summary (`InviteResultsSummary`), and the server contract itself.
+# Covering those needs a throwaway chain, not this one.
+#
+# -----------------------------------------------------------------------------
+# WHY THIS FILE ENTERS FROM THE PROFILE AND NOT FROM THE CO-OP MENU
+# -----------------------------------------------------------------------------
+# The same sheet has a second entry, the `Add Friends` row on the cooperative
+# quest menu. On the Release binary that menu has no in-app route at all — the
+# button above it is a paywall trigger, and `06-coop-ui.yaml` reaches the menu
+# by deep link for that reason. Using it here would put a second file behind the
+# same workaround for no extra coverage: it is the same `ContactsImportModal`
+# either way.
+#
+# -----------------------------------------------------------------------------
+# THE THREE WAYS THIS SHEET LIES TO A FLOW (all three seen live, this session)
+# -----------------------------------------------------------------------------
+# a) IT DOES NOT TRAP FOCUS. With the sheet up, the whole profile screen and the
+#    tab bar stay in the accessibility tree behind a full-screen backdrop
+#    (`Bottom sheet backdrop`, `[0,59][393,852]`). A `tapOn` aimed at anything
+#    behind it reports success while the touch lands on the scrim — and the
+#    scrim CLOSES the sheet (`bottom-sheet.tsx`, `pressBehavior="close"`). Every
+#    tap below is therefore paired with a post-condition that only the intended
+#    action can produce.
+# b) THE SHEET MOVES WHEN THE KEYBOARD OPENS. Measured here: at rest its top
+#    edge is y=255; with the keyboard up it is y=486 on the email step and
+#    y=565 on the contacts step. Bounds read before the keyboard appeared are
+#    stale by the time a tap is dispatched.
+# c) THE EMAIL FIELD SITS UNDER THE KEYBOARD. `invite-email-input` is at
+#    `[26,703][367,752]` and the keyboard starts at y=561. A `tapOn` on the
+#    field is a green no-op that presses a keyboard key: doing it typed a
+#    LEADING SPACE into the field (the tap landed on the space bar) and the
+#    echo assertion below caught it. The field autofocuses
+#    (`ManualEmailView.tsx:76`), so `inputText` alone is both sufficient and
+#    correct — do not add a tap.
+#
+# -----------------------------------------------------------------------------
+# WHAT THIS FILE DELIBERATELY DOES NOT TOUCH
+# -----------------------------------------------------------------------------
+# - THE CONTACTS BY NAME. The rows are the iOS simulator's own address book
+#   (Anna Haro, John Appleseed, …) with per-simulator UUIDs in their ids, so
+#   they are matched by id PATTERN and never by name or UUID. One row IS ticked
+#   and then unticked below — see that block for why ticking is safe and why
+#   the untick is mandatory rather than tidiness.
+# - SENDING TO THE TICKED CONTACTS. That needs a tap on
+#   `invite-select-contacts-button`, which runs `handleSendInvites`
+#   (`ContactsImportModal.tsx:216`) — a real bulk invite to Apple's sample
+#   addresses. Never tapped here.
+# - THE SEARCH FIELD, beyond checking it is there. Typing into it works, but
+#   `searchQuery` lives in `ContactsImportModal` and is only reset by the
+#   sheet's `dismiss()` ref method, which nothing calls when the backdrop
+#   closes the sheet. A filter left in the box would survive into the next run
+#   and quietly empty the list; erasing it again proved unreliable against a
+#   sheet that re-lays-out under the keyboard (one attempt closed the sheet).
+#   Not worth the coverage.
+# - THE PERMISSION BRANCHES. `EmptyContactsView` and `PermissionDeniedView` are
+#   the other two ways step 1 can render. Reaching either needs the contacts
+#   permission revoked, which raises a NATIVE permission alert that blocks the
+#   Maestro driver. This simulator has the permission granted, which is why the
+#   contacts branch is the one asserted below.
+# =============================================================================
+
+# =============================================================================
+# THE ENTRY CONTRACT — THE PROFILE IS NOT ALREADY IN FRONT
+# =============================================================================
+# An inactive tab's screen is mounted but out of the iOS accessibility tree, so
+# `profile-screen` is absent from every other tab. This line states the file's
+# entry requirement (start from any tab but profile) and it is what turns the
+# wait below into "the anchor BECAME present".
+- assertNotVisible:
+    id: 'profile-screen'
+- tapOn:
+    id: 'profile-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
+
+# =============================================================================
+# THE FRIENDS SECTION
+# =============================================================================
+# The scroll is mandatory: the friends section is the last block on the profile
+# and starts below the fold. `scrollUntilVisible` IS an assertion — it fails the
+# flow if the control never appears — and `centerElement` keeps the button clear
+# of the tab bar, which starts at y=758 and would otherwise swallow the tap.
+- scrollUntilVisible:
+    element:
+      id: 'invite-friends-empty-cta'
+    direction: DOWN
+    centerElement: true
+    visibilityPercentage: 100
+
+# THE LIVE COUNT. `EyebrowLabel` uppercases what `friends-list.tsx:93` builds
+# from `combinedData.length`, so this string carries a real number, not copy:
+# friends AND pending invitations in either direction are counted. It is 0 on a
+# single-account chain and it is the line that goes red the day this flow (or
+# anything else on the chain) leaves an invitation behind.
+- assertVisible: 'FRIENDS · 0'
+
+# The empty card's own headline and its CTA. The card renders only under
+# `combinedData.length === 0` (`friends-list.tsx:150`), so both lines are also
+# saying WHICH branch of the friends section is on screen. The button is named
+# by id AND label: the other route to this sheet is a different button with a
+# different label (`+ Invite`, `friends-list.tsx:99-107`) that exists only in
+# the branch this account can never reach.
+- assertVisible: 'Bring your circle along'
+- assertVisible:
+    id: 'invite-friends-empty-cta'
+    text: 'Invite friends'
+
+# =============================================================================
+# OPEN THE SHEET
+# =============================================================================
+# `invite-sheet` is the wrapper `ContactsImportModal` puts around whichever step
+# is showing (`ContactsImportModal.tsx`, the `View testID="invite-sheet"`), and
+# no other screen has it. Asserting it absent first is what makes the wait mean
+# "it appeared" rather than "it was already there".
+- assertNotVisible:
+    id: 'invite-sheet'
+- tapOn:
+    id: 'invite-friends-empty-cta'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-sheet'
+    timeout: 15000
+
+# =============================================================================
+# STEP 1 — THE CONTACTS LIST
+# =============================================================================
+# WHICH `invite-add-manual-button` IS THIS? The id exists twice in source —
+# `ContactsList.tsx:135` and `EmptyContactsView.tsx:65` — and only one can be on
+# screen. `present()` calls `checkPermissionsAndLoadContacts()`, which reads the
+# permission with `getPermissionsAsync()` (it does NOT prompt) and, when it is
+# granted, loads the address book and renders `ContactsList`. This simulator has
+# it granted, so the button below is the ContactsList one. The contact rows are
+# the proof of that, which is why they are asserted first: on the other branch
+# there are no rows and the button would be the EmptyContactsView one.
+#
+# The rows are matched by id pattern. Their ids embed per-simulator contact
+# UUIDs and their labels are Apple's sample names, so neither is a thing to pin.
+- assertVisible: 'Invite Friends'
+- assertVisible:
+    id: 'invite-search-input'
+- assertVisible:
+    id: 'contact-item-.*'
+
+# THE DISABLED BUTTON, AND WHY THAT IS THE INTERESTING HALF. `ContactsList.tsx`
+# gives this one button two labels and two states from `selectedCount`
+# (`:124-133`): with nothing ticked it reads `Select Contacts` and is disabled;
+# tick one and it becomes `Invite 1 Contact` and enabled. Nothing is ticked
+# here, so both halves are pinned — the label AND `enabled: false`.
+#
+# Not a vacuous line: the same assertion with `enabled: true` was run against
+# this exact screen and FAILED, so the filter can tell the two states apart.
+- assertVisible:
+    id: 'invite-select-contacts-button'
+    text: 'Select Contacts'
+    enabled: false
+- assertVisible:
+    id: 'invite-add-manual-button'
+    text: 'Add Manual Contact'
+    enabled: true
+
+# TICK ONE CONTACT — THE REAL STATE CHANGE ON THIS STEP.
+#
+# What ticking does and does not do: `handleContactSelect`
+# (`ContactsImportModal.tsx:197-210`) only flips an entry in the local
+# `selectedContacts` map. It sends nothing. Sending needs the button above, and
+# this file never taps it.
+#
+# The row is chosen by id pattern, so no simulator UUID and no person's name is
+# pinned. Whichever row Maestro matches first is fine, and the flow does not
+# have to trust that it matched the SAME row twice either: two different rows
+# would leave the count at 2, the label would read `Invite 2 Contacts`, and the
+# untick assertion below would go red.
+- tapOn:
+    id: 'contact-item-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-select-contacts-button'
+      text: 'Invite 1 Contact'
+      enabled: true
+    timeout: 10000
+
+# UNTICK IT AGAIN, AND THIS IS NOT TIDYING — it is the receipt that the tick
+# does not survive the run. `selectedContacts` is reset only inside the sheet
+# ref's `dismiss()` (`ContactsImportModal.tsx:88-94`), and nothing calls that
+# when the backdrop closes the sheet: `present()` re-runs the permission check
+# and reloads the contacts, but leaves the ticks alone. A tick left behind would
+# still be there the next time this sheet opens — for the next run of this file,
+# or for whatever flow opens the sheet after it — with a live send button armed
+# above it.
+#
+# The assertion is the same pair as before the tick, so it also closes the
+# transition: the label and the enabled state both came back because the count
+# went back to zero.
+- tapOn:
+    id: 'contact-item-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-select-contacts-button'
+      text: 'Select Contacts'
+      enabled: false
+    timeout: 10000
+
+# The sheet's title says `Invite Friends` on BOTH steps, so it cannot tell them
+# apart. This line can: `invite-email-input` belongs to the email form alone.
+- assertNotVisible:
+    id: 'invite-email-input'
+
+# =============================================================================
+# STEP 2 — THE MANUAL EMAIL FORM
+# =============================================================================
+# The post-condition is the email field, which exists only in this step, and the
+# contact rows going away is the second half of the same statement — a tap that
+# had missed and landed on the scrim would have closed the sheet, and a tap that
+# did nothing would have left the rows in place.
+- tapOn:
+    id: 'invite-add-manual-button'
+- extendedWaitUntil:
+    visible:
+      id: 'invite-email-input'
+    timeout: 10000
+- assertNotVisible:
+    id: 'contact-item-.*'
+
+# The form's own copy, and its back control. `invite-back-button` is a real
+# testID (`ManualEmailView.tsx:48`) — the anchor audit lists it as missing,
+# which is stale.
+- assertVisible: "Enter a friend's email to invite them to emberglow."
+- assertVisible: 'Email Address'
+- assertVisible:
+    id: 'invite-back-button'
+
+# THE FIRST HALF OF THE STATE TRANSITION: an empty field disables the send
+# button (`ManualEmailView.tsx:92`, `disabled={!localEmail.trim() || …}`).
+# The audit says this button waits for a "valid-looking address" — it does not,
+# any non-blank text arms it, and the flow asserts the rule the code has.
+- assertVisible:
+    id: 'invite-send-button'
+    text: 'Send Invite'
+    enabled: false
+
+# TYPED, THEN READ BACK OUT OF THE FIELD. No `tapOn` before it: the field
+# autofocuses and it sits under the keyboard, so a tap presses a key instead
+# (see hazard (c) at the top).
+#
+# The address is deliberately self-describing. It is never sent anywhere — no
+# account, no mailbox and no server record exists for it, on purpose.
+- inputText: 'e2e-invite-not-sent@example.com'
+- assertVisible:
+    id: 'invite-email-input'
+    text: 'e2e-invite-not-sent@example.com'
+
+# THE SECOND HALF OF THE TRANSITION: the same button, same label, now enabled —
+# and the only thing that changed is the typing above. The pair is what makes
+# either line mean anything; alone, each is just a state that happened to hold.
+- assertVisible:
+    id: 'invite-send-button'
+    text: 'Send Invite'
+    enabled: true
+
+# =============================================================================
+# BACK OUT — NOTHING SENT
+# =============================================================================
+# The keyboard has to go first. `invite-back-button` is at `[22,557][58,593]`
+# and the keyboard's top edge is y=561, so it is partly covered; a tap there
+# would report success and press a key. Tapping the keyboard's own return key
+# closes it, and its absence afterwards is the post-condition.
+- tapOn:
+    id: 'Return'
+- assertNotVisible:
+    id: 'Return'
+
+# Back to step 1. The typed address is discarded with the view: `localEmail` is
+# `ManualEmailView`'s own state, and the parent's `manualEmail` is only written
+# on submit (`ManualEmailView.tsx:38-42`), which never happens here. The
+# contacts rows returning is the post-condition — `onBack` picks the contacts
+# branch because contacts were loaded (`ContactsImportModal.tsx`, the `onBack`
+# on the manual case).
+- tapOn:
+    id: 'invite-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contact-item-.*'
+    timeout: 10000
+- assertNotVisible:
+    id: 'invite-email-input'
+
+# CLOSE THE SHEET by pressing the backdrop, which is what the component is
+# configured to do. The point is above the sheet's resting top edge (y=255) and
+# below the status bar, so it is inside the backdrop by construction. `- back`
+# is a silently-green no-op on iOS and there is no close button.
+- tapOn:
+    point: '50%,15%'
+- extendedWaitUntil:
+    notVisible:
+      id: 'invite-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'profile-screen'
+
+# STILL ZERO. The same live count as before the sheet was opened, now standing
+# as the flow's own no-write receipt: had anything above sent an invitation,
+# this would read `FRIENDS · 1` and this line would go red.
+- assertVisible: 'FRIENDS · 0'
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# `home-header` exists nowhere but home. The deck is untouched by this file —
+# home stayed mounted the whole time — but the three lines below state the exit
+# contract the other coverage flows enter on, so a deck left elsewhere by a
+# previous flow is caught here rather than two files later.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+- assertNotVisible: 'Show Story card'
+- assertNotVisible:
+    id: 'create-coop-quest-button'
+- assertNotVisible:
+    id: 'create-custom-quest-button'
+
+# =============================================================================
+# END
+# =============================================================================
+# Nothing sent, nothing created, no server write, no sheet left open, no text
+# left in any field. Same account, same quests, same streak, still zero friends,
+# sitting on home with the Story card front. The profile screen is handed back
+# scrolled to its friends section, which is where this file's own scroll step
+# expects to start.

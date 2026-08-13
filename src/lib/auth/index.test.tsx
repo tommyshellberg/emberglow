@@ -1,4 +1,6 @@
+import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { Alert } from 'react-native';
 import { OneSignal } from 'react-native-onesignal';
 
@@ -9,6 +11,12 @@ import { useUserStore } from '@/store/user-store';
 
 import { endProvisionalSession, useAuth } from './index';
 import { getToken, removeToken, setToken } from './utils';
+
+jest.mock('@sentry/react-native', () => ({
+  addBreadcrumb: jest.fn(),
+  setTag: jest.fn(),
+  setUser: jest.fn(),
+}));
 
 // Mock all dependencies
 jest.mock('expo-constants', () => ({
@@ -108,6 +116,10 @@ jest.mock('./utils', () => ({
   setToken: jest.fn(),
 }));
 
+jest.mock('expo-router', () => ({
+  router: { replace: jest.fn() },
+}));
+
 jest.mock('@/lib/storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -173,6 +185,19 @@ describe('Auth Store', () => {
         refresh: 'refresh-token',
       });
     });
+
+    it('tags authState full', () => {
+      const loginResponse = {
+        token: {
+          access: 'access-token',
+          refresh: 'refresh-token',
+        },
+      };
+
+      useAuth.getState().signIn(loginResponse);
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
+    });
   });
 
   describe('endProvisionalSession', () => {
@@ -212,10 +237,55 @@ describe('Auth Store', () => {
       expect(characterStoreMocks.mockResetCharacter).toHaveBeenCalled();
       expect(onboardingStoreMocks.mockResetOnboarding).toHaveBeenCalled();
 
-      // Signed out + onboarding reset ⇒ the resolver routes to
-      // /onboarding/welcome by its normal rules; no navigation code here.
       expect(useAuth.getState().status).toBe('signOut');
 
+      alertSpy.mockRestore();
+    });
+
+    // The wipe used to lean on the resolver to route to /onboarding. That
+    // works from `(app)`, the only place the interceptors could fire it — but
+    // NOT from `/quest-completed-signup` or `/login`, which the conversion
+    // gate made into call sites. Both are in PRE_ACCOUNT_ZONE, so
+    // `isAlreadyAtTarget('onboarding', …)` answers true and NavigationGate
+    // suppresses the redirect: data gone, screen unchanged, alert already
+    // promising a fresh start. Same dead-affordance shape as emberglow#365.
+    it('leaves the screen it was called from, not just the session', () => {
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: jest.fn(),
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+      endProvisionalSession();
+      (alertSpy.mock.calls[0][2] as any)[0].onPress();
+
+      expect(router.replace).toHaveBeenCalledWith('/onboarding/welcome');
+
+      alertSpy.mockRestore();
+    });
+
+    // `refreshProvisionalTokens` is single-flight, so ONE 'dead' verdict is
+    // delivered to every joined caller — a gated guest tapping "Continue with
+    // Google" while a background provisional request 401s reaches this twice.
+    // Two stacked non-cancelable alerts each wipe on acknowledge, and the
+    // second runs against an already-signed-out store.
+    it('announces a dead session once, however many callers reach it', () => {
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: jest.fn(),
+      });
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+      endProvisionalSession();
+      endProvisionalSession();
+
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+
+      // Acknowledging re-arms it: a LATER dead session is a new event and
+      // must still be announced, so the guard cannot be a one-way latch.
+      (alertSpy.mock.calls[0][2] as any)[0].onPress();
+      endProvisionalSession();
+      expect(alertSpy).toHaveBeenCalledTimes(2);
+
+      (alertSpy.mock.calls[1][2] as any)[0].onPress();
       alertSpy.mockRestore();
     });
   });
@@ -235,6 +305,17 @@ describe('Auth Store', () => {
       const state = useAuth.getState();
       expect(state.status).toBe('signOut');
       expect(state.token).toBeNull();
+    });
+
+    it('tags authState signedOut', async () => {
+      const mockClearUser = jest.fn();
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: mockClearUser,
+      });
+
+      await useAuth.getState().signOut();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should logout from OneSignal when initialized', async () => {
@@ -304,6 +385,22 @@ describe('Auth Store', () => {
       const state = useAuth.getState();
       expect(state.status).toBe('signIn');
       expect(state.token).toEqual(mockToken);
+    });
+
+    it('tags authState full when a stored token is hydrated successfully', async () => {
+      const mockToken = { access: 'stored-token', refresh: 'stored-refresh' };
+      const mockUser = { id: 'user-123', name: 'Test User' };
+
+      (getToken as jest.Mock).mockReturnValue(mockToken);
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: jest.fn(),
+        clearUser: jest.fn(),
+      });
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
     });
 
     it('should link OneSignal when user has ID and OneSignal is initialized', async () => {
@@ -397,6 +494,18 @@ describe('Auth Store', () => {
       });
     });
 
+    it('tags authState provisional when only a provisional token exists', async () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockReturnValue('provisional-access-token');
+
+      await useAuth.getState().hydrate();
+
+      const state = useAuth.getState();
+      expect(state.status).toBe('signIn');
+      expect(getUserDetails).not.toHaveBeenCalled();
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'provisional');
+    });
+
     it('should set signOut status when no token exists', async () => {
       (getToken as jest.Mock).mockReturnValue(null);
       (getItem as jest.Mock).mockReturnValue(null); // No provisional tokens either
@@ -407,6 +516,15 @@ describe('Auth Store', () => {
       expect(state.status).toBe('signOut');
       expect(state.token).toBeNull();
       expect(getUserDetails).not.toHaveBeenCalled();
+    });
+
+    it('tags authState signedOut when no token exists', async () => {
+      (getToken as jest.Mock).mockReturnValue(null);
+      (getItem as jest.Mock).mockReturnValue(null); // No provisional tokens either
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should keep user signed in when user details fetch fails', async () => {
@@ -431,6 +549,17 @@ describe('Auth Store', () => {
       expect(state.token).toEqual({ access: 'token' });
     });
 
+    it('tags authState full when the stored token is kept despite a fetch failure', async () => {
+      (getToken as jest.Mock).mockReturnValue({ access: 'token' });
+      (getUserDetails as jest.Mock).mockRejectedValue(
+        new Error('Network error')
+      );
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'full');
+    });
+
     it('should handle hydration errors gracefully', async () => {
       (getToken as jest.Mock).mockImplementation(() => {
         throw new Error('Storage error');
@@ -446,6 +575,16 @@ describe('Auth Store', () => {
       // But it should set the status to signOut
       const state = useAuth.getState();
       expect(state.status).toBe('signOut');
+    });
+
+    it('tags authState signedOut when hydration itself throws', async () => {
+      (getToken as jest.Mock).mockImplementation(() => {
+        throw new Error('Storage error');
+      });
+
+      await useAuth.getState().hydrate();
+
+      expect(Sentry.setTag).toHaveBeenCalledWith('authState', 'signedOut');
     });
 
     it('should use maestro tokens in development when available', async () => {

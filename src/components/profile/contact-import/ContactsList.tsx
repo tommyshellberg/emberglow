@@ -121,6 +121,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
 
       <View style={styles.actions}>
         <Button
+          testID="invite-select-contacts-button"
           label={
             selectedCount > 0
               ? `Invite ${selectedCount} Contact${selectedCount > 1 ? 's' : ''}`
@@ -131,6 +132,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({
           fullWidth
         />
         <Button
+          testID="invite-add-manual-button"
           label="Add Manual Contact"
           onPress={onManualAdd}
           variant="ghost"

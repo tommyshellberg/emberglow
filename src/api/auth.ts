@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { OneSignal } from 'react-native-onesignal';
 
-import { signIn } from '@/lib/auth';
+import { endProvisionalSession, signIn } from '@/lib/auth';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 import type {
   ExistingAccountSummary,
   SocialSignInOutcome,
@@ -42,12 +46,89 @@ export interface RegisterResponse {
 }
 
 /**
+ * The access token to carry as a conversion request's Bearer header, or null
+ * when there is no provisional session at all.
+ *
+ * Why this exists: both conversion endpoints are `auth.optional` on the
+ * server, which SWALLOWS an expired access token and continues with no
+ * `req.user` — no 401, nothing to react to. Without `provisionalId` the
+ * magic-link verify skips conversion entirely and 404s, which the client maps
+ * to "That link has expired"; `/auth/social` likewise falls through to
+ * `no-account-for-identity`. Either way the user loops forever and the
+ * progress the whole gate exists to preserve is quietly lost.
+ *
+ * A gated veteran's access token is almost always stale on arrival: they
+ * expire in 30 minutes and nothing behind the wall refreshes them — no
+ * `(app)` screen mounts, so the interceptor that used to do it incidentally
+ * never runs. `authClient` is a bare axios instance with no interceptors of
+ * its own, so the refresh has to be explicit here.
+ *
+ * Ending the session requires SERVER PROOF — a 401 for the refresh token
+ * itself. Nothing else does:
+ *
+ * - No refresh token on disk: we return the stored access token and let the
+ *   conversion try. `doRefreshProvisionalTokens` reports `'dead'` for this
+ *   case without any network call, and that is right for its OTHER caller —
+ *   the provisional-client interceptor only asks after a 401 has already
+ *   proven the access token rejected, so "nothing left to refresh with" really
+ *   is unrecoverable there. Here we ask PROACTIVELY, with no such proof, so
+ *   inheriting that verdict would hand `wipeGuestSession` (explicitly "no
+ *   salvage") a working session's character, quests and POIs on no evidence.
+ *   The state is reachable: `createProvisionalUser` stores the refresh token
+ *   conditionally, and `hydrate()` still carries a fallback for installs
+ *   without one. Its contract is deliberately NOT changed — the interceptor
+ *   depends on it and is correct as written. Reported to PostHog rather than
+ *   passed over in silence: this install shape mis-converts by construction,
+ *   and it is otherwise invisible — the conversion endpoints answer 200.
+ * - `'error'` (network flake, 5xx, timeout, malformed body): proof of nothing
+ *   either, so the session is likewise left alone — but the conversion is
+ *   ABANDONED rather than attempted, and the caller is told to retry.
+ *
+ * That last one is the asymmetry worth stating. Proceeding on a stale token
+ * does not fail loudly: `auth.optional` swallows it, the server sees no
+ * `req.user`, and a conversion degrades into a plain signup — a second
+ * account, the hero orphaned, no error anywhere. Aborting costs the user a
+ * retry. Orphaning costs them everything the gate exists to save, so the two
+ * are not close. Aborting is NOT correct for the no-refresh-token case above:
+ * that install can never refresh, so abandoning would strand it forever, while
+ * proceeding at least succeeds whenever the stored token is still valid.
+ *
+ * `authClient`'s 10s timeout bounds the added wait.
+ */
+const freshProvisionalAccessToken = async (): Promise<string | null> => {
+  const stored = getItem('provisionalAccessToken');
+  if (typeof stored !== 'string' || stored.length === 0) {
+    return null;
+  }
+
+  const refreshToken = getItem('provisionalRefreshToken');
+  if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+    posthogClient.capture('provisional_conversion_unrefreshable');
+    return stored;
+  }
+
+  const result = await refreshProvisionalTokens();
+  if (result.status === 'dead') {
+    endProvisionalSession();
+    throw new ProvisionalSessionExpired();
+  }
+  if (result.status === 'refreshed') {
+    return result.tokens.access.token;
+  }
+
+  posthogClient.capture('provisional_conversion_refresh_unavailable');
+  throw new ProvisionalRefreshUnavailable();
+};
+
+/**
  * Request a magic link for authentication
  */
 export const requestMagicLink = async (email: string): Promise<void> => {
-  try {
-    const provisionalToken = getItem('provisionalAccessToken');
+  // Outside the try: this is not a magic-link failure, and logging it as one
+  // would bury the real cause under the wrong message.
+  const provisionalToken = await freshProvisionalAccessToken();
 
+  try {
     console.log('provisionalToken exists:', !!provisionalToken);
 
     const body = { email };
@@ -57,7 +138,7 @@ export const requestMagicLink = async (email: string): Promise<void> => {
       'Content-Type': 'application/json',
     };
 
-    if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+    if (provisionalToken) {
       headers.Authorization = `Bearer ${provisionalToken}`;
       console.log(
         'Adding Bearer token for provisional user:',
@@ -307,12 +388,16 @@ export const socialSignIn = async (
   // hard type error shipping a stale client against a newer server.
   outcome: SocialSignInOutcome | (string & {});
 }> => {
-  const provisionalToken = getItem('provisionalAccessToken');
+  // Refreshed first when a guest session exists — see
+  // `freshProvisionalAccessToken`. A stale token here does not fail loudly;
+  // it makes the server treat a conversion as a brand-new signup and strands
+  // the hero this screen promised to keep.
+  const provisionalToken = await freshProvisionalAccessToken();
 
   const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   };
-  if (typeof provisionalToken === 'string' && provisionalToken.length > 0) {
+  if (provisionalToken) {
     headers.Authorization = `Bearer ${provisionalToken}`;
   }
 

@@ -1,4 +1,5 @@
 // src/store/user-store.ts
+import * as Sentry from '@sentry/react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -30,12 +31,18 @@ export const useUserStore = create<UserState>()(
   persist(
     (set) => ({
       user: null,
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        Sentry.setUser({ id: user.id }); // id only - no email (GDPR)
+        set({ user });
+      },
       updateUser: (userData) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null,
         })),
-      clearUser: () => set({ user: null }),
+      clearUser: () => {
+        Sentry.setUser(null);
+        set({ user: null });
+      },
     }),
     {
       name: 'user-storage',
@@ -44,10 +51,9 @@ export const useUserStore = create<UserState>()(
         setItem: setItemForStorage,
         removeItem: removeItemForStorage,
       })),
-      onRehydrateStorage: () => (state) => {
-        console.log('[UserStore] Rehydrated with user:', state?.user?.id);
-        console.log('[UserStore] Feature flags:', state?.user?.featureFlags);
-      },
+      // No onRehydrateStorage handler: it only logged the rehydrated user id
+      // and feature flags to the console on every launch — a user identifier
+      // in device logs, buying nothing a breakpoint would not.
     }
   )
 );

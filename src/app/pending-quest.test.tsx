@@ -1,6 +1,8 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ONBOARDING_QUEST_ID } from '@/components/quest-complete/constants';
 import { render } from '@/lib/test-utils';
@@ -373,6 +375,35 @@ describe('PendingQuestScreen', () => {
 
       expect(mockCancelQuest).toHaveBeenCalledTimes(1);
       expect(router.back).not.toHaveBeenCalled();
+    });
+  });
+
+  // This screen lives on the root stack, so no tab bar is ever below it to
+  // span the bottom safe-area inset. It already reads insets.top for the top
+  // edge; the bottom edge used a bare constant, which put "Cancel quest" over
+  // the Android navigation bar on 3-button-nav devices.
+  describe('Bottom safe area', () => {
+    /** A 3-button-nav Android device. The global mock defaults to 0, which
+     * would make this assertion vacuous — 0 + 36 is the broken value too. */
+    const BOTTOM_INSET = 48;
+
+    beforeEach(() => {
+      jest.mocked(useSafeAreaInsets).mockReturnValue({
+        top: 24,
+        right: 0,
+        bottom: BOTTOM_INSET,
+        left: 0,
+      });
+    });
+
+    it('clears the navigation bar below the cancel button', () => {
+      const { getByTestId } = render(<PendingQuestScreen />);
+
+      const padding = StyleSheet.flatten(
+        getByTestId('pending-quest-content').props.style
+      ).paddingBottom;
+
+      expect(padding).toBe(BOTTOM_INSET + 36);
     });
   });
 

@@ -70,6 +70,10 @@ export const CombinedQuestInput = ({
   return (
     <View style={styles.card}>
       <Input
+        // Shared with the scheduled-event form, exactly as `duration-slider`
+        // and `end-time` below already are — the two forms are never on
+        // screen at the same time, so the id stays unambiguous.
+        testID="custom-quest-name-input"
         label="I want to"
         value={questName}
         onChangeText={handleQuestNameChange}
@@ -79,7 +83,9 @@ export const CombinedQuestInput = ({
         autoFocus={true}
       />
 
-      <Text style={styles.durationText}>for {sliderValue} minutes</Text>
+      <Text testID="custom-quest-duration-label" style={styles.durationText}>
+        for {sliderValue} minutes
+      </Text>
 
       {/* Slider with separate handlers for value change and sliding complete */}
       <View style={styles.sliderSection}>

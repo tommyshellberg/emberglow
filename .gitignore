@@ -56,6 +56,10 @@ build/
 # Jest
 coverage/
 
+# Stryker mutation testing
+.stryker-tmp/
+reports/
+
 # Debug
 .log/
 logs/
@@ -80,6 +84,9 @@ docs/
 .superpowers/
 
 .worktrees/
+
+# Stryker mutation-testing sandbox (a full copy of the repo, ~1 GB)
+.stryker-tmp/
 
 # TDD Guard local run state (machine/session-specific)
 .claude/tdd-guard/

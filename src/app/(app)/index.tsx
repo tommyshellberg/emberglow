@@ -537,6 +537,7 @@ export default function Home() {
                   style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
                   <Button
+                    testID="create-custom-quest-button"
                     label="Create Custom Quest"
                     onPress={handleStartCustomQuest}
                     variant="primary"
@@ -562,6 +563,9 @@ export default function Home() {
                     </View>
                   )}
                   <Button
+                    // One id for both labels: the flow should not have to
+                    // know whether the account has premium co-op access.
+                    testID="create-coop-quest-button"
                     label={
                       hasCoopAccess
                         ? 'Cooperative Quests'

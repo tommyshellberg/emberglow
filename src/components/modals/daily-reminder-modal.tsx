@@ -1,4 +1,4 @@
-import { type BottomSheetModal } from '@gorhom/bottom-sheet';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { usePostHog } from 'posthog-react-native';
 import React, { useRef, useState } from 'react';

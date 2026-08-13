@@ -44,7 +44,12 @@ export const ManualEmailView: React.FC<ManualEmailViewProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <IconButton label="Back" size={36} onPress={onBack}>
+        <IconButton
+          testID="invite-back-button"
+          label="Back"
+          size={36}
+          onPress={onBack}
+        >
           <ChevronLeft />
         </IconButton>
       </View>
