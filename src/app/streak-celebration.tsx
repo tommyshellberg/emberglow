@@ -242,7 +242,7 @@ export default function StreakCelebrationScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View testID="streak-celebration-screen" style={styles.root}>
       {/* Background */}
       <View style={StyleSheet.absoluteFill}>
         <Image
@@ -274,7 +274,12 @@ export default function StreakCelebrationScreen() {
                 end={{ x: 0.5, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.counterNumber}>{displayCount}</Text>
+              {/* `displayCount` ticks up from 0 through an animated
+                  reaction, so this reads mid-count until the animation
+                  settles. Presence is safe to assert; the number is not. */}
+              <Text testID="streak-count" style={styles.counterNumber}>
+                {displayCount}
+              </Text>
             </Animated.View>
           </View>
 

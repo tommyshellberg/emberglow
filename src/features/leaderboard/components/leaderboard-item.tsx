@@ -36,6 +36,9 @@ export function LeaderboardItem({ entry, type }: LeaderboardItemProps) {
 
   return (
     <View
+      // The row sets `accessible`, so nothing inside it reaches the
+      // accessibility tree — the id has to sit on the row itself.
+      testID="leaderboard-row"
       style={styles.row}
       accessible
       accessibilityLabel={`${entry.rank ? `Rank ${entry.rank}` : 'Your position'}, ${entry.username}${entry.isCurrentUser ? ', you' : ''}${entry.isFriend ? ', friend' : ''}, ${metricLabel}`}

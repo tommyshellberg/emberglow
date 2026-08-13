@@ -1,44 +1,502 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# CUSTOM QUEST TEST
+# CUSTOM QUEST — CREATE ONE THROUGH THE REAL FORM AND PLAY IT TO COMPLETION
 # =============================================================================
-# Creates a custom quest via the single-step form (name -> Start), verifies the
-# pending-quest screen appears, then cancels (we don't wait for completion, so
-# the quest duration is irrelevant).
+# The only flow in the suite that exercises a user-authored quest end to end:
+#
+#   1. Reach the Custom card on the home deck
+#   2. Fill the form in — name, duration, category — asserting the form's own
+#      readouts as they change
+#   3. Start it, and check the pending screen shows back exactly what was
+#      entered
+#   4. Lock the phone, wait the quest out, unlock
+#   5. Check the completion screen shows the same values again, plus the
+#      reward the app worked out from them
+#
+# Entry state: authenticated, on any tab. The flow navigates to Play itself.
+# Exit state: same account, one more completed quest, sitting on home.
+#
+# HOW LONG THIS FLOW TAKES: about 2 minutes, nearly all of it the 90-second
+# locked wait in the middle. Unlike the story-quest pair
+# (03-fresh-authenticated/02-quest-second-part-1 and -part-2) this is ONE file
+# with no runner-side sleep between halves — see "THE WAIT" below for why that
+# is possible here and was not there.
+#
+# -----------------------------------------------------------------------------
+# THE NUMBERS THIS FLOW ASSERTS, AND WHERE EACH ONE COMES FROM
+# -----------------------------------------------------------------------------
+# Nothing here is a screenshot of what the app happened to do. Each value is
+# derived from checked-in source first and only then confirmed on the device:
+#
+#   1 minute   The slider's minimum. `combined-quest-input.tsx` sets
+#              `minimumValue`/`step` to 1 when `Env.APP_ENV === 'development'`
+#              and 5 otherwise, and `e2e:build` (package.json) runs
+#              `APP_ENV=development ... --configuration Release` — so the e2e
+#              binary keeps the 1-minute range even though it is a Release
+#              build. Do NOT "tidy" `APP_ENV=development` out of `e2e:build`:
+#              it would silently move this minimum to 5 and also change the
+#              story quests' dev durations.
+#              (`MIN_QUEST_DURATION_MINUTES = 5` in
+#              `src/components/custom-quest/constants.ts` looks like it should
+#              govern this and does not — nothing reads it.)
+#
+#   +3 XP      `calculateQuestXP(duration) = duration * XP_PER_MINUTE_MULTIPLIER`
+#              with the multiplier 3 (`src/components/custom-quest/utils.ts`,
+#              `constants.ts`). 1 * 3 = 3. Both screens render the
+#              PERK-ADJUSTED figure (`getCurrentUserAdjustedXP`), which equals
+#              the base here because this account has no perks — the pending
+#              screen says so in as many words ("No active perks yet"). An
+#              account that had unlocked a reward perk would legitimately see a
+#              higher number, so this assertion is coupled to a fresh chain.
+#
+#   work       Chosen deliberately over the default. `DEFAULT_QUEST_CATEGORY`
+#              is `fitness`, so asserting `fitness` would pass just as well if
+#              the tap had never landed. The category is echoed on the pending
+#              screen as its third badge (`pending-quest.tsx` — story quests
+#              show "Vaedros" there instead, custom quests show their category).
+#
+# -----------------------------------------------------------------------------
+# SHE-28 (THE TWO DISAGREEING CLOCKS) DOES NOT APPLY TO CUSTOM QUESTS
+# -----------------------------------------------------------------------------
+# The story-quest flows have to wait 135 seconds for a quest advertised as 2
+# minutes, because the template the client counts against and the run record
+# the server stores carry different durations. That is a story-quest-only
+# defect, and the reason is worth writing down so nobody copies the 135 across:
+#
+#   - `quest-run-service.ts` -> `generateQuestRunBodyCustom` sends the WHOLE
+#     quest object for a custom quest and deliberately omits `questTemplateId`
+#     ("@TODO: for now, leave out the questTemplateId ...").
+#   - On the server, the dev-only line that rewrites the duration to 1
+#     (`quest-run.controller.js`, `questData.durationMinutes = 1`) sits INSIDE
+#     the `if (questTemplate.mode === 'story')` branch, which is only reached
+#     when a `questTemplateId` was sent. A custom quest takes the "custom
+#     quests can be created without questTemplateId" branch and is stored with
+#     the duration the client sent, untouched.
+#
+# So there is ONE clock, and it is the client's: `quest-timer.ts` computes
+# `durationMinutes * 60 * 1000` and, on unlock, completes the quest when the
+# elapsed time has reached it and FAILS it when it has not. For a 1-minute
+# quest that is 60 seconds. The wait below is 90 — half again as long — which
+# buys room for the app's own settle and the server round trip without being
+# anywhere near the 135 the story quests need.
 # =============================================================================
 
+# =============================================================================
+# HOME, AND THE CUSTOM CARD
+# =============================================================================
+# The tab tap is explicit rather than assumed: this file has to work as the
+# first thing run in a session as well as after whatever flow precedes it.
 - tapOn:
     id: 'new-quest-tab'
-
-- tapOn: 'Create Custom Quest'
-
-# The form's name field (placeholder "go for a run") has autoFocus, so we type
-# into it directly. A non-empty name is the ONLY requirement to enable Start
-# (canContinue = questName.trim().length > 0 — use-custom-quest-form.ts:39).
 - extendedWaitUntil:
     visible:
-      id: 'start-custom-quest-button'
-    timeout: 10000
-- inputText: 'Maestro Test Quest'
-- hideKeyboard
+      id: 'home-header'
+    timeout: 15000
 
-# Categories are fitness/work/self-care/social/learning/creative/household/
-# outdoors/other (there is NO 'exercise'). Selecting one is optional for Start
-# but we pick fitness for a complete quest.
+# WHY THIS IS A LOOP AND NOT "one left swipe from Story".
+# The deck's position is genuinely not predictable at this point. It survives
+# tab switches (home stays mounted), it resets to Story when the app relaunches,
+# and — found live while writing this flow — it ALSO resets to Story when a
+# pending quest is cancelled. So which card is front depends on what the
+# previous flow did, and that is not this flow's business.
+#
+# The deck holds three cards and a left swipe advances by one (the stale-closure
+# bug that made every swipe land on Custom for the wrong reason was fixed in
+# `3bec637`), so at most two swipes are ever needed; three iterations is one
+# spare. Each iteration is guarded, so once the Custom card is front the
+# remaining iterations do nothing.
+#
+# The loop is normalisation, not verification — the two assertions after it are
+# what actually prove where the deck ended up.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'create-custom-quest-button'
+          commands:
+            - swipe:
+                from:
+                  id: 'quest-deck'
+                direction: LEFT
+            - waitForAnimationToEnd
+
+# TWO assertions, because either one alone is satisfiable without the deck
+# having moved:
+#   - `create-custom-quest-button` only renders in the footer's
+#     `activeIndex === 1` branch (`(app)/index.tsx`), so its presence is the
+#     real state check.
+#   - `deck-card-custom` is NOT that check and must not be mistaken for one:
+#     all three `deck-card-*` ids are in the tree at all times, because the
+#     occluded back cards stay accessibility elements. What distinguishes the
+#     FRONT card is that it has no `Show <mode> card` child — the back cards
+#     each carry one as their tap affordance. Hence the assertNotVisible.
+- assertVisible:
+    id: 'create-custom-quest-button'
+- assertNotVisible: 'Show Custom card'
+
+# =============================================================================
+# THE FORM
+# =============================================================================
+# `custom-quest-screen` is the ScreenHeader's id on this route, so it is a
+# post-condition that names something only this screen has — a green tap on
+# iOS proves only that a touch was dispatched.
 - tapOn:
-    id: 'category-option-fitness'
+    id: 'create-custom-quest-button'
+- extendedWaitUntil:
+    visible:
+      id: 'custom-quest-screen'
+    timeout: 15000
 
+# One of the few honest guards anywhere in this app: with the name field empty
+# the Start button carries no `enabled=true` at all, and it gains one the moment
+# the field has text (`canContinue = questName.trim().length > 0`,
+# `use-custom-quest-form.ts`). Both states were observed on device, so this pair
+# brackets the typing rather than decorating it.
+#
+# There is deliberately NO assertion of a validation message. The field is the
+# emberglow `Input`, which has no error slot, so the app has no validation
+# message to assert — the disabled button is the whole of the feedback.
+- assertVisible:
+    id: 'start-custom-quest-button'
+    enabled: false
+
+# The field autofocuses, so the keyboard is already up and typing would land
+# even without the tap. The tap is kept because it names the field by id: if
+# focus ever moved, `inputText` would otherwise type into whatever did have it,
+# silently.
+- tapOn:
+    id: 'custom-quest-name-input'
+- inputText: 'Maestro Custom Quest'
+
+# The keyboard's top edge sits at y=516 while `start-custom-quest-button` is at
+# [16,647][377,701] and the category strip at [16,537][377,631] — every control
+# below the name field is underneath it, and a tap on a covered control reports
+# success while the touch lands on a keyboard key. `Return` is the fix.
+# NOT `hideKeyboard`: that raises the native dictation alert, which nothing in
+# this suite handles.
+- tapOn:
+    id: 'Return'
+- assertVisible:
+    id: 'start-custom-quest-button'
+    enabled: true
+
+# =============================================================================
+# THE DURATION SLIDER — WHY THIS IS A COORDINATE SWIPE
+# =============================================================================
+# `duration-slider` is an iOS UISlider. It exposes no value and no adjustable
+# trait, so there is nothing to read off it and nothing to step; and it only
+# tracks a drag that BEGINS ON THE THUMB, because `tapToSeek` is off. An
+# element-relative `swipe: {from: {id: duration-slider}}` starts from the
+# element's CENTRE, which is track and not thumb, and does nothing.
+#
+# So: start on the thumb, end past the end of the track.
+#   87  the thumb's centre at the default value of 30. The track's usable span
+#       is [51.5, 341.5] (the element is [36,336][357,376], less half a 31pt
+#       thumb at each end); 30 of the 1..240 range is 12.1% along it.
+#   20  off the left end of the element entirely.
+#
+# ENDING PAST THE END IS THE POINT. The slider saturates at its minimum, so the
+# gesture does not have to be accurate — which matters, because the track only
+# gives 1.21pt per minute and aiming at a specific value would be a coin flip
+# between neighbours. "Drag it to the floor" is reproducible; "drag it to 4" is
+# not.
+#
+# 600ms rather than a flick: the component commits on `onSlidingComplete`, and
+# a slow, deliberate drag is what a real finger does.
+- swipe:
+    start: '87,356'
+    end: '20,356'
+    duration: 600
+- waitForAnimationToEnd
+
+# WHAT THIS ASSERTION IS, AND WHAT IT IS NOT.
+# It IS proof that the gesture moved the slider: the label read `for 30 minutes`
+# before the swipe and `for 1 minutes` after, and 1 is the minimum, which
+# confirms the APP_ENV=development range described in the header is live in this
+# binary. (`for 1 minutes` is the app's own ungrammatical string — the component
+# interpolates a bare number.)
+# It is NOT proof that the quest will run for one minute. This Text renders
+# `sliderValue`, the continuous visual state, while the value handed to the
+# form is `duration`, set separately in `onSlidingComplete`
+# (`combined-quest-input.tsx` keeps the two apart on purpose). A component that
+# updated the visual state and never committed would still pass this line. The
+# `1 MIN OFFLINE` badge on the next screen is what closes that gap, because it
+# is rendered from the quest record the timer will actually count against.
+- assertVisible:
+    id: 'custom-quest-duration-label'
+    text: 'for 1 minutes'
+
+# =============================================================================
+# CATEGORY
+# =============================================================================
+# `work`, not the default. `DEFAULT_QUEST_CATEGORY` is `fitness`, and
+# `category-option-fitness` arrives already `selected=true` — so asserting
+# `fitness` anywhere downstream would pass identically if this tap never
+# landed. Picking a different one is what makes the category assertion on the
+# pending screen mean something.
+#
+# `selected` is a stated accessibility contract written in
+# `category-slider.tsx`, not a side effect of how iOS flattens the view — which
+# is the house rule for anchoring after the guild-icon dispute. Asserting the
+# OLD selection is now false is half the value here: a component that added the
+# new selection without clearing the old one would pass the first line alone.
+- assertVisible:
+    id: 'category-option-fitness'
+    selected: true
+- tapOn:
+    id: 'category-option-work'
+- assertVisible:
+    id: 'category-option-work'
+    selected: true
+- assertVisible:
+    id: 'category-option-fitness'
+    selected: false
+
+# =============================================================================
+# START — AND THE PENDING SCREEN READS BACK WHAT WAS ENTERED
+# =============================================================================
+# There is no navigation call in the Start handler. `useQuestCreation` arms the
+# quest store and NavigationGate is what pushes /pending-quest, so this wait is
+# the post-condition for the tap AND for the whole create-a-quest-run path
+# (`QuestTimer.prepareQuest` posts the run to the server before the store
+# settles; a server rejection would leave the app on the form with an error
+# banner and this would time out).
 - tapOn:
     id: 'start-custom-quest-button'
-
-# =============================================================================
-# VERIFY QUEST STARTED (pending-quest screen), then cancel
-# =============================================================================
 - extendedWaitUntil:
     visible:
-      id: 'quest-card'
-    timeout: 10000
-- assertVisible: 'Lock your phone'
+      id: 'lock-instructions'
+    timeout: 30000
 
-- tapOn: 'Cancel Quest'
+# The four values the form produced, echoed by a screen that had no part in
+# collecting them (`pending-quest.tsx` renders straight off the quest store).
+#
+#   CUSTOM QUEST          the eyebrow. Story quests render their storyline name
+#                         here, so this also says the quest was filed under the
+#                         right mode.
+#   Maestro Custom Quest  the typed name, unaltered. Full-string, so it also
+#                         catches a stray leading or trailing space from the
+#                         keyboard.
+#   +3 XP                 1 minute * 3.
+#   1 MIN OFFLINE         the COMMITTED duration — see the slider note above.
+#   WORK                  the third badge is `pendingQuest.category` for a
+#                         non-story quest. Badge uppercases its own text and
+#                         iOS reports the transformed string.
+#
+# ALL FOUR ARE BACKED BY A DISCRIMINATION CONTROL, run on device before this
+# flow was written. The same form, same build, same account, with the slider
+# and the category left alone, produced `+90 XP`, `30 MIN OFFLINE`, `FITNESS`
+# on this same screen — a real alternative record, not a doctored expectation.
+# So these lines track the input rather than the shape of the screen, and the
+# swipe and the category tap above are both load-bearing: skip either one and
+# the values here change.
+- assertVisible: 'CUSTOM QUEST'
+- assertVisible: 'Maestro Custom Quest'
+- assertVisible: '\+3 XP'
+- assertVisible: '1 MIN OFFLINE'
+- assertVisible: 'WORK'
+
+# =============================================================================
+# PLAY IT — LOCK, WAIT, UNLOCK
+# =============================================================================
+# There is no start button. The quest begins when the native lock listener
+# fires (`QuestTimer.onPhoneLocked`), and it settles when the phone is unlocked
+# again.
+- pressKey: 'Lock'
+
+# THE WAIT. Maestro has no sleep command, so this is an `extendedWaitUntil` on
+# a sentinel that cannot exist, made non-fatal with `optional: true`: it polls
+# for 90 seconds, never finds anything, and moves on. The id is named for what
+# it is so nobody goes looking for the anchor.
+#
+# 90 seconds against a 60-second quest. The margin covers the app's own settle
+# and the completion round trip; it is not the story quests' 135, because the
+# second clock that forces that number does not exist here (header).
+#
+# The wait is NOT verified by anything of its own, deliberately. If the lock
+# never happened, or the wait were too short, the quest would fail rather than
+# complete and `quest-complete-header` below would never appear — QuestTimer
+# renders the failure through a different component with no shared testID. So
+# the completion assertion is this step's post-condition, and it is a real one.
+- extendedWaitUntil:
+    visible:
+      id: 'this-id-does-not-exist-this-step-is-a-90s-timer'
+    timeout: 90000
+    optional: true
+
+# Waking a locked device whose display has slept takes one Home press to wake
+# and a second to dismiss the lock screen (there is no passcode); on a device
+# that is already awake the first press dismisses it outright. Hence the guard
+# rather than two blind presses — a second blind press on an already-unlocked
+# device drops the app to the springboard. Same block as
+# 03-fresh-authenticated/02-quest-second-part-2.yaml, and the same reason.
+- pressKey: 'Home'
+- runFlow:
+    when:
+      visible:
+        id: 'lockscreen-date-view'
+    commands:
+      - pressKey: 'Home'
+
+# =============================================================================
+# THE STREAK CELEBRATION — CONDITIONAL, AND WHICH BRANCH YOU GET DEPENDS ON THE
+# CALENDAR
+# =============================================================================
+# `navigation-state-resolver.ts` gives the streak celebration Priority 1, ABOVE
+# the quest result, and `quest-store.ts` raises it when the streak is >= 1 and
+# it has not already been shown today. Both halves matter here:
+#
+#   SAME-DAY CHAIN (every normal suite run) — 03-fresh-authenticated's story
+#   quest already completed today and already spent the celebration, so nothing
+#   intercepts and the app goes straight to the quest result. This is the branch
+#   verified green on device (2026-08-10, Release build).
+#   CROSS-DAY OR FRESH-CHAIN RUN — the celebration has not been shown today, the
+#   streak is >= 1, and it DOES intercept. The quest result is unreachable until
+#   it is dismissed.
+#
+# So: a bounded optional wait, then a guarded tap. `optional: true` is what
+# makes the same-day branch pass instead of failing on an absent screen; the
+# wait in front of the guard is what stops the guard being evaluated before the
+# screen has had its chance to arrive (a bare `runFlow: when:` would skip, and
+# the celebration would then materialise in time to swallow the next command).
+# 20s: the settle is a server round trip, and this is the same shape 02-quest-
+# second-part-2.yaml uses at 45s for a screen it knows is coming.
+#
+# This flow only drives the screen past. 03-streak-celebration.yaml owns the
+# assertions about what it says.
+- extendedWaitUntil:
+    visible:
+      id: 'streak-continue-button'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'streak-continue-button'
+    commands:
+      - tapOn:
+          id: 'streak-continue-button'
+      - waitForAnimationToEnd
+
+# The third case, and the reason this line is unconditional. An announcement
+# bottom sheet can land on top of whatever is on screen a beat after home
+# settles, and it covers the buttons underneath while leaving them matchable —
+# sheets in this app do not set `accessibilityViewIsModal`, so a tap by id would
+# report success against an element behind the scrim.
+#
+# Today that cannot happen: the announcement day-slot is spent by
+# 02-signup/02-verify-authenticated.yaml's narrator dismissal on every chain
+# build, which is why this is an assertion and not a dismissal block. On a
+# cross-day run it could, and then this line fails HERE and names the occluder
+# rather than letting the flow fail somewhere confusing further down.
+# Deliberately not "handled": which sheet would win is decided by
+# `announcement-store.ts`'s priority list against that day's state, the sheets
+# have different dismiss controls, and shipping a dismissal for a sheet whose
+# identity cannot be predicted — and which has never run on a device from here —
+# would be worse than a clear failure. `02-quest-second-part-2.yaml` has the
+# dismissal pattern if it ever turns out to be needed.
+- assertNotVisible: 'Bottom sheet backdrop'
+
+# =============================================================================
+# THE COMPLETION SCREEN
+# =============================================================================
+# `quest-complete-header` is the OUTCOME assertion, not merely a screen anchor.
+# A quest that failed — which is exactly what an unlock before the 60s mark
+# produces — renders `FailedQuest` instead, and the two components share no
+# testID. So this is what goes red if the wait above were ever shortened past
+# the quest duration, with no dependence on copy.
+- extendedWaitUntil:
+    visible:
+      id: 'quest-complete-header'
+    timeout: 30000
+
+# The same four values again, now on the far side of a completion that went
+# through the server, plus the two that only exist here.
+#
+#   CUSTOM QUEST · COMPLETE   `QuestCompleteHeader.tsx` builds the eyebrow as
+#                             `getQuestModeLabel(mode)` + ` · COMPLETE`, and
+#                             appends the suffix only when `fromJournal` is
+#                             false. So this one string carries BOTH "this is a
+#                             custom quest" and "this is the post-quest screen,
+#                             not a journal re-open of it".
+#   Maestro Custom Quest      the name survived the round trip.
+#   +3 XP                     `QuestComplete.tsx` renders
+#                             `getCurrentUserAdjustedXP`, i.e. the reward read
+#                             off the persisted quest record rather than
+#                             recomputed from the constant.
+#   1 MIN OFFLINE             `quest.durationMinutes` from that same record.
+#   COMPLETE                  the success-tone Badge, rendered only when
+#                             `fromJournal` is false.
+#
+# `COMPLETE` appears twice on this screen — in the eyebrow above and as the
+# Badge — but matching is full-string, so the bare `COMPLETE` line binds to the
+# Badge alone and the eyebrow line binds to the eyebrow alone.
+#
+# -----------------------------------------------------------------------------
+# EVIDENCE FOR THE VALUE ASSERTIONS (2026-08-10, Release build)
+# -----------------------------------------------------------------------------
+#   +3 XP / 1 MIN OFFLINE / WORK
+#       DISCRIMINATION CONTROL, real alternative record. The identical form
+#       driven with the slider and the category untouched produced
+#       `+90 XP` / `30 MIN OFFLINE` / `FITNESS` on the pending screen. Three
+#       values, three differences, one real app run — so these track the input.
+#   +3 XP
+#       DISCRIMINATION CONTROL, second record. The story quest's own detail
+#       screen on this same account renders `+9 XP` and fails `\+3 XP`.
+#   1 MIN OFFLINE
+#       TRUE MUTATION on the assertion. Run once against this real screen
+#       expecting `2 MIN OFFLINE` — red — then reverted. Note the story quest's
+#       detail ALSO reads `1 MIN OFFLINE` (its run record carries 1 while its
+#       template carries 2, which is SHE-28), so a different quest is NOT a
+#       control for this particular line and a wrong-value run is.
+#   COMPLETE
+#       DISCRIMINATION CONTROL. Re-opening a completed quest from the journal
+#       mounts this same component with `fromJournal=true`; the XP and duration
+#       badges still pass there and this line goes red.
+# -----------------------------------------------------------------------------
+- assertVisible: 'CUSTOM QUEST · COMPLETE'
+- assertVisible: 'Maestro Custom Quest'
+- assertVisible: '\+3 XP'
+- assertVisible: '1 MIN OFFLINE'
+- assertVisible: 'COMPLETE'
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# The action stack sits below the fold, under the 300pt art header and the
+# story block, and its container is absent from the hierarchy entirely until
+# scrolled into view.
+- scrollUntilVisible:
+    element:
+      id: 'quest-actions-container'
+    direction: DOWN
+    timeout: 15000
+
+# Tap the button, not the container. `QuestCompleteActions` renders BOTH "Add
+# reflection" and "Continue" here — the reflection button needs a questRunId,
+# completed onboarding and a quest id other than quest-1, and all three hold for
+# a custom quest — so the container's centre falls in the gap between the two.
+# "Continue" is what `QuestComplete` defaults `continueText` to and
+# `quest/[id].tsx` passes no override; the other button reads "Add reflection",
+# so full-string matching keeps them apart.
+- tapOn: 'Continue'
+- waitForAnimationToEnd
+
+# The post-condition for that tap: `handleBackNavigation` clears the recent
+# completed quest and replaces to /(app), so the home header comes back. A tap
+# that landed on "Add reflection" instead would sit on the reflection form and
+# fail here.
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 20000
+
+# =============================================================================
+# END
+# =============================================================================
+# One more completed quest on the account (a custom one, so it also gives the
+# journal a non-story row), 3 XP richer, sitting on the home screen with the
+# deck reset to the Story card.

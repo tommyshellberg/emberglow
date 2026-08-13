@@ -1,8 +1,6 @@
 /* eslint-disable max-lines-per-function */
-import {
-  BottomSheetFlatList,
-  type BottomSheetModal,
-} from '@gorhom/bottom-sheet';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { FlashList } from '@shopify/flash-list';
 import { ChevronDown } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';

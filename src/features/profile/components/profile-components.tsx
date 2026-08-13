@@ -53,6 +53,7 @@ export function ActionCards({
   return (
     <View style={styles.rowCard}>
       <ListItem
+        testID="profile-action-skills"
         title="Skills & Perks"
         subtitle={skillsSubtitle}
         leading={<Sparkles size={ICON_SIZE} color={colors.text.accent} />}
@@ -63,6 +64,7 @@ export function ActionCards({
       />
       <View style={styles.divider}>
         <ListItem
+          testID="profile-action-leaderboard"
           title="Leaderboard"
           subtitle="See how others are doing"
           leading={<TrendingUp size={ICON_SIZE} color={colors.text.accent} />}
@@ -74,6 +76,7 @@ export function ActionCards({
       </View>
       <View style={styles.divider}>
         <ListItem
+          testID="profile-action-achievements"
           title="Achievements"
           subtitle="Track your progress"
           leading={<Award size={ICON_SIZE} color={colors.text.accent} />}

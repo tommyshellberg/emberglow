@@ -1,57 +1,104 @@
 # =============================================================================
-# MAESTRO E2E TEST CONFIGURATION
+# MAESTRO WORKSPACE CONFIG
 # =============================================================================
-# Comprehensive test suite for UnQuest app
+# This file only matters when someone runs Maestro against the DIRECTORY:
 #
-# Test Flow Sequence:
-#   1. Guest Onboarding (creates provisional user, completes first quest)
-#   2. User Conversion (converts provisional → full user via DB)
-#   3. Fresh User Tests (tests with known state: Level 1, 50 XP)
-#   4. Screen Coverage (tests all major app screens)
-#   5. Regression (quick smoke tests)
+#   maestro test .maestro/
 #
-# Environment Variables Required:
-#   - TEST_EMAIL: Email for test user (with timestamp: test-${TIMESTAMP}@unquest.test)
-#   - MONGODB_URI: MongoDB connection string for user conversion
-#   - TEST_EMAIL_TIMESTAMP: Unique timestamp for test run
+# That is not how this suite is meant to run. `.maestro/run-tests.sh`
+# (`pnpm e2e`) is the supported entry point, and it invokes one flow file at a
+# time, so it never reads this file. Everything the suite needs and a directory
+# run cannot give it lives in that script:
 #
-# Usage:
-#   maestro test .maestro/ --env TEST_EMAIL_TIMESTAMP=$(date +%s)
+#   - the 135-second sleeps between the two halves of each story quest;
+#   - the `TEST_EMAIL` value the signup and phase-03 flows are handed;
+#   - the Mailpit + MongoDB purge that stops a crashed run poisoning the next;
+#   - the phase order, which is NOT file-name order in two places.
+#
+# So treat this file as the guard rails for a directory run rather than a second
+# definition of the suite. When the two disagree, the script wins.
+#
+# -----------------------------------------------------------------------------
+# ONLY WORKSPACE KEYS BELONG HERE, AND MAESTRO IGNORES THE REST IN SILENCE
+# -----------------------------------------------------------------------------
+# Checked against Maestro 2.0.10's own `WorkspaceConfig` class. The keys it
+# reads are: flows, includeTags, excludeTags, local, executionOrder,
+# baselineBranch, notifications, disableRetries, platform, testOutputDir.
+# Anything else is swallowed by a catch-all setter — no warning, no error.
+#
+# The version of this file that came before therefore did nothing it claimed:
+# `appId` and `config: defaultTimeout` are FLOW-level keys, and `onFlowFailure`
+# is not a Maestro key at all (a flow's config block offers `onFlowStart` and
+# `onFlowComplete`). All three were silently discarded, so the screenshot-on-
+# failure hook never existed. They are gone rather than left in to mislead. Both
+# of the real ones — excludeTags and executionOrder — are kept below.
+#
+# The old `flows:` list was worse than inert: it named `flows/02-conversion/*`,
+# a directory that has never existed on this branch, so a directory run would
+# have stopped at "Flow inclusion pattern(s) did not match any Flow files".
+#
+# -----------------------------------------------------------------------------
+# WHAT IS DELIBERATELY NOT LISTED BELOW
+# -----------------------------------------------------------------------------
+#   flows/01-onboarding/*    Needs a 135s wait between part 1 and part 2. A
+#                            directory run would start part 2 immediately and
+#                            fail the quest.
+#   02-quest-second-part-1   The second story quest, split over the same kind of
+#   02-quest-second-part-2   135s wait as onboarding. Part 1 starts the quest and
+#                            part 2 unlocks it, and unlocking before 120s FAILS
+#                            the quest (run-tests.sh note 2). Only the runner can
+#                            put a wait between two flows, so listing this pair
+#                            here would guarantee a red part 2.
+#   flows/02-signup/*        Needs TEST_EMAIL. The address is generated per run
+#                            by run-tests.sh and has no default here.
+#   10-social-login.yaml     Signs the device out and nothing signs it back in.
+#                            It is the runner's `social` phase, which `all` runs
+#                            last of everything. A directory run would hit it in
+#                            file-name order — in the middle — and every flow
+#                            after it would run logged out.
+#
+# The flows that ARE listed still assume a signed-in account with BOTH story
+# quests already complete — `01-profile-verification.yaml` asserts `9 / 150 XP`,
+# which is only true after the second one. Since the pair that completes it is
+# not listed here, a directory run has to be preceded by the runner:
+# `pnpm e2e:onboarding`, `pnpm e2e:signup`, `pnpm e2e:fresh`. Or just use
+# `pnpm e2e` and skip the directory run altogether.
 # =============================================================================
 
-appId: com.vaedros.unquest
-
-# Global configuration for all flows
-config:
-  # Default timeout for assertions (5 seconds = 5000ms)
-  # This ensures tests fail fast instead of hanging indefinitely
-  defaultTimeout: 5000
-
-# Take screenshot on any test failure
-onFlowFailure:
-  - takeScreenshot: failure-${flow.name}
-
+# `utils/` holds shared sub-flows (hide-keyboard) meant to be called with
+# `runFlow:`, never executed on their own. They carry `tags: [util]`. Nothing
+# under utils/ is listed in `flows:` either — this is the second lock.
 excludeTags:
   - util
   - skip
 
-# Execute tests in strict order
+# The runner collects results instead of stopping at the first red: a hidden
+# failure is worse than a red one, and the flows after a break are usually
+# cascades of it rather than separate defects. A directory run should behave the
+# same way.
 executionOrder:
-  continueOnFailure: false
+  continueOnFailure: true
 
-# NOTE: Onboarding flows (01-onboarding) are handled by run-tests.sh
-# due to the need for a 15-second sleep between part 1 and part 2.
-# They are NOT included in this config to avoid running them twice.
-
+# Listed one file at a time rather than by directory glob, for the same reason
+# the runner keeps an explicit list: a glob that stops matching — a rename, or a
+# new file dropped in — silently runs the wrong set and still reports success. A
+# file named here that does not exist is a loud "Flow path does not exist".
+#
+# Maestro orders these itself. The runner's order is the authoritative one and
+# the flow headers document it.
 flows:
-  # Phase 2: Convert Provisional to Full User
-  - flows/02-conversion/*
+  - flows/03-fresh-authenticated/04-navigation-tabs.yaml
+  - flows/03-fresh-authenticated/01-profile-verification.yaml
+  - flows/03-fresh-authenticated/03-streak-celebration.yaml
 
-  # Phase 3: Fresh Authenticated User Tests
-  - flows/03-fresh-authenticated/*
+  - flows/04-screen-coverage/01-profile-leaderboard-achievements.yaml
+  - flows/04-screen-coverage/02-journal.yaml
+  - flows/04-screen-coverage/03-custom-quest.yaml
+  - flows/04-screen-coverage/04-map.yaml
+  - flows/04-screen-coverage/05-settings.yaml
+  - flows/04-screen-coverage/06-coop-ui.yaml
+  - flows/04-screen-coverage/07-invite.yaml
+  - flows/04-screen-coverage/08-guild.yaml
+  - flows/04-screen-coverage/09-scheduled.yaml
 
-  # Phase 4: Screen Coverage Tests
-  - flows/04-screen-coverage/*
-
-  # Phase 5: Regression Tests (optional, can be run separately)
-  # - flows/05-regression/*
+  - flows/05-smoke/critical-paths.yaml

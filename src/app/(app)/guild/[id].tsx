@@ -211,7 +211,12 @@ export default function GuildDetailScreen() {
     return (
       <View style={styles.screenRoot}>
         <FocusAwareStatusBar />
-        <ScreenHeader title="Guild" showBackButton onBackPress={handleBack} />
+        <ScreenHeader
+          testID="guild-error-state"
+          title="Guild"
+          showBackButton
+          onBackPress={handleBack}
+        />
         <View style={styles.errorFill}>
           <View style={styles.errorIconCircle}>
             <CloudOff size={32} color={colors.tints.aegean60} />
@@ -238,6 +243,7 @@ export default function GuildDetailScreen() {
     <View style={styles.screenRoot}>
       <FocusAwareStatusBar />
       <ScreenHeader
+        testID="guild-detail-screen"
         title={isEditing ? 'Edit guild' : 'Guild'}
         showBackButton
         onBackPress={isEditing ? handleCancelEdit : handleBack}
@@ -337,7 +343,9 @@ export default function GuildDetailScreen() {
               <GuildCrest icon={guild.icon} />
               <View style={styles.identityText}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.guildName}>{guild.name}</Text>
+                  <Text testID="guild-name" style={styles.guildName}>
+                    {guild.name}
+                  </Text>
                   {isOwner && <Badge tone="warm">Owner</Badge>}
                 </View>
                 {guild.tagline ? (
@@ -387,11 +395,11 @@ export default function GuildDetailScreen() {
 
             {/* Stats */}
             <View style={styles.statsGrid}>
-              <View style={styles.statTile}>
+              <View testID="guild-stat-quests" style={styles.statTile}>
                 <Text style={styles.statNumber}>{guild.stats.questCount}</Text>
                 <Text style={styles.statLabel}>Quests</Text>
               </View>
-              <View style={styles.statTile}>
+              <View testID="guild-stat-minutes" style={styles.statTile}>
                 <Text style={styles.statNumber}>
                   {guild.stats.totalMinutes}
                 </Text>
@@ -445,6 +453,7 @@ export default function GuildDetailScreen() {
                 return (
                   <View
                     key={member.id}
+                    testID="guild-member-row"
                     style={[
                       styles.memberRow,
                       index > 0 && styles.memberDivider,

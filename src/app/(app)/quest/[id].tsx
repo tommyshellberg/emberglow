@@ -208,7 +208,7 @@ export default function AppQuestDetailsScreen() {
     const hasReflection = serverReflection || quest.reflection;
 
     return (
-      <View style={styles.screenRoot}>
+      <View testID="quest-detail-screen" style={styles.screenRoot}>
         <FocusAwareStatusBar />
 
         {/* Show existing reflection section at top - only when viewing from journal */}
@@ -308,7 +308,7 @@ export default function AppQuestDetailsScreen() {
 
   if (quest.status === 'failed') {
     return (
-      <View style={styles.screenRoot}>
+      <View testID="quest-detail-screen" style={styles.screenRoot}>
         <FocusAwareStatusBar />
         <ScreenHeader
           title={SCREEN_TITLE}

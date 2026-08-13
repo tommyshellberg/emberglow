@@ -7,6 +7,12 @@ import { Text } from './text';
 export type SegmentedControlOption<T extends string | number> = {
   label: string;
   value: T;
+  /**
+   * Overrides the derived `${testID}-option-${value}` id for this one
+   * option. Lets a screen name its segments whatever its tests already
+   * expect, without changing the derived form every other caller relies on.
+   */
+  testID?: string;
 };
 
 type SegmentedControlProps<T extends string | number> = {
@@ -46,7 +52,10 @@ export function SegmentedControl<T extends string | number>({
         return (
           <Pressable
             key={String(option.value)}
-            testID={testID ? `${testID}-option-${option.value}` : undefined}
+            testID={
+              option.testID ??
+              (testID ? `${testID}-option-${option.value}` : undefined)
+            }
             onPress={() => onChange(option.value)}
             accessibilityRole="button"
             accessibilityLabel={option.label}

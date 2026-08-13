@@ -26,6 +26,15 @@ export type ListItemProps = {
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /**
+   * Puts an id on the subtitle text itself. Only reaches an on-device
+   * accessibility tree on a **static** row (no `onPress`): an interactive
+   * row renders a `Pressable` with a role and a label, which iOS collapses
+   * into one element, hiding everything inside it. Not derived from
+   * `testID` for exactly that reason — a derived id would be live on some
+   * rows and silently dead on others.
+   */
+  subtitleTestID?: string;
   /** Overrides the row's default (title-derived) accessibility label. */
   accessibilityLabel?: string;
   /** Only meaningful on interactive rows (i.e. when `onPress` is set). */
@@ -41,6 +50,7 @@ export function ListItem({
   onPress,
   style,
   testID,
+  subtitleTestID,
   accessibilityLabel,
   accessibilityHint,
 }: ListItemProps) {
@@ -51,7 +61,11 @@ export function ListItem({
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        {subtitle && (
+          <Text testID={subtitleTestID} style={styles.subtitle}>
+            {subtitle}
+          </Text>
+        )}
       </View>
       {trailing && <View style={styles.trailing}>{trailing}</View>}
     </>

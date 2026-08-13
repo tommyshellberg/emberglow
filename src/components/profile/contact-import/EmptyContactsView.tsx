@@ -62,6 +62,7 @@ export const EmptyContactsView: React.FC<EmptyContactsViewProps> = ({
       <View style={styles.actions}>
         <Button label="Import Contacts" onPress={onImportContacts} fullWidth />
         <Button
+          testID="invite-add-manual-button"
           label="Add Manual Contact"
           onPress={onManualAdd}
           variant="ghost"

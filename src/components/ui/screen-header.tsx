@@ -87,6 +87,7 @@ export function ScreenHeader({
       <View style={styles.titleRow}>
         {showBackButton && (
           <TouchableOpacity
+            testID="screen-header-back-button"
             onPress={handleBackPress}
             style={styles.backButton}
             accessibilityRole="button"

@@ -210,6 +210,7 @@ export function JoinGuildModal({
           fullWidth
         />
         <Button
+          testID="join-guild-cancel"
           label="Cancel"
           variant="ghost"
           onPress={handleCancel}

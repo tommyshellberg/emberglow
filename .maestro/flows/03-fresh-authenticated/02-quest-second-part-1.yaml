@@ -192,3 +192,8 @@ appId: com.vaedros.unquest
 # END OF PART 1
 # =============================================================================
 # Phone locked, quest-1b running. The runner waits 135 SECONDS before part 2.
+#
+# VERIFIED 2026-07-26: the pair ran green end to end from a freshly rebuilt
+# account chain — part 1 = 12 commands, 155s wait, part 2 = 19 commands, no
+# retries and no edits needed to get there. Mongo after the pair:
+# `level: 2, currentXP: 109`, matching §5.2 exactly.
