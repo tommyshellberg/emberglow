@@ -142,6 +142,11 @@ appId: com.vaedros.unquest
     visible:
       id: 'streak-celebration-screen'
     timeout: 15000
+# The screen animates its content in, and `assertVisible` on iOS passes
+# against an element still at opacity 0 — a proven lying mechanism in this
+# suite. Letting the entrance animations finish first makes the content
+# assertions below mean "readable", not merely "mounted".
+- waitForAnimationToEnd
 
 # =============================================================================
 # WHAT THE SCREEN SAYS

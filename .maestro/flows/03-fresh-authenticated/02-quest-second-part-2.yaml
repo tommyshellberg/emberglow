@@ -193,6 +193,21 @@ appId: com.vaedros.unquest
 # confusing. With it, the flow fails here and names the occluder.
 - assertNotVisible: 'Bottom sheet backdrop'
 
+# =============================================================================
+# THE AUTO-SHOW ROUTE'S OWN CONTENT
+# =============================================================================
+# Until these three lines, this path only tapped the continue button — a streak
+# screen that rendered blank would have passed. The copy comes from
+# streak-celebration.tsx ("Quest streak" reaches the tree as "QUEST STREAK";
+# the two sentences keep their exact wording). The exact-value assertions stay
+# owned by 03-streak-celebration.yaml; the share label is matched as a pattern
+# here because this flow also documents a cross-day chain, where the streak is
+# not 1 — the pattern still proves the store's number reached the screen, just
+# not which number.
+- assertVisible: 'QUEST STREAK'
+- assertVisible: 'Share your [0-9]+ day streak'
+- assertVisible: 'You kept the fire burning.'
+
 # Now the streak screen is actually reachable.
 - tapOn:
     id: 'streak-continue-button'
