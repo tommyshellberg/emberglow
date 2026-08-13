@@ -155,19 +155,19 @@ The two known-unrevived flows today:
 - `05-smoke/critical-paths.yaml` — visibly stale. It asserts `MaestroHero` and
   taps a bare screen coordinate. Expected to fail.
 
-### The one cascade you must not misread
+### The cascade this order used to produce
 
 `critical-paths.yaml` taps a bare coordinate (`50%, 60%`) meant to land on the
 quest deck. If it lands somewhere without a tab bar, the flow dies there and
 leaves the device off the tab bar. The very next thing `all` runs is the social
-flow, whose first action is a `settings-tab` tap — which recovers from any tab
-but not from a screen that has no tab bar. So it fails too, and because it is a
-revived flow it reports as a plain `FAIL` that looks like a real defect.
+flow, and a tab tap cannot recover from a screen that has no tab bar — so the
+social flow used to fail as fallout and report as a plain `FAIL` that looked
+like a real defect.
 
-**If one run reports `critical-paths` XFAIL and `10-social-login` FAIL together,
-re-run `.maestro/run-tests.sh social` on its own before believing the second
-one.** The real fix is a normalising step at the top of the social flow; it is
-booked for this branch's final fix wave.
+Since the final fix wave the social flow opens with `launchApp` (the session
+survives — no `clearState`), which recovers from any screen. A `10-social-login`
+FAIL after a `critical-paths` XFAIL is therefore worth believing now, though
+`.maestro/run-tests.sh social` on its own is still the cheapest second opinion.
 
 ### A full run ends signed out, on purpose
 

@@ -54,11 +54,13 @@
 #    those four comments. Do not wire it back in.
 #
 # 4. PHASE 03 DOES NOT RUN IN FILENAME ORDER.
-#    01-profile-verification.yaml runs LAST despite its `01-` prefix: its
-#    `9 / 150 XP` assertion is only true once the second quest is complete
+#    01-profile-verification.yaml runs SECOND-TO-LAST despite its `01-` prefix:
+#    its `9 / 150 XP` assertion is only true once the second quest is complete
 #    (after the onboarding quest alone it is `0 / 150 XP`). Verified on device
-#    across units F/H/I. The file's own header says the same. Hence this script
-#    drives an explicit ordered list, never a directory glob.
+#    across units F/H/I. The file's own header says the same. The streak flow,
+#    03-streak-celebration.yaml, runs after it — see build_steps() below, which
+#    is the authority. Hence this script drives an explicit ordered list, never
+#    a directory glob.
 #
 # 5. PHASES NEVER SHORT-CIRCUIT, AND TWO FLOWS ARE STILL MARKED UNREVIVED.
 #    Every flow of phases 01-04 has now been rewritten and watched green on a
@@ -84,22 +86,19 @@
 #        failure can only strand the device on the settings tab, the tab bar is
 #        still up, and 06-coop-ui.yaml opens with an explicit `new-quest-tab`
 #        tap, which recovers from any tab.
-#      - critical-paths.yaml -> 10-social-login.yaml, (b) FAILS. The smoke flow
-#        taps a bare screen coordinate (`point: '50%, 60%'`) that is meant to
-#        land on the quest deck. If it opens the pending-quest screen instead —
-#        or any other screen without a tab bar — the flow dies there and the
-#        device is left off the tab bar. 10-social-login.yaml's first tap is
-#        `settings-tab`, which recovers from any TAB but not from a screen that
-#        has no tab bar, so it fails too. It is registered with `add_flow`, so
-#        that shows up as a plain FAIL and reads like a real defect in the
-#        social flow when it is only fallout from the known-stale smoke flow.
-#        UNTIL THAT IS FIXED: if `all` reports critical-paths XFAIL and
-#        10-social-login FAIL in the same run, re-run `.maestro/run-tests.sh
-#        social` on its own before believing the second one.
-#        The fix is a normalising tap at the top of 10-social-login.yaml (a
-#        `back`/home step before the `settings-tab` tap). That is a flow-file
-#        edit, which is outside this script's remit, and it is booked for the
-#        final fix wave of this branch.
+#      - critical-paths.yaml -> 10-social-login.yaml, (b) NOW HOLDS. The smoke
+#        flow taps a bare screen coordinate (`point: '50%, 60%'`) that is meant
+#        to land on the quest deck. If it opens the pending-quest screen
+#        instead — or any other screen without a tab bar — the flow dies there
+#        and the device is left off the tab bar. A tab tap cannot recover from
+#        such a screen, so 10-social-login used to fail as fallout and read as
+#        a plain FAIL in a defect of its own. Since the final fix wave the flow
+#        opens with `launchApp` (no clearState — the session survives), which
+#        recovers from ANY screen: the resolver settles a signed-in account on
+#        home with the tab bar up. If 10-social-login still fails right after a
+#        critical-paths XFAIL, that is now worth believing — but a re-run of
+#        `.maestro/run-tests.sh social` on its own is still the cheapest
+#        second opinion.
 #    Once one link in a state chain breaks, later failures are usually cascades
 #    rather than independent defects. The summary says so rather than pretending
 #    each line is a separate bug.
@@ -122,10 +121,12 @@
 #      - 06-coop-ui before 07-invite and 08-guild. Both of those require an
 #        entry tab that is NOT profile, and assert `profile-screen` absent as
 #        their first command; 06-coop-ui ends on home.
-#      - 08-guild before 09-scheduled. 09-scheduled deep-links immediately and
-#        never normalises its tab, so it needs a predecessor that ends on home
-#        with the Story deck card front. That is exactly 08-guild's stated exit
-#        state. If 09 is ever run on its own, tap into home first.
+#      - 08-guild before 09-scheduled, but only for the DECK now. 09-scheduled
+#        opens with its own `new-quest-tab` tap since the final fix wave, so it
+#        no longer cares which tab its predecessor ends on. Its exit contract
+#        still asserts the Story deck card front, and a tab tap does not move
+#        the deck — that part is still inherited from 08-guild's stated exit
+#        state.
 #
 # 7. 10-social-login.yaml IS NOT IN THE COVERAGE PHASE. IT IS THE `social`
 #    PHASE, AND `all` RUNS IT LAST OF EVERYTHING.
@@ -287,14 +288,9 @@ build_steps() {
 
   # LAST, always. This signs the device out and nothing signs it back in.
   #
-  # WARNING, `all` ONLY: this flow runs straight after the known-stale
-  # 05-smoke/critical-paths.yaml, and it can fail as fallout from it. That flow
-  # taps a bare screen coordinate; if it strands the device on a screen with no
-  # tab bar, this flow's opening `settings-tab` tap cannot recover and it fails
-  # too — as a plain FAIL, because it is registered as verified. Do not read
-  # that as a defect here until you have re-run
-  # `.maestro/run-tests.sh social` on its own. See header note 5; the real fix
-  # is a normalising tap inside the flow file, booked for the final fix wave.
+  # The flow opens with `launchApp` (session preserved), so a predecessor that
+  # strands the device on a tab-less screen no longer cascades into it — see
+  # header note 5.
   if [ "$phase" = "all" ] || [ "$phase" = "social" ]; then
     add_flow "$FLOW_SOCIAL_LOGIN"
   fi

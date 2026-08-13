@@ -266,13 +266,16 @@ Most flows prove they ended on the home screen with two or three
 `assertNotVisible` lines. A home screen that rendered no quest deck at all would
 satisfy them. One positive assertion on a Story-card anchor would make the exit
 provable. This is a house-wide pattern, so fixing it is a suite-wide change
-rather than a per-file one; it is on the list for this branch's final wave.
+rather than a per-file one. The final fix wave deliberately did not take it:
+each edited exit needs a device run to prove the new assertion can pass, and
+that wave ran without a device. It stays open as a known weakness.
 
 The same shape shows up in individual lines worth knowing about:
 
-- `assertNotVisible: 'Start Over'` in the social flow cannot fail on any chain
-  this suite builds — the guest and converted branches are mutually exclusive.
-  It is documentation wearing an assertion's clothes.
+- The social flow used to carry `assertNotVisible: 'Start Over'`, which could
+  not fail on any chain this suite builds — the guest and converted branches
+  are mutually exclusive. The final fix wave dropped the line; the guest
+  branch is recorded in the flow's comment instead.
 - `assertNotVisible: 'Bottom sheet backdrop'` in the streak flow has never been
   watched failing. Only the invite sheet's backdrop has been seen carrying that
   label on a device.

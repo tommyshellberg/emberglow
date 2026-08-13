@@ -146,6 +146,32 @@ appId: com.vaedros.unquest
 # =============================================================================
 
 # =============================================================================
+# NORMALISE THE ENTRY STATE — RELAUNCH, NOT A TAB TAP
+# =============================================================================
+# In the `all` phase this file runs straight after the known-stale
+# 05-smoke/critical-paths.yaml, whose bare coordinate tap can strand the device
+# on a screen with NO tab bar (the first full run proved it: one strand
+# cascaded through every later flow). A `settings-tab` tap cannot recover from
+# such a screen — the tab is not in the tree — so this flow used to fail as
+# fallout and read like a defect of its own.
+#
+# `launchApp` without `clearState` is the one step that recovers from ANY
+# screen: it restarts the app with the session intact, and the resolver settles
+# a signed-in account on home, tab bar up. From a healthy predecessor it costs
+# a few seconds and changes nothing else.
+#
+# One side effect to know about: a relaunch re-runs the home announcement
+# effect. On a same-day chain the day slot is already spent at signup, so no
+# sheet appears; on a cross-day chain a sheet can present, and the block in the
+# header (dismiss by its own non-destructive button) is the recovery — exactly
+# as it already was for a sheet left up by a predecessor.
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'new-quest-tab'
+    timeout: 30000
+
+# =============================================================================
 # SETTINGS — CONFIRM WHAT IS ABOUT TO BE DESTROYED
 # =============================================================================
 # The login screen must not already be up: this turns the wait for it further
@@ -175,13 +201,14 @@ appId: com.vaedros.unquest
 
 # THE LOGOUT BUTTON IS THE CONVERTED-ACCOUNT BRANCH. `settings.tsx:149-167`
 # renders `Logout` only for `user && !isGuest`, and renders `Start Over` in its
-# place for a guest. So these two lines together say the app is holding a real
-# converted account — which is what makes the logout below meaningful, and what
-# a provisional-session chain would fail on.
+# place for a guest. The positive assert on `Logout` is the whole check: the
+# two branches are mutually exclusive, so on any chain this suite can build an
+# `assertNotVisible: 'Start Over'` could never fail and would only have been
+# documentation wearing an assertion's clothes. The guest branch is recorded
+# here in prose instead.
 - assertVisible:
     id: 'settings-logout-button'
     text: 'Logout'
-- assertNotVisible: 'Start Over'
 
 # =============================================================================
 # THE POINT OF NO RETURN

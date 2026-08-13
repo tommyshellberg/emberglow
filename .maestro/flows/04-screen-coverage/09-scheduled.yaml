@@ -20,9 +20,10 @@ appId: com.vaedros.unquest
 # (`scheduled-quest/index.tsx:106-117`). So this file types nothing into the
 # form and never taps `create-event-submit`.
 #
-# Entry state: authenticated, on HOME with the Story deck card front, account
-# with no events created and none joined. Exit state: identical — same account,
-# home, Story card front, no server write.
+# Entry state: authenticated, on any TAB (the first command normalises to
+# home), with the Story deck card front, account with no events created and
+# none joined. Exit state: same account, home, Story card front, no server
+# write.
 #
 # -----------------------------------------------------------------------------
 # WHY THE LIST IS OPENED BY DEEP LINK AND NOT BY A TAP
@@ -125,6 +126,25 @@ appId: com.vaedros.unquest
 # one element. It is only ever asserted ABSENT here, which is unambiguous, and
 # reaching either branch would need a submit.
 # =============================================================================
+
+# =============================================================================
+# NORMALISE THE ENTRY TAB
+# =============================================================================
+# This file used to deep-link immediately and simply depend on home being the
+# mounted tab — which made it depend on 08-guild's exit state. One tap removes
+# that ordering constraint: if home is already the mounted tab this is a
+# reselect and changes nothing, and if the device is on any other tab it lands
+# on home. If the tab bar is not on screen at all (a stranded tab-less route),
+# this tap fails loudly right here with a clear message, instead of the deep
+# link below half-working from an unknown place. The DECK position is still
+# inherited — the exit contract at the bottom asserts Story front, and a tab
+# tap does not move the deck.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
 
 # =============================================================================
 # THE EVENTS LIST
