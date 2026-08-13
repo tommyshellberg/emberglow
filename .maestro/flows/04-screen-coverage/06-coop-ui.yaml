@@ -213,8 +213,15 @@ appId: com.vaedros.unquest
 # asserted absent here: `coop-empty-state` already proves which branch rendered,
 # and naming them in a flow file would make them look verified to the grep that
 # builds the suite's unverified-anchor list, which is exactly backwards.
-- assertVisible:
-    id: 'coop-empty-state'
+#
+# A wait rather than a bare assert: `coop-menu-screen` above renders in all
+# THREE of the screen's branches, including the loading spinner, so on a cold
+# server the flow could get past the header while the friends query is still in
+# flight. Waiting here is what removes that red class.
+- extendedWaitUntil:
+    visible:
+      id: 'coop-empty-state'
+    timeout: 15000
 
 # The header subtitle is the empty state's own discriminator, not decoration:
 # the has-friends branch prints a longer sentence for the same slot
