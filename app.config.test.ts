@@ -54,3 +54,42 @@ describe('app.config OTA updates', () => {
     expect(config.runtimeVersion).toBe(config.version);
   });
 });
+
+/**
+ * Guards the universal-link config against the prebuild wipe.
+ *
+ * The invite-links intent filter (AndroidManifest.xml) and associated-domains
+ * entitlement (Emberglow.entitlements) were hand-added to the native projects.
+ * `npx expo prebuild` regenerates both files from this config — commit f4c6106
+ * already lost the hand-added Google URL scheme exactly this way. Nothing else
+ * fails when these are stripped: builds stay green and invite links silently
+ * start opening the browser instead of the app.
+ */
+describe('app.config universal links', () => {
+  const config = appConfig({ config: {} } as unknown as ConfigContext);
+
+  it('mirrors the iOS associated domain so prebuild cannot strip it', () => {
+    expect(config.ios?.associatedDomains).toContain(
+      'applinks:emberglowapp.com'
+    );
+  });
+
+  it('mirrors the Android invite intent filter so prebuild cannot strip it', () => {
+    expect(config.android?.intentFilters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'VIEW',
+          autoVerify: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              scheme: 'https',
+              host: 'emberglowapp.com',
+              pathPrefix: '/i/',
+            }),
+          ]),
+          category: expect.arrayContaining(['BROWSABLE', 'DEFAULT']),
+        }),
+      ])
+    );
+  });
+});
