@@ -17,6 +17,7 @@ type InviteState = {
   stashCode: (code: string) => void;
   consumeStashedCode: () => string | null; // returns and clears
   setMatchChecked: () => void;
+  reset: () => void; // sign-out wipe: invite state must not cross accounts
 };
 
 // Create type-safe functions for Zustand's storage
@@ -62,6 +63,14 @@ export const useInviteStore = create<InviteState>()(
 
       setMatchChecked: () => {
         set({ matchChecked: true });
+      },
+
+      // Called from signOut (which wipeGuestSession also routes through):
+      // a pending invite left by user A must not pop for user B, and
+      // matchChecked must not survive Start Over or the re-onboarded
+      // user's attribution check would permanently no-op.
+      reset: () => {
+        set({ pendingInvite: null, stashedCode: null, matchChecked: false });
       },
     }),
     {
