@@ -7,15 +7,15 @@ export type PendingInvite = { code: string; inviterName: string };
 
 type InviteState = {
   // State
-  pendingInvite: PendingInvite | null;      // drives the confirm modal
-  stashedCode: string | null;               // universal-link code captured before onboarding
-  matchChecked: boolean;                    // first-launch match already attempted
+  pendingInvite: PendingInvite | null; // drives the confirm modal
+  stashedCode: string | null; // universal-link code captured before onboarding
+  matchChecked: boolean; // first-launch match already attempted
 
   // Actions
   setPendingInvite: (p: PendingInvite) => void;
   clearPendingInvite: () => void;
   stashCode: (code: string) => void;
-  consumeStashedCode: () => string | null;  // returns and clears
+  consumeStashedCode: () => string | null; // returns and clears
   setMatchChecked: () => void;
 };
 
