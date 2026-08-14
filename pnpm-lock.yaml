@@ -89,9 +89,6 @@ importers:
       expo-constants:
         specifier: ~18.0.13
         version: 18.0.13(expo@54.0.36)(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))
-      expo-contacts:
-        specifier: 15.0.11
-        version: 15.0.11(expo@54.0.36)(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-crypto:
         specifier: ^15.0.9
         version: 15.0.9(expo@54.0.36)
@@ -209,6 +206,9 @@ importers:
       react-native-onesignal:
         specifier: ^5.2.9
         version: 5.2.14
+      react-native-play-install-referrer:
+        specifier: ^1.1.9
+        version: 1.1.9
       react-native-purchases:
         specifier: ^9.4.2
         version: 9.4.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -4231,13 +4231,6 @@ packages:
       expo: '*'
       react-native: '*'
 
-  expo-contacts@15.0.11:
-    resolution: {integrity: sha512-buKkoQuWJgVSEvR1Yloa5SvGC/ud7T2YeYDe0R7Aa0oz8pwQpjk3W7OoL3QrXIfYcuKTrIz6ffqC8lc3peaAyg==}
-    peerDependencies:
-      expo: '*'
-      react: 19.1.0
-      react-native: '*'
-
   expo-crypto@15.0.9:
     resolution: {integrity: sha512-SNWKa2fXx7v9gkp1h/7nqXY5XN7qgNDn3yRc2aO0gWGbeMbvob/haMxxsPFe9f51aqH5NjNCqHf2kvLhvAd8KQ==}
     peerDependencies:
@@ -6899,6 +6892,9 @@ packages:
   react-native-onesignal@5.2.14:
     resolution: {integrity: sha512-wVnV3oQ62fCa6tJYqAjLVHym2jspu5h7hdKC03/tlUria7Z8qpYtykpX2GhB5iXrtk36+w1ZxyiFSSo2W2/dVA==}
 
+  react-native-play-install-referrer@1.1.9:
+    resolution: {integrity: sha512-COKQA/eS2I9NigxZDVZuLFzGNLBXF4+o3o9EIgULx+aagjVQexlPBh4g9fdnhiSvZk1rzq/asVwIJKRPc9Cy7A==}
+
   react-native-purchases-ui@9.4.2:
     resolution: {integrity: sha512-4C7UJy7NuaoeNRREmnWMfboAqQGL6YGyj6TX+bckGicIC3LLJdqw4zXDcPLsIh9x6lnDH3Gnod6X6IQxV4anvQ==}
     peerDependencies:
@@ -8894,6 +8890,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@babel/plugin-transform-destructuring@7.29.7(@babel/core@7.28.5)':
+    dependencies:
+      '@babel/core': 7.28.5
+      '@babel/helper-plugin-utils': 7.29.7
+      '@babel/traverse': 7.29.7
+    transitivePeerDependencies:
+      - supports-color
+
   '@babel/plugin-transform-destructuring@7.29.7(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
@@ -10653,7 +10657,7 @@ snapshots:
       '@babel/plugin-transform-block-scoping': 7.28.5(@babel/core@7.28.5)
       '@babel/plugin-transform-class-properties': 7.27.1(@babel/core@7.28.5)
       '@babel/plugin-transform-classes': 7.28.4(@babel/core@7.28.5)
-      '@babel/plugin-transform-destructuring': 7.28.5(@babel/core@7.28.5)
+      '@babel/plugin-transform-destructuring': 7.29.7(@babel/core@7.28.5)
       '@babel/plugin-transform-flow-strip-types': 7.27.1(@babel/core@7.28.5)
       '@babel/plugin-transform-for-of': 7.27.1(@babel/core@7.28.5)
       '@babel/plugin-transform-modules-commonjs': 7.27.1(@babel/core@7.28.5)
@@ -13070,12 +13074,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  expo-contacts@15.0.11(expo@54.0.36)(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
-    dependencies:
-      expo: 54.0.36(@babel/core@7.28.5)(@expo/metro-runtime@6.1.2)(expo-router@6.0.24)(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
-      react: 19.1.0
-      react-native: 0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0)
-
   expo-crypto@15.0.9(expo@54.0.36):
     dependencies:
       base64-js: 1.5.1
@@ -15036,7 +15034,7 @@ snapshots:
 
   metro-babel-transformer@0.84.4:
     dependencies:
-      '@babel/core': 7.28.5
+      '@babel/core': 7.29.7
       flow-enums-runtime: 0.0.6
       hermes-parser: 0.35.0
       metro-cache-key: 0.84.4
@@ -15232,7 +15230,7 @@ snapshots:
 
   metro-transform-plugins@0.84.4:
     dependencies:
-      '@babel/core': 7.28.5
+      '@babel/core': 7.29.7
       '@babel/generator': 7.29.7
       '@babel/template': 7.29.7
       '@babel/traverse': 7.29.7
@@ -15263,7 +15261,7 @@ snapshots:
 
   metro-transform-worker@0.84.4:
     dependencies:
-      '@babel/core': 7.28.5
+      '@babel/core': 7.29.7
       '@babel/generator': 7.29.7
       '@babel/parser': 7.29.7
       '@babel/types': 7.29.7
@@ -15331,7 +15329,7 @@ snapshots:
   metro@0.84.4:
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/core': 7.28.5
+      '@babel/core': 7.29.7
       '@babel/generator': 7.29.7
       '@babel/parser': 7.29.7
       '@babel/template': 7.29.7
@@ -16196,6 +16194,8 @@ snapshots:
   react-native-onesignal@5.2.14:
     dependencies:
       invariant: 2.2.4
+
+  react-native-play-install-referrer@1.1.9: {}
 
   react-native-purchases-ui@9.4.2(react-native-purchases@9.4.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.86.0(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:

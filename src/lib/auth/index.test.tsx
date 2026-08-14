@@ -210,9 +210,7 @@ describe('Auth Store', () => {
       (useUserStore.getState as jest.Mock).mockReturnValue({
         clearUser: mockClearUser,
       });
-      const alertSpy = jest
-        .spyOn(Alert, 'alert')
-        .mockImplementation(() => {});
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
       endProvisionalSession();
 
@@ -338,6 +336,25 @@ describe('Auth Store', () => {
       await Promise.resolve(); // Let promises resolve
 
       expect(OneSignal.User.getExternalId).toHaveBeenCalled();
+    });
+
+    it('resets the invite store so invite state cannot leak across accounts', async () => {
+      const { useInviteStore } = require('@/store/invite-store');
+      useInviteStore.setState({
+        pendingInvite: { code: 'A1B2C3D4', inviterName: 'Freya' },
+        stashedCode: 'A1B2C3D4',
+        matchChecked: true,
+      });
+      const mockClearUser = jest.fn();
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        clearUser: mockClearUser,
+      });
+
+      await useAuth.getState().signOut();
+
+      expect(useInviteStore.getState().pendingInvite).toBeNull();
+      expect(useInviteStore.getState().stashedCode).toBeNull();
+      expect(useInviteStore.getState().matchChecked).toBe(false);
     });
 
     it('should handle OneSignal logout errors gracefully', () => {

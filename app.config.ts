@@ -30,6 +30,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: Env.BUNDLE_ID,
     icon: './assets/images/app-icon.png',
     usesAppleSignIn: true,
+    // Parity with the hand-added entitlement in Emberglow.entitlements —
+    // prebuild regenerates that file from here (commit f4c6106 lost the
+    // hand-added Google URL scheme exactly this way).
+    // www, not apex: Vercel redirects apex → www, and both OS verifiers
+    // require the association file directly on the declared host (a redirect
+    // fails verification), so apex can never verify. Hand-shared apex links
+    // still work via browser → redirect → fallback attribution.
+    associatedDomains: ['applinks:www.emberglowapp.com'],
     config: {
       usesNonExemptEncryption: false,
     },
@@ -53,6 +61,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#051c25',
     },
     package: Env.PACKAGE,
+    // Parity with the hand-added invite-links intent filter in
+    // AndroidManifest.xml — same prebuild-wipe risk as associatedDomains.
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          {
+            scheme: 'https',
+            host: 'www.emberglowapp.com',
+            pathPrefix: '/i/',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
     permissions: [
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',

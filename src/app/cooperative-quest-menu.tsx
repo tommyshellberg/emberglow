@@ -9,14 +9,10 @@ import {
   Users,
 } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
-import React, { useRef } from 'react';
+import React from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
 
 import { ListItem } from '@/components/emberglow';
-import {
-  ContactsImportModal,
-  type ContactsImportModalRef,
-} from '@/components/profile/contact-import';
 import { useLazyWebSocket } from '@/components/providers/lazy-websocket-provider';
 import {
   FocusAwareStatusBar,
@@ -25,9 +21,8 @@ import {
   Text,
   View,
 } from '@/components/ui';
-import { useFriendManagement } from '@/lib/hooks/use-friend-management';
+import { useInviteShare } from '@/lib/invite/use-invite-share';
 import { getUserFriends } from '@/lib/services/user';
-import { useUserStore } from '@/store/user-store';
 import { colors, fontFamily, fontSize, radii, shadows, spacing } from '@/theme';
 
 interface MenuOption {
@@ -65,7 +60,7 @@ const menuOptions: MenuOption[] = [
     title: 'Add Friends',
     description: 'Connect with friends to quest together',
     icon: <UserPlus size={20} color={colors.text.accent} />,
-    route: '', // We'll handle this with modal instead
+    route: '', // No route: this option opens the invite-link share sheet
   },
 ];
 
@@ -92,11 +87,7 @@ function HowItWorksCard({ style }: { style?: object }) {
 export default function CooperativeQuestMenu() {
   const router = useRouter();
   const posthog = usePostHog();
-  const contactsModalRef = useRef<ContactsImportModalRef>(null);
-  // `AuthState` (src/lib/auth) has no `user` field — the real signed-in
-  // user's email lives in the user store, not the auth store.
-  const user = useUserStore((state) => state.user);
-  const userEmail = user?.email || '';
+  const { shareInvite } = useInviteShare('coop_menu');
   const { connect: connectWebSocket } = useLazyWebSocket();
 
   // Connect WebSocket when entering cooperative quest flow
@@ -121,12 +112,9 @@ export default function CooperativeQuestMenu() {
   //   handlePaywallSuccess,
   // } = usePremiumAccess();
 
-  // Friend management hook for bulk invites
-  const { sendBulkInvites } = useFriendManagement(userEmail, contactsModalRef);
-
   const handleOptionPress = (option: MenuOption) => {
     if (option.id === 'friends') {
-      contactsModalRef.current?.present();
+      void shareInvite();
     } else if (option.route) {
       if (option.id === 'create') {
         posthog.capture('cooperative_quest_create_clicked');
@@ -203,7 +191,7 @@ export default function CooperativeQuestMenu() {
                 subtitle="Connect with friends to quest together"
                 leading={<UserPlus size={20} color={colors.text.accent} />}
                 trailing={<ChevronRight size={18} color={colors.text.muted} />}
-                onPress={() => contactsModalRef.current?.present()}
+                onPress={() => void shareInvite()}
               />
             </View>
 
@@ -214,14 +202,6 @@ export default function CooperativeQuestMenu() {
           </>
         )}
       </ScreenContainer>
-
-      {/* Contacts Import Modal */}
-      <ContactsImportModal
-        ref={contactsModalRef}
-        sendBulkInvites={sendBulkInvites}
-        friends={friendsData?.friends || []}
-        userEmail={userEmail}
-      />
     </View>
   );
 }

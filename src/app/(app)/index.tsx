@@ -15,6 +15,7 @@ import Animated, {
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
+import { InviteConfirmModal } from '@/components/invite/invite-confirm-modal';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
 import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
@@ -46,6 +47,7 @@ import { useStoryOptions } from '@/features/home/hooks/use-story-options';
 import { useAudioPreloader } from '@/hooks/use-audio-preloader';
 import { useServerQuests } from '@/hooks/use-server-quests';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
+import { checkInviteMatch } from '@/lib/invite/check-invite-match';
 import QuestTimer from '@/lib/services/quest-timer';
 import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/user';
 import {
@@ -198,6 +200,15 @@ export default function Home() {
     (state) => state.refreshAvailableQuests
   );
   const availableQuests = useQuestStore((state) => state.availableQuests);
+
+  // Consume any stashed invite code. Every auth path — fresh onboarding,
+  // sign-in to an existing account, Google-first signup, a guest session —
+  // lands here, so this is the one consumer a stashed code can rely on.
+  // checkInviteMatch never throws and no-ops without a stash once the
+  // once-per-install fingerprint match has run.
+  useEffect(() => {
+    void checkInviteMatch();
+  }, []);
 
   // Premium access state
   const [showPaywallModal, setShowPaywallModal] = useState(false);
@@ -625,6 +636,9 @@ export default function Home() {
 
       {/* Narrator Voice Announcement Modal */}
       <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
+
+      {/* Invite confirm modal — self-hides until an invite is pending */}
+      <InviteConfirmModal />
     </View>
   );
 }

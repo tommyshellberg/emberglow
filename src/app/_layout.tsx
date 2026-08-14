@@ -497,6 +497,7 @@ function RootLayout() {
           name="auth/magiclink/verify"
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="i/[code]" options={{ headerShown: false }} />
       </Stack>
     </Providers>
   );

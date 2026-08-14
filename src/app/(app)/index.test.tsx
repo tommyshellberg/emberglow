@@ -167,6 +167,10 @@ jest.mock('@/lib/services/user', () => ({
   refreshPremiumStatus: jest.fn().mockResolvedValue({}),
 }));
 
+jest.mock('@/lib/invite/check-invite-match', () => ({
+  checkInviteMatch: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Import the Home component
 const Home = require('./index').default;
 
@@ -190,6 +194,17 @@ describe('Home Component - Integration Tests', () => {
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
+  });
+
+  describe('Invite attribution', () => {
+    it('runs the invite consumer on mount so a stashed code is never stranded', () => {
+      const { checkInviteMatch } = require('@/lib/invite/check-invite-match');
+
+      const { unmount } = render(<Home />);
+
+      expect(checkInviteMatch).toHaveBeenCalled();
+      unmount();
+    });
   });
 
   describe('What user SEES', () => {

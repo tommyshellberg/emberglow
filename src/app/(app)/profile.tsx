@@ -2,10 +2,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { RefreshControl } from 'react-native';
 
-import {
-  ContactsImportModal,
-  type ContactsImportModalRef,
-} from '@/components/profile/contact-import';
 import { DeleteFriendModal } from '@/components/profile/delete-friend-modal';
 import { FriendsList } from '@/components/profile/friends-list';
 import { ProfileCard } from '@/components/profile/profile-card';
@@ -25,6 +21,7 @@ import { ActionCards } from '@/features/profile/components/profile-components';
 import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { useProfileData } from '@/lib/hooks/use-profile-data';
+import { useInviteShare } from '@/lib/invite/use-invite-share';
 import { useCharacterStore } from '@/store/character-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
@@ -36,7 +33,9 @@ export default function ProfileScreen() {
   const character = useCharacterStore((state) => state.character);
   const completedQuests = useQuestStore((state) => state.getCompletedQuests());
   const streakCount = useCharacterStore((state) => state.dailyQuestStreak);
-  const contactsModalRef = React.useRef<ContactsImportModalRef>(null);
+  // The one invite path: share the caller's link via the OS sheet. The
+  // contacts-import flow this replaced was removed 2026-08-14.
+  const { shareInvite } = useInviteShare('profile');
   // resetOnboarding, not setCurrentStep: the latter is forward-only and would
   // silently discard the move back from COMPLETED, leaving this button inert.
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
@@ -49,7 +48,6 @@ export default function ProfileScreen() {
 
   // Handle friends, invitations, and mutations
   const {
-    friendsData,
     combinedData,
     isLoadingFriends,
     isLoadingInvitations,
@@ -58,27 +56,19 @@ export default function ProfileScreen() {
     deleteModalVisible,
     rescindModalVisible,
     invitationToRescind,
-    inviteError: _inviteError,
-    inviteSuccess: _inviteSuccess,
-    formMethods: _formMethods,
-    handleInviteFriends,
-    handleCloseInviteModal: _handleCloseInviteModal,
     handleDeleteFriend,
     handleConfirmDelete,
     handleCancelDelete,
     handleRescindInvitation,
     handleConfirmRescind,
     handleCancelRescind,
-    handleSendFriendRequest: _handleSendFriendRequest,
     handleAcceptInvitation,
     handleRejectInvitation,
     isOutgoingInvitation,
     acceptMutation,
     rejectMutation,
     rescindMutation,
-    inviteMutation: _inviteMutation,
-    sendBulkInvites,
-  } = useFriendManagement(userEmail, contactsModalRef);
+  } = useFriendManagement(userEmail);
 
   // Fetch user details when the component mounts
   useEffect(() => {
@@ -182,7 +172,7 @@ export default function ProfileScreen() {
           <FriendsList
             combinedData={combinedData}
             isLoading={isLoadingFriends || isLoadingInvitations}
-            onInvite={handleInviteFriends}
+            onInvite={shareInvite}
             onDelete={handleDeleteFriend}
             onRescind={handleRescindInvitation}
             onAccept={handleAcceptInvitation}
@@ -197,13 +187,6 @@ export default function ProfileScreen() {
       </ScreenContainer>
 
       {/* Modals */}
-      <ContactsImportModal
-        ref={contactsModalRef}
-        sendBulkInvites={sendBulkInvites}
-        friends={friendsData?.friends || []}
-        userEmail={userEmail}
-      />
-
       <DeleteFriendModal
         visible={deleteModalVisible}
         onConfirm={handleConfirmDelete}

@@ -11,6 +11,7 @@ import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
+import { useInviteStore } from '@/store/invite-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { usePOIStore } from '@/store/poi-store';
 import { useUserStore } from '@/store/user-store';
@@ -72,6 +73,12 @@ const _useAuth = create<AuthState>((set, get) => ({
 
     // Clear user store
     useUserStore.getState().clearUser();
+
+    // Invite state is per-account: a pending invite or stashed code left by
+    // this user must not surface for the next account on this device, and
+    // matchChecked must not survive a Start Over wipe (wipeGuestSession
+    // routes through here) or re-onboarding attribution would never run.
+    useInviteStore.getState().reset();
 
     // Detach the PostHog person so a next login on this device doesn't
     // inherit this user's identity.
