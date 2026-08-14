@@ -9,7 +9,7 @@ import { useInviteStore } from '@/store/invite-store';
 import { colors } from '@/theme';
 
 /**
- * Universal-link entry point for `https://emberglowapp.com/i/{code}`.
+ * Universal-link entry point for `https://www.emberglowapp.com/i/{code}`.
  *
  * Always stash, never resolve here: `checkInviteMatch` is the single
  * consumer, and it owns the isSelf/alreadyFriends filter and the

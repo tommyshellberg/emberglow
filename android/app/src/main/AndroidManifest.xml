@@ -48,7 +48,7 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="https" android:host="emberglowapp.com" android:pathPrefix="/i/"/>
+        <data android:scheme="https" android:host="www.emberglowapp.com" android:pathPrefix="/i/"/>
       </intent-filter>
     </activity>
   </application>

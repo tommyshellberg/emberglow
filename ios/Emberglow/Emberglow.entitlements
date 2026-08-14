@@ -14,7 +14,7 @@
     </array>
     <key>com.apple.developer.associated-domains</key>
     <array>
-      <string>applinks:emberglowapp.com</string>
+      <string>applinks:www.emberglowapp.com</string>
     </array>
   </dict>
 </plist>

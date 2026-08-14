@@ -70,7 +70,7 @@ describe('app.config universal links', () => {
 
   it('mirrors the iOS associated domain so prebuild cannot strip it', () => {
     expect(config.ios?.associatedDomains).toContain(
-      'applinks:emberglowapp.com'
+      'applinks:www.emberglowapp.com'
     );
   });
 
@@ -83,7 +83,7 @@ describe('app.config universal links', () => {
           data: expect.arrayContaining([
             expect.objectContaining({
               scheme: 'https',
-              host: 'emberglowapp.com',
+              host: 'www.emberglowapp.com',
               pathPrefix: '/i/',
             }),
           ]),
