@@ -67,7 +67,8 @@ jest.mock('@/features/leaderboard/components/leaderboard-item', () => ({
     return React.createElement(View, {}, [
       React.createElement(Text, { key: 'username' }, entry.username),
       React.createElement(Text, { key: 'metric' }, metricLabel),
-      entry.isFriend && !entry.isCurrentUser &&
+      entry.isFriend &&
+        !entry.isCurrentUser &&
         React.createElement(Text, { key: 'friend-label' }, 'Friend'),
     ]);
   },
@@ -181,9 +182,11 @@ jest.mock('@/components/ui', () => {
   };
 });
 
-// Mock ContactsImportModal to avoid react-hook-form issues
-jest.mock('@/components/profile/contact-import', () => ({
-  ContactsImportModal: () => null,
+jest.mock('@/lib/invite/use-invite-share', () => ({
+  useInviteShare: jest.fn(() => ({
+    shareInvite: jest.fn(),
+    isSharing: false,
+  })),
 }));
 
 // Mock character images
@@ -367,24 +370,6 @@ describe('LeaderboardScreen', () => {
     (useFriendManagement as jest.Mock).mockReturnValue({
       friendsData: { friends: [{ _id: '3' }] }, // Updated structure to match actual hook
       isLoadingFriends: false,
-      inviteError: '',
-      inviteSuccess: '',
-      formMethods: {
-        control: {},
-        handleSubmit: jest.fn((callback) => callback),
-        formState: {
-          errors: {},
-          isValid: true,
-        },
-        setValue: jest.fn(),
-        reset: jest.fn(),
-      },
-      handleCloseInviteModal: jest.fn(),
-      handleSendFriendRequest: jest.fn(),
-      inviteMutation: {
-        isPending: false,
-      },
-      sendBulkInvites: jest.fn(),
     });
     (useLeaderboardStats as jest.Mock).mockReturnValue({
       data: mockLeaderboardData,
@@ -464,7 +449,8 @@ describe('LeaderboardScreen', () => {
         leaderboardData,
         topUser,
         restOfUsers,
-        currentUserPosition: leaderboardData.findIndex((u: any) => u.isCurrentUser) + 1,
+        currentUserPosition:
+          leaderboardData.findIndex((u: any) => u.isCurrentUser) + 1,
       };
     });
   });

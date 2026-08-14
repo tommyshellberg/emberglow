@@ -135,32 +135,6 @@ export async function getUserFriends(
 }
 
 /**
- * Send a friend invitation to a user by email address
- * @param email Email address of the user to invite
- * @returns Response with invitation details
- */
-export async function sendFriendInvite(email: string): Promise<{
-  message: string;
-  invitation: {
-    sender: string;
-    recipient: string;
-    recipientUser: string | null;
-    status: string;
-    _id: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-}> {
-  try {
-    const response = await apiClient.post('/users/invites', { email });
-    return response.data;
-  } catch (error) {
-    console.error('Error sending friend invitation:', error);
-    throw error;
-  }
-}
-
-/**
  * Get friend invitations (both sent and received)
  * @param status Filter invitations by status (e.g., 'pending', 'accepted', 'rejected')
  * @param page Page number for pagination
@@ -282,27 +256,6 @@ export async function rescindInvitation(inviteId: string): Promise<{
     return response.data;
   } catch (error) {
     console.error('Error rescinding invitation:', error);
-    throw error;
-  }
-}
-
-/**
- * Send bulk friend invitations to multiple email addresses
- * @param emails Array of email addresses to invite
- * @returns Response with success/failure details for each email
- */
-export async function sendBulkFriendInvites(emails: string[]): Promise<{
-  message: string;
-  totalSuccessful: number;
-  totalFailed: number;
-  successfulEmails: string[];
-  failedEmails: { email: string; reason: string }[];
-}> {
-  try {
-    const response = await apiClient.post('/users/invites/bulk', { emails });
-    return response.data;
-  } catch (error) {
-    console.error('Error sending bulk friend invitations:', error);
     throw error;
   }
 }

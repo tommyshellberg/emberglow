@@ -118,13 +118,6 @@ jest.mock('@/components/profile/friends-list', () => {
   };
 });
 
-jest.mock('@/components/profile/contact-import', () => {
-  const mockForwardRef = require('react').forwardRef;
-  return {
-    ContactsImportModal: mockForwardRef((_props: any, _ref: any) => null),
-  };
-});
-
 jest.mock('@/components/profile/delete-friend-modal', () => ({
   DeleteFriendModal: () => null,
 }));
@@ -149,7 +142,6 @@ jest.mock('@/lib/hooks/use-profile-data', () => ({
 
 jest.mock('@/lib/hooks/use-friend-management', () => ({
   useFriendManagement: jest.fn(() => ({
-    friendsData: { friends: [] },
     combinedData: [],
     isLoadingFriends: false,
     isLoadingInvitations: false,
@@ -158,26 +150,25 @@ jest.mock('@/lib/hooks/use-friend-management', () => ({
     deleteModalVisible: false,
     rescindModalVisible: false,
     invitationToRescind: null,
-    inviteError: null,
-    inviteSuccess: false,
-    formMethods: {},
-    handleInviteFriends: jest.fn(),
-    handleCloseInviteModal: jest.fn(),
     handleDeleteFriend: jest.fn(),
     handleConfirmDelete: jest.fn(),
     handleCancelDelete: jest.fn(),
     handleRescindInvitation: jest.fn(),
     handleConfirmRescind: jest.fn(),
     handleCancelRescind: jest.fn(),
-    handleSendFriendRequest: jest.fn(),
     handleAcceptInvitation: jest.fn(),
     handleRejectInvitation: jest.fn(),
     isOutgoingInvitation: jest.fn(),
     acceptMutation: { isPending: false },
     rejectMutation: { isPending: false },
     rescindMutation: { isPending: false },
-    inviteMutation: { isPending: false },
-    sendBulkInvites: jest.fn(),
+  })),
+}));
+
+jest.mock('@/lib/invite/use-invite-share', () => ({
+  useInviteShare: jest.fn(() => ({
+    shareInvite: jest.fn(),
+    isSharing: false,
   })),
 }));
 
@@ -560,15 +551,15 @@ describe('ProfileScreen', () => {
   });
 
   describe('User Interactions', () => {
-    it('allows inviting friends', async () => {
-      const mockUseFriendManagement = jest.requireMock(
-        '@/lib/hooks/use-friend-management'
-      ).useFriendManagement;
-      const mockHandleInvite = jest.fn();
+    it('invites friends through the share-link flow', async () => {
+      const mockUseInviteShare = jest.requireMock(
+        '@/lib/invite/use-invite-share'
+      ).useInviteShare;
+      const mockShareInvite = jest.fn();
 
-      mockUseFriendManagement.mockReturnValue({
-        ...mockUseFriendManagement(),
-        handleInviteFriends: mockHandleInvite,
+      mockUseInviteShare.mockReturnValue({
+        shareInvite: mockShareInvite,
+        isSharing: false,
       });
 
       const { user } = setup(<ProfileScreen />);
@@ -577,8 +568,9 @@ describe('ProfileScreen', () => {
       await user.press(inviteButton);
 
       await waitFor(() => {
-        expect(mockHandleInvite).toHaveBeenCalled();
+        expect(mockShareInvite).toHaveBeenCalled();
       });
+      expect(mockUseInviteShare).toHaveBeenCalledWith('profile');
     });
 
     it('supports pull to refresh', () => {
