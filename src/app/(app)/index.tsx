@@ -210,9 +210,11 @@ export default function Home() {
     void checkInviteMatch();
   }, []);
 
-  // Premium access state
+  // Premium access state — one hook instance for the whole screen (the
+  // entitlement itself is shared app-wide via the premium-access store).
   const [showPaywallModal, setShowPaywallModal] = useState(false);
-  const { handlePaywallSuccess } = usePremiumAccess();
+  const { hasPremiumAccess, handlePaywallSuccess, refreshPremiumStatus } =
+    usePremiumAccess();
 
   // Deck state with paywall reset. Item count is tied to QUEST_MODES
   // (always the 3 fixed modes), not carouselData.length, so this hook can
@@ -395,16 +397,6 @@ export default function Home() {
     contentTranslateY.value = withDelay(1000, withSpring(0));
   }, [contentOpacity, contentTranslateY, headerOpacity]);
 
-  // Check premium access for cooperative quests
-  const {
-    hasPremiumAccess: hasCoopAccess,
-    checkPremiumAccess: _checkPremiumAccess,
-    refreshPremiumStatus,
-  } = usePremiumAccess();
-
-  // Also get hasPremiumAccess without renaming for use in other places
-  const { hasPremiumAccess } = usePremiumAccess();
-
   usePremiumRefreshOnMount(refreshPremiumStatus);
 
   // Animated background style based on carousel progress
@@ -562,12 +554,12 @@ export default function Home() {
                 entering={FadeIn.duration(600).delay(200)}
                 className="w-full items-center px-4"
               >
-                {!hasCoopAccess && <PremiumCTATracker type="cooperative" />}
+                {!hasPremiumAccess && <PremiumCTATracker type="cooperative" />}
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
                   style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
-                  {!hasCoopAccess && (
+                  {!hasPremiumAccess && (
                     <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
                       <Badge tone="warm">Premium</Badge>
                     </View>
@@ -577,12 +569,12 @@ export default function Home() {
                     // know whether the account has premium co-op access.
                     testID="create-coop-quest-button"
                     label={
-                      hasCoopAccess
+                      hasPremiumAccess
                         ? 'Cooperative Quests'
                         : 'Unlock Cooperative Mode'
                     }
                     onPress={() => {
-                      if (hasCoopAccess) {
+                      if (hasPremiumAccess) {
                         handleCooperativeQuest();
                       } else {
                         posthog.capture('premium_upsell_cta_clicked', {
@@ -614,11 +606,8 @@ export default function Home() {
         onSuccess={async () => {
           setShowPaywallModal(false);
 
-          // Force refresh premium status
-          await refreshPremiumStatus();
-
-          // Call the hook's success handler
-          handlePaywallSuccess();
+          // Re-check entitlements and update the shared premium store
+          await handlePaywallSuccess();
 
           // Refresh quests to update premium access
           refreshAvailableQuests();

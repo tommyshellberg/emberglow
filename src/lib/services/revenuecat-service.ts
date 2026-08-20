@@ -9,6 +9,7 @@ import Purchases, {
 import RevenueCatUI from 'react-native-purchases-ui';
 
 import { posthogClient } from '@/lib/posthog';
+import { usePremiumAccessStore } from '@/store/premium-access-store';
 
 export class RevenueCatService {
   private static instance: RevenueCatService;
@@ -52,6 +53,22 @@ export class RevenueCatService {
       } else if (Platform.OS === 'android') {
         Purchases.configure({ apiKey: Env.REVENUECAT_GOOGLE_API_KEY });
       }
+
+      // Push entitlement changes (purchase, renewal, expiration — from any
+      // flow, including the RevenueCatUI paywall) into the shared store so
+      // every mounted screen updates without a remount.
+      Purchases.addCustomerInfoUpdateListener((customerInfo) => {
+        this.customerInfo = customerInfo;
+        // Development builds and test mode grant premium unconditionally
+        // (see hasPremiumAccess); an honest "no entitlement" push must not
+        // revoke that override.
+        if (__DEV__ || this.testModeEnabled) {
+          return;
+        }
+        const hasAccess =
+          Object.keys(customerInfo?.entitlements?.active ?? {}).length > 0;
+        usePremiumAccessStore.getState().setHasPremiumAccess(hasAccess);
+      });
 
       this.isInitialized = true;
       console.log('RevenueCat SDK configured successfully');

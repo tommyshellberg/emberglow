@@ -4,6 +4,7 @@ import Purchases from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 
 import { posthogClient } from '@/lib/posthog';
+import { usePremiumAccessStore } from '@/store/premium-access-store';
 
 import { RevenueCatService, revenueCatService } from './revenuecat-service';
 
@@ -166,6 +167,58 @@ describe('RevenueCatService.initialize', () => {
     expect(RevenueCatService.getInstance()).toBe(
       RevenueCatService.getInstance()
     );
+  });
+});
+
+describe('RevenueCatService customer info push updates', () => {
+  const originalDev = __DEV__;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    silenceConsole();
+  });
+
+  afterEach(() => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+    jest.restoreAllMocks();
+  });
+
+  function initializeAndCaptureListener(): (info: unknown) => void {
+    freshService().initialize();
+    const calls = (Purchases.addCustomerInfoUpdateListener as jest.Mock).mock
+      .calls;
+    expect(calls).toHaveLength(1);
+    return calls[0][0];
+  }
+
+  it('unlocks premium in the shared store when the SDK reports an active entitlement', () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    usePremiumAccessStore.setState({ hasPremiumAccess: false });
+    const listener = initializeAndCaptureListener();
+
+    listener({ entitlements: { active: { premium: {} } } });
+
+    expect(usePremiumAccessStore.getState().hasPremiumAccess).toBe(true);
+  });
+
+  it('revokes premium in the shared store when no entitlement remains active', () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+    usePremiumAccessStore.setState({ hasPremiumAccess: true });
+    const listener = initializeAndCaptureListener();
+
+    listener({ entitlements: { active: {} } });
+
+    expect(usePremiumAccessStore.getState().hasPremiumAccess).toBe(false);
+  });
+
+  it('never revokes the development-build premium override', () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+    usePremiumAccessStore.setState({ hasPremiumAccess: true });
+    const listener = initializeAndCaptureListener();
+
+    listener({ entitlements: { active: {} } });
+
+    expect(usePremiumAccessStore.getState().hasPremiumAccess).toBe(true);
   });
 });
 
