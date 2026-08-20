@@ -9,6 +9,7 @@ jest.mock('react-native-purchases', () => ({
   },
   configure: jest.fn(),
   setLogLevel: jest.fn(),
+  addCustomerInfoUpdateListener: jest.fn(),
   logIn: jest.fn().mockResolvedValue({ customerInfo: {} }),
   logOut: jest.fn().mockResolvedValue({ customerInfo: {} }),
   getCustomerInfo: jest.fn().mockResolvedValue({}),
