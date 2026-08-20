@@ -95,7 +95,6 @@ jest.mock('@/lib/services/notifications', () => ({
   areNotificationsEnabled: (...args: unknown[]) =>
     mockAreNotificationsEnabled(...args),
   cancelDailyReminderNotification: jest.fn().mockResolvedValue(true),
-  cancelLegacyStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
   requestNotificationPermissions: (...args: unknown[]) =>
     mockRequestPermissions(...args),
   scheduleDailyReminderNotification: jest.fn().mockResolvedValue(true),
@@ -117,10 +116,8 @@ jest.mock('@/store/settings-store', () => {
   const { create } = require('zustand');
   const useSettingsStore = create((set: any) => ({
     dailyReminder: { enabled: false, time: null },
-    streakWarning: { enabled: false, time: null },
     nudges: { enabled: true },
     setDailyReminder: (reminder: any) => set({ dailyReminder: reminder }),
-    setStreakWarning: (streakWarning: any) => set({ streakWarning }),
     setNudges: (nudges: any) => set({ nudges }),
     narratorVoice: null,
     setNarratorVoice: (voice: any) => set({ narratorVoice: voice }),
@@ -446,9 +443,38 @@ describe('Nudges toggle', () => {
     expect(await screen.findByText('Nudges')).toBeOnTheScreen();
     expect(
       screen.getByText(
-        "Occasional reminders to pick your journey back up when you've been away."
+        'Streak warnings and occasional reminders to pick your journey back up.'
       )
     ).toBeOnTheScreen();
+  });
+
+  it('does not render a Streak Warning row or its time picker', async () => {
+    render(<Settings />);
+    await screen.findByText('Nudges');
+    expect(screen.queryByText('Streak Warning')).toBeNull();
+    expect(screen.queryByText(/Streak Warning time/i)).toBeNull();
+  });
+
+  it('shows the consolidated Nudges description', async () => {
+    render(<Settings />);
+    expect(
+      await screen.findByText(
+        'Streak warnings and occasional reminders to pick your journey back up.'
+      )
+    ).toBeOnTheScreen();
+  });
+
+  it('sends only nudges to the server when toggled, never streakWarning', async () => {
+    render(<Settings />);
+    const toggle = await screen.findByLabelText('Nudges');
+    fireEvent(toggle, 'onChange', false);
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalled());
+    for (const [arg] of mockUpdateSettings.mock.calls) {
+      expect(arg).not.toHaveProperty('streakWarning');
+    }
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      nudges: { enabled: false },
+    });
   });
 
   it('sends { nudges: { enabled: false } } to the server when toggled off', async () => {

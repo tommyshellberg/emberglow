@@ -56,16 +56,6 @@ describe('settings-store notification defaults', () => {
     });
   });
 
-  it('ships the streak warning on, at 18:00', () => {
-    // The fixed 18:00 send time is a known live problem — it fires while
-    // evening questers are mid-quest (server issue #73). Whatever it becomes,
-    // it must not change by accident.
-    expect(useSettingsStore.getState().streakWarning).toEqual({
-      enabled: true,
-      time: { hour: 18, minute: 0 },
-    });
-  });
-
   it('has not yet prompted a fresh install for a reminder', () => {
     // Defaulting to true suppresses the prompt for every new user.
     expect(useSettingsStore.getState().hasBeenPromptedForReminder).toBe(false);
@@ -81,14 +71,6 @@ describe('settings-store notification setters', () => {
     useSettingsStore.getState().setDailyReminder(reminder);
 
     expect(useSettingsStore.getState().dailyReminder).toEqual(reminder);
-  });
-
-  it('setStreakWarning stores the chosen time', () => {
-    const warning = { enabled: false, time: { hour: 21, minute: 15 } };
-
-    useSettingsStore.getState().setStreakWarning(warning);
-
-    expect(useSettingsStore.getState().streakWarning).toEqual(warning);
   });
 
   it('setHasBeenPromptedForReminder records that the prompt was shown', () => {
@@ -118,9 +100,9 @@ describe('settings-store persistence', () => {
         ? JSON.stringify({
             state: {
               narratorVoice: 'female',
-              streakWarning: { enabled: false, time: { hour: 9, minute: 0 } },
+              onboardingSoundEnabled: false,
             },
-            version: 0,
+            version: 1,
           })
         : null
     );
@@ -135,9 +117,58 @@ describe('settings-store persistence', () => {
     expect(store!.getState().narratorVoice).toBe('female');
     // A non-default value, so a mutant that discards the stored blob and
     // falls back to the initial state is visible here.
-    expect(store!.getState().streakWarning).toEqual({
-      enabled: false,
+    expect(store!.getState().onboardingSoundEnabled).toBe(false);
+  });
+
+  it('drops the legacy streakWarning key when rehydrating a v0 blob', async () => {
+    // Non-default values on purpose: a migrate that discards the blob and
+    // falls back to fresh defaults would pass a test built from defaults.
+    (getItem as jest.Mock).mockImplementation((name: string) =>
+      name === STORAGE_KEY
+        ? JSON.stringify({
+            state: {
+              dailyReminder: { enabled: true, time: { hour: 9, minute: 0 } },
+              streakWarning: { enabled: false, time: { hour: 20, minute: 0 } },
+              nudges: { enabled: false },
+            },
+            version: 0,
+          })
+        : null
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    const state = useSettingsStore.getState() as Record<string, unknown>;
+    expect(state.streakWarning).toBeUndefined();
+    expect(state.nudges).toEqual({ enabled: false });
+    expect(state.dailyReminder).toEqual({
+      enabled: true,
       time: { hour: 9, minute: 0 },
+    });
+
+    // A migrated rehydrate writes the state back at the bumped version.
+    const written = JSON.parse(
+      (setItem as jest.Mock).mock.calls.at(-1)![1] as string
+    );
+    expect(written.version).toBe(1);
+  });
+
+  // zustand's persist middleware only calls migrate() when the stored
+  // version differs from the current version, so version 1 never reaches it
+  // through a normal rehydrate. Calling the migrate function directly is the
+  // only way to prove the `< 1` boundary (not `<= 1`): at exactly version 1,
+  // a persisted streakWarning key (however it got there) must survive.
+  it('migrate leaves an already-v1 blob alone (boundary is < 1, not <= 1)', () => {
+    const migrate = useSettingsStore.persist.getOptions().migrate!;
+
+    const migrated = migrate(
+      { streakWarning: { enabled: true, time: { hour: 7, minute: 30 } } },
+      1
+    ) as Record<string, unknown>;
+
+    expect(migrated.streakWarning).toEqual({
+      enabled: true,
+      time: { hour: 7, minute: 30 },
     });
   });
 });

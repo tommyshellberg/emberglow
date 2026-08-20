@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
-import { Crown, Flame, Globe } from 'lucide-react-native';
+import { Crown, Globe } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,7 +39,6 @@ import { posthogClient } from '@/lib/posthog';
 import {
   areNotificationsEnabled,
   cancelDailyReminderNotification,
-  cancelLegacyStreakWarningNotification,
   requestNotificationPermissions,
   scheduleDailyReminderNotification,
 } from '@/lib/services/notifications';
@@ -178,8 +177,8 @@ type TimeSubRowProps = {
   displayText: string;
 };
 
-/** Shared "Reminder Time" / "Streak Warning time" nested row — value pill that
- * swaps for the native DateTimePicker in place when tapped. */
+/** "Reminder Time" nested row — value pill that swaps for the native
+ * DateTimePicker in place when tapped. */
 function TimeSubRow({
   testID,
   showPicker,
@@ -229,13 +228,6 @@ type PreferencesSectionProps = {
   reminderTimeValue: Date;
   onReminderTimeChange: (event: any, date?: Date) => void;
   reminderTimeDisplay: string;
-  streakWarningEnabled: boolean;
-  onToggleStreakWarning: (value: boolean) => void;
-  showStreakTimePicker: boolean;
-  onRequestShowStreakTimePicker: () => void;
-  streakTimeValue: Date;
-  onStreakTimeChange: (event: any, date?: Date) => void;
-  streakTimeDisplay: string;
   nudgesEnabled: boolean;
   onToggleNudges: (value: boolean) => void;
 };
@@ -254,13 +246,6 @@ function PreferencesSection({
   reminderTimeValue,
   onReminderTimeChange,
   reminderTimeDisplay,
-  streakWarningEnabled,
-  onToggleStreakWarning,
-  showStreakTimePicker,
-  onRequestShowStreakTimePicker,
-  streakTimeValue,
-  onStreakTimeChange,
-  streakTimeDisplay,
   nudgesEnabled,
   onToggleNudges,
 }: PreferencesSectionProps) {
@@ -351,32 +336,6 @@ function PreferencesSection({
 
             <View style={styles.divider} />
             <ListItem
-              testID="settings-row-streak-warning"
-              leading={<Flame size={ICON_SIZE} color={colors.text.accent} />}
-              title="Streak Warning"
-              subtitle={streakWarningEnabled ? 'Enabled' : 'Disabled'}
-              trailing={
-                <Switch
-                  testID="settings-toggle-streak-warning"
-                  checked={streakWarningEnabled}
-                  onChange={onToggleStreakWarning}
-                />
-              }
-            />
-
-            {streakWarningEnabled && (
-              <TimeSubRow
-                testID="settings-row-streak-warning-time"
-                showPicker={showStreakTimePicker}
-                onRequestShowPicker={onRequestShowStreakTimePicker}
-                value={streakTimeValue}
-                onChangeTime={onStreakTimeChange}
-                displayText={streakTimeDisplay}
-              />
-            )}
-
-            <View style={styles.divider} />
-            <ListItem
               leading={
                 <Feather
                   name="refresh-cw"
@@ -385,7 +344,7 @@ function PreferencesSection({
                 />
               }
               title="Nudges"
-              subtitle="Occasional reminders to pick your journey back up when you've been away."
+              subtitle="Streak warnings and occasional reminders to pick your journey back up."
               trailing={
                 <Switch
                   accessibilityLabel="Nudges"
@@ -647,14 +606,8 @@ export default function Settings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const user = useUserStore((state) => state.user);
   const [isLoading, setIsLoading] = useState(true);
-  const {
-    dailyReminder,
-    setDailyReminder,
-    streakWarning,
-    setStreakWarning,
-    nudges,
-    setNudges,
-  } = useSettingsStore();
+  const { dailyReminder, setDailyReminder, nudges, setNudges } =
+    useSettingsStore();
   // No separate narratorVoice subscription needed: the selector-less
   // useSettingsStore() call above already re-renders this component on any
   // settings-store change (zustand's set() always produces a new state
@@ -664,11 +617,9 @@ export default function Settings() {
   // getState() and so does not itself trigger a re-render.
   const effectiveVoice = getEffectiveNarratorVoice();
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
-  const lastSentStreakSettings = useRef<string>('');
   const lastSentNudgesSettings = useRef<string | null>(null);
   const {
     settings: notificationSettings,
@@ -727,41 +678,15 @@ export default function Settings() {
     }
   }, [notificationSettings]);
 
-  // Update local streak warning and nudges state when server data loads
+  // Update local nudges state when server data loads
   useEffect(() => {
-    if (notificationSettings?.streakWarning) {
-      setStreakWarning(notificationSettings.streakWarning);
-      // Initialize the ref so we don't send an update immediately
-      lastSentStreakSettings.current = JSON.stringify(
-        notificationSettings.streakWarning
-      );
-    }
     if (notificationSettings?.nudges) {
       setNudges(notificationSettings.nudges);
-      // Initialize the ref so we don't send an update immediately
       lastSentNudgesSettings.current = JSON.stringify(
         notificationSettings.nudges
       );
     }
-  }, [notificationSettings, setStreakWarning, setNudges]);
-
-  // Send update to server when streak settings change
-  useEffect(() => {
-    const currentSettings = JSON.stringify(streakWarning);
-    // Destructured so `time` narrows to non-null; the server requires it.
-    const { time } = streakWarning;
-
-    // Only send if settings actually changed and we have valid settings
-    if (currentSettings !== lastSentStreakSettings.current && time) {
-      lastSentStreakSettings.current = currentSettings;
-
-      // Cancel local notifications
-      cancelLegacyStreakWarningNotification();
-
-      // Send to server
-      updateSettings({ streakWarning: { ...streakWarning, time } });
-    }
-  }, [streakWarning, updateSettings]);
+  }, [notificationSettings, setNudges]);
 
   // Send update to server when nudges settings change
   useEffect(() => {
@@ -883,60 +808,8 @@ export default function Settings() {
     return format(date, 'h:mm a');
   };
 
-  const handleToggleStreakWarning = async (value: boolean) => {
-    // Default time if none set
-    const hour = streakWarning.time?.hour || 18;
-    const minute = streakWarning.time?.minute || 0;
-
-    const newSettings = {
-      enabled: value,
-      time: { hour, minute },
-    };
-
-    // Update local state
-    setStreakWarning(newSettings);
-
-    // Update server immediately for toggle changes
-    updateSettings({ streakWarning: newSettings });
-
-    // Cancel local notifications since we're using server-side now
-    await cancelLegacyStreakWarningNotification();
-  };
-
   const handleToggleNudges = (value: boolean) => {
     setNudges({ enabled: value });
-  };
-
-  const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
-    setShowStreakTimePicker(false);
-
-    if (selectedDate) {
-      const hour = selectedDate.getHours();
-      const minute = selectedDate.getMinutes();
-
-      // Round minutes to nearest 15-minute interval
-      const roundedMinute = Math.round(minute / 15) * 15;
-      const adjustedMinute = roundedMinute === 60 ? 0 : roundedMinute;
-      const adjustedHour = roundedMinute === 60 ? (hour + 1) % 24 : hour;
-
-      // Only update local state here
-      const newSettings = {
-        enabled: true,
-        time: { hour: adjustedHour, minute: adjustedMinute },
-      };
-      setStreakWarning(newSettings);
-    }
-  };
-
-  // Get formatted streak reminder time
-  const getStreakTimeDisplay = () => {
-    if (!streakWarning.time) return '--:--';
-
-    const date = new Date();
-    date.setHours(streakWarning.time.hour);
-    date.setMinutes(streakWarning.time.minute);
-
-    return format(date, 'h:mm a');
   };
 
   // Handle timezone change
@@ -1012,22 +885,6 @@ export default function Settings() {
               }
               onReminderTimeChange={handleTimeChange}
               reminderTimeDisplay={getReminderTimeDisplay()}
-              streakWarningEnabled={streakWarning.enabled}
-              onToggleStreakWarning={handleToggleStreakWarning}
-              showStreakTimePicker={showStreakTimePicker}
-              onRequestShowStreakTimePicker={() =>
-                setShowStreakTimePicker(true)
-              }
-              streakTimeValue={
-                new Date(
-                  new Date().setHours(
-                    streakWarning.time?.hour || 0,
-                    streakWarning.time?.minute || 0
-                  )
-                )
-              }
-              onStreakTimeChange={handleStreakTimeChange}
-              streakTimeDisplay={getStreakTimeDisplay()}
               nudgesEnabled={nudges.enabled}
               onToggleNudges={handleToggleNudges}
             />

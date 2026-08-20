@@ -2,13 +2,6 @@ import { apiClient } from './common/client';
 
 export interface NotificationSettings {
   timezone: string;
-  streakWarning: {
-    enabled: boolean;
-    time: {
-      hour: number;
-      minute: number;
-    };
-  };
   nudges: {
     enabled: boolean;
   };

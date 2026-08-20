@@ -15,21 +15,14 @@ type DailyReminder = {
   time: ReminderTime;
 };
 
-type StreakWarning = {
-  enabled: boolean;
-  time: ReminderTime;
-};
-
 type Nudges = {
   enabled: boolean;
 };
 
 type SettingsState = {
   dailyReminder: DailyReminder;
-  streakWarning: StreakWarning;
   nudges: Nudges;
   setDailyReminder: (reminder: DailyReminder) => void;
-  setStreakWarning: (streakWarning: StreakWarning) => void;
   setNudges: (nudges: Nudges) => void;
   hasBeenPromptedForReminder: boolean;
   setHasBeenPromptedForReminder: (value: boolean) => void;
@@ -51,15 +44,10 @@ export const useSettingsStore = create<SettingsState>()(
         enabled: false,
         time: null,
       },
-      streakWarning: {
-        enabled: true,
-        time: { hour: 18, minute: 0 },
-      },
       nudges: {
         enabled: true,
       },
       setDailyReminder: (reminder) => set({ dailyReminder: reminder }),
-      setStreakWarning: (streakWarning) => set({ streakWarning }),
       setNudges: (nudges) => set({ nudges }),
       hasBeenPromptedForReminder: false,
       setHasBeenPromptedForReminder: (value) =>
@@ -72,6 +60,15 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'unquest-settings',
+      version: 1,
+      // v0 → v1: streak warnings became server-sent nudges; drop the local setting.
+      migrate: (persisted, version) => {
+        const state = { ...(persisted as Record<string, unknown>) };
+        if (version < 1) {
+          delete state.streakWarning;
+        }
+        return state as unknown as SettingsState;
+      },
       storage: createJSONStorage(() => ({
         getItem: getItemForStorage,
         setItem: setItem,
