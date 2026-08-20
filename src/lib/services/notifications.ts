@@ -6,8 +6,6 @@ import { OneSignal } from 'react-native-onesignal';
 
 import { primary } from '@/components/ui/colors';
 import { getItem, setItem } from '@/lib/storage';
-import { useCharacterStore } from '@/store/character-store';
-import { useSettingsStore } from '@/store/settings-store';
 
 // Channel IDs
 const QUEST_CHANNEL_ID = 'quest-notifications';
@@ -268,112 +266,19 @@ export const cancelDailyReminderNotification = async (): Promise<boolean> => {
   }
 };
 
-// Create a centralized function for scheduling streak warnings
-export const scheduleStreakWarningNotification = async (
-  forTomorrow = false
-): Promise<boolean> => {
-  // Check if notifications are enabled
-  const enabled = await areNotificationsEnabled();
-  if (!enabled) {
-    console.log('Notifications not enabled, skipping streak warning');
-    return false;
-  }
-
-  // Check if streak warning is enabled in settings
-  const streakWarning = useSettingsStore.getState().streakWarning;
-  if (!streakWarning.enabled) {
-    console.log('Streak warnings disabled in settings');
-    return false;
-  }
-
-  // Get current streak count from character store
-  const dailyQuestStreak = useCharacterStore.getState().dailyQuestStreak;
-  if (dailyQuestStreak === 0) {
-    console.log('No active streak, skipping warning');
-    return false;
-  }
-
-  try {
-    // Cancel any existing streak warnings first
-    await ExpoNotifications.cancelScheduledNotificationAsync(STREAK_WARNING_ID);
-
-    // Target date: today or tomorrow
-    const targetDate = new Date();
-    if (forTomorrow) {
-      targetDate.setDate(targetDate.getDate() + 1);
-    }
-
-    // Set time to user's preferred time
-    const hour = streakWarning.time?.hour || 18; // Default 6 PM
-    const minute = streakWarning.time?.minute || 0;
-
-    targetDate.setHours(hour, minute, 0, 0);
-
-    // Check if we need to schedule for tomorrow instead (if today's time has passed)
-    const now = new Date();
-    if (!forTomorrow && now > targetDate) {
-      console.log('Time already passed today, scheduling for tomorrow instead');
-      return scheduleStreakWarningNotification(true);
-    }
-
-    // Content is the same regardless of timing
-    const content = {
-      title: `Don't break your ${dailyQuestStreak} day streak! 🔥`,
-      body: 'Complete a quest today to keep your streak going',
-      data: { screen: '/(app)' },
-      sound: true,
-    };
-
-    // Use different trigger strategies based on whether it's for today or tomorrow
-    let trigger: ExpoNotifications.NotificationTriggerInput;
-    if (forTomorrow || targetDate.getDate() !== now.getDate()) {
-      // For tomorrow, use DAILY trigger type which works on both platforms
-      trigger = {
-        type: SchedulableTriggerInputTypes.DAILY,
-        hour,
-        minute,
-        channelId: Platform.OS === 'android' ? QUEST_CHANNEL_ID : undefined,
-      };
-      console.log(
-        `Scheduling streak warning for tomorrow at ${hour}:${minute}`
+/**
+ * Builds before 2.3.0 scheduled a local "don't break your streak" notification
+ * under this id. Streak warnings are now server-sent nudges, so cancel any
+ * alarm a phone carried over from an old build. Cancelling an id that does not
+ * exist is a no-op, so this runs unconditionally on every boot.
+ */
+export const cancelLegacyStreakWarningNotification =
+  async (): Promise<void> => {
+    try {
+      await ExpoNotifications.cancelScheduledNotificationAsync(
+        STREAK_WARNING_ID
       );
-    } else {
-      // For today, calculate seconds until the target time
-      const secondsUntilWarning = Math.floor(
-        (targetDate.getTime() - now.getTime()) / 1000
-      );
-      trigger = {
-        type: SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: secondsUntilWarning,
-        channelId: Platform.OS === 'android' ? QUEST_CHANNEL_ID : undefined,
-      };
-      console.log(
-        `Scheduling streak warning for today in ${secondsUntilWarning} seconds`
-      );
+    } catch (error) {
+      console.error('Failed to cancel legacy streak warning:', error);
     }
-
-    // Schedule the notification
-    await ExpoNotifications.scheduleNotificationAsync({
-      identifier: STREAK_WARNING_ID,
-      content,
-      trigger,
-    });
-
-    return true;
-  } catch (error) {
-    console.error('Failed to schedule streak warning:', error);
-    return false;
-  }
-};
-
-// Add this function to cancel streak warning
-export const cancelStreakWarningNotification = async (): Promise<boolean> => {
-  try {
-    await ExpoNotifications.cancelScheduledNotificationAsync(STREAK_WARNING_ID);
-    console.log('Streak warning canceled');
-    return true;
-  } catch (error) {
-    console.error('Failed to cancel streak warning:', error);
-    return false;
-  }
-};
+  };

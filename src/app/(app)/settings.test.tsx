@@ -95,11 +95,10 @@ jest.mock('@/lib/services/notifications', () => ({
   areNotificationsEnabled: (...args: unknown[]) =>
     mockAreNotificationsEnabled(...args),
   cancelDailyReminderNotification: jest.fn().mockResolvedValue(true),
-  cancelStreakWarningNotification: jest.fn().mockResolvedValue(true),
+  cancelLegacyStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
   requestNotificationPermissions: (...args: unknown[]) =>
     mockRequestPermissions(...args),
   scheduleDailyReminderNotification: jest.fn().mockResolvedValue(true),
-  scheduleStreakWarningNotification: jest.fn().mockResolvedValue(true),
 }));
 
 // Mock user service

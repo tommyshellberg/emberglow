@@ -39,7 +39,7 @@ import { posthogClient } from '@/lib/posthog';
 import {
   areNotificationsEnabled,
   cancelDailyReminderNotification,
-  cancelStreakWarningNotification,
+  cancelLegacyStreakWarningNotification,
   requestNotificationPermissions,
   scheduleDailyReminderNotification,
 } from '@/lib/services/notifications';
@@ -756,7 +756,7 @@ export default function Settings() {
       lastSentStreakSettings.current = currentSettings;
 
       // Cancel local notifications
-      cancelStreakWarningNotification();
+      cancelLegacyStreakWarningNotification();
 
       // Send to server
       updateSettings({ streakWarning: { ...streakWarning, time } });
@@ -900,7 +900,7 @@ export default function Settings() {
     updateSettings({ streakWarning: newSettings });
 
     // Cancel local notifications since we're using server-side now
-    await cancelStreakWarningNotification();
+    await cancelLegacyStreakWarningNotification();
   };
 
   const handleToggleNudges = (value: boolean) => {
