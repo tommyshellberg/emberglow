@@ -757,7 +757,6 @@ export const useQuestStore = create<QuestState>()(
           cooperativeQuestRun: null,
           pendingInvitations: [],
         });
-        useCharacterStore.getState().resetStreak();
         // Need a way to signal QuestTimer to stop without direct import
       },
 

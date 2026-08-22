@@ -1041,7 +1041,11 @@ describe('QuestStore - refreshAvailableQuests', () => {
       cooperativeQuestRun: null,
       pendingInvitations: [],
     });
-    expect(mockResetStreak).toHaveBeenCalled();
+    // Both background-completion paths in quest-timer call reset() right
+    // before updateStreak, so reset() must not touch the streak itself —
+    // otherwise every quest finished while the app was backgrounded would
+    // reset the streak to 1.
+    expect(mockResetStreak).not.toHaveBeenCalled();
   });
 
   describe('Cooperative Quest Management', () => {
