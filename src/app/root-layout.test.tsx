@@ -384,6 +384,9 @@ describe('RootLayout', () => {
     const {
       cancelLegacyStreakWarningNotification,
     } = require('@/lib/services/notifications');
+    const {
+      initializeTimezoneSync,
+    } = require('@/lib/services/timezone-service');
     const { useCharacterStore } = require('@/store/character-store');
     const { useQuestStore } = require('@/store/quest-store');
     const mockResetStreak = jest.fn();
@@ -402,7 +405,7 @@ describe('RootLayout', () => {
       failQuest: jest.fn(),
     });
 
-    render(<RootLayout />);
+    const renderResult = render(<RootLayout />);
 
     await waitFor(() => {
       expect(mockResetStreak).toHaveBeenCalled();
@@ -411,6 +414,12 @@ describe('RootLayout', () => {
     // The legacy local alarm must be cancelled even on the streak-reset path,
     // since it's an unconditional boot-time cleanup, not part of the streak logic.
     expect(cancelLegacyStreakWarningNotification).toHaveBeenCalledTimes(1);
+
+    // The streak-reset branch must not bail out before the effect returns its
+    // cleanup function, or the timezone-sync listener is never torn down.
+    const cleanupTimezoneSync = initializeTimezoneSync.mock.results[0].value;
+    renderResult.unmount();
+    expect(cleanupTimezoneSync).toHaveBeenCalled();
   });
 
   it('cancels the legacy local streak warning on boot even with no active streak', async () => {

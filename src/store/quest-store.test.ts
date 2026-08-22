@@ -132,9 +132,6 @@ jest.mock('@/api/common', () => ({
   },
 }));
 
-// Mock notifications service
-jest.mock('@/lib/services/notifications', () => ({}));
-
 // Create mock for POI store
 const mockRevealLocation = jest.fn();
 

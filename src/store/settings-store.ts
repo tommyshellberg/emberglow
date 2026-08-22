@@ -64,7 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
       // v0 → v1: streak warnings became server-sent nudges; drop the local setting.
       migrate: (persisted, version) => {
         const state = { ...(persisted as Record<string, unknown>) };
-        if (version < 1) {
+        if (!(typeof version === 'number' && version >= 1)) {
           delete state.streakWarning;
         }
         return state as unknown as SettingsState;

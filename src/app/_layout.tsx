@@ -382,7 +382,6 @@ function RootLayout() {
         console.log(
           'Streak reset: More than 24 hours since last quest completion'
         );
-        return;
       }
     }
 

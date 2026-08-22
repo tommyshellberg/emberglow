@@ -171,4 +171,19 @@ describe('settings-store persistence', () => {
       time: { hour: 7, minute: 30 },
     });
   });
+
+  // A blob persisted before the `version` option existed has no version
+  // field at all, so `version` is `undefined` at migrate time. `undefined < 1`
+  // is `false`, so a naive `version < 1` guard treats that blob as already
+  // migrated and leaves the legacy streakWarning key in place.
+  it('migrate drops streakWarning from a blob with no version field', () => {
+    const migrate = useSettingsStore.persist.getOptions().migrate!;
+
+    const migrated = migrate(
+      { streakWarning: { enabled: false, time: { hour: 20, minute: 0 } } },
+      undefined as unknown as number
+    ) as Record<string, unknown>;
+
+    expect(migrated.streakWarning).toBeUndefined();
+  });
 });
