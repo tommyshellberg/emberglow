@@ -10,6 +10,7 @@ import {
   scheduleStreakWarningNotification,
 } from '@/lib/services/notifications';
 import QuestTimer from '@/lib/services/quest-timer';
+import { refreshUser } from '@/lib/services/refresh-user';
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { usePOIStore } from '@/store/poi-store';
 
@@ -200,8 +201,12 @@ export const useQuestStore = create<QuestState>()(
               );
             })();
 
+            useCharacterStore
+              .getState()
+              .updateStreak(lastCompletedQuestTimestamp);
+            // Re-read after updateStreak: Zustand replaces the state object,
+            // so the earlier snapshot still holds the pre-update streak.
             const characterStore = useCharacterStore.getState();
-            characterStore.updateStreak(lastCompletedQuestTimestamp);
 
             // Check if we should show streak celebration
             const shouldShowStreakCelebration = (() => {
@@ -277,11 +282,8 @@ export const useQuestStore = create<QuestState>()(
 
             characterStore.addXP(completedQuest.reward.xp);
 
-            // Invalidate user details cache to force fresh data from server
-            // This ensures local XP/level syncs with server-calculated values
-            queryClient.invalidateQueries({
-              queryKey: ['user', 'details'] as const,
-            });
+            // Apply the server's streak (it may differ from the optimistic +1).
+            void refreshUser();
 
             // Invalidate next available quests to fetch fresh quest options
             // This ensures we get the correct next quest after completing one
@@ -757,7 +759,6 @@ export const useQuestStore = create<QuestState>()(
           cooperativeQuestRun: null,
           pendingInvitations: [],
         });
-        useCharacterStore.getState().resetStreak();
         // Need a way to signal QuestTimer to stop without direct import
       },
 

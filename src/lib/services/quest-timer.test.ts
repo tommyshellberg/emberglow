@@ -30,6 +30,10 @@ import type {
 import QuestTimer from './quest-timer';
 
 // Mock dependencies
+jest.mock('@/lib/services/refresh-user', () => ({
+  refreshUser: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('@/lib/services/quest-run-service', () => ({
   createQuestRun: jest.fn().mockResolvedValue({ id: 'mock-quest-run-id' }),
   updateQuestRunStatus: jest.fn().mockResolvedValue({}),
@@ -1034,6 +1038,8 @@ describe('QuestTimer', () => {
       );
       expect(mockCharacterStore.addXP).toHaveBeenCalledWith(100);
       expect(mockCharacterStore.updateStreak).toHaveBeenCalled();
+      const { refreshUser } = require('@/lib/services/refresh-user');
+      expect(refreshUser).toHaveBeenCalled();
     });
 
     it('fetches participant rewards for a quest that was stuck in pending', async () => {
@@ -1741,10 +1747,8 @@ describe('QuestTimer', () => {
       );
       expect(mockCharacterStore.addXP).toHaveBeenCalledWith(100);
       expect(mockCharacterStore.updateStreak).toHaveBeenCalled();
-      // Stale user details would otherwise show the pre-quest XP.
-      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['user', 'details'],
-      });
+      const { refreshUser } = require('@/lib/services/refresh-user');
+      expect(refreshUser).toHaveBeenCalled();
     });
 
     it('starts a cooperative quest once the server reports it active', async () => {

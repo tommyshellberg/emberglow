@@ -15,7 +15,6 @@ export const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
 export const STREAK = {
   /** Full week view — 7 days ending today. */
   DAYS_TO_SHOW: 7,
-  MILLISECONDS_IN_DAY: 24 * 60 * 60 * 1000,
 } as const;
 
 /**

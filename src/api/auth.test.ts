@@ -10,6 +10,7 @@ import {
 import { posthogClient } from '@/lib/posthog';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem, setItem } from '@/lib/storage';
+import { useCharacterStore } from '@/store/character-store';
 import { useUserStore } from '@/store/user-store';
 
 import {
@@ -276,6 +277,25 @@ describe('auth.ts', () => {
         name: 'Test User',
       });
       expect(result).toBe('app');
+    });
+
+    it('applies a server streak even when the response has no character', async () => {
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        dailyQuestStreak: 9,
+      };
+      const mockSetUser = jest.fn();
+
+      (getUserDetails as jest.Mock).mockResolvedValue(mockUser);
+      (useUserStore.getState as jest.Mock).mockReturnValue({
+        setUser: mockSetUser,
+      });
+      useCharacterStore.setState({ character: null, dailyQuestStreak: 0 });
+
+      await verifyMagicLinkAndSignIn('test-token');
+
+      expect(useCharacterStore.getState().dailyQuestStreak).toBe(9);
     });
 
     it('should handle user with character data', async () => {

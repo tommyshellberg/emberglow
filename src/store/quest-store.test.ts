@@ -11,6 +11,10 @@ jest.mock('@sentry/react-native', () => ({
   setUser: jest.fn(),
 }));
 
+jest.mock('@/lib/services/refresh-user', () => ({
+  refreshUser: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock the dependencies
 jest.mock('@/lib/services/quest-timer', () => {
   return {
@@ -95,19 +99,43 @@ jest.mock('@/app/data/quests', () => {
   };
 });
 
-// Create mock functions that persist across test runs
-const mockUpdateStreak = jest.fn();
+// Create mock functions that persist across test runs.
+// updateStreak mutates a shared state object, the way the real Zustand
+// store's set() replaces state: a later getState() call sees the change,
+// but a snapshot taken before the call does not. A bare jest.fn() can't
+// reproduce that, so the celebration-gate test below couldn't fail against
+// a broken gate without this.
+let mockCharacterState: {
+  dailyQuestStreak: number;
+  lastStreakCelebrationShown: number | null;
+} = {
+  dailyQuestStreak: 0,
+  lastStreakCelebrationShown: null,
+};
+const mockUpdateStreak = jest.fn(
+  (previousCompletionTimestamp: number | null) => {
+    mockCharacterState = {
+      ...mockCharacterState,
+      dailyQuestStreak:
+        previousCompletionTimestamp === null
+          ? 1
+          : mockCharacterState.dailyQuestStreak + 1,
+    };
+  }
+);
 const mockAddXP = jest.fn();
-const mockResetStreak = jest.fn();
 
 // Mock the character store
 jest.mock('@/store/character-store', () => ({
   useCharacterStore: {
     getState: () => ({
+      ...mockCharacterState,
       updateStreak: mockUpdateStreak,
       addXP: mockAddXP,
-      resetStreak: mockResetStreak,
     }),
+    setState: (partial: Partial<typeof mockCharacterState>) => {
+      mockCharacterState = { ...mockCharacterState, ...partial };
+    },
   },
 }));
 
@@ -188,8 +216,11 @@ describe('QuestStore - refreshAvailableQuests', () => {
     jest.clearAllMocks();
     mockUpdateStreak.mockClear();
     mockAddXP.mockClear();
-    mockResetStreak.mockClear();
     mockRevealLocation.mockClear();
+    mockCharacterState = {
+      dailyQuestStreak: 0,
+      lastStreakCelebrationShown: null,
+    };
 
     // Clear QuestTimer mocks
     (QuestTimer.stopQuest as jest.Mock).mockClear();
@@ -680,6 +711,31 @@ describe('QuestStore - refreshAvailableQuests', () => {
       }
     );
 
+    it('shows the streak celebration on the very first completed quest', async () => {
+      const { useCharacterStore } = require('@/store/character-store');
+      useCharacterStore.setState({
+        dailyQuestStreak: 0,
+        lastStreakCelebrationShown: null,
+      });
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime: Date.now() - 10 * 60 * 1000 - 1000,
+        status: 'active' as const,
+      };
+      useQuestStore.setState({
+        activeQuest,
+        lastCompletedQuestTimestamp: null,
+      });
+
+      await useQuestStore.getState().completeQuest();
+
+      expect(useQuestStore.getState().shouldShowStreakCelebration).toBe(true);
+    });
+
     test('should complete quest successfully when duration is met', async () => {
       // Arrange
       const startTime = Date.now() - 600000; // 10 minutes ago
@@ -728,9 +784,8 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(mockUpdateStreak).toHaveBeenCalledWith(null);
       expect(mockAddXP).toHaveBeenCalledWith(100);
       expect(mockRevealLocation).toHaveBeenCalledWith('test-poi');
-      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['user', 'details'],
-      });
+      const { refreshUser } = require('@/lib/services/refresh-user');
+      expect(refreshUser).toHaveBeenCalled();
       expect(cancelStreakWarningNotification).toHaveBeenCalled();
 
       // Wait for the promise chain to complete
@@ -1041,7 +1096,12 @@ describe('QuestStore - refreshAvailableQuests', () => {
       cooperativeQuestRun: null,
       pendingInvitations: [],
     });
-    expect(mockResetStreak).toHaveBeenCalled();
+    // Both background-completion paths in quest-timer call reset() right
+    // before updateStreak, so reset() must not touch the streak itself —
+    // otherwise every quest finished while the app was backgrounded would
+    // reset the streak to 1. resetStreak no longer exists on the character
+    // store at all, so there is no method reset() could call to do this.
+    expect(mockCharacterState.dailyQuestStreak).toBe(0);
   });
 
   describe('Cooperative Quest Management', () => {

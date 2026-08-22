@@ -1,60 +1,49 @@
+import { localCalendarDaysBetween } from '@/store/character-store';
+
 import { DAY_NAMES, STREAK } from './streak-celebration.constants';
 
 export interface StreakDay {
   name: string;
   isCompleted: boolean;
   isToday: boolean;
+  /** Today, and today's quest is not done yet. */
+  isPending: boolean;
 }
 
 /**
- * Generates a full-week (7-day) streak visualization ending today.
- *
- * The 7 days shown are always the current calendar week ending today,
- * regardless of streak length. Days are lit right-to-left from today,
- * i.e. the rightmost `min(streak, 7)` days are lit — equivalently,
- * ignition proceeds left-to-right starting from `firstLit`:
- *
- *   firstLit = DAYS_TO_SHOW - min(streak, DAYS_TO_SHOW)
- *
- * @param dailyQuestStreak - Current streak count
- * @returns Array of 7 StreakDay objects representing the visualization
+ * Seven days ending today. The lit run is `min(streak, 7)` days ending on the
+ * local date of the last completed quest, so opening the screen before
+ * today's quest does not light today.
  */
 export function generateStreakVisualization(
-  dailyQuestStreak: number
+  dailyQuestStreak: number,
+  lastCompletedQuestTimestamp: number | null,
+  now: number = Date.now()
 ): StreakDay[] {
-  const today = new Date().getDay();
-  const litCount = Math.max(0, Math.min(dailyQuestStreak, STREAK.DAYS_TO_SHOW));
-  const firstLit = STREAK.DAYS_TO_SHOW - litCount;
+  const days = STREAK.DAYS_TO_SHOW;
+  const todayIndex = days - 1;
+  const daysSinceLast =
+    lastCompletedQuestTimestamp === null
+      ? Number.POSITIVE_INFINITY
+      : Math.max(0, localCalendarDaysBetween(lastCompletedQuestTimestamp, now));
+  const lastLitIndex = todayIndex - daysSinceLast; // may be negative
+  const litCount = Math.max(0, Math.min(dailyQuestStreak, days));
+  const firstLitIndex = lastLitIndex - litCount + 1;
 
+  const todayDow = new Date(now).getDay();
   const streakDays: StreakDay[] = [];
-  for (let i = 0; i < STREAK.DAYS_TO_SHOW; i++) {
-    const offsetFromToday = STREAK.DAYS_TO_SHOW - 1 - i;
+  for (let i = 0; i < days; i++) {
+    const offsetFromToday = todayIndex - i;
     const dayIndex =
-      (((today - offsetFromToday) % DAY_NAMES.length) + DAY_NAMES.length) %
+      (((todayDow - offsetFromToday) % DAY_NAMES.length) + DAY_NAMES.length) %
       DAY_NAMES.length;
-
+    const isCompleted = litCount > 0 && i >= firstLitIndex && i <= lastLitIndex;
     streakDays.push({
       name: DAY_NAMES[dayIndex],
-      isCompleted: i >= firstLit,
-      isToday: i === STREAK.DAYS_TO_SHOW - 1,
+      isCompleted,
+      isToday: i === todayIndex,
+      isPending: i === todayIndex && daysSinceLast > 0,
     });
   }
-
   return streakDays;
-}
-
-/**
- * Calculates if a streak is still active based on last completion timestamp.
- *
- * @param lastCompletedQuestTimestamp - Timestamp of last completed quest
- * @returns true if streak is still active (within 24 hours), false otherwise
- */
-export function isStreakActive(
-  lastCompletedQuestTimestamp: number | null
-): boolean {
-  if (!lastCompletedQuestTimestamp) {
-    return false;
-  }
-
-  return Date.now() - lastCompletedQuestTimestamp < STREAK.MILLISECONDS_IN_DAY;
 }

@@ -61,6 +61,7 @@ const mockQuestStore = {
 };
 
 jest.mock('@/store/character-store', () => ({
+  ...jest.requireActual('@/store/character-store'),
   useCharacterStore: jest.fn(),
 }));
 
@@ -74,6 +75,12 @@ const mockUseCharacterStore = useCharacterStore as jest.MockedFunction<
 const mockUseQuestStore = useQuestStore as jest.MockedFunction<
   typeof useQuestStore
 >;
+
+// mockCurrentDay below replaces global.Date wholesale (not via jest.spyOn),
+// so jest.restoreAllMocks() never undoes it. Without restoring it explicitly,
+// the last mockCurrentDay call in this describe block leaks a fake, argument-
+// ignoring Date constructor into every test that runs after it.
+const RealDate = global.Date;
 
 // Helper function to mock current day
 const mockCurrentDay = (dayOfWeek: number) => {
@@ -100,12 +107,14 @@ const mockCurrentDay = (dayOfWeek: number) => {
 describe('generateStreakVisualization (7-day model)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    global.Date = RealDate;
   });
 
   it('0-day streak on Tuesday: shows the current week with nothing lit', () => {
-    mockCurrentDay(2); // Tuesday
+    const mockDate = mockCurrentDay(2); // Tuesday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(0);
+    const days = generateStreakVisualization(0, now, now);
 
     expect(days.map((d) => d.name)).toEqual([
       'We',
@@ -137,9 +146,10 @@ describe('generateStreakVisualization (7-day model)', () => {
   });
 
   it('1-day streak on Thursday: only today is lit', () => {
-    mockCurrentDay(4); // Thursday
+    const mockDate = mockCurrentDay(4); // Thursday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(1);
+    const days = generateStreakVisualization(1, now, now);
 
     expect(days.map((d) => d.name)).toEqual([
       'Fr',
@@ -162,9 +172,10 @@ describe('generateStreakVisualization (7-day model)', () => {
   });
 
   it('2-day streak on Wednesday: the last two days (Tu, We) are lit', () => {
-    mockCurrentDay(3); // Wednesday
+    const mockDate = mockCurrentDay(3); // Wednesday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(2);
+    const days = generateStreakVisualization(2, now, now);
 
     expect(days.map((d) => d.name)).toEqual([
       'Th',
@@ -187,9 +198,10 @@ describe('generateStreakVisualization (7-day model)', () => {
   });
 
   it('7-day streak on Friday: the full week is lit', () => {
-    mockCurrentDay(5); // Friday
+    const mockDate = mockCurrentDay(5); // Friday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(7);
+    const days = generateStreakVisualization(7, now, now);
 
     expect(days.map((d) => d.name)).toEqual([
       'Sa',
@@ -204,9 +216,10 @@ describe('generateStreakVisualization (7-day model)', () => {
   });
 
   it('streak longer than 7 days on Sunday: clamps to a fully lit week (no overflow)', () => {
-    mockCurrentDay(0); // Sunday
+    const mockDate = mockCurrentDay(0); // Sunday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(30);
+    const days = generateStreakVisualization(30, now, now);
 
     expect(days.map((d) => d.name)).toEqual([
       'Mo',
@@ -222,13 +235,82 @@ describe('generateStreakVisualization (7-day model)', () => {
   });
 
   it('always returns exactly 7 days with today last', () => {
-    mockCurrentDay(6); // Saturday
+    const mockDate = mockCurrentDay(6); // Saturday
+    const now = mockDate.getTime();
 
-    const days = generateStreakVisualization(3);
+    const days = generateStreakVisualization(3, now, now);
 
     expect(days).toHaveLength(7);
     expect(days[6].isToday).toBe(true);
     expect(days.filter((d) => d.isToday)).toHaveLength(1);
+  });
+
+  it("5-day streak opened on Monday before today's quest: Wed–Sun lit, Monday pending and unlit", () => {
+    const monday = new Date(2026, 2, 9, 10).getTime(); // Mon Mar 9 2026, 10:00 local
+    const sunday = new Date(2026, 2, 8, 21).getTime();
+
+    const days = generateStreakVisualization(5, sunday, monday);
+
+    expect(days.map((d) => d.isCompleted)).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(days[6]).toMatchObject({
+      isToday: true,
+      isPending: true,
+      isCompleted: false,
+    });
+    // Pending only ever applies to today. Every other day of the week must
+    // stay false even though daysSinceLast > 0 holds for the whole week.
+    expect(days.map((d) => d.isPending)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it("5-day streak right after today's quest: Thu–Mon lit, today not pending", () => {
+    const monday = new Date(2026, 2, 9, 10).getTime();
+
+    const days = generateStreakVisualization(5, monday, monday);
+
+    expect(days.map((d) => d.isCompleted)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(days[6].isPending).toBe(false);
+  });
+
+  it('null last completion lights nothing and marks today pending', () => {
+    const monday = new Date(2026, 2, 9, 10).getTime();
+    const days = generateStreakVisualization(0, null, monday);
+    expect(days.every((d) => !d.isCompleted)).toBe(true);
+    expect(days[6].isPending).toBe(true);
+  });
+
+  it('null last completion lights nothing even when "now" is only a few days after the Unix epoch', () => {
+    // `null` must short-circuit to "never lit", not fall through to date
+    // math on `new Date(null)` (1970-01-01). A `now` close to that date is
+    // the only way to tell the two apart: far in the future both produce a
+    // huge gap and look identical, but close to the epoch a fallthrough
+    // would compute a small gap and light days that must stay unlit.
+    const nearEpoch = new Date(1970, 0, 4, 10).getTime();
+    const days = generateStreakVisualization(2, null, nearEpoch);
+    expect(days.every((d) => !d.isCompleted)).toBe(true);
   });
 });
 
@@ -281,7 +363,8 @@ describe('StreakCelebrationScreen', () => {
       expect(flameContainers).toHaveLength(7);
 
       const expectedDays = generateStreakVisualization(
-        mockCharacterStore.dailyQuestStreak
+        mockCharacterStore.dailyQuestStreak,
+        mockQuestStore.lastCompletedQuestTimestamp
       );
       const uniqueDayNames = Array.from(
         new Set(expectedDays.map((d) => d.name))

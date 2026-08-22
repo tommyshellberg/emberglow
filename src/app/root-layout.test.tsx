@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { act, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 // Import the component after mocks are set up
 import RootLayout from './_layout';
@@ -149,14 +149,21 @@ jest.mock('@/lib/services/timezone-service', () => ({
   initializeTimezoneSync: jest.fn(() => jest.fn()),
 }));
 
-jest.mock('@/store/character-store', () => ({
-  useCharacterStore: {
-    getState: jest.fn(() => ({
-      dailyQuestStreak: 5,
-      resetStreak: jest.fn(),
-    })),
-  },
+jest.mock('@/lib/services/refresh-user', () => ({
+  refreshUser: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('@/store/character-store', () => {
+  const actual = jest.requireActual('@/store/character-store');
+  return {
+    localCalendarDaysBetween: actual.localCalendarDaysBetween,
+    useCharacterStore: {
+      getState: jest.fn(() => ({
+        dailyQuestStreak: 5,
+      })),
+    },
+  };
+});
 
 jest.mock('@/store/quest-store', () => ({
   useQuestStore: {
@@ -362,26 +369,17 @@ describe('RootLayout', () => {
     // Mock user with active streak but no quest today
     useCharacterStore.getState.mockReturnValue({
       dailyQuestStreak: 3,
-      resetStreak: jest.fn(),
     });
 
-    // Mock last quest completion from yesterday (but less than 24 hours ago)
-    // Use yesterday at 11:59 PM to ensure it's:
-    // 1. On a different calendar day (yesterday)
-    // 2. Less than 24 hours ago (unless test runs between midnight-12:01 AM)
+    // Mock last quest completion from yesterday, so it's on a different
+    // calendar day and the "no quest completed today" branch schedules a
+    // warning.
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(23, 59, 59, 999); // Yesterday at 11:59:59 PM
-
-    // Safety check: if somehow this is >= 24 hours ago, use exactly 20 hours ago
-    const hoursSince = (Date.now() - yesterday.getTime()) / (1000 * 60 * 60);
-    const lastCompletedTimestamp =
-      hoursSince >= 24
-        ? Date.now() - 20 * 60 * 60 * 1000 // 20 hours ago
-        : yesterday.getTime();
+    yesterday.setHours(23, 59, 59, 999);
 
     useQuestStore.getState.mockReturnValue({
-      lastCompletedQuestTimestamp: lastCompletedTimestamp,
+      lastCompletedQuestTimestamp: yesterday.getTime(),
       cooperativeQuestRun: null,
       activeQuest: null,
       failQuest: jest.fn(),
@@ -394,20 +392,21 @@ describe('RootLayout', () => {
     });
   });
 
-  it('should reset streak when more than 24 hours since last completion', async () => {
+  it('does not schedule a streak warning for a streak that already broke', async () => {
+    const {
+      scheduleStreakWarningNotification,
+    } = require('@/lib/services/notifications');
     const { useCharacterStore } = require('@/store/character-store');
     const { useQuestStore } = require('@/store/quest-store');
-    const mockResetStreak = jest.fn();
 
+    // Streak count is still positive locally, but the last completion was
+    // 3 days ago -- the streak already broke and just hasn't been reset.
     useCharacterStore.getState.mockReturnValue({
-      dailyQuestStreak: 5,
-      resetStreak: mockResetStreak,
+      dailyQuestStreak: 3,
     });
 
-    // Mock last quest completion from 26 hours ago
-    const moreThan24HoursAgo = Date.now() - 1000 * 60 * 60 * 26;
     useQuestStore.getState.mockReturnValue({
-      lastCompletedQuestTimestamp: moreThan24HoursAgo,
+      lastCompletedQuestTimestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
       cooperativeQuestRun: null,
       activeQuest: null,
       failQuest: jest.fn(),
@@ -416,7 +415,40 @@ describe('RootLayout', () => {
     render(<RootLayout />);
 
     await waitFor(() => {
-      expect(mockResetStreak).toHaveBeenCalled();
+      expect(scheduleStreakWarningNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  it('refreshes the user from the server when the app returns to the foreground', async () => {
+    const { refreshUser } = require('@/lib/services/refresh-user');
+    // RootLayout registers more than one 'change' listener (this effect and
+    // useTokenRefreshErrorHandler's), so every listener needs the
+    // transition, not just the last one registered.
+    const handlers: ((state: string) => void)[] = [];
+    AppState.addEventListener = jest.fn((_event, callback) => {
+      handlers.push(callback as (state: string) => void);
+      return { remove: jest.fn() } as any;
+    });
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(AppState.addEventListener).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
+    });
+
+    // Simulate background -> active.
+    act(() => {
+      handlers.forEach((handler) => {
+        handler('background');
+        handler('active');
+      });
+    });
+
+    await waitFor(() => {
+      expect(refreshUser).toHaveBeenCalledTimes(1);
     });
   });
 
