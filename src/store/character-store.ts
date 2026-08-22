@@ -12,7 +12,10 @@ interface CharacterState {
   createCharacter: (type: CharacterType, name: string) => void;
   updateCharacter: (updatedCharacter: Partial<Character>) => void;
   addXP: (amount: XP) => void;
-  updateStreak: (previousCompletionTimestamp: number | null) => void;
+  updateStreak: (
+    previousCompletionTimestamp: number | null,
+    now?: number
+  ) => void;
   setStreak: (streak: number) => void;
   resetStreak: () => void;
   resetCharacter: () => void;
@@ -26,6 +29,22 @@ const INITIAL_CHARACTER: Omit<Character, 'type' | 'name'> = {
 
 const calculateXPForLevel = (level: number): number => {
   return Math.floor(100 * Math.pow(1.5, level - 1));
+};
+
+/**
+ * Whole calendar days between two instants in the device's timezone.
+ * Uses Date.UTC on the local date parts so a 23- or 25-hour daylight-saving
+ * day still counts as exactly one day.
+ */
+export const localCalendarDaysBetween = (
+  earlier: number,
+  later: number
+): number => {
+  const a = new Date(earlier);
+  const b = new Date(later);
+  const aDay = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const bDay = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((bDay - aDay) / 86_400_000);
 };
 
 // Create type-safe functions for Zustand's storage
@@ -107,55 +126,31 @@ export const useCharacterStore = create<CharacterState>()(
         }));
       },
 
-      // Updated method to update streak based on previous completion timestamp
-      updateStreak: (previousCompletionTimestamp) => {
+      // Optimistic local rule after a quest completion. The server owns the
+      // streak; its value replaces this on the next refreshUser() call.
+      //   no previous completion        → 1
+      //   same local calendar day       → unchanged (0 becomes 1)
+      //   next local calendar day       → +1
+      //   two or more days later        → 1
+      updateStreak: (previousCompletionTimestamp, now = Date.now()) => {
         const currentStreak = get().dailyQuestStreak;
-        const now = new Date();
 
         if (!previousCompletionTimestamp) {
-          // First quest completion ever
           set({ dailyQuestStreak: 1 });
           return;
         }
 
-        const previousDate = new Date(previousCompletionTimestamp);
+        const gap = localCalendarDaysBetween(previousCompletionTimestamp, now);
 
-        // Check if the last completion was on a different day
-        const isNewDay =
-          previousDate.getDate() !== now.getDate() ||
-          previousDate.getMonth() !== now.getMonth() ||
-          previousDate.getFullYear() !== now.getFullYear();
-
-        if (!isNewDay) {
-          // Same day, maintain current streak
-          // If streak is 0, set it to 1 (this handles edge cases)
-          if (currentStreak === 0) {
-            set({ dailyQuestStreak: 1 });
-          }
+        if (gap === 0) {
+          if (currentStreak === 0) set({ dailyQuestStreak: 1 });
           return;
         }
-
-        // Different day - check if it's consecutive
-        // Create dates at midnight for accurate day difference calculation
-        const todayMidnight = new Date(now);
-        todayMidnight.setHours(0, 0, 0, 0);
-
-        const previousMidnight = new Date(previousDate);
-        previousMidnight.setHours(0, 0, 0, 0);
-
-        // Calculate the difference in days
-        const daysDifference = Math.floor(
-          (todayMidnight.getTime() - previousMidnight.getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-
-        if (daysDifference === 1) {
-          // Exactly one day later - increment streak
+        if (gap === 1) {
           set({ dailyQuestStreak: currentStreak + 1 });
-        } else {
-          // More than one day has passed - reset streak
-          set({ dailyQuestStreak: 1 });
+          return;
         }
+        set({ dailyQuestStreak: 1 });
       },
 
       // Method to set streak directly (for syncing from server)

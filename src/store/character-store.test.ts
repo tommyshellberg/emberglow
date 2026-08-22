@@ -224,132 +224,65 @@ describe('Character Store', () => {
   });
 
   describe('updateStreak', () => {
-    test('should increment streak when completing quest on consecutive day', () => {
+    const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h, 0, 0, 0).getTime();
+
+    test('null previous completion starts at 1', () => {
       const { result } = renderHook(() => useCharacterStore());
-
-      // Set up dates for consecutive days
-      const now = new Date();
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setHours(12, 0, 0, 0); // Noon yesterday
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 5 });
-      });
-
-      act(() => {
-        result.current.updateStreak(yesterday.getTime());
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(6);
-    });
-
-    test('should reset streak to 1 when more than one calendar day has passed', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      // Set up dates with 2+ day gap
-      const now = new Date();
-      const twoDaysAgo = new Date(now);
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      twoDaysAgo.setHours(12, 0, 0, 0); // Noon two days ago
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 10 });
-      });
-
-      act(() => {
-        result.current.updateStreak(twoDaysAgo.getTime());
-      });
-
+      act(() => result.current.updateStreak(null, at(2026, 3, 3)));
       expect(result.current.dailyQuestStreak).toBe(1);
     });
 
-    test('should start streak at 1 when no previous completion', () => {
+    test('same local day keeps the streak', () => {
       const { result } = renderHook(() => useCharacterStore());
-
-      act(() => {
-        result.current.updateStreak(null);
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(1);
-    });
-
-    test('should handle edge case of completions near midnight', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      // Complete quest at 11:59 PM yesterday
-      const now = new Date();
-      const yesterday1159PM = new Date(now);
-      yesterday1159PM.setDate(yesterday1159PM.getDate() - 1);
-      yesterday1159PM.setHours(23, 59, 0, 0);
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 5 });
-      });
-
-      // Complete quest today (even if just 2 minutes later in real time)
-      act(() => {
-        result.current.updateStreak(yesterday1159PM.getTime());
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(6);
-    });
-
-    test('should reset streak when skipping a calendar day', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      // Complete quest at 12:01 AM two days ago
-      const now = new Date();
-      const twoDaysAgo1201AM = new Date(now);
-      twoDaysAgo1201AM.setDate(twoDaysAgo1201AM.getDate() - 2);
-      twoDaysAgo1201AM.setHours(0, 1, 0, 0);
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 10 });
-      });
-
-      // Even though it might be less than 48 hours, it's still 2 calendar days
-      act(() => {
-        result.current.updateStreak(twoDaysAgo1201AM.getTime());
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(1);
-    });
-
-    test('should maintain streak when completing multiple times in same calendar day', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      // Previous completion was earlier today (same day) - use noon to avoid midnight boundary issues
-      const today = new Date();
-      today.setHours(12, 0, 0, 0);
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 5 });
-      });
-
-      act(() => {
-        result.current.updateStreak(today.getTime());
-      });
-
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      act(() => result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20)));
       expect(result.current.dailyQuestStreak).toBe(5);
     });
 
-    test('should set streak to 1 when current streak is 0 and completing on same day', () => {
+    test('same local day with a stored 0 becomes 1', () => {
       const { result } = renderHook(() => useCharacterStore());
-
-      // Previous completion was earlier today (same day) - use noon to avoid midnight boundary issues
-      const today = new Date();
-      today.setHours(12, 0, 0, 0);
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 0 });
-      });
-
-      act(() => {
-        result.current.updateStreak(today.getTime());
-      });
-
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 0 }));
+      act(() => result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20)));
       expect(result.current.dailyQuestStreak).toBe(1);
+    });
+
+    test('next local day adds one', () => {
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      act(() => result.current.updateStreak(at(2026, 3, 2), at(2026, 3, 3)));
+      expect(result.current.dailyQuestStreak).toBe(6);
+    });
+
+    test('23:59 then 00:01 is the next day', () => {
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      const prev = new Date(2026, 2, 2, 23, 59).getTime();
+      const now = new Date(2026, 2, 3, 0, 1).getTime();
+      act(() => result.current.updateStreak(prev, now));
+      expect(result.current.dailyQuestStreak).toBe(6);
+    });
+
+    test('more than 25 hours later but still the next calendar day adds one', () => {
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      act(() => result.current.updateStreak(at(2026, 3, 2, 8), at(2026, 3, 3, 23)));
+      expect(result.current.dailyQuestStreak).toBe(6);
+    });
+
+    test('a gap of two calendar days resets to 1', () => {
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 10 }));
+      act(() => result.current.updateStreak(at(2026, 3, 1), at(2026, 3, 3)));
+      expect(result.current.dailyQuestStreak).toBe(1);
+    });
+
+    test('the spring daylight-saving night (23 hours) is still one day', () => {
+      // Jest runs in the machine timezone; the Date.UTC-of-local-parts rule makes the
+      // result independent of whether that zone observes DST, so this test is stable.
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      act(() => result.current.updateStreak(at(2026, 3, 7, 12), at(2026, 3, 8, 11)));
+      expect(result.current.dailyQuestStreak).toBe(6);
     });
   });
 
