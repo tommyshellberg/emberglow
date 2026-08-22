@@ -41,7 +41,10 @@ import { refreshUser } from '@/lib/services/refresh-user';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { initializeTimezoneSync } from '@/lib/services/timezone-service';
 import { useThemeConfig } from '@/lib/use-theme-config';
-import { useCharacterStore } from '@/store/character-store';
+import {
+  localCalendarDaysBetween,
+  useCharacterStore,
+} from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 
 import NavigationGate from './navigation-gate';
@@ -361,8 +364,14 @@ function RootLayout() {
     const characterStore = useCharacterStore.getState();
     const dailyQuestStreak = characterStore.dailyQuestStreak;
 
+    // A streak that already broke days ago (no reset has run yet since the
+    // 24-hour boot reset was removed) should not get a warning notification.
+    const streakStillAlive =
+      lastCompletedQuestTimestamp !== null &&
+      localCalendarDaysBetween(lastCompletedQuestTimestamp, Date.now()) <= 1;
+
     // If streak is still active, check if we need to schedule a warning
-    if (dailyQuestStreak > 0) {
+    if (dailyQuestStreak > 0 && streakStillAlive) {
       // Check if user has completed a quest today
       const now = new Date();
       const lastCompletionDate = lastCompletedQuestTimestamp

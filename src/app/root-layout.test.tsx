@@ -153,13 +153,17 @@ jest.mock('@/lib/services/refresh-user', () => ({
   refreshUser: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('@/store/character-store', () => ({
-  useCharacterStore: {
-    getState: jest.fn(() => ({
-      dailyQuestStreak: 5,
-    })),
-  },
-}));
+jest.mock('@/store/character-store', () => {
+  const actual = jest.requireActual('@/store/character-store');
+  return {
+    localCalendarDaysBetween: actual.localCalendarDaysBetween,
+    useCharacterStore: {
+      getState: jest.fn(() => ({
+        dailyQuestStreak: 5,
+      })),
+    },
+  };
+});
 
 jest.mock('@/store/quest-store', () => ({
   useQuestStore: {
@@ -385,6 +389,33 @@ describe('RootLayout', () => {
 
     await waitFor(() => {
       expect(scheduleStreakWarningNotification).toHaveBeenCalled();
+    });
+  });
+
+  it('does not schedule a streak warning for a streak that already broke', async () => {
+    const {
+      scheduleStreakWarningNotification,
+    } = require('@/lib/services/notifications');
+    const { useCharacterStore } = require('@/store/character-store');
+    const { useQuestStore } = require('@/store/quest-store');
+
+    // Streak count is still positive locally, but the last completion was
+    // 3 days ago -- the streak already broke and just hasn't been reset.
+    useCharacterStore.getState.mockReturnValue({
+      dailyQuestStreak: 3,
+    });
+
+    useQuestStore.getState.mockReturnValue({
+      lastCompletedQuestTimestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
+      cooperativeQuestRun: null,
+      activeQuest: null,
+      failQuest: jest.fn(),
+    });
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(scheduleStreakWarningNotification).not.toHaveBeenCalled();
     });
   });
 
