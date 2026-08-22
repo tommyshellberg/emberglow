@@ -1,6 +1,7 @@
 import { getUserDetails, type UserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
+import type { CharacterType } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 
 type CharacterFields = Pick<
@@ -18,10 +19,10 @@ export function syncCharacterFromUser(user: CharacterFields): void {
 
   if (user.type && user.name) {
     if (!store.character) {
-      store.createCharacter(user.type as any, user.name);
+      store.createCharacter(user.type as CharacterType, user.name);
     }
     useCharacterStore.getState().updateCharacter({
-      type: user.type as any,
+      type: user.type as CharacterType,
       name: user.name,
       level: user.level || 1,
       currentXP: user.xp || 0,
@@ -44,7 +45,7 @@ export async function refreshUser(): Promise<void> {
   }
   try {
     const user = await getUserDetails();
-    useUserStore.getState().setUser(user as any);
+    useUserStore.getState().setUser(user);
     syncCharacterFromUser(user);
   } catch (error) {
     console.warn('[refreshUser] Keeping cached user; fetch failed:', error);

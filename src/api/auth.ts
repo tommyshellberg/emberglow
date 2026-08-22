@@ -268,14 +268,8 @@ export const completeSignIn = async (
         console.log('[Auth] OneSignal not initialized yet, will login later');
       }
 
-      // If user has character data from server, store it in character store
-      // Check both nested character object and top-level properties
-      if (userResponse?.type && userResponse?.name) {
-        syncCharacterFromUser(userResponse);
-        console.log('[Auth] Character data synchronized from server');
-      } else {
-        console.log('[Auth] No character data found in server response');
-      }
+      syncCharacterFromUser(userResponse);
+      console.log('[Auth] Character data synchronized from server');
     }
 
     console.log('[Auth] User data fetched and stored successfully');
