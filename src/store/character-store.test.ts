@@ -226,8 +226,9 @@ describe('Character Store', () => {
   describe('updateStreak', () => {
     const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h, 0, 0, 0).getTime();
 
-    test('null previous completion starts at 1', () => {
+    test('null previous completion starts at 1, ignoring any existing streak', () => {
       const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 7 }));
       act(() => result.current.updateStreak(null, at(2026, 3, 3)));
       expect(result.current.dailyQuestStreak).toBe(1);
     });
