@@ -7,6 +7,7 @@ import { create } from 'zustand';
 
 import { storeTokens } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
+import { syncCharacterFromUser } from '@/lib/services/refresh-user';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, removeItem } from '@/lib/storage';
@@ -212,47 +213,7 @@ const _useAuth = create<AuthState>((set, get) => ({
           const hasTopLevelCharacter = user.name;
 
           if (hasNestedCharacter || hasTopLevelCharacter) {
-            const characterStore = useCharacterStore.getState();
-
-            // Handle both formats: nested character object or top-level properties
-            const characterData = hasNestedCharacter
-              ? {
-                  type: (user as any).character.type,
-                  name: (user as any).character.name,
-                  level: (user as any).character.level || 1,
-                  currentXP:
-                    (user as any).character.currentXP ||
-                    (user as any).character.xp ||
-                    0,
-                }
-              : {
-                  type: (user as any).type,
-                  name: (user as any).name,
-                  level: (user as any).level || 1,
-                  currentXP: (user as any).xp || 0,
-                };
-
-            // First create the character if it doesn't exist locally
-            if (!characterStore.character) {
-              characterStore.createCharacter(
-                characterData.type as any,
-                characterData.name
-              );
-            }
-
-            // Then update with the server data
-            characterStore.updateCharacter({
-              type: characterData.type,
-              name: characterData.name,
-              level: characterData.level,
-              currentXP: characterData.currentXP,
-            });
-
-            // Also update streak if provided
-            if (user.dailyQuestStreak !== undefined) {
-              // @TODO: Add this back when we properly sync streak
-              characterStore.setStreak(user.dailyQuestStreak);
-            }
+            syncCharacterFromUser(user);
 
             console.log('[Auth] Character data synchronized during hydration');
           } else {

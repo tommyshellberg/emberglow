@@ -442,12 +442,10 @@ describe('Auth Store', () => {
     it('should sync character data when available', async () => {
       const mockUser = {
         id: 'user-123',
-        character: {
-          type: 'alchemist',
-          name: 'TestChar',
-          level: 5,
-          currentXP: 250,
-        },
+        type: 'alchemist',
+        name: 'TestChar',
+        level: 5,
+        xp: 250,
         dailyQuestStreak: 10,
       };
 
@@ -635,12 +633,10 @@ describe('Auth Store', () => {
     it('should not create character if it already exists locally', async () => {
       const mockUser = {
         id: 'user-123',
-        character: {
-          type: 'alchemist',
-          name: 'TestChar',
-          level: 5,
-          currentXP: 250,
-        },
+        type: 'alchemist',
+        name: 'TestChar',
+        level: 5,
+        xp: 250,
       };
 
       (getToken as jest.Mock).mockReturnValue({ access: 'token' });
