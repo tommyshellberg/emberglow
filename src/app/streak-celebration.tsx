@@ -114,6 +114,9 @@ export default function StreakCelebrationScreen() {
   const setShouldShowStreakCelebration = useQuestStore(
     (state) => state.setShouldShowStreakCelebration
   );
+  const lastCompletedQuestTimestamp = useQuestStore(
+    (state) => state.lastCompletedQuestTimestamp
+  );
 
   // Generate the 7-day (full week) streak visualization.
   //
@@ -124,8 +127,12 @@ export default function StreakCelebrationScreen() {
   // re-fired the count-up animation in an unbounded loop (the "never loads,
   // counts 1 -> 2 -> 1" bug). A stable reference breaks that loop.
   const streakDays = useMemo(
-    () => generateStreakVisualization(dailyQuestStreak),
-    [dailyQuestStreak]
+    () =>
+      generateStreakVisualization(
+        dailyQuestStreak,
+        lastCompletedQuestTimestamp
+      ),
+    [dailyQuestStreak, lastCompletedQuestTimestamp]
   );
 
   const {
