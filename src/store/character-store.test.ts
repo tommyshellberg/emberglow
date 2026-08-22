@@ -234,6 +234,22 @@ describe('Character Store', () => {
       expect(result.current.dailyQuestStreak).toBe(1);
     });
 
+    test('null previous completion resets to 1 even when now is near the epoch', () => {
+      // If the `!previousCompletionTimestamp` guard were skipped, `null`
+      // would fall through to `localCalendarDaysBetween(null, now)`.
+      // `new Date(null)` is the Unix epoch, so with `now` on that same
+      // local calendar day the gap comes out 0 — and the `gap === 0`
+      // branch leaves a non-zero existing streak untouched. Only a
+      // near-epoch `now` can tell "guard fired" apart from "guard
+      // skipped, then happened to still reset via the gap-0 path" — with
+      // any realistic `now` both paths land on gap > 1 and look the same.
+      const { result } = renderHook(() => useCharacterStore());
+      act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
+      const nearEpoch = new Date(1970, 0, 1, 10).getTime();
+      act(() => result.current.updateStreak(null, nearEpoch));
+      expect(result.current.dailyQuestStreak).toBe(1);
+    });
+
     test('same local day keeps the streak', () => {
       const { result } = renderHook(() => useCharacterStore());
       act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
