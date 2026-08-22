@@ -1,3 +1,4 @@
+import { getToken } from '@/lib/auth/utils';
 import { getUserDetails, type UserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
@@ -41,6 +42,9 @@ export function syncCharacterFromUser(user: CharacterFields): void {
  */
 export async function refreshUser(): Promise<void> {
   if (getItem('provisionalAccessToken')) {
+    return;
+  }
+  if (!getToken()?.access) {
     return;
   }
   try {

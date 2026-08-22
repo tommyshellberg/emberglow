@@ -7,9 +7,11 @@ jest.mock('@/lib/storage', () => {
   const actual = jest.requireActual('@/lib/storage');
   return { ...actual, getItem: jest.fn(actual.getItem) };
 });
+jest.mock('@/lib/auth/utils', () => ({ getToken: jest.fn() }));
 
 const { getUserDetails } = require('@/lib/services/user');
 const { getItem } = require('@/lib/storage');
+const { getToken } = require('@/lib/auth/utils');
 const { refreshUser, syncCharacterFromUser } = require('./refresh-user');
 
 const serverUser = {
@@ -74,6 +76,7 @@ describe('refreshUser', () => {
     (getItem as jest.Mock).mockImplementation((key: string) =>
       key === 'provisionalAccessToken' ? null : undefined
     );
+    (getToken as jest.Mock).mockReturnValue({ access: 'a', refresh: 'r' });
   });
 
   it('fetches the user and applies the server streak', async () => {
@@ -87,6 +90,13 @@ describe('refreshUser', () => {
     (getItem as jest.Mock).mockImplementation((key: string) =>
       key === 'provisionalAccessToken' ? 'tok' : undefined
     );
+    await refreshUser();
+    expect(getUserDetails).not.toHaveBeenCalled();
+    expect(useCharacterStore.getState().dailyQuestStreak).toBe(40);
+  });
+
+  it('does nothing when signed out', async () => {
+    (getToken as jest.Mock).mockReturnValue(null);
     await refreshUser();
     expect(getUserDetails).not.toHaveBeenCalled();
     expect(useCharacterStore.getState().dailyQuestStreak).toBe(40);
