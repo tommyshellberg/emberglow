@@ -265,6 +265,17 @@ describe('generateStreakVisualization (7-day model)', () => {
       isPending: true,
       isCompleted: false,
     });
+    // Pending only ever applies to today. Every other day of the week must
+    // stay false even though daysSinceLast > 0 holds for the whole week.
+    expect(days.map((d) => d.isPending)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
   });
 
   it("5-day streak right after today's quest: Thu–Mon lit, today not pending", () => {
@@ -289,6 +300,17 @@ describe('generateStreakVisualization (7-day model)', () => {
     const days = generateStreakVisualization(0, null, monday);
     expect(days.every((d) => !d.isCompleted)).toBe(true);
     expect(days[6].isPending).toBe(true);
+  });
+
+  it('null last completion lights nothing even when "now" is only a few days after the Unix epoch', () => {
+    // `null` must short-circuit to "never lit", not fall through to date
+    // math on `new Date(null)` (1970-01-01). A `now` close to that date is
+    // the only way to tell the two apart: far in the future both produce a
+    // huge gap and look identical, but close to the epoch a fallthrough
+    // would compute a small gap and light days that must stay unlit.
+    const nearEpoch = new Date(1970, 0, 4, 10).getTime();
+    const days = generateStreakVisualization(2, null, nearEpoch);
+    expect(days.every((d) => !d.isCompleted)).toBe(true);
   });
 });
 
