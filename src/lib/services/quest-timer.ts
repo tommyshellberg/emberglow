@@ -15,6 +15,7 @@ import {
   getQuestRunStatus,
   updatePhoneLockStatus,
 } from '@/lib/services/quest-run-service';
+import { refreshUser } from '@/lib/services/refresh-user';
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
@@ -733,6 +734,7 @@ export default class QuestTimer {
           const characterStore = useCharacterStore.getState();
           characterStore.addXP(completedQuest.reward.xp);
           characterStore.updateStreak(questStore.lastCompletedQuestTimestamp);
+          void refreshUser();
 
           // Fetch quest run data from server to get participant rewards
           const questRunIdFromQuest = completedQuest.questRunId;
@@ -1139,12 +1141,11 @@ export default class QuestTimer {
             characterStore.updateStreak(
               questStoreState.lastCompletedQuestTimestamp
             );
+            // Apply the server's streak (it may differ from the optimistic +1).
+            void refreshUser();
 
-            // Invalidate queries to fetch fresh data
+            // Invalidate next available quests to fetch fresh quest options
             const { queryClient } = require('@/api/common');
-            queryClient.invalidateQueries({
-              queryKey: ['user', 'details'] as const,
-            });
             queryClient.invalidateQueries({
               queryKey: ['next-available-quests'] as const,
             });

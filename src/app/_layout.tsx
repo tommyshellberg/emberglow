@@ -37,6 +37,7 @@ import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
 import { getSentryConfig } from '@/lib/sentry-config';
 import { scheduleStreakWarningNotification } from '@/lib/services/notifications';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
+import { refreshUser } from '@/lib/services/refresh-user';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { initializeTimezoneSync } from '@/lib/services/timezone-service';
 import { useThemeConfig } from '@/lib/use-theme-config';
@@ -314,6 +315,7 @@ function RootLayout() {
         ) {
           // App has come to foreground
           console.log('[App State] App foregrounded, checking quest status');
+          void refreshUser();
 
           // Check if we have an active cooperative quest that might have failed
           const questStore = useQuestStore.getState();
@@ -358,22 +360,6 @@ function RootLayout() {
       useQuestStore.getState().lastCompletedQuestTimestamp;
     const characterStore = useCharacterStore.getState();
     const dailyQuestStreak = characterStore.dailyQuestStreak;
-
-    // First check if streak should be reset (24+ hours since last completion)
-    if (lastCompletedQuestTimestamp && dailyQuestStreak > 0) {
-      const now = Date.now();
-      const hoursSinceLastCompletion =
-        (now - lastCompletedQuestTimestamp) / (1000 * 60 * 60);
-
-      if (hoursSinceLastCompletion > 24) {
-        // Reset the streak if it's been more than 24 hours
-        characterStore.resetStreak();
-        console.log(
-          'Streak reset: More than 24 hours since last quest completion'
-        );
-        return; // No need to schedule warning if streak is already broken
-      }
-    }
 
     // If streak is still active, check if we need to schedule a warning
     if (dailyQuestStreak > 0) {

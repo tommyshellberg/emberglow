@@ -17,7 +17,6 @@ interface CharacterState {
     now?: number
   ) => void;
   setStreak: (streak: number) => void;
-  resetStreak: () => void;
   resetCharacter: () => void;
   markStreakCelebrationShown: () => void;
 }
@@ -156,11 +155,6 @@ export const useCharacterStore = create<CharacterState>()(
       // Method to set streak directly (for syncing from server)
       setStreak: (streak) => {
         set({ dailyQuestStreak: streak });
-      },
-
-      // Method to reset streak
-      resetStreak: () => {
-        set({ dailyQuestStreak: 0 });
       },
 
       // Track when streak celebration was last shown

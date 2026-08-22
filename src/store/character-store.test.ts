@@ -224,7 +224,8 @@ describe('Character Store', () => {
   });
 
   describe('updateStreak', () => {
-    const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h, 0, 0, 0).getTime();
+    const at = (y: number, m: number, d: number, h = 12) =>
+      new Date(y, m - 1, d, h, 0, 0, 0).getTime();
 
     test('null previous completion starts at 1, ignoring any existing streak', () => {
       const { result } = renderHook(() => useCharacterStore());
@@ -236,14 +237,18 @@ describe('Character Store', () => {
     test('same local day keeps the streak', () => {
       const { result } = renderHook(() => useCharacterStore());
       act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
-      act(() => result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20)));
+      act(() =>
+        result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20))
+      );
       expect(result.current.dailyQuestStreak).toBe(5);
     });
 
     test('same local day with a stored 0 becomes 1', () => {
       const { result } = renderHook(() => useCharacterStore());
       act(() => useCharacterStore.setState({ dailyQuestStreak: 0 }));
-      act(() => result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20)));
+      act(() =>
+        result.current.updateStreak(at(2026, 3, 3, 8), at(2026, 3, 3, 20))
+      );
       expect(result.current.dailyQuestStreak).toBe(1);
     });
 
@@ -266,7 +271,9 @@ describe('Character Store', () => {
     test('more than 25 hours later but still the next calendar day adds one', () => {
       const { result } = renderHook(() => useCharacterStore());
       act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
-      act(() => result.current.updateStreak(at(2026, 3, 2, 8), at(2026, 3, 3, 23)));
+      act(() =>
+        result.current.updateStreak(at(2026, 3, 2, 8), at(2026, 3, 3, 23))
+      );
       expect(result.current.dailyQuestStreak).toBe(6);
     });
 
@@ -282,43 +289,10 @@ describe('Character Store', () => {
       // result independent of whether that zone observes DST, so this test is stable.
       const { result } = renderHook(() => useCharacterStore());
       act(() => useCharacterStore.setState({ dailyQuestStreak: 5 }));
-      act(() => result.current.updateStreak(at(2026, 3, 7, 12), at(2026, 3, 8, 11)));
+      act(() =>
+        result.current.updateStreak(at(2026, 3, 7, 12), at(2026, 3, 8, 11))
+      );
       expect(result.current.dailyQuestStreak).toBe(6);
-    });
-  });
-
-  describe('resetStreak', () => {
-    test('should reset streak to 0', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      act(() => {
-        useCharacterStore.setState({ dailyQuestStreak: 10 });
-      });
-
-      act(() => {
-        result.current.resetStreak();
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(0);
-    });
-
-    test('should reset streak but preserve lastStreakCelebrationShown', () => {
-      const { result } = renderHook(() => useCharacterStore());
-
-      act(() => {
-        useCharacterStore.setState({
-          dailyQuestStreak: 10,
-          lastStreakCelebrationShown: 5,
-        });
-      });
-
-      act(() => {
-        result.current.resetStreak();
-      });
-
-      expect(result.current.dailyQuestStreak).toBe(0);
-      // Note: resetStreak only resets the streak counter, not the celebration timestamp
-      expect(result.current.lastStreakCelebrationShown).toBe(5);
     });
   });
 
