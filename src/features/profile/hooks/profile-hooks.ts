@@ -7,13 +7,13 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
+import { CHARACTER_SYNC } from '@/features/profile/constants/profile-constants';
+import type { UserWithLegacyCharacter } from '@/features/profile/types/profile-types';
+import { syncCharacterFromUser } from '@/lib/services/refresh-user';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import type { CharacterType } from '@/store/types';
-
-import { CHARACTER_SYNC } from '@/features/profile/constants/profile-constants';
-import type { UserWithLegacyCharacter } from '@/features/profile/types/profile-types';
 
 /**
  * Custom hook to sync character data from server when user has no local character
@@ -44,7 +44,7 @@ export function useCharacterSync(dependencies?: {
 
   useEffect(() => {
     if (!character && !isRedirecting) {
-      const syncCharacterFromUser = async () => {
+      const syncFromServer = async () => {
         try {
           const fetchedUser = await getUserDetailsFunc();
           // getUserDetailsFunc() returns UserDetails, whose `type` is a plain
@@ -60,27 +60,16 @@ export function useCharacterSync(dependencies?: {
           const hasLegacyCharacterData = user?.type && user?.name;
 
           if (hasLegacyCharacterData) {
-            // Create character from user data
-            const characterStoreInstance = characterStore.getState();
-            characterStoreInstance.createCharacter(
-              user.type as CharacterType,
-              user.name!
-            );
-
-            // Update with level and XP data
-            const level = user.level || 1;
-
-            characterStoreInstance.updateCharacter({
+            // Create (if missing) and update the character, and apply the
+            // server streak. Shared with refresh-user.ts so there is one
+            // place server values reach the streak.
+            syncCharacterFromUser({
               type: user.type!,
               name: user.name!,
-              level,
-              currentXP: user.xp || 0,
+              level: user.level ?? 1,
+              xp: user.xp ?? 0,
+              dailyQuestStreak: user.dailyQuestStreak as number,
             });
-
-            // Update streak if available
-            if (user.dailyQuestStreak !== undefined) {
-              characterStoreInstance.setStreak(user.dailyQuestStreak);
-            }
           } else {
             // Only redirect to onboarding if this is truly a new user
             // Check for provisional data to determine if they're in onboarding
@@ -106,7 +95,7 @@ export function useCharacterSync(dependencies?: {
         }
       };
 
-      syncCharacterFromUser();
+      syncFromServer();
     }
   }, [
     character,

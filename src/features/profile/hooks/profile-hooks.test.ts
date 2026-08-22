@@ -4,6 +4,8 @@
 
 import { renderHook, waitFor } from '@testing-library/react-native';
 
+import { useCharacterStore } from '@/store/character-store';
+
 import { useCharacterSync } from './profile-hooks';
 
 describe('useCharacterSync', () => {
@@ -15,6 +17,7 @@ describe('useCharacterSync', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    useCharacterStore.setState({ character: null, dailyQuestStreak: 0 });
 
     // Create mock character store
     mockCharacterStore = jest.fn((selector) => {
@@ -93,14 +96,7 @@ describe('useCharacterSync', () => {
         dailyQuestStreak: 7,
       };
 
-      const mockStoreInstance = {
-        createCharacter: jest.fn(),
-        updateCharacter: jest.fn(),
-        setStreak: jest.fn(),
-      };
-
       mockGetUserDetails.mockResolvedValue(mockUser);
-      mockCharacterStore.getState.mockReturnValue(mockStoreInstance);
 
       renderHook(() =>
         useCharacterSync({
@@ -116,17 +112,15 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('wizard', 'MerlinTheWise');
+        expect(useCharacterStore.getState().character).toMatchObject({
+          type: 'wizard',
+          name: 'MerlinTheWise',
+          level: 10,
+          currentXP: 500,
+        });
       });
 
-      expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
-        type: 'wizard',
-        name: 'MerlinTheWise',
-        level: 10,
-        currentXP: 500,
-      });
-
-      expect(mockStoreInstance.setStreak).toHaveBeenCalledWith(7);
+      expect(useCharacterStore.getState().dailyQuestStreak).toBe(7);
       expect(mockRouter.replace).not.toHaveBeenCalled();
     });
 
@@ -141,14 +135,7 @@ describe('useCharacterSync', () => {
         // No dailyQuestStreak
       };
 
-      const mockStoreInstance = {
-        createCharacter: jest.fn(),
-        updateCharacter: jest.fn(),
-        setStreak: jest.fn(),
-      };
-
       mockGetUserDetails.mockResolvedValue(mockUser);
-      mockCharacterStore.getState.mockReturnValue(mockStoreInstance);
 
       renderHook(() =>
         useCharacterSync({
@@ -165,18 +152,16 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.createCharacter).toHaveBeenCalledWith('knight', 'BraveSir');
+        expect(useCharacterStore.getState().character).toMatchObject({
+          type: 'knight',
+          name: 'BraveSir',
+          level: 3,
+          currentXP: 75,
+        });
       });
 
-      expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
-        type: 'knight',
-        name: 'BraveSir',
-        level: 3,
-        currentXP: 75,
-      });
-
-      // Should not call setStreak if dailyQuestStreak is undefined
-      expect(mockStoreInstance.setStreak).not.toHaveBeenCalled();
+      // Should not touch the streak if dailyQuestStreak is undefined
+      expect(useCharacterStore.getState().dailyQuestStreak).toBe(0);
     });
 
     it('should default to level 1 if level is missing', async () => {
@@ -189,14 +174,7 @@ describe('useCharacterSync', () => {
         xp: 0,
       };
 
-      const mockStoreInstance = {
-        createCharacter: jest.fn(),
-        updateCharacter: jest.fn(),
-        setStreak: jest.fn(),
-      };
-
       mockGetUserDetails.mockResolvedValue(mockUser);
-      mockCharacterStore.getState.mockReturnValue(mockStoreInstance);
 
       renderHook(() =>
         useCharacterSync({
@@ -213,13 +191,62 @@ describe('useCharacterSync', () => {
       });
 
       await waitFor(() => {
-        expect(mockStoreInstance.updateCharacter).toHaveBeenCalledWith({
+        expect(useCharacterStore.getState().character).toMatchObject({
           type: 'scout',
           name: 'SwiftRunner',
           level: 1,
           currentXP: 0,
         });
       });
+    });
+
+    it('applies the server streak without recreating an existing character', async () => {
+      useCharacterStore.setState({
+        character: { type: 'scout', name: 'SwiftRunner', level: 2, currentXP: 40 },
+        dailyQuestStreak: 0,
+      });
+      const createCharacterSpy = jest.spyOn(
+        useCharacterStore.getState(),
+        'createCharacter'
+      );
+
+      const mockUser = {
+        _id: 'user1',
+        email: 'test@example.com',
+        type: 'scout',
+        name: 'SwiftRunner',
+        level: 2,
+        xp: 40,
+        dailyQuestStreak: 9,
+      };
+
+      mockGetUserDetails.mockResolvedValue(mockUser);
+
+      // The hook only fetches when its own selector reads no local
+      // character; simulate that while the real store already has one.
+      mockCharacterStore.mockImplementation((selector: any) =>
+        selector ? selector({ character: null }) : { character: null }
+      );
+
+      renderHook(() =>
+        useCharacterSync({
+          characterStore: mockCharacterStore,
+          getStorageItem: mockGetStorageItem,
+          getUserDetails: mockGetUserDetails,
+          router: mockRouter,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockGetUserDetails).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        expect(useCharacterStore.getState().dailyQuestStreak).toBe(9);
+      });
+
+      expect(createCharacterSpy).not.toHaveBeenCalled();
+      createCharacterSpy.mockRestore();
     });
 
     it('should redirect provisional users to onboarding when no character', async () => {
