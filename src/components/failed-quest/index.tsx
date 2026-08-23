@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useNextAvailableQuests } from '@/api/quest';
 import { Button, EyebrowLabel } from '@/components/emberglow';
 import { BackgroundImage, ScreenContainer } from '@/components/ui';
 import { getQuestModeLabel } from '@/lib/utils/quest-utils';
@@ -28,7 +29,26 @@ type FailedQuestProps = {
 const EMBER_OUT = Easing.bezier(...easing.emberOut);
 const RISE_DISTANCE = 20;
 
+// This component hard-codes its English strings (no `t()`), so this
+// consequence line is hard-coded too, matching the rest of the file.
+const CONSEQUENCE_LINE =
+  'The story moves on. What you couldn’t finish will follow you.';
+
 export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
+  const isStory = quest.mode === 'story';
+  const { data, isFetching, refetch } = useNextAvailableQuests({
+    enabled: isStory,
+  });
+  useEffect(() => {
+    // The server marks the run failed before this screen mounts; fetch
+    // fresh options so the button reflects whether the story kept or moved
+    // past this quest.
+    if (isStory) refetch();
+  }, [isStory, refetch]);
+  const stillOffered =
+    !isStory || (data?.quests ?? []).some((q) => q.customId === quest.id);
+  const deciding = isStory && (data === undefined || isFetching);
+
   // Create animated values for header, message, and button animations
   const headerAnim = useSharedValue(0);
   const messageAnim = useSharedValue(0);
@@ -95,25 +115,39 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
 
         {/* Message Section */}
         <Animated.View style={[styles.message, messageAnimatedStyle]}>
+          {isStory && !deciding && !stillOffered && (
+            <Text style={styles.messagePrimary}>{CONSEQUENCE_LINE}</Text>
+          )}
           <Text style={styles.messagePrimary}>
             It's okay to fail – every setback teaches you a lesson.
           </Text>
-          <Text style={styles.messageSecondary}>
-            Resist unlocking out of boredom.
-          </Text>
-          <Text style={styles.messageSecondary}>
-            Using your phone less helps build focus and mindfulness.
-          </Text>
+          {(!isStory || stillOffered) && (
+            <>
+              <Text style={styles.messageSecondary}>
+                Resist unlocking out of boredom.
+              </Text>
+              <Text style={styles.messageSecondary}>
+                Using your phone less helps build focus and mindfulness.
+              </Text>
+            </>
+          )}
         </Animated.View>
 
         {/* Button Section */}
         <Animated.View style={[styles.buttonRow, buttonAnimatedStyle]}>
-          <Button
-            label="Try Again"
-            onPress={onRetry}
-            variant="primary"
-            fullWidth
-          />
+          {deciding ? (
+            <ActivityIndicator
+              testID="failed-quest-loading"
+              color={colors.text.primary}
+            />
+          ) : (
+            <Button
+              label={stillOffered ? 'Try Again' : 'Continue'}
+              onPress={onRetry}
+              variant="primary"
+              fullWidth
+            />
+          )}
         </Animated.View>
       </ScreenContainer>
     </View>

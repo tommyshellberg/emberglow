@@ -2,10 +2,22 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { render, screen } from '@/lib/test-utils';
+import { fireEvent, render, screen } from '@/lib/test-utils';
 import type { Quest } from '@/store/types';
 
 import { FailedQuest } from './index';
+
+const mockUseNextAvailableQuests = jest.fn();
+jest.mock('@/api/quest', () => ({
+  useNextAvailableQuests: (...args: unknown[]) =>
+    mockUseNextAvailableQuests(...args),
+}));
+
+const offering = (ids: string[]) => ({
+  data: { quests: ids.map((customId) => ({ customId })) },
+  isFetching: false,
+  refetch: jest.fn(),
+});
 
 const baseQuest = {
   id: 'quest-1',
@@ -20,6 +32,10 @@ const baseQuest = {
 } as unknown as Quest;
 
 describe('FailedQuest', () => {
+  beforeEach(() => {
+    mockUseNextAvailableQuests.mockReturnValue(offering(['quest-1']));
+  });
+
   it('renders the headline and quest title', () => {
     render(
       <FailedQuest
@@ -98,5 +114,70 @@ describe('FailedQuest', () => {
 
       expect(padding).toBe(BOTTOM_INSET + WANTED_GAP);
     });
+  });
+});
+
+describe('FailedQuest story outcome', () => {
+  it('offers Try Again while the failed quest is still available', () => {
+    mockUseNextAvailableQuests.mockReturnValue(offering(['quest-1']));
+    const onRetry = jest.fn();
+    render(
+      <FailedQuest
+        quest={{ ...baseQuest, mode: 'story' } as Quest}
+        onRetry={onRetry}
+      />
+    );
+    fireEvent.press(screen.getByText('Try Again'));
+    expect(onRetry).toHaveBeenCalled();
+    expect(screen.queryByText(/The story moves on/)).toBeNull();
+  });
+
+  it('shows the consequence and Continue when the story has moved on', () => {
+    const questOffering = offering(['quest-1a', 'quest-1b']);
+    mockUseNextAvailableQuests.mockReturnValue(questOffering);
+    const onRetry = jest.fn();
+    render(
+      <FailedQuest
+        quest={{ ...baseQuest, mode: 'story' } as Quest}
+        onRetry={onRetry}
+      />
+    );
+    expect(
+      screen.getByText(
+        'The story moves on. What you couldn’t finish will follow you.'
+      )
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Try Again')).toBeNull();
+    fireEvent.press(screen.getByText('Continue'));
+    expect(onRetry).toHaveBeenCalled();
+    expect(questOffering.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows neither button while the options are loading', () => {
+    mockUseNextAvailableQuests.mockReturnValue({
+      data: undefined,
+      isFetching: true,
+      refetch: jest.fn(),
+    });
+    render(
+      <FailedQuest
+        quest={{ ...baseQuest, mode: 'story' } as Quest}
+        onRetry={jest.fn()}
+      />
+    );
+    expect(screen.queryByText('Try Again')).toBeNull();
+    expect(screen.queryByText('Continue')).toBeNull();
+    expect(screen.getByTestId('failed-quest-loading')).toBeOnTheScreen();
+  });
+
+  it('custom quests always offer Try Again and never consult the story', () => {
+    mockUseNextAvailableQuests.mockReturnValue(offering([]));
+    render(
+      <FailedQuest
+        quest={{ ...baseQuest, mode: 'custom' } as Quest}
+        onRetry={jest.fn()}
+      />
+    );
+    expect(screen.getByText('Try Again')).toBeOnTheScreen();
   });
 });
