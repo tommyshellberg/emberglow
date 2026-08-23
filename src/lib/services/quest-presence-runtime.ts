@@ -402,15 +402,14 @@ function runEffects(effects: PresenceEffect[]) {
       }
       case 'REPORT_COMPLETE':
         reportThenCommit(
-          // 'watched': the client watched the countdown out — confirm to
-          // finalize + award the lock bonus. 'locked': the server already
-          // auto-completed on lock-expiry, so no report is needed here. Either
-          // way, completeQuest(true) below pulls the awarded rewards via its
-          // OWN getQuestRunStatus fetch — a runtime fetch here would be redundant.
-          () =>
-            effect.source === 'watched'
-              ? confirmQuestRun(runId)
-              : Promise.resolve(),
+          // Always confirm, whatever `source` says. When the phone was locked
+          // the server normally auto-completes on lock-expiry and answers this
+          // confirm with a harmless 400 — but if the locked:true PATCH was
+          // lost (radio asleep right after the lock) the server never saw the
+          // lock and parks the run as awaiting_confirmation with NO XP. Only
+          // a confirm rescues that run. completeQuest(true) below pulls the
+          // awarded rewards via its OWN getQuestRunStatus fetch.
+          () => confirmQuestRun(runId),
           () => useQuestStore.getState().completeQuest(true)
         );
         break;

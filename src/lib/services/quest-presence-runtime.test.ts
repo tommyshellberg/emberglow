@@ -285,6 +285,19 @@ describe('quest-presence-runtime', () => {
     expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
   });
 
+  it('TIMER_COMPLETE while LOCKED still confirms via /confirm (a lost locked:true PATCH must not strand the run)', async () => {
+    startRuntimeForActivePresenceRun();
+    fireLockEvent('LOCKED');
+
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS);
+    });
+    await flush();
+
+    expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
+    expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
   it('cold start rehydrates from the MMKV snapshot and re-judges (abandoned → left_app)', async () => {
     (getItem as jest.Mock).mockReturnValue({
       state: 'IN_APP',
