@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { revenueCatService } from '@/lib/services/revenuecat-service';
+import { usePremiumAccessStore } from '@/store/premium-access-store';
 
 export function usePremiumAccess() {
-  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // Entitlement state is shared across every mounted instance of this hook
+  // (home, settings, skill tree, ...), so a purchase completed on one screen
+  // unlocks the others without a remount. Only the paywall visibility is
+  // per-screen state.
+  const hasPremiumAccess = usePremiumAccessStore(
+    (state) => state.hasPremiumAccess
+  );
+  const isLoading = usePremiumAccessStore((state) => state.isLoading);
   const [showPaywall, setShowPaywall] = useState(false);
 
   const checkPremiumAccess = useCallback(async () => {
     try {
       const hasAccess = await revenueCatService.hasPremiumAccess();
-      setHasPremiumAccess(hasAccess);
+      usePremiumAccessStore.getState().setHasPremiumAccess(hasAccess);
       return hasAccess;
     } catch (error) {
       console.error('Failed to check premium access:', error);
-      setHasPremiumAccess(false);
+      usePremiumAccessStore.getState().setHasPremiumAccess(false);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -47,17 +52,7 @@ export function usePremiumAccess() {
   const handlePaywallSuccess = useCallback(async () => {
     console.log('[usePremiumAccess] Paywall success - updating premium status');
     setShowPaywall(false);
-
-    // Immediately check and update premium status
-    const hasAccess = await checkPremiumAccess();
-
-    // If we now have premium access, update the state immediately
-    if (hasAccess) {
-      console.log(
-        '[usePremiumAccess] Premium access confirmed - updating state'
-      );
-      setHasPremiumAccess(true);
-    }
+    await checkPremiumAccess();
   }, [checkPremiumAccess]);
 
   // Force refresh premium status (useful for when app returns from background)

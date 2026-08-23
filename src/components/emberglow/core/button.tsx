@@ -33,6 +33,12 @@ export type ButtonProps = {
   /** @default false */
   fullWidth?: boolean;
   disabled?: boolean;
+  /** The button's own action is in flight. Blocks presses exactly as `disabled`
+   * does, but deliberately skips the 40% dim: the caller is expected to render
+   * in-progress content (a spinner) inside, and a spinner at 40% opacity reads
+   * as broken rather than working. Announced to screen readers as busy.
+   * @default false */
+  busy?: boolean;
   onPress?: () => void;
   /** Icon + text row (gap 8) — takes precedence over `label` when provided. */
   children?: React.ReactNode;
@@ -101,6 +107,7 @@ export function Button({
   glow = false,
   fullWidth = false,
   disabled = false,
+  busy = false,
   onPress,
   children,
   accessibilityLabel,
@@ -109,7 +116,10 @@ export function Button({
   containerStyle,
   testID,
 }: ButtonProps) {
+  // Not pressable for either reason — but only `disabled` dims (see `busy`).
+  const inert = disabled || busy;
   // Disabled forces the glow off regardless of what the screen asked for.
+  // `busy` does not: a button that is working should still look alive.
   const glowActive = glow && !disabled;
   const glowOpacity = useSharedValue(
     glowActive ? shadows.glowEmber.shadowOpacity : 0
@@ -160,8 +170,8 @@ export function Button({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityHint={accessibilityHint}
-        accessibilityState={{ disabled }}
-        disabled={disabled}
+        accessibilityState={{ disabled: inert, busy }}
+        disabled={inert}
         onPress={onPress}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}

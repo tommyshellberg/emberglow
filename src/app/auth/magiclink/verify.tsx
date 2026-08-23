@@ -102,7 +102,10 @@ export default function VerifyMagicLinkScreen() {
 
         // The magic link is the final signup step — this closes the
         // onboarding funnel (magic_link_sent_success → signup_completed).
-        posthog.capture('signup_completed');
+        // `method` distinguishes this from the social sign-in paths (login
+        // screen + quest-completed-signup), which capture the same event
+        // with `method: 'google' | 'apple'`.
+        posthog.capture('signup_completed', { method: 'magic_link' });
 
         // Navigate based on the returned target
         if (navigationTarget === 'app') {

@@ -224,6 +224,7 @@ export default function CreateCooperativeQuestScreen() {
                 (ground rule 4); hand-rolled tabs retinted from theme tokens. */}
             <View style={styles.toggleTrack}>
               <TouchableOpacity
+                testID="coop-mode-friends-button"
                 onPress={() => handleModeChange('friends')}
                 style={[
                   styles.toggleTab,
@@ -240,6 +241,7 @@ export default function CreateCooperativeQuestScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                testID="coop-mode-guild-button"
                 onPress={() => handleModeChange('guild')}
                 style={[
                   styles.toggleTab,

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { getAccessToken } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 import type { Character } from '@/store/types';
@@ -134,32 +135,6 @@ export async function getUserFriends(
 }
 
 /**
- * Send a friend invitation to a user by email address
- * @param email Email address of the user to invite
- * @returns Response with invitation details
- */
-export async function sendFriendInvite(email: string): Promise<{
-  message: string;
-  invitation: {
-    sender: string;
-    recipient: string;
-    recipientUser: string | null;
-    status: string;
-    _id: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-}> {
-  try {
-    const response = await apiClient.post('/users/invites', { email });
-    return response.data;
-  } catch (error) {
-    console.error('Error sending friend invitation:', error);
-    throw error;
-  }
-}
-
-/**
  * Get friend invitations (both sent and received)
  * @param status Filter invitations by status (e.g., 'pending', 'accepted', 'rejected')
  * @param page Page number for pagination
@@ -286,27 +261,6 @@ export async function rescindInvitation(inviteId: string): Promise<{
 }
 
 /**
- * Send bulk friend invitations to multiple email addresses
- * @param emails Array of email addresses to invite
- * @returns Response with success/failure details for each email
- */
-export async function sendBulkFriendInvites(emails: string[]): Promise<{
-  message: string;
-  totalSuccessful: number;
-  totalFailed: number;
-  successfulEmails: string[];
-  failedEmails: { email: string; reason: string }[];
-}> {
-  try {
-    const response = await apiClient.post('/users/invites/bulk', { emails });
-    return response.data;
-  } catch (error) {
-    console.error('Error sending bulk friend invitations:', error);
-    throw error;
-  }
-}
-
-/**
  * Delete the current user's account
  * @returns Response with success message
  */
@@ -350,6 +304,14 @@ export async function refreshPremiumStatus(): Promise<{
 export async function createProvisionalUser(
   character: Character
 ): Promise<any> {
+  // Invariant: a device must never hold a real session AND mint a provisional
+  // account — every write path prefers the provisional token when it exists,
+  // so the two identities silently split the user's data (empty journal,
+  // zeroed server stats). Callers with a real session must PATCH the
+  // character onto that account (updateUserCharacter) instead.
+  if (getAccessToken()) {
+    throw new Error('PROVISIONAL_WITH_ACTIVE_SESSION');
+  }
   try {
     // Generate a provisional email using UUID
     const provisionalEmail = `${uuidv4()}@unquestapp.com`;

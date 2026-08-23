@@ -114,6 +114,7 @@ export function QuestCompleteHeader({
       />
 
       <Pressable
+        testID="quest-detail-back-button"
         onPress={onBack}
         accessibilityRole="button"
         accessibilityLabel="Go back"

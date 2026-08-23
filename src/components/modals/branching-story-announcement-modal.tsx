@@ -82,7 +82,7 @@ export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
         <Text style={styles.heading}>Your Story Just Got Deadlier</Text>
 
         <Text style={styles.body}>
-          unQuest now features branching storylines with real consequences. Some
+        Emberglow now features branching storylines with real consequences. Some
           choices lead to victory, others... to death.
         </Text>
 
@@ -104,12 +104,14 @@ export const BranchingStoryAnnouncementModal = forwardRef<BottomSheetModal>(
 
         <View style={styles.actions}>
           <Button
+            testID="branching-announcement-restart"
             label={isResetting ? 'Resetting...' : 'Restart at Branching Point'}
             onPress={handleRestart}
             disabled={isResetting}
             fullWidth
           />
           <Button
+            testID="branching-announcement-continue"
             label="Continue Current Journey"
             variant="ghost"
             onPress={handleContinue}

@@ -73,7 +73,6 @@ describe('timezone-service', () => {
       // @ts-ignore
       notificationAPI.getNotificationSettings.mockResolvedValue({
         timezone: null,
-        streakWarning: { enabled: true, time: { hour: 20, minute: 0 } },
       });
 
       await syncTimezoneWithDevice();
@@ -88,7 +87,6 @@ describe('timezone-service', () => {
       // @ts-ignore
       notificationAPI.getNotificationSettings.mockResolvedValue({
         timezone: manualTimezone,
-        streakWarning: { enabled: true, time: { hour: 20, minute: 0 } },
       });
 
       await syncTimezoneWithDevice();

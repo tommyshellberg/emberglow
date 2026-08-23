@@ -40,13 +40,18 @@ export default function ScheduledQuestDiscovery() {
     <ScreenContainer>
       <FocusAwareStatusBar />
       <View className="px-4">
-        <ScreenHeader title="Public Events" showBackButton />
+        <ScreenHeader
+          testID="scheduled-quests-screen"
+          title="Public Events"
+          showBackButton
+        />
       </View>
 
       <View className="mb-2 flex-row px-4">
         {(['discover', 'mine'] as const).map((t) => (
           <TouchableOpacity
             key={t}
+            testID={`events-tab-${t}`}
             onPress={() => setTab(t)}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === t }}

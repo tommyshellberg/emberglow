@@ -27,6 +27,14 @@ export type XPBarProps = {
   /** @default 100 */
   xpNext?: number;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Anchors the two value readouts for e2e. Forwarded as `${testID}-level`
+   * and `${testID}-xp` rather than sitting on the root, because the root is
+   * a layout box: a suite asserting "the profile shows Level 2" needs the
+   * Text that carries the number, not the container around it. Follows the
+   * child-id convention `DecisionSlider` and `Button` already use.
+   */
+  testID?: string;
 };
 
 const FONT_SIZE = 13;
@@ -42,7 +50,13 @@ export function xpBarProgress(xp: number, xpNext: number): number {
 }
 
 /** Hero level + XP progress; Cinnabar to Sandy ember gradient fill. */
-export function XPBar({ level = 1, xp = 0, xpNext = 100, style }: XPBarProps) {
+export function XPBar({
+  level = 1,
+  xp = 0,
+  xpNext = 100,
+  style,
+  testID,
+}: XPBarProps) {
   const pct = xpBarProgress(xp, xpNext);
   const widthPct = useSharedValue(pct * 100);
 
@@ -60,8 +74,13 @@ export function XPBar({ level = 1, xp = 0, xpNext = 100, style }: XPBarProps) {
   return (
     <View style={style}>
       <View style={styles.header}>
-        <Text style={styles.level}>Level {level}</Text>
-        <Text style={styles.xp}>
+        <Text
+          testID={testID ? `${testID}-level` : undefined}
+          style={styles.level}
+        >
+          Level {level}
+        </Text>
+        <Text testID={testID ? `${testID}-xp` : undefined} style={styles.xp}>
           {xp} / {xpNext} XP
         </Text>
       </View>

@@ -14,13 +14,23 @@ jest.mock('expo-router', () => ({
   },
 }));
 
-// Mock the LoginForm component
+// Mock the LoginForm component. `intent` is echoed as text (via String(),
+// so an undefined prop renders "intent:undefined" and fails loudly rather
+// than rendering nothing) — this suite owns the param parsing, while
+// login-form.test.tsx owns what the resolved copy renders as.
 jest.mock('@/components/login-form', () => ({
-  LoginForm: ({ initialError }: { initialError?: string | null }) => {
+  LoginForm: ({
+    initialError,
+    intent,
+  }: {
+    initialError?: string | null;
+    intent?: string;
+  }) => {
     const { View, Text } = require('react-native');
     return (
       <View testID="login-form">
         {initialError && <Text testID="initial-error">{initialError}</Text>}
+        <Text testID="login-intent">{`intent:${String(intent)}`}</Text>
       </View>
     );
   },
@@ -40,6 +50,17 @@ jest.mock('@/lib', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// `storage` (the raw MMKV export) is imported transitively by unrelated
+// modules, so a wholesale stub breaks the module graph before any test runs.
+// Spread the real module and override only `getItem`. `hasProvisionalSession`
+// itself is deliberately NOT mocked: this suite has to prove the real check
+// runs, since the bug being fixed is that it never ran at all.
+const mockStorage: Record<string, unknown> = {};
+jest.mock('@/lib/storage', () => ({
+  ...jest.requireActual('@/lib/storage'),
+  getItem: (key: string) => mockStorage[key] ?? null,
+}));
+
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
@@ -49,6 +70,7 @@ describe('Login Screen', () => {
   beforeEach(() => {
     (useLocalSearchParams as jest.Mock).mockReturnValue({});
     mockUseAuth.mockReturnValue({ status: 'signOut' });
+    for (const key of Object.keys(mockStorage)) delete mockStorage[key];
   });
 
   it('renders LoginForm when user is not authenticated', () => {
@@ -68,6 +90,42 @@ describe('Login Screen', () => {
     const redirect = screen.getByTestId('redirect');
     expect(redirect).toBeOnTheScreen();
     expect(redirect.props.accessibilityHint).toBe('/');
+  });
+
+  // The conversion gate's ONLY email escape hatch. Every user the gate holds
+  // has status 'signIn' by construction — the gate sits BELOW the resolver's
+  // `signOut → login` branch, and a provisional session hydrates as 'signIn'
+  // (see auth hydrate()). A bare status check therefore redirected 100% of
+  // them straight back to the wall, so "Sign up with email" only ever
+  // flashed. Asserts the rendered screen, not that a redirect was requested:
+  // the old test asserted only the latter and could never see this.
+  it.each(['provisionalAccessToken', 'provisionalUserId'])(
+    'renders LoginForm for a signed-in GUEST arriving to convert (%s on disk)',
+    (provisionalKey) => {
+      mockUseAuth.mockReturnValue({ status: 'signIn' });
+      mockStorage[provisionalKey] = 'prov-value';
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: 'convert',
+      });
+
+      setup(<Login />);
+
+      expect(screen.getByTestId('login-form')).toBeOnTheScreen();
+      expect(screen.getByText('intent:convert')).toBeOnTheScreen();
+      expect(screen.queryByTestId('redirect')).not.toBeOnTheScreen();
+    }
+  );
+
+  // The other side of the same guard: a real account must still be bounced,
+  // or /login becomes reachable by anyone with a session.
+  it('still redirects a signed-in user with a real account and no provisional keys', () => {
+    mockUseAuth.mockReturnValue({ status: 'signIn' });
+    mockStorage.provisionalRefreshToken = 'survives-conversion';
+
+    setup(<Login />);
+
+    expect(screen.getByTestId('redirect')).toBeOnTheScreen();
+    expect(screen.queryByTestId('login-form')).not.toBeOnTheScreen();
   });
 
   it('passes error from URL params to LoginForm', () => {
@@ -101,5 +159,48 @@ describe('Login Screen', () => {
 
     expect(screen.getByTestId('login-form')).toBeOnTheScreen();
     expect(screen.getByText(errorMessage)).toBeOnTheScreen();
+  });
+
+  describe('intent param', () => {
+    it('passes the convert intent through when arriving from the conversion screen', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: 'convert',
+      });
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:convert')).toBeOnTheScreen();
+    });
+
+    it('defaults to the signin intent when no param is present', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({});
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
+
+    it('falls back to the signin intent for an unrecognised value', () => {
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: 'nonsense',
+      });
+
+      setup(<Login />);
+
+      // Not `intent:nonsense` — an unvalidated cast would key the copy
+      // table with it and render undefined copy.
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
+
+    it('falls back to the signin intent when the param is repeated', () => {
+      // `?intent=convert&intent=signin` — expo-router hands back an array.
+      (useLocalSearchParams as jest.Mock).mockReturnValue({
+        intent: ['convert', 'signin'],
+      });
+
+      setup(<Login />);
+
+      expect(screen.getByText('intent:signin')).toBeOnTheScreen();
+    });
   });
 });

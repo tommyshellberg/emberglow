@@ -18,15 +18,71 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+// Stable capture fn so assertions can see calls — a fresh object per
+// usePostHog() call (as the previous inline factory produced) would give
+// every render its own throwaway `capture`, making call assertions
+// impossible (same fix as verify.test.tsx / social-sign-in-buttons.test.tsx).
+const mockPosthogCapture = jest.fn();
 jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({
-    capture: jest.fn(),
+    capture: mockPosthogCapture,
   }),
+}));
+
+// Mock SocialSignInButtons — this suite only tests the screen's placement
+// of, and wiring to, the component; its own behavior (credential exchange,
+// cancellation, per-outcome toasts) is covered by
+// social-sign-in-buttons.test.tsx. The stub exposes one press target per
+// onSuccess/onError scenario the screen needs to handle.
+jest.mock('@/components/login/social-sign-in-buttons', () => {
+  const { View, Pressable } = jest.requireActual('react-native');
+  return {
+    SocialSignInButtons: ({
+      onSuccess,
+      onError,
+    }: {
+      onSuccess: (target: string, outcome: string, provider: string) => void;
+      onError: (kind: 'email-in-use' | 'generic') => void;
+    }) => (
+      <View testID="social-sign-in-buttons-mock">
+        <Pressable
+          testID="mock-social-success-google"
+          onPress={() => onSuccess('app', 'converted', 'google')}
+        />
+        <Pressable
+          testID="mock-social-success-apple"
+          onPress={() => onSuccess('app', 'converted', 'apple')}
+        />
+        <Pressable
+          testID="mock-social-success-existing-account"
+          onPress={() => onSuccess('app', 'existing-account-login', 'google')}
+        />
+        <Pressable
+          testID="mock-social-success-onboarding-target"
+          onPress={() => onSuccess('onboarding', 'created', 'google')}
+        />
+        <Pressable
+          testID="mock-social-error-email-in-use"
+          onPress={() => onError('email-in-use')}
+        />
+        <Pressable
+          testID="mock-social-error-generic"
+          onPress={() => onError('generic')}
+        />
+      </View>
+    ),
+  };
+});
+
+const mockShowMessage = jest.fn();
+jest.mock('react-native-flash-message', () => ({
+  showMessage: (...args: unknown[]) => mockShowMessage(...args),
 }));
 
 // Mock stores
 const mockOnboardingStore = {
   setCurrentStep: mockSetOnboardingStep,
+  isOnboardingComplete: jest.fn(() => false),
 };
 
 jest.mock('@/store/onboarding-store', () => ({
@@ -63,6 +119,14 @@ describe('QuestCompletedSignupScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // jest.clearAllMocks() above only clears call history — it does not
+    // undo a prior .mockReturnValue()/.mockImplementation() (that's
+    // mockReset's job, which would also wipe every other mock in this
+    // file). mockOnboardingStore.isOnboardingComplete is a module-level
+    // jest.fn() shared across every test, so without re-establishing its
+    // default here, a test that calls .mockReturnValue(true) would leak
+    // that value into every later test that doesn't set it explicitly.
+    mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
     mockUseOnboardingStore.mockImplementation((selector) =>
       selector(mockOnboardingStore as any)
     );
@@ -75,13 +139,16 @@ describe('QuestCompletedSignupScreen', () => {
     it('should navigate to login when Create Account button is pressed', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       // Wait for async navigation
       await waitFor(
         () => {
-          expect(mockRouterReplace).toHaveBeenCalledWith('/login');
+          expect(mockRouterReplace).toHaveBeenCalledWith({
+            pathname: '/login',
+            params: { intent: 'convert' },
+          });
         },
         { timeout: 200 }
       );
@@ -90,7 +157,7 @@ describe('QuestCompletedSignupScreen', () => {
     it('should NOT set onboarding to COMPLETED when navigating to login', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       // Wait for any async operations
@@ -108,7 +175,7 @@ describe('QuestCompletedSignupScreen', () => {
     it('should use router.replace instead of router.push', async () => {
       const { getByText } = render(<QuestCompletedSignupScreen />);
 
-      const createAccountButton = getByText('Create account');
+      const createAccountButton = getByText('Sign up with email');
       fireEvent.press(createAccountButton);
 
       await waitFor(
@@ -183,6 +250,207 @@ describe('QuestCompletedSignupScreen', () => {
           'Rowan lives only on this device for now. A free account is how you keep them.'
         )
       ).toBeTruthy();
+    });
+  });
+
+  describe('Social sign-in', () => {
+    it('renders the social sign-in buttons, then the "or" divider it owns, then the Sign up with email button', () => {
+      const { getByTestId, getByText, toJSON } = render(
+        <QuestCompletedSignupScreen />
+      );
+
+      expect(getByTestId('social-sign-in-buttons-mock')).toBeTruthy();
+      expect(getByText('Sign up with email')).toBeTruthy();
+
+      // Depth-first walk collecting testIDs and text leaves in render
+      // order, so "above" is asserted structurally rather than assumed.
+      const order: string[] = [];
+      const walk = (node: any): void => {
+        if (node === null || typeof node === 'string') {
+          if (typeof node === 'string') order.push(node);
+          return;
+        }
+        if (Array.isArray(node)) {
+          node.forEach(walk);
+          return;
+        }
+        if (typeof node.props?.testID === 'string') {
+          order.push(node.props.testID);
+        }
+        if (node.children) walk(node.children);
+      };
+      walk(toJSON());
+
+      const socialIndex = order.indexOf('social-sign-in-buttons-mock');
+      const dividerIndex = order.indexOf('social-signin-divider');
+      const createAccountIndex = order.indexOf('Sign up with email');
+
+      expect(socialIndex).toBeGreaterThanOrEqual(0);
+      // The divider is this screen's to render — `SocialSignInButtons` is
+      // mocked here, so its presence in the tree can only come from the
+      // screen itself.
+      expect(dividerIndex).toBeGreaterThan(socialIndex);
+      expect(createAccountIndex).toBeGreaterThan(dividerIndex);
+    });
+
+    it('still routes "Sign up with email" to /login, declaring the convert intent', async () => {
+      const { getByText } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByText('Sign up with email'));
+
+      await waitFor(() => {
+        // The user arriving from here has a provisional hero to keep, so the
+        // login screen must frame itself as saving progress rather than as a
+        // returning-user sign-in.
+        expect(mockRouterReplace).toHaveBeenCalledWith({
+          pathname: '/login',
+          params: { intent: 'convert' },
+        });
+      });
+    });
+
+    it('fires signup_completed with the provider on a successful google sign-in', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-google'));
+
+      await waitFor(() => {
+        expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+          method: 'google',
+        });
+      });
+    });
+
+    // The screen used to delegate its exit entirely to the conversion gate.
+    // That relies on a store write to re-render the resolver, and
+    // `completeSignIn` swallows a failed `getUserDetails()` while still
+    // resolving 'app' — so neither store is written, auth status was already
+    // 'signIn', nothing re-renders, and the user sits on the wall holding a
+    // valid real account. Navigating on the target the callback already
+    // carries costs one line (same shape as login-form.tsx).
+    it('lands a converted user in the app rather than waiting for the gate', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-google'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/');
+      });
+    });
+
+    // The target is not always 'app': a social identity that resolves to a
+    // hero-less account is routed back through onboarding. Hardcoding '/(app)/'
+    // would strand that user on a Play screen with no character.
+    it('honours an onboarding target instead of assuming the app', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-onboarding-target'));
+
+      await waitFor(() => {
+        expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding');
+      });
+    });
+
+    it('fires signup_completed with the provider on a successful apple sign-in', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-apple'));
+
+      await waitFor(() => {
+        expect(mockPosthogCapture).toHaveBeenCalledWith('signup_completed', {
+          method: 'apple',
+        });
+      });
+    });
+
+    it('does NOT fire signup_completed for a reachable-but-not-new outcome (existing-account-login)', async () => {
+      // A reinstalled user whose social account is already linked to a
+      // full account lands here (they still have a provisional character
+      // + completed quest-1 on this fresh install) but is NOT a new
+      // account — `existing-account-login` must not count as a signup.
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-success-existing-account'));
+
+      expect(mockPosthogCapture).not.toHaveBeenCalledWith(
+        'signup_completed',
+        expect.anything()
+      );
+    });
+
+    it('surfaces a message when social sign-in fails with email-in-use', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-error-email-in-use'));
+
+      await waitFor(() => {
+        expect(mockShowMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description: 'This email is already tied to another account.',
+          })
+        );
+      });
+    });
+
+    it('surfaces a generic message when social sign-in fails for any other reason', async () => {
+      const { getByTestId } = render(<QuestCompletedSignupScreen />);
+
+      fireEvent.press(getByTestId('mock-social-error-generic'));
+
+      await waitFor(() => {
+        expect(mockShowMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description: 'Please try again.',
+          })
+        );
+      });
+    });
+  });
+
+  describe('Conversion gate variant', () => {
+    it("shows the player's real standing when arriving via the conversion gate (onboarding complete)", () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      // Extend the character fixture for this test: a leaked veteran. Uses the
+      // file's existing mockUseCharacterStore double (defined at ~line 109),
+      // mirroring the beforeEach wiring at ~line 121.
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({
+          character: { ...mockCharacterFixture, level: 5, currentXP: 1012 },
+        })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Level 5 hero')).toBeTruthy();
+      expect(getByText('1012 XP')).toBeTruthy();
+      expect(queryByText('Quest one · complete')).toBeNull();
+    });
+
+    // The gate path's copy makes a FACTUAL CLAIM about the player's standing,
+    // so its fallbacks can't be the harmless generic ones the normal path
+    // uses: `?? 1` / `?? 0` would tell a level-40 veteran whose character
+    // hasn't loaded that they are a level 1 hero with 0 XP. Falling back to
+    // the first-quest framing is at worst vague; the alternative is wrong.
+    it('does not assert a standing it cannot know when the character has not loaded', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(true);
+      mockUseCharacterStore.mockImplementation((selector) =>
+        (selector as any)({ character: null })
+      );
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(queryByText('Level 1 hero')).toBeNull();
+      expect(queryByText('0 XP')).toBeNull();
+      expect(getByText('Quest one · complete')).toBeTruthy();
+    });
+
+    it('keeps the first-quest copy for the normal onboarding arrival', () => {
+      mockOnboardingStore.isOnboardingComplete.mockReturnValue(false);
+
+      const { getByText, queryByText } = render(<QuestCompletedSignupScreen />);
+
+      expect(getByText('Quest one · complete')).toBeTruthy();
+      expect(queryByText(/hero$/)).toBeNull();
     });
   });
 });

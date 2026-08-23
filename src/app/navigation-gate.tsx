@@ -65,6 +65,9 @@ export default function NavigationGate() {
       case 'onboarding':
         router.replace('/onboarding');
         break;
+      case 'no-hero':
+        router.replace('/no-hero');
+        break;
       case 'login':
         router.replace('/login');
         break;

@@ -1,6 +1,9 @@
 import * as ExpoNotifications from 'expo-notifications';
 
-import { cancelPresenceWarningNotification } from './notifications';
+import {
+  cancelLegacyStreakWarningNotification,
+  cancelPresenceWarningNotification,
+} from './notifications';
 
 jest.mock('@env', () => ({ Env: { APP_ENV: 'test' } }));
 jest.mock('react-native-onesignal', () => ({ OneSignal: {} }));
@@ -35,5 +38,19 @@ describe('cancelPresenceWarningNotification', () => {
     expect(ExpoNotifications.dismissNotificationAsync).toHaveBeenCalledWith(
       'presence-warning'
     );
+  });
+});
+
+describe('cancelLegacyStreakWarningNotification', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('cancels the legacy streak-warning id', async () => {
+    await cancelLegacyStreakWarningNotification();
+
+    expect(
+      ExpoNotifications.cancelScheduledNotificationAsync
+    ).toHaveBeenCalledWith('streak-warning');
   });
 });

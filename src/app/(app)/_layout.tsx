@@ -6,6 +6,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
+import { hidesTabBar } from '@/lib/navigation/tab-bar-routes';
 import {
   colors,
   fontFamily,
@@ -27,11 +28,27 @@ const TAB_ICON_SIZE = 22;
  * edge then rides ~1 nav-bar higher on every Android device, squeezing the
  * scene above it. Add the inset explicitly instead.
  */
-const TAB_BAR_CONTENT_HEIGHT = 56;
+const TAB_BAR_CONTENT_HEIGHT = 60;
+
+/**
+ * Explicit line box for tab labels. Without it the label height comes from
+ * the platform font metrics, which run taller on some Android devices (and
+ * grow with the system font-size setting) — that variance is what pushed
+ * "Play" past the content zone on a Samsung while the emulator looked fine.
+ */
+const TAB_LABEL_LINE_HEIGHT = 16;
 
 /** Raised center-orb geometry. */
 const ORB_SIZE = 56;
 const ORB_RAISE = -20;
+
+/**
+ * Gap between the raised orb and its label. The orb column is inherently
+ * taller than a side tab's (ORB_SIZE + ORB_RAISE = 36px of flow height vs a
+ * 22px icon), so this gap plus the label has to fit what's left of
+ * TAB_BAR_CONTENT_HEIGHT: 36 + 4 + 2 + 16 = 58 <= 60.
+ */
+const ORB_LABEL_GAP = 4;
 
 // Tab icon component
 function TabBarIcon({
@@ -125,17 +142,15 @@ export default function TabLayout() {
           borderTopColor: colors.border.hairline,
           height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
           paddingBottom: insets.bottom,
-          // Hide tab bar for quest screens and pending-quest
-          display:
-            ['pending-quest', 'quest-discovery', 'invitation-waiting'].includes(
-              route.name
-            ) || route.name.startsWith('quest/')
-              ? 'none'
-              : 'flex',
+          // Shared with ScreenContainer, which reserves insets.bottom itself
+          // on exactly the routes this hides the bar on. One list, so the two
+          // cannot disagree about who covers the inset.
+          display: hidesTabBar(route.name) ? 'none' : 'flex',
         },
         tabBarLabelStyle: {
           fontFamily: fontFamily.semibold,
           fontSize: fontSize.caption,
+          lineHeight: TAB_LABEL_LINE_HEIGHT,
           marginBottom: 6,
           paddingTop: 2,
         },
@@ -174,7 +189,8 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontFamily: fontFamily.semibold,
             fontSize: fontSize.caption,
-            marginTop: 8,
+            lineHeight: TAB_LABEL_LINE_HEIGHT,
+            marginTop: ORB_LABEL_GAP,
             paddingTop: 2,
           },
         }}

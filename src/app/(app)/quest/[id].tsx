@@ -75,7 +75,15 @@ export default function AppQuestDetailsScreen() {
       }
     }
 
-    router.replace(APP_HOME_ROUTE);
+    // From the journal this screen was pushed, so pop back to it. In the
+    // post-quest result flow the stack behind us is stale (pending-quest),
+    // so replacing to home stays correct there. canGoBack guards the
+    // deep-link case where this screen is the first one on the stack.
+    if (from === 'journal' && router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(APP_HOME_ROUTE);
+    }
   };
 
   const quest = useMemo(() => {
@@ -200,7 +208,7 @@ export default function AppQuestDetailsScreen() {
     const hasReflection = serverReflection || quest.reflection;
 
     return (
-      <View style={styles.screenRoot}>
+      <View testID="quest-detail-screen" style={styles.screenRoot}>
         <FocusAwareStatusBar />
 
         {/* Show existing reflection section at top - only when viewing from journal */}
@@ -300,7 +308,7 @@ export default function AppQuestDetailsScreen() {
 
   if (quest.status === 'failed') {
     return (
-      <View style={styles.screenRoot}>
+      <View testID="quest-detail-screen" style={styles.screenRoot}>
         <FocusAwareStatusBar />
         <ScreenHeader
           title={SCREEN_TITLE}

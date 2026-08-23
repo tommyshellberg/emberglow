@@ -1,557 +1,355 @@
-# UnQuest Maestro E2E Testing Guide
+# Emberglow / unQuest — Maestro E2E testing guide
 
-## Overview
+This is the "how do I run it" document. The companion document,
+[README.md](./README.md), is the "how does it actually behave" document: it
+holds the suite's mechanism notes and the list of anchors that exist in the app
+source but have never been seen on a device. Read both before writing a flow.
 
-This directory contains a comprehensive end-to-end test suite for the UnQuest mobile app using Maestro. The test suite covers ~85% of critical user flows including guest onboarding, authenticated user flows, and all major app screens.
+## Where the truth lives
 
-## Test Architecture
+Do not trust a summary when the thing itself is a few lines away.
 
-### Single Fresh User Approach
+| Question                                                      | Authoritative source                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| What order do flows run in, and why?                          | The header comment of `.maestro/run-tests.sh`               |
+| What does one flow assume and leave behind?                   | That flow file's own header comment                         |
+| What happens if someone runs `maestro test .maestro/`?        | The header comment of `.maestro/config.yaml`                |
+| How does the app behave under test (sheets, carousels, taps)? | [README.md](./README.md), "How this suite actually behaves" |
+| Is this `testID` known to exist on a real device?             | [README.md](./README.md), "Anchors never seen on a device"  |
 
-The test suite uses a **single fresh user per test run** approach:
+When two of them disagree, `run-tests.sh` wins. It is the only thing that
+actually drives a run.
 
-1. **Onboarding** - Creates a provisional user, completes first quest
-2. **Conversion** - Converts provisional user to full authenticated user via database
-3. **Fresh User Tests** - Tests with **known state**: Level 1, 50 XP, 1 quest completed
-4. **Screen Coverage** - Tests all major app screens with accumulated state
-5. **Regression** - Quick smoke tests for rapid validation
+## The shape of the suite
 
-This approach provides:
-- ✅ Predictable test state (always know exact XP, level, quests completed)
-- ✅ Simpler maintenance (no managing multiple test accounts)
-- ✅ Realistic flow (tests actual provisional → full user conversion)
-- ✅ Exact value assertions (can assert specific XP/level values)
+The whole suite is **one user's state chain**. There is no per-flow fixture and
+no login step in the middle. Flow 1 creates an account, and every flow after it
+inherits whatever the previous flow left on the screen.
 
-## Directory Structure
+1. **onboarding** — fresh install (`clearState`), character creation, first
+   story quest started and unlocked.
+2. **signup** — the provisional account becomes a real one. The app asks for a
+   magic link, the flow reads the mail out of Mailpit itself, and opens the
+   `unquest://` deep link. There is no database script involved.
+3. **fresh** — second story quest, tab navigation, the profile numbers, the
+   streak celebration screen.
+4. **coverage** — every remaining screen, still signed in.
+5. **smoke** — one fast critical-path flow.
+6. **social** — the login screen. **This flow signs the device out** and
+   nothing signs it back in, so it runs last of everything.
 
-```
-.maestro/
-├── config.yaml                          # Master test configuration
-├── flows/
-│   ├── 01-onboarding/
-│   │   └── onboarding-full.yaml        # Complete guest onboarding flow
-│   ├── 02-conversion/
-│   │   └── convert-provisional.yaml    # Convert provisional → full user
-│   ├── 03-fresh-authenticated/
-│   │   ├── 01-profile-verification.yaml   # Verify Level 1, 50 XP state
-│   │   ├── 02-quest-second.yaml          # Complete 2nd quest
-│   │   ├── 03-streak-celebration.yaml    # Verify Day 2 streak
-│   │   └── 04-navigation-tabs.yaml       # Test tab navigation
-│   ├── 04-screen-coverage/
-│   │   ├── 01-profile-leaderboard-achievements.yaml
-│   │   ├── 02-journal.yaml
-│   │   ├── 03-custom-quest.yaml
-│   │   ├── 04-map.yaml
-│   │   ├── 05-settings.yaml
-│   │   └── 06-coop-ui.yaml
-│   └── 05-regression/
-│       └── critical-paths.yaml          # Quick smoke test
-├── scripts/
-│   └── convert-provisional-user.js      # DB conversion script
-└── utils/                               # Reusable test utilities
-```
+Because it is a chain, running a phase on its own only works if an earlier run
+left the device where that phase expects it.
 
 ## Prerequisites
 
-### 1. Install Maestro
+### 1. Maestro
 
 ```bash
-# Install Maestro CLI
 curl -Ls "https://get.maestro.mobile.dev" | bash
-
-# Or use the npm script
+# or
 pnpm run install-maestro
 ```
 
-### 2. Setup Test Environment
+The suite was built and verified against Maestro 2.0.10 on an iOS simulator.
+Android has never been run.
 
-#### MongoDB Access
-The conversion script requires access to your MongoDB database:
-
-```bash
-# Development database
-export MONGODB_URI="mongodb://localhost:27017/unquest-dev"
-
-# Or staging database
-export MONGODB_URI="mongodb://your-staging-db-url"
-```
-
-⚠️ **Important**: Use a **test/development database**, not production!
-
-#### Install Node Dependencies for Conversion Script
-```bash
-# The conversion script uses mongosh, ensure it's installed
-brew install mongosh  # macOS
-# or
-npm install -g mongosh
-```
-
-### 3. Build and Install Staging App
-
-**⚠️ IMPORTANT**: E2E tests run against **staging builds**, not development builds. Staging builds:
-- ✅ Have no expo-dev-client (no dev menu/onboarding screens)
-- ✅ Are production-like builds without dev screens
-- ✅ Point to local development server (configured in `.env.staging`)
-- ✅ Use bundle ID: `com.vaedros.unquest`
-
-#### iOS Simulator
+### 2. A Release build of the app on a booted iOS simulator
 
 ```bash
-# 1. Build staging build via EAS
-cd unquest
-pnpm build:staging:ios
-
-# 2. Wait for build to complete (~10-15 minutes)
-# Download the .tar.gz file from EAS dashboard
-
-# 3. Extract and install on simulator
-tar -xzf ~/Downloads/<build-file>.tar.gz
-xcrun simctl install booted <extracted-app>.app
+pnpm e2e:build   # expo run:ios --configuration Release, APP_ENV=development
 ```
 
-#### Android Emulator
+Bundle id `com.vaedros.unquest`. Use **node 22** (`nvm use 22`).
+
+Release, not a dev client, and this matters:
+
+- A dev client shows a LogBox toast over the tab bar on every launch (a
+  pre-existing RevenueCat error, Linear SHE-50) and it swallows taps.
+- A Release build is self-contained. Metro must **not** be running, and the app
+  still launches. If you feel the need to start Metro, something else is wrong.
+- The flip side, worth knowing: Release only **hides** SHE-50. The suite is
+  blind to a class of error a developer sees on every launch.
+- Release also turns `__DEV__` off, which is why the co-op button is a paywall
+  trigger rather than a link — see `04-screen-coverage/06-coop-ui.yaml`.
+
+### 3. Local services
+
+| Service   | Where                               | Why                                                    |
+| --------- | ----------------------------------- | ------------------------------------------------------ |
+| Backend   | `http://localhost:3001`             | the app talks to it; `npm run dev` in `unquest-server` |
+| Mailpit   | `http://localhost:8025`             | the signup flow reads the magic-link mail from it      |
+| MongoDB   | `mongodb://127.0.0.1:27017/unquest` | only for the pre-run purge                             |
+| `mongosh` | on `PATH`                           | only for the pre-run purge (`brew install mongosh`)    |
+
+The runner's preflight checks every one of these and refuses to start rather
+than half-running. `mongosh` and MongoDB are only required for the phases that
+create a new account (`all` and `onboarding`).
+
+Note the database name is `unquest`, not `unquest-dev`. Mongo creates databases
+lazily, so a purge against a misspelled name succeeds while deleting nothing.
+
+## Running the suite
 
 ```bash
-# 1. Build staging build via EAS
-cd unquest
-pnpm build:staging:android
+pnpm e2e              # every phase, in chain order
+pnpm e2e:onboarding   # 01-onboarding/*
+pnpm e2e:signup       # 02-signup/*
+pnpm e2e:fresh        # 03-fresh-authenticated/*
+pnpm e2e:coverage     # 04-screen-coverage/01..09
+pnpm e2e:smoke        # 05-smoke/*
 
-# 2. Wait for build to complete (~10-15 minutes)
-# Download the .apk file from EAS dashboard
-
-# 3. Install on emulator
-adb install ~/Downloads/<build-file>.apk
+.maestro/run-tests.sh social   # 04-screen-coverage/10-social-login.yaml
 ```
 
-#### Verify Installation
+There is no `pnpm e2e:social` script yet; the phase is reached through the
+script directly. (Adding the one line to `package.json` is a good first
+contribution.)
+
+### What the runner does that a bare `maestro test` cannot
+
+- Generates one `test-<epoch>@example.com` address per run and hands it to the
+  flows that need it. **Never `@unquest.test`** — the server validates with
+  `Joi.string().email()`, which rejects the reserved `.test` TLD with a 400, so
+  a suite using it could never have passed signup.
+- Waits **135 seconds** between the two halves of each story quest. Not 15, not 75. The served quest template is 2 minutes, so unlocking before 120s _fails_
+  the quest, while the recorded run window is only 60s (three disagreeing copies
+  of one dev-only knob — Linear SHE-28). 135s is the only value that clears both
+  clocks. Do not optimise it.
+- Purges Mailpit and the matching test users before a run that creates an
+  account, so a crashed run cannot poison the next one.
+- Runs phase 03 in a verified order that is **not** file-name order. Despite its
+  `01-` prefix, `01-profile-verification.yaml` runs after both halves of the
+  second quest and after `04-navigation-tabs.yaml`, because its `9 / 150 XP`
+  assertion only holds once the second quest is complete. The phase then ends
+  with `03-streak-celebration.yaml`, which enters through the profile tab and
+  hands the device back to home.
+- Keeps going after a failure and summarises at the end.
+
+### Exit codes
+
+`pnpm e2e` is safe to gate on. Two flows are wired in but marked
+**known-unrevived** — they are expected to fail, and their failure alone does
+not make the run red.
+
+| Flow result | Meaning                       | Counts as a failure?                |
+| ----------- | ----------------------------- | ----------------------------------- |
+| `PASS`      | a revived flow passed         | no                                  |
+| `FAIL`      | a revived flow failed         | **yes**                             |
+| `XFAIL`     | a known-unrevived flow failed | no — this is the documented outcome |
+| `XPASS`     | a known-unrevived flow passed | no, but **act on it**               |
+
+Exit 0 means "no unexpected failures". Exit 1 means at least one revived flow
+went red, or preflight refused to start. Before commit `4aa7d00` the runner
+counted `XFAIL` into the failure total, so it could never exit 0 at all.
+
+`XPASS` prints a line telling you to flip that flow's `add_stale` to `add_flow`
+in `build_steps()` and update note 5 in the runner header. Do it — the whole
+point of the marking is that it stays honest.
+
+The two known-unrevived flows today:
+
+- `04-screen-coverage/05-settings.yaml` — last touched July 2026, never re-run
+  by any unit. It may well pass; it has simply never been proven to. Expect it
+  to XPASS and need re-marking.
+- `05-smoke/critical-paths.yaml` — visibly stale. It asserts `MaestroHero` and
+  taps a bare screen coordinate. Expected to fail.
+
+### The cascade this order used to produce
+
+`critical-paths.yaml` taps a bare coordinate (`50%, 60%`) meant to land on the
+quest deck. If it lands somewhere without a tab bar, the flow dies there and
+leaves the device off the tab bar. The very next thing `all` runs is the social
+flow, and a tab tap cannot recover from a screen that has no tab bar — so the
+social flow used to fail as fallout and report as a plain `FAIL` that looked
+like a real defect.
+
+Since the final fix wave the social flow opens with `launchApp` (the session
+survives — no `clearState`), which recovers from any screen. A `10-social-login`
+FAIL after a `critical-paths` XFAIL is therefore worth believing now, though
+`.maestro/run-tests.sh social` on its own is still the cheapest second opinion.
+
+### A full run ends signed out, on purpose
+
+`all` finishes with the social phase, so the device is left on the login screen
+with no session. Re-running `pnpm e2e` starts from onboarding with `clearState`,
+so that is a valid resting place. To get back to a signed-in device without a
+full run you need a fresh chain: onboarding → 135s → part 2 → the signup pair
+with a new address.
+
+## Running a subset
+
+### One flow
 
 ```bash
-# iOS
-xcrun simctl listapps booted | grep staging
-
-# Android
-adb shell pm list packages | grep staging
+maestro test .maestro/flows/04-screen-coverage/04-map.yaml
+maestro test .maestro/flows/01-onboarding/onboarding-part-1.yaml --debug
 ```
 
-#### Backend Server Configuration
+Read that flow's header first. Every flow states the entry state it needs and
+the exit state it leaves. Most of them need a signed-in account with both story
+quests complete, and several need a specific tab.
 
-Ensure your local backend server is running and accessible at the IP configured in `.env.staging`:
+### A directory run
 
-```bash
-# Check current API URL in .env.staging
-cat .env.staging | grep API_URL
-# Should show: API_URL=http://192.168.178.67:3001/v1
+`maestro test .maestro/` reads `.maestro/config.yaml`, which exists purely as
+guard rails for this case. It is **not** a second definition of the suite. It
+excludes everything a directory run cannot do correctly:
 
-# Test server is accessible
-curl http://192.168.178.67:3001/v1/health
+- `01-onboarding/*` and the second-quest pair — a directory run cannot put a
+  135-second wait between two flows, so the second half would always fail.
+- `02-signup/*` — needs the generated `TEST_EMAIL`, which has no default there.
+- `10-social-login.yaml` — file-name order would run it in the middle and leave
+  everything after it logged out.
 
-# If your server runs on different IP, update .env.staging and rebuild
-```
+The flows that _are_ listed still assume a signed-in account with both story
+quests complete, so a directory run must be preceded by
+`pnpm e2e:onboarding`, `pnpm e2e:signup`, `pnpm e2e:fresh`.
 
-## Running Tests
+**Known soft spot:** Maestro decides the order of the listed flows itself, and
+the listed set is only safe if it keeps `03-fresh-authenticated/` ahead of
+`04-screen-coverage/`. `01-profile-verification.yaml` asserts `9 / 150 XP`, and
+`03-custom-quest.yaml` pays `+3 XP`, which would make it `12 / 150`. Nothing in
+the config enforces that ordering — it holds today because the directory names
+sort that way. If you reorganise the directories, this breaks silently. Use
+`pnpm e2e` and the question does not arise.
 
-### Run Full Test Suite (Recommended)
+## Expected state at each point in the chain
 
-```bash
-# From unquest/ directory
-cd unquest
+Numbers come from `data/quests.ts` and the flow headers, not from memory. The
+two branch quests both pay 9 XP, so a wrong title pairing can still pass an XP
+check — always read the title from `data/quests.ts`.
 
-# Run all tests with automatic orchestration
-pnpm e2e
+| After                      | Account                       | Level / XP             | Quests done                                                     | Streak    |
+| -------------------------- | ----------------------------- | ---------------------- | --------------------------------------------------------------- | --------- |
+| onboarding                 | provisional                   | Level 2, `0 / 150 XP`  | 1 — quest-1 "A Confused Awakening" (+100)                       | 1         |
+| signup                     | full (`isProvisional: false`) | unchanged              | unchanged                                                       | unchanged |
+| second story quest         | full                          | Level 2, `9 / 150 XP`  | 2 — plus quest-1b "Searching the Forest for Signs of Life" (+9) | still 1   |
+| custom quest (coverage 03) | full                          | Level 2, `12 / 150 XP` | 3 — plus "Maestro Custom Quest" (+3)                            | still 1   |
 
-# Or run specific phases
-pnpm e2e:onboarding   # Onboarding only (includes split test with 15s wait)
-pnpm e2e:fresh        # Fresh authenticated user tests
-pnpm e2e:coverage     # Screen coverage tests
-pnpm e2e:regression   # Quick smoke tests
-```
+The streak counts calendar days, not quests, so a chain built inside one day
+stays at 1 no matter how many quests it completes. The streak celebration screen
+still fires — it shows a 1-day streak.
 
-The `pnpm e2e` script uses `.maestro/run-tests.sh` which:
-- ✅ Automatically generates unique test email with timestamp
-- ✅ Handles split onboarding test with proper 15-second wait between parts
-- ✅ Provides clear progress output with colors
-- ✅ Captures screenshots on failure
-- ✅ Shows test duration summary
+quest-1a "Awaken in a Dark Forest" is the branch this chain never plays. It also
+pays 9 XP.
 
-### Run Individual Test Phases (Advanced)
+## Assertions: exact values, and no bending them
 
-```bash
-# Phase 1: Onboarding (split test - use run-tests.sh instead)
-./run-tests.sh onboarding
-
-# Phase 2: Conversion
-maestro test .maestro/flows/02-conversion/ \
-  --env TEST_EMAIL="test-1234567890@unquest.test" \
-  --env MONGODB_URI="mongodb://localhost:27017/unquest-dev"
-
-# Phase 3: Fresh authenticated tests
-maestro test .maestro/flows/03-fresh-authenticated/
-
-# Phase 4: Screen coverage tests
-maestro test .maestro/flows/04-screen-coverage/
-
-# Phase 5: Quick regression test
-maestro test .maestro/flows/05-regression/
-```
-
-⚠️ **Note**: Onboarding tests are split into two parts with a 15-second wait. Use `./run-tests.sh onboarding` instead of running manually.
-
-### Run Specific Tests
-
-```bash
-# Run a single test file
-maestro test .maestro/flows/03-fresh-authenticated/01-profile-verification.yaml
-
-# Run with debugging
-maestro test .maestro/flows/01-onboarding/onboarding-full.yaml --debug
-```
-
-## Test Data & Expected States
-
-### After Onboarding (Phase 1)
-- **User Type**: Provisional
-- **Level**: 1
-- **XP**: 50
-- **Quests Completed**: 1 ("Wake up")
-- **Streak**: Day 1
-- **Email**: test-{TIMESTAMP}@unquest.test
-
-### After Conversion (Phase 2)
-- **User Type**: Full authenticated user
-- **State**: Same as above but `isProvisional: false`
-
-### After Second Quest (Phase 3)
-- **Level**: 1 (or 2 if XP threshold crossed)
-- **XP**: 100
-- **Quests Completed**: 2
-- **Streak**: Day 2
-
-## Test Assertions
-
-The test suite uses **exact value assertions** for critical data:
+The suite asserts exact XP, level and streak values so a calculation regression
+cannot hide.
 
 ```yaml
-# Example: Exact XP assertion
-- assertVisible:
-    text: '50'
-    below: 'XP Gained'
-
-# Example: Exact level assertion
-- assertVisible:
-    text: 'Level 1'
-
-# Example: Streak assertion
-- assertVisible:
-    text: '2'
-- assertVisible: 'Day Streak'
+- assertVisible: 'LEVEL 2'
+- assertVisible: '9 / 150 XP'
 ```
 
-This ensures we catch any regressions in XP calculations, level progression, or streak tracking.
+**Maestro 2.0.10 matches text as a case-insensitive FULL-STRING regex.** So
+`'9 / 150 XP'` binds to that exact readout, while `'.*9 / 150 XP.*'` would also
+match `109 / 150 XP` — which is precisely the confusion the assertion exists to
+catch. Do not "relax" an assertion into the wildcard form. The trap is worked
+through, with the on-device proof, in
+`03-fresh-authenticated/01-profile-verification.yaml:57-71`.
+
+**Standing ruling: if an assertion disagrees with the app, stop and work out
+which side is wrong. Never edit the expectation to match the app.** That rule
+has already caught one real app bug on this branch (SHE-44, the profile screen
+rendering a stale sign-in snapshot).
 
 ## Troubleshooting
 
-### Issue: Staging app not found
+### The runner refuses to start
 
-**Symptom**: Maestro fails with "App not found: com.vaedros.unquest.staging"
+Preflight prints exactly which check failed and how to fix it: app not
+installed (`pnpm e2e:build`), no booted simulator, backend/Mailpit/Mongo
+unreachable, `maestro`/`mongosh` missing, or a flow file that no longer exists.
+A missing flow file is fatal on purpose — a phase that silently skips flows is
+worse than a red one.
 
-**Solutions**:
-1. Verify staging app is installed:
-   ```bash
-   # iOS
-   xcrun simctl listapps booted | grep staging
+### "Element not visible" on something you can see on the screen
 
-   # Android
-   adb shell pm list packages | grep staging
-   ```
-2. If not installed, follow "Build and Install Staging App" section above
-3. Ensure correct simulator/emulator is booted
-4. Check bundle ID in `.maestro/config.yaml` matches installed app
+Usually one of the traps in [README.md](./README.md). The most common:
 
-### Issue: API connection errors
+- The element is behind a bottom-sheet backdrop.
+- `assertVisible` passed earlier against an _occluded_ element, so the flow is
+  not where you think it is.
+- The anchor exists in the source but has never rendered on a device — check
+  the "Anchors never seen on a device" list before assuming a regression.
 
-**Symptom**: App shows "Network error" or blank screens during tests
+Run with `--debug`, and look at `~/.maestro/tests/<timestamp>/` for screenshots.
 
-**Solutions**:
-1. Verify backend server is running:
-   ```bash
-   curl http://192.168.178.67:3001/v1/health
-   ```
-2. Check `.env.staging` API_URL matches your server IP:
-   ```bash
-   cat .env.staging | grep API_URL
-   ```
-3. If server IP changed, update `.env.staging` and rebuild staging app
-4. Ensure no firewall blocking the connection
-5. For iOS simulator, verify IP is accessible from simulator
+### "connect to 127.0.0.1:22087"
 
-### Issue: Dev menu screens appearing
+The Maestro driver. Retry up to three times. **But a genuinely failed assertion
+can also surface as this exact error** — it was reproduced deliberately. After
+any retry sequence, re-verify the assertion that was in flight before you write
+it off as a flake.
 
-**Symptom**: Tests fail because expo-dev-client screens are showing
+### The quest fails instead of completing
 
-**Solutions**:
-1. Verify you're using **staging build**, not development build
-2. Check installed app bundle ID is `com.vaedros.unquest`
-3. Rebuild staging app if accidentally using development build
-4. Staging builds should have NO dev client or dev menu
+You unlocked too early. See the 135-second rule above. Also confirm the backend
+is running with `NODE_ENV=development`, which is what serves the shortened quest
+duration in the first place.
 
-### Issue: Conversion script fails
+### The app shows network errors or blank screens
 
-**Symptom**: Phase 2 fails with "No user found with email"
+Check `.env.staging`'s `API_URL` against the machine's current IP and that the
+backend answers on it. Changing the IP means rebuilding. (Do not open `.env`
+files casually — they hold secrets.)
 
-**Solutions**:
-1. Verify the TEST_EMAIL matches what was used in onboarding
-2. Check MongoDB URI is correct and accessible
-3. Verify mongosh is installed: `mongosh --version`
-4. Run conversion script manually:
-   ```bash
-   TEST_EMAIL="test-123@unquest.test" \
-   MONGODB_URI="mongodb://localhost:27017/unquest-dev" \
-   node .maestro/scripts/convert-provisional-user.js
-   ```
+## CI
 
-### Issue: Quest doesn't complete after 15 seconds
+**These flows do not run in CI, and there is no hook that runs them.** Running
+them in CI needs either Apple-billed macOS runners or a paid Maestro Cloud
+device farm per PR. They were previously gated behind PR labels and so were not
+running on most PRs anyway.
 
-**Symptom**: Test hangs during quest wait in part 2
-
-**Solutions**:
-1. Verify quest duration override is active in backend (should be 10 seconds)
-2. Check `unquest-server/src/controllers/quest-template.controller.js` lines 31-33
-3. Ensure `NODE_ENV=development` is set on backend server
-4. Verify backend logs show "Override duration in development mode"
-5. If needed, increase wait time in `run-tests.sh` (currently 15 seconds)
-
-### Issue: UI elements not found
-
-**Symptom**: Test fails with "Element not visible"
-
-**Solutions**:
-1. Check if app is in correct state (check previous test outputs)
-2. Verify text labels haven't changed in the app
-3. Use `--debug` flag to see current screen state
-4. Update test with correct element identifiers
-5. Check screenshots in `~/.maestro/tests/<timestamp>/` for visual debugging
-
-### Issue: Test data conflicts
-
-**Symptom**: Multiple test runs interfere with each other
-
-**Solutions**:
-1. Always use unique timestamp for TEST_EMAIL (automatic with `pnpm e2e`)
-2. Clear app state between runs: `clearState` in test files (already present)
-3. Use separate test database per developer
-4. Clean up test users periodically from database
-
-## CI/CD Integration
-
-### GitHub Actions Example
-
-```yaml
-name: E2E Tests
-
-on: [push, pull_request]
-
-jobs:
-  e2e:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Maestro
-        run: curl -Ls "https://get.maestro.mobile.dev" | bash
-
-      - name: Run E2E Tests
-        env:
-          MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
-          TEST_EMAIL_TIMESTAMP: ${{ github.run_number }}
-        run: |
-          maestro test .maestro/ \
-            --env TEST_EMAIL="test-$TEST_EMAIL_TIMESTAMP@unquest.test" \
-            --env MONGODB_URI="$MONGODB_URI" \
-            --format junit \
-            --output results.xml
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: test-results
-          path: results.xml
-```
-
-## Test Coverage
-
-### Current Coverage (~85% of critical paths)
-
-✅ **Onboarding Flow**
-- Welcome screen
-- Character creation (name + type)
-- App introduction
-- Notification permissions
-- First quest completion
-- Account creation
-
-✅ **Authenticated User Flows**
-- Profile verification
-- Quest selection and completion
-- Streak celebration
-- Tab navigation
-
-✅ **Screen Coverage**
-- Profile (with exact XP/level/streak values)
-- Leaderboard (Friends & Global tabs)
-- Achievements
-- Journal
-- Custom quest creation
-- Map navigation
-- Settings
-- Cooperative quest UI
-
-✅ **Regression Tests**
-- Critical path smoke tests
-
-### Not Currently Covered
-- ❌ Actual multiplayer coordination (only UI tested)
-- ❌ Payment/subscription flows
-- ❌ Social features (friend invites, sharing)
-- ❌ Offline sync behavior
-- ❌ Push notification interactions
-
-## Best Practices
-
-### 1. Use Unique Emails Per Run
-Always generate unique test emails to avoid conflicts:
-```bash
-TEST_EMAIL="test-$(date +%s)@unquest.test"
-```
-
-### 2. Clean Up Test Data
-Periodically clean up test users from your database:
-```javascript
-// MongoDB shell
-db.users.deleteMany({
-  email: { $regex: /^test-.*@unquest\.test$/ },
-  createdAt: { $lt: new Date(Date.now() - 7*24*60*60*1000) } // Older than 7 days
-})
-```
-
-### 3. Run Tests in Isolation
-Each test run should start fresh with `clearState` to ensure predictable results.
-
-### 4. Use Exact Assertions for Critical Values
-Always assert exact XP, level, and streak values to catch calculation bugs early.
-
-### 5. Keep Tests Fast
-The full suite takes ~8 minutes (2.5 min × 2 quests + setup/navigation time).
-Use regression tests for rapid feedback during development.
+Run them locally before opening or merging a PR with app-facing changes:
+`pnpm e2e` for the lot, or a scoped phase.
 
 ## Maintenance
 
-### Updating Tests After UI Changes
+### Adding a flow
 
-1. **Text Changes**: Update assertions in affected test files
-2. **Navigation Changes**: Update tap points or element identifiers
-3. **New Features**: Add new test files in appropriate phase directory
-4. **Flow Changes**: Update test sequence in config.yaml
+1. Put it in the right phase directory, named `##-descriptive-name.yaml`.
+2. Give it a header that states its entry state, its exit state, what it does
+   not cover, and why any surprising step is written the way it is. The existing
+   flows are the template — `06-coop-ui.yaml` and `02-journal.yaml` are the
+   fullest examples.
+3. **Register it in `.maestro/run-tests.sh`.** The runner drives an explicit
+   list, never a directory glob. An unregistered flow never runs — four flows
+   sat unregistered on this branch until unit Q wired them in.
+4. Add it to `.maestro/config.yaml` too, or state there why it is excluded.
+5. If it needs a new anchor, add the `testID` in app source and record it in the
+   README list until it has been seen on a device.
 
-### Adding New Tests
+### After a UI change
 
-1. Create test file in appropriate phase directory
-2. Follow naming convention: `##-descriptive-name.yaml`
-3. Add clear comments explaining test purpose and expected state
-4. Use exact value assertions where applicable
-5. Update this README if adding new test categories
+Update the assertion _and_ the flow header sentence that explains it. Most of
+the wrong claims this branch had to fix were comments that outlived the code
+they described.
 
-## Support
+## Quick reference
 
-For issues or questions:
-1. Check troubleshooting section above
-2. Review Maestro docs: https://maestro.mobile.dev
-3. Check test file comments for specific flow details
-4. Contact the team if stuck
+| Command                        | Purpose                                                      |
+| ------------------------------ | ------------------------------------------------------------ |
+| `pnpm e2e`                     | the whole chain (~20 flows, two 135s waits, ends signed out) |
+| `pnpm e2e:onboarding`          | fresh install through the first quest                        |
+| `pnpm e2e:signup`              | magic link, provisional → full account                       |
+| `pnpm e2e:fresh`               | second quest, tabs, profile numbers, streak                  |
+| `pnpm e2e:coverage`            | every screen, still signed in                                |
+| `pnpm e2e:smoke`               | fast critical-path check (currently known-stale)             |
+| `.maestro/run-tests.sh social` | login screen — signs the device out                          |
+| `pnpm e2e:build`               | Release build onto the booted simulator                      |
 
-## Example: Complete Setup and Test Run
+Total runtime for a full run has never been measured; the two mandatory quest
+waits alone are 4.5 minutes.
 
-```bash
-# =============================================================================
-# FIRST TIME SETUP
-# =============================================================================
+## Key files
 
-# 1. Build staging app (one-time, or when code changes)
-cd unquest
-pnpm build:staging:ios  # or pnpm build:staging:android
-
-# Wait ~10-15 minutes for EAS build to complete
-# Download from EAS dashboard and install
-
-# iOS:
-tar -xzf ~/Downloads/<build>.tar.gz
-xcrun simctl install booted <app>.app
-
-# Android:
-adb install ~/Downloads/<build>.apk
-
-# =============================================================================
-# BEFORE EACH TEST RUN
-# =============================================================================
-
-# 2. Start local backend server
-cd ../unquest-server
-npm run dev
-
-# 3. Verify server is accessible
-curl http://192.168.178.67:3001/v1/health
-
-# 4. Ensure MongoDB is running (if local)
-# mongod should already be running, or:
-# mongod --dbpath /path/to/data
-
-# =============================================================================
-# RUN TESTS
-# =============================================================================
-
-# 5. Boot simulator/emulator (if not already running)
-open -a Simulator  # iOS
-# or Android Studio → AVD Manager
-
-# 6. Run full test suite
-cd unquest
-pnpm e2e
-
-# Or run specific phases
-pnpm e2e:onboarding   # ~2-3 minutes
-pnpm e2e:regression   # ~30 seconds (quick smoke test)
-
-# =============================================================================
-# DEBUGGING FAILED TESTS
-# =============================================================================
-
-# Check screenshots of failures
-ls -la ~/.maestro/tests/$(ls -t ~/.maestro/tests | head -1)/
-
-# Run single flow with debug output
-maestro test .maestro/flows/01-onboarding/onboarding-part-1.yaml --debug
-
-# Check app state
-xcrun simctl listapps booted | grep staging  # iOS
-adb shell pm list packages | grep staging    # Android
-```
-
-## Quick Reference
-
-| Command | Purpose | Duration |
-|---------|---------|----------|
-| `pnpm e2e` | Full test suite | ~8 minutes |
-| `pnpm e2e:onboarding` | Onboarding only | ~2-3 minutes |
-| `pnpm e2e:regression` | Smoke tests | ~30 seconds |
-| `pnpm build:staging:ios` | Build staging for iOS | ~10-15 minutes |
-| `pnpm build:staging:android` | Build staging for Android | ~10-15 minutes |
-
-## Key Files
-
-- `.maestro/config.yaml` - Global test configuration, bundle ID
-- `.maestro/run-tests.sh` - Test orchestration script
-- `.env.staging` - Staging environment configuration (API URL, keys)
-- `eas.json` - EAS build profiles for staging
-- `TESTING_GUIDE.md` - This file
-
-Happy Testing! 🎮✨
+- `.maestro/run-tests.sh` — the supported entry point, and the authority on
+  order, timing and the test address
+- `.maestro/config.yaml` — guard rails for `maestro test .maestro/` only
+- `.maestro/README.md` — suite mechanics and the unverified-anchor list
+- `.maestro/flows/**/*.yaml` — each one documents itself
+- `.env.staging` — API URL the build points at

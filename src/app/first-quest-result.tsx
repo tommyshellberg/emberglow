@@ -6,6 +6,8 @@ import { AVAILABLE_QUESTS } from '@/app/data/quests'; // Assuming quest-1 detail
 import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
 import { Button, FocusAwareStatusBar, Text, View } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types'; // Import Quest type for better type safety
@@ -15,6 +17,20 @@ export default function FirstQuestResultScreen() {
     outcome: 'completed' | 'failed';
   }>();
   const setOnboardingStep = useOnboardingStore((state) => state.setCurrentStep);
+  const authStatus = useAuth((state) => state.status);
+
+  // The signup prompt is the last onboarding step ONLY for someone who does not
+  // have an account yet. A character-less social account is routed back through
+  // onboarding while already authenticated (see navigation-state-resolver), and
+  // asking that user to "create an account" is asking for the one they are
+  // signed into. BUT a provisional session also hydrates with status 'signIn'
+  // (see auth hydrate()), and a guest is exactly who the prompt is for — so
+  // 'signIn' only skips the prompt when no provisional keys are on disk —
+  // the same shared check the resolver's gate uses.
+  const stepAfterFirstQuest =
+    authStatus === 'signIn' && !hasProvisionalSession()
+      ? OnboardingStep.COMPLETED
+      : OnboardingStep.VIEWING_SIGNUP_PROMPT;
   const resetFailedQuest = useQuestStore((state) => state.resetFailedQuest);
   const clearRecentCompletedQuest = useQuestStore(
     (state) => state.clearRecentCompletedQuest
@@ -27,10 +43,10 @@ export default function FirstQuestResultScreen() {
   React.useEffect(() => {
     if (outcome === 'completed') {
       posthog.capture('onboarding_trigger_completed_first_quest');
-      setOnboardingStep(OnboardingStep.VIEWING_SIGNUP_PROMPT);
+      setOnboardingStep(stepAfterFirstQuest);
     }
     // No specific onboarding step for failure here, as retrying might loop back
-  }, [outcome, setOnboardingStep]);
+  }, [outcome, setOnboardingStep, stepAfterFirstQuest]);
 
   const handleCompletedContinue = () => {
     // Clear the completed quest state to prevent stale state issues
@@ -38,7 +54,7 @@ export default function FirstQuestResultScreen() {
 
     // Update onboarding step - NavigationGate will handle the actual navigation
     // This prevents race conditions from duplicate navigation calls
-    setOnboardingStep(OnboardingStep.VIEWING_SIGNUP_PROMPT);
+    setOnboardingStep(stepAfterFirstQuest);
   };
 
   if (!firstQuestData) {

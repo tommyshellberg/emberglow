@@ -1,55 +1,232 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# STREAK CELEBRATION TEST
+# STREAK CELEBRATION
 # =============================================================================
-# Verifies streak celebration screen appears after quest completion
+# Owns every assertion about what the streak-celebration screen says. Entry
+# state is the home screen as `02-quest-second-part-2.yaml` leaves it: a signed-in
+# account with two completed quests (quest-1 + quest-1b), Level 2, 109 XP, and a
+# streak of 1. This file needs no `TEST_EMAIL` of its own — it never names the
+# account.
 #
-# Prerequisites:
-#   - Second quest must have been completed
-#   - User should be on Day 2 streak
+#   1. Profile tab, and the streak tile's own value
+#   2. Tap the tile to open the celebration screen
+#   3. Assert the whole screen — eyebrow, streak value, both copy lines, both
+#      buttons
+#   4. Continue back out, and return to home for whatever runs next
 #
-# Note: This test assumes the streak celebration appears automatically
-# after the quest completion flow.
+# -----------------------------------------------------------------------------
+# WHY THE STREAK IS 1 AND NOT 2
+# -----------------------------------------------------------------------------
+# `character-store.updateStreak` only increments across a CALENDAR-DAY boundary
+# (character-store.ts:124-158). Both quests of a rebuilt chain finish on the
+# same day, so the streak goes 0 -> 1 at quest 1 and STAYS 1 at quest 2. The
+# celebration still fires, because `shouldShowStreakCelebration` asks only for
+# `dailyQuestStreak >= 1` plus "not already shown today" (quest-store.ts:205-245)
+# — it is not a "day 2" screen.
+#
+# This file used to expect a 2 and used to describe this as "the Day-2 streak".
+# It was wrong on every same-day chain the suite has ever built. It also
+# asserted the bare string `2`, which any level, XP figure or date on the screen
+# could satisfy.
+#
+# So the value here is chain-derived, not date-derived: it is 1 for as long as
+# the suite builds its chain and runs it inside one day. A chain built one day
+# and run the next completes quest 2 on a new day, and every `1 day streak` /
+# `Share your 1 day streak` line below becomes a 2. That is a real expectation
+# change, not a flake — do not "fix" it by loosening the pattern.
+#
+# -----------------------------------------------------------------------------
+# THE ROUTE IN, AND WHY IT IS NOT THE AUTO-SHOW
+# -----------------------------------------------------------------------------
+# The screen auto-shows once, when quest 2 settles, and
+# `02-quest-second-part-2.yaml` is the flow that meets it there — it has to,
+# because the screen sits between the unlock and the quest-result screen that
+# flow verifies. And it is genuinely ONCE: mounting the screen calls
+# `markStreakCelebrationShown()` (streak-celebration.tsx:187), and
+# `shouldShowStreakCelebration` then refuses a second showing for the rest of
+# the calendar day. A flow that waited for the auto-show could therefore never
+# run twice on one chain, and could never run at all except immediately after
+# quest 2.
+#
+# THE GAP THAT LEAVES, SAID PLAINLY: nothing committed asserts what the
+# AUTO-SHOWN screen says. Part 2 waits for `streak-continue-button` and taps it,
+# and that is the whole of its interest in this screen — by design, it is on its
+# way to the quest result. So if the auto-show regressed to a blank screen with
+# a working button on it, part 2 would stay green and this file would not be
+# looking. The content assertions below run on the tile route only. The two
+# routes mount the same component with the same props, which is why this is a
+# small gap rather than a hole, but it is a real one: closing it needs
+# assertions inside part 2's own interception window, which is part 2's file to
+# change, not this one.
+#
+# The profile streak tile is a real second door: `stats-card.tsx:104-110` is a
+# `Pressable` that pushes `/streak-celebration`. That makes this file
+# re-runnable and order-independent, and it covers a user-facing affordance
+# nothing else in the suite touches.
+#
+# SHE-34 SAYS THIS TILE IS A DEAD BUTTON. IT IS NOT, ON THIS BUILD — verified
+# live on 2026-08-11, Release, twice: the tap opens the screen and the screen
+# is still there eight seconds later. The ticket's reasoning was that
+# NavigationGate evicts `/streak-celebration` back to home. That eviction was
+# removed in `5b22e76` (2026-07-28): `is-already-at-target.ts:115-117` lists
+# `streak-celebration` in `USER_REACHABLE_SEGMENTS`, and the `'app'` branch
+# (`:173-178`) answers "already at target" for it, so the gate leaves a
+# user-initiated arrival alone. `streak-celebration.tsx:205-231` documents the
+# same change from the screen's side. **SHE-34 needs re-testing and probably
+# closing.** If it is ever genuinely dead again, this flow fails at the
+# `streak-celebration-screen` wait below, which is the right place to find out.
 # =============================================================================
 
-# The streak celebration might already be showing after the previous quest
-# or we might need to trigger it by completing another action
+# A sheet on home would swallow the tab tap and every assertion after it. The
+# announcement gate is a home-MOUNT effect, so a suite run that reaches here
+# without relaunching cannot raise one mid-session — but a cross-day chain that
+# enters this file straight after a relaunch can. Naming the backdrop makes that
+# case fail here, with the occluder named, instead of somewhere confusing later.
+#
+# UNPROVEN, and it matters: this line has never been watched failing. No sheet
+# appeared at any point while this file was written, and an `assertNotVisible`
+# against a string that names nothing passes forever. What IS established is
+# that the string names a real thing on this build — unit M dumped the invite
+# sheet's backdrop live and read `Bottom sheet backdrop` at `[0,59][393,852]`
+# (`04-screen-coverage/07-invite.yaml`, and the app does not override
+# @gorhom's default label, so every sheet in the app reports the same one).
+# What is NOT established is that an ANNOUNCEMENT sheet reports it too, and
+# `02-quest-second-part-2.yaml`'s session-6 red does not help: that was a wait
+# for the backdrop to APPEAR timing out with no sheet on screen, which is the
+# same direction as this line, not the opposite one. To prove this line, open
+# any sheet and watch it go red — see the deferred list in unit G's report.
+- assertNotVisible: 'Bottom sheet backdrop'
 
 # =============================================================================
-# VERIFY STREAK CELEBRATION SCREEN
+# PROFILE — THE STREAK TILE AND ITS VALUE
 # =============================================================================
-- runFlow:
-    when:
-      visible: 'Day 2'
-    commands:
-      # Streak celebration is showing
-      - assertVisible: 'Streak'
-      - assertVisible: '2'
-
-      # Verify celebration elements
-      - assertVisible: 'Keep it up!'
-
-      # Continue past celebration
-      - tapOn: 'Continue'
-
-# If streak celebration already passed, verify in profile
-- runFlow:
-    when:
-      visible: 'Your Journey'
-    commands:
-      # Navigate to profile to verify streak count
-      - tapOn: 'Profile'
-
-      # Verify streak shows 2 days
-      - assertVisible:
-          text: '2'
-      - assertVisible: 'Day Streak'
-
-      # Navigate back
-      - tapOn: 'Home'
+# `streak-display` is the tile, not the digits: the number renders through
+# `AnimatedNumber` (stats-card.tsx:116-120), whose displayed value trails the
+# real one during a count-up, so an id on the digits would be read
+# mid-animation — the reason the component's own comment gives at :105-107 for
+# putting the testID on the tile at :108.
+#
+# The tile sets `accessible`, and its label `<N> day streak` is built straight
+# from the prop — no animation, no default — so the label is where the value
+# assertion belongs.
+#
+# The scroll comes FIRST, before any assertion. Tab screens stay mounted, so the
+# profile keeps whatever scroll position an earlier flow left it at
+# (`04-screen-coverage/07-invite.yaml` leaves it down at the friends section),
+# and the stats card is near the top. A scrolled-away tile is not merely
+# untappable — it is absent from the hierarchy, so an assertion placed above
+# this line would fail on exactly the runs this line exists to survive.
+# `scrollUntilVisible` doubles as the wait for the tab to render, and it fails
+# loudly if the tile never turns up.
+- tapOn:
+    id: 'profile-tab'
+- scrollUntilVisible:
+    element:
+      id: 'streak-display'
+    direction: UP
+    timeout: 15000
+- assertVisible: '1 day streak'
 
 # =============================================================================
-# STREAK VERIFICATION COMPLETE
+# OPEN THE CELEBRATION SCREEN
 # =============================================================================
-# User's streak has been verified!
+# A green `tapOn` on iOS only means a touch was dispatched, so the wait below is
+# the post-condition, and `streak-celebration-screen` is an anchor that exists
+# nowhere else. It had never been seen on a device before 2026-08-11 — the
+# audit carried it on the "exists in source, never sighted" list along with
+# `streak-count`. Both are confirmed now.
+- tapOn:
+    id: 'streak-display'
+- extendedWaitUntil:
+    visible:
+      id: 'streak-celebration-screen'
+    timeout: 15000
+# The screen animates its content in, and `assertVisible` on iOS passes
+# against an element still at opacity 0 — a proven lying mechanism in this
+# suite. Letting the entrance animations finish first makes the content
+# assertions below mean "readable", not merely "mounted".
+- waitForAnimationToEnd
+
+# =============================================================================
+# WHAT THE SCREEN SAYS
+# =============================================================================
+# `Quest streak` reaches the tree as `QUEST STREAK`: `EyebrowLabel` sets
+# `textTransform: 'uppercase'` (emberglow/core/eyebrow-label.tsx) and iOS
+# reports the transformed string. Matching is case-insensitive on Maestro
+# 2.0.10, so the casing here is documentation; the words are the assertion.
+- assertVisible: 'QUEST STREAK'
+
+# THE STREAK VALUE. This line, and not the digits, is what checks the number.
+#
+# `streak-count` renders `displayCount`, and `streak-celebration.tsx:148`
+# initialises that to `useState(1)` — so the counter reads `1` on the first
+# frame whether or not the real streak value ever reached the screen. On a
+# same-day chain the true streak IS 1, which makes `streak-count` = `1` a
+# fixture equal to its own default: it would pass against a screen that never
+# received a streak at all. Measured, not assumed: `streak-count` + `text: '1'`
+# passes and `text: '2'` fails, so the selector works — the digit is simply not
+# worth asserting.
+#
+# The share wrapper's accessibility label is
+# `Share your ${dailyQuestStreak} day streak` (streak-celebration.tsx:325),
+# interpolated straight from the store with no animation and no fallback. It is
+# the only place on this screen where the streak number is provably the store's
+# number.
+- assertVisible: 'Share your 1 day streak'
+
+# Presence only, for the reason above — but it is still worth having. It is the
+# one anchor that says the counter disc mounted at all.
+- assertVisible:
+    id: 'streak-count'
+
+# The title and the two copy lines. `day streak` matches exactly one element
+# (checked with `index: 1`, which fails), so it binds to the title and is not
+# being satisfied by the share label above. Both sentences keep their full stop:
+# matching is full-string, and dropping the stop from either one fails.
+- assertVisible: 'day streak'
+- assertVisible: 'You kept the fire burning.'
+- assertVisible: 'Complete a quest each day to keep the fire burning.'
+
+# Both buttons. The week row's seven day circles are deliberately NOT asserted:
+# they all carry the same `flame-container` id and expose no lit/unlit state to
+# the accessibility tree, so there is nothing there a flow can name — the lit
+# count, which is the only interesting thing about them, is unreachable.
+# Recorded as a coverage gap rather than papered over.
+- assertVisible:
+    id: 'streak-share-button'
+- assertVisible:
+    id: 'streak-continue-button'
+
+# `Share` is never tapped: it opens the OS share sheet, which is not ours and
+# has no way back that this suite controls.
+
+# =============================================================================
+# CONTINUE BACK OUT
+# =============================================================================
+# `handleContinue` clears the celebration flag and then goes
+# `canGoBack() ? back() : replace('/(app)')` (streak-celebration.tsx:232-242).
+# Arriving by a push from the profile means there IS a back stack, so this
+# returns to the profile — not to home. Asserting the tile again is the
+# post-condition for the tap, and `assertNotVisible` on the screen id is what
+# says the celebration actually closed rather than the tap landing on nothing.
+- tapOn:
+    id: 'streak-continue-button'
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: 'streak-display'
+    timeout: 15000
+- assertNotVisible:
+    id: 'streak-celebration-screen'
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# The entry state every later flow expects.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000

@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
-import { Crown, Flame, Globe } from 'lucide-react-native';
+import { Crown, Globe } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,21 +32,23 @@ import { background } from '@/components/ui/colors';
 import { Modal, useModal } from '@/components/ui/modal';
 import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useAuth } from '@/lib';
+import { wipeGuestSession } from '@/lib/auth';
 import { TIMEZONES } from '@/lib/constants/timezones';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
+import { posthogClient } from '@/lib/posthog';
 import {
   areNotificationsEnabled,
   cancelDailyReminderNotification,
-  cancelStreakWarningNotification,
   requestNotificationPermissions,
   scheduleDailyReminderNotification,
 } from '@/lib/services/notifications';
 import { getUserDetails } from '@/lib/services/user';
 import { getItem, setItem } from '@/lib/storage';
 import { useSettingsStore } from '@/store/settings-store';
-import type { User } from '@/store/types';
+import type { NarratorVoice, User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 import { colors, fontFamily, radii, spacing } from '@/theme';
+import { getEffectiveNarratorVoice } from '@/utils/audio-utils';
 
 import {
   handleDeleteAccount,
@@ -71,6 +73,7 @@ function handleEmailContact() {
 
 type AccountSectionProps = {
   user: User | null;
+  isGuest: boolean;
   hasPremiumAccess: boolean;
   onManageSubscription: () => void;
   onLogout: () => void;
@@ -78,19 +81,49 @@ type AccountSectionProps = {
 
 function AccountSection({
   user,
+  isGuest,
   hasPremiumAccess,
   onManageSubscription,
   onLogout,
 }: AccountSectionProps) {
+  // A guest (provisional user) HAS a user object — /users/me succeeds with
+  // their provisional JWT — but its email is a generated
+  // <uuid>@unquestapp.com placeholder, not an identity they chose or could
+  // sign in with. A guest reaching this screen at all is an anomaly (the
+  // resolver holds guests at the signup prompt; enforcement proper arrives
+  // with Expo protected routes), so instead of a Logout they can't come back
+  // from — or nothing, which leaves them silently stuck — they get the one
+  // honest exit: start over. Same wipe the dead-session path uses.
+  const accountSubtitle = isGuest
+    ? 'Guest — progress saved on this device'
+    : user?.email || 'Not signed in';
+
+  const handleStartOver = () => {
+    Alert.alert(
+      'Start Over',
+      'This clears your guest character and all progress so you can begin fresh. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Over',
+          style: 'destructive',
+          onPress: () => wipeGuestSession(),
+        },
+      ]
+    );
+  };
+
   return (
     <>
       <View style={styles.card}>
         <ListItem
+          testID="settings-row-account"
+          subtitleTestID="settings-account-email"
           leading={
             <Feather name="user" size={ICON_SIZE} color={colors.text.accent} />
           }
           title="Account"
-          subtitle={user?.email || 'Not signed in'}
+          subtitle={accountSubtitle}
         />
         <View style={styles.divider} />
         <ListItem
@@ -112,9 +145,23 @@ function AccountSection({
         />
       </View>
 
-      {user && (
+      {user && !isGuest && (
         <View style={styles.logoutWrapper}>
-          <Button variant="secondary" label="Logout" onPress={onLogout} />
+          <Button
+            testID="settings-logout-button"
+            variant="secondary"
+            label="Logout"
+            onPress={onLogout}
+          />
+        </View>
+      )}
+      {isGuest && (
+        <View style={styles.logoutWrapper}>
+          <Button
+            variant="secondary"
+            label="Start Over"
+            onPress={handleStartOver}
+          />
         </View>
       )}
     </>
@@ -122,6 +169,7 @@ function AccountSection({
 }
 
 type TimeSubRowProps = {
+  testID: string;
   showPicker: boolean;
   onRequestShowPicker: () => void;
   value: Date;
@@ -129,9 +177,10 @@ type TimeSubRowProps = {
   displayText: string;
 };
 
-/** Shared "Reminder Time" / "Streak Warning time" nested row — value pill that
- * swaps for the native DateTimePicker in place when tapped. */
+/** "Reminder Time" nested row — value pill that swaps for the native
+ * DateTimePicker in place when tapped. */
 function TimeSubRow({
+  testID,
   showPicker,
   onRequestShowPicker,
   value,
@@ -142,6 +191,7 @@ function TimeSubRow({
     <>
       <View style={styles.divider} />
       <ListItem
+        testID={testID}
         style={styles.subRow}
         title="Reminder Time"
         trailing={
@@ -167,6 +217,8 @@ function TimeSubRow({
 type PreferencesSectionProps = {
   selectedTimezoneLabel: string;
   onTimezonePress: () => void;
+  narratorVoiceLabel: string;
+  onNarratorVoiceToggle: () => void;
   notificationsEnabled: boolean;
   onNotificationsToggle: (value: boolean) => void;
   dailyReminderEnabled: boolean;
@@ -176,18 +228,15 @@ type PreferencesSectionProps = {
   reminderTimeValue: Date;
   onReminderTimeChange: (event: any, date?: Date) => void;
   reminderTimeDisplay: string;
-  streakWarningEnabled: boolean;
-  onToggleStreakWarning: (value: boolean) => void;
-  showStreakTimePicker: boolean;
-  onRequestShowStreakTimePicker: () => void;
-  streakTimeValue: Date;
-  onStreakTimeChange: (event: any, date?: Date) => void;
-  streakTimeDisplay: string;
+  nudgesEnabled: boolean;
+  onToggleNudges: (value: boolean) => void;
 };
 
 function PreferencesSection({
   selectedTimezoneLabel,
   onTimezonePress,
+  narratorVoiceLabel,
+  onNarratorVoiceToggle,
   notificationsEnabled,
   onNotificationsToggle,
   dailyReminderEnabled,
@@ -197,13 +246,8 @@ function PreferencesSection({
   reminderTimeValue,
   onReminderTimeChange,
   reminderTimeDisplay,
-  streakWarningEnabled,
-  onToggleStreakWarning,
-  showStreakTimePicker,
-  onRequestShowStreakTimePicker,
-  streakTimeValue,
-  onStreakTimeChange,
-  streakTimeDisplay,
+  nudgesEnabled,
+  onToggleNudges,
 }: PreferencesSectionProps) {
   return (
     <>
@@ -213,6 +257,7 @@ function PreferencesSection({
 
       <View style={styles.card}>
         <ListItem
+          testID="settings-row-timezone"
           leading={<Globe size={ICON_SIZE} color={colors.text.accent} />}
           title="Timezone"
           subtitle={selectedTimezoneLabel}
@@ -228,6 +273,17 @@ function PreferencesSection({
 
         <View style={styles.divider} />
         <ListItem
+          testID="settings-row-notifications"
+          leading={
+            <Feather name="mic" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Narrator voice"
+          subtitle={narratorVoiceLabel}
+          onPress={onNarratorVoiceToggle}
+        />
+
+        <View style={styles.divider} />
+        <ListItem
           leading={
             <Feather name="bell" size={ICON_SIZE} color={colors.text.accent} />
           }
@@ -235,6 +291,8 @@ function PreferencesSection({
           subtitle={notificationsEnabled ? 'Enabled' : 'Disabled'}
           trailing={
             <Switch
+              testID="settings-toggle-notifications"
+              accessibilityLabel="Notifications"
               checked={notificationsEnabled}
               onChange={onNotificationsToggle}
             />
@@ -246,6 +304,7 @@ function PreferencesSection({
           <>
             <View style={styles.divider} />
             <ListItem
+              testID="settings-row-daily-reminder"
               leading={
                 <Feather
                   name="clock"
@@ -257,6 +316,7 @@ function PreferencesSection({
               subtitle={dailyReminderEnabled ? 'Enabled' : 'Disabled'}
               trailing={
                 <Switch
+                  testID="settings-toggle-daily-reminder"
                   checked={dailyReminderEnabled}
                   onChange={onToggleReminder}
                 />
@@ -265,6 +325,7 @@ function PreferencesSection({
 
             {dailyReminderEnabled && (
               <TimeSubRow
+                testID="settings-row-reminder-time"
                 showPicker={showTimePicker}
                 onRequestShowPicker={onRequestShowTimePicker}
                 value={reminderTimeValue}
@@ -275,26 +336,23 @@ function PreferencesSection({
 
             <View style={styles.divider} />
             <ListItem
-              leading={<Flame size={ICON_SIZE} color={colors.text.accent} />}
-              title="Streak Warning"
-              subtitle={streakWarningEnabled ? 'Enabled' : 'Disabled'}
+              leading={
+                <Feather
+                  name="refresh-cw"
+                  size={ICON_SIZE}
+                  color={colors.text.accent}
+                />
+              }
+              title="Nudges"
+              subtitle="Streak warnings and occasional reminders to pick your journey back up."
               trailing={
                 <Switch
-                  checked={streakWarningEnabled}
-                  onChange={onToggleStreakWarning}
+                  accessibilityLabel="Nudges"
+                  checked={nudgesEnabled}
+                  onChange={onToggleNudges}
                 />
               }
             />
-
-            {streakWarningEnabled && (
-              <TimeSubRow
-                showPicker={showStreakTimePicker}
-                onRequestShowPicker={onRequestShowStreakTimePicker}
-                value={streakTimeValue}
-                onChangeTime={onStreakTimeChange}
-                displayText={streakTimeDisplay}
-              />
-            )}
           </>
         )}
       </View>
@@ -374,7 +432,7 @@ function LegalSection() {
               color={colors.text.muted}
             />
           }
-          onPress={() => Linking.openURL('https://unquestapp.com/terms')}
+          onPress={() => Linking.openURL('https://emberglowapp.com/terms')}
         />
       </View>
     </>
@@ -522,6 +580,7 @@ function TimezoneModalList({
       {TIMEZONES.map((timezone) => (
         <ListItem
           key={timezone.value}
+          testID={`timezone-option-${timezone.value}`}
           title={timezone.label}
           trailing={
             selectedTimezone === timezone.value ? (
@@ -547,14 +606,21 @@ export default function Settings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const user = useUserStore((state) => state.user);
   const [isLoading, setIsLoading] = useState(true);
-  const { dailyReminder, setDailyReminder, streakWarning, setStreakWarning } =
+  const { dailyReminder, setDailyReminder, nudges, setNudges } =
     useSettingsStore();
+  // No separate narratorVoice subscription needed: the selector-less
+  // useSettingsStore() call above already re-renders this component on any
+  // settings-store change (zustand's set() always produces a new state
+  // object), so the narrator voice row picks up changes through that broad
+  // subscription. The effective value itself is derived (explicit choice ??
+  // character default) via getEffectiveNarratorVoice, which reads
+  // getState() and so does not itself trigger a re-render.
+  const effectiveVoice = getEffectiveNarratorVoice();
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showStreakTimePicker, setShowStreakTimePicker] = useState(false);
   const [updateId, setUpdateId] = useState<string | null>(null);
   const timezoneModal = useModal();
   const [selectedTimezone, setSelectedTimezone] = useState('UTC');
-  const lastSentStreakSettings = useRef<string>('');
+  const lastSentNudgesSettings = useRef<string | null>(null);
   const {
     settings: notificationSettings,
     updateSettings,
@@ -612,34 +678,34 @@ export default function Settings() {
     }
   }, [notificationSettings]);
 
-  // Update local streak warning state when server data loads
+  // Update local nudges state when server data loads
   useEffect(() => {
-    if (notificationSettings?.streakWarning) {
-      setStreakWarning(notificationSettings.streakWarning);
-      // Initialize the ref so we don't send an update immediately
-      lastSentStreakSettings.current = JSON.stringify(
-        notificationSettings.streakWarning
+    if (notificationSettings?.nudges) {
+      setNudges(notificationSettings.nudges);
+      lastSentNudgesSettings.current = JSON.stringify(
+        notificationSettings.nudges
       );
     }
-  }, [notificationSettings, setStreakWarning]);
+  }, [notificationSettings, setNudges]);
 
-  // Send update to server when streak settings change
+  // Send update to server when nudges settings change
   useEffect(() => {
-    const currentSettings = JSON.stringify(streakWarning);
-    // Destructured so `time` narrows to non-null; the server requires it.
-    const { time } = streakWarning;
+    // Don't sync until the server settings have loaded — otherwise this
+    // fires on mount with the local/persisted default and can clobber a
+    // real server-side opt-out before we've had a chance to read it.
+    if (isLoadingSettings) return;
 
-    // Only send if settings actually changed and we have valid settings
-    if (currentSettings !== lastSentStreakSettings.current && time) {
-      lastSentStreakSettings.current = currentSettings;
-
-      // Cancel local notifications
-      cancelStreakWarningNotification();
-
-      // Send to server
-      updateSettings({ streakWarning: { ...streakWarning, time } });
-    }
-  }, [streakWarning, updateSettings]);
+    const serialized = JSON.stringify(nudges);
+    if (lastSentNudgesSettings.current === serialized) return;
+    lastSentNudgesSettings.current = serialized;
+    updateSettings({ nudges });
+    // isLoadingSettings intentionally excluded: including it re-runs this
+    // effect on the exact render the server settings arrive, before the
+    // load-sync effect's setNudges() has been applied, which would send the
+    // still-stale local value instead of skipping (same class of bug this
+    // guard exists to prevent).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nudges, updateSettings]);
 
   // Handle notification toggle
   const handleNotificationsToggle = async (value: boolean) => {
@@ -661,7 +727,9 @@ export default function Settings() {
 
         setNotificationsEnabled(granted);
       } else {
-        // Disabling notifications
+        // Disabling notifications: stop server pushes at the OneSignal level,
+        // not just local scheduling.
+        await OneSignal.User.pushSubscription.optOut();
         setItem(NOTIFICATIONS_ENABLED_KEY, 'false');
         setNotificationsEnabled(false);
       }
@@ -740,56 +808,8 @@ export default function Settings() {
     return format(date, 'h:mm a');
   };
 
-  const handleToggleStreakWarning = async (value: boolean) => {
-    // Default time if none set
-    const hour = streakWarning.time?.hour || 18;
-    const minute = streakWarning.time?.minute || 0;
-
-    const newSettings = {
-      enabled: value,
-      time: { hour, minute },
-    };
-
-    // Update local state
-    setStreakWarning(newSettings);
-
-    // Update server immediately for toggle changes
-    updateSettings({ streakWarning: newSettings });
-
-    // Cancel local notifications since we're using server-side now
-    await cancelStreakWarningNotification();
-  };
-
-  const handleStreakTimeChange = async (event: any, selectedDate?: Date) => {
-    setShowStreakTimePicker(false);
-
-    if (selectedDate) {
-      const hour = selectedDate.getHours();
-      const minute = selectedDate.getMinutes();
-
-      // Round minutes to nearest 15-minute interval
-      const roundedMinute = Math.round(minute / 15) * 15;
-      const adjustedMinute = roundedMinute === 60 ? 0 : roundedMinute;
-      const adjustedHour = roundedMinute === 60 ? (hour + 1) % 24 : hour;
-
-      // Only update local state here
-      const newSettings = {
-        enabled: true,
-        time: { hour: adjustedHour, minute: adjustedMinute },
-      };
-      setStreakWarning(newSettings);
-    }
-  };
-
-  // Get formatted streak reminder time
-  const getStreakTimeDisplay = () => {
-    if (!streakWarning.time) return '--:--';
-
-    const date = new Date();
-    date.setHours(streakWarning.time.hour);
-    date.setMinutes(streakWarning.time.minute);
-
-    return format(date, 'h:mm a');
+  const handleToggleNudges = (value: boolean) => {
+    setNudges({ enabled: value });
   };
 
   // Handle timezone change
@@ -798,6 +818,12 @@ export default function Settings() {
     timezoneModal.dismiss();
     // Update timezone on server
     updateSettings({ timezone });
+  };
+
+  const handleNarratorVoiceToggle = () => {
+    const next: NarratorVoice = effectiveVoice === 'female' ? 'male' : 'female';
+    useSettingsStore.getState().setNarratorVoice(next);
+    posthogClient.capture('settings_narrator_voice_changed', { voice: next });
   };
 
   // In your render method, handle loading state
@@ -825,6 +851,7 @@ export default function Settings() {
           <View className="px-4">
             <AccountSection
               user={user}
+              isGuest={!!getItem('provisionalAccessToken')}
               hasPremiumAccess={hasPremiumAccess}
               onManageSubscription={() =>
                 handleManageSubscription(setIsLoading)
@@ -838,6 +865,10 @@ export default function Settings() {
                 selectedTimezone
               }
               onTimezonePress={() => timezoneModal.present()}
+              narratorVoiceLabel={
+                effectiveVoice === 'female' ? 'Female' : 'Male'
+              }
+              onNarratorVoiceToggle={handleNarratorVoiceToggle}
               notificationsEnabled={notificationsEnabled}
               onNotificationsToggle={handleNotificationsToggle}
               dailyReminderEnabled={dailyReminder.enabled}
@@ -854,22 +885,8 @@ export default function Settings() {
               }
               onReminderTimeChange={handleTimeChange}
               reminderTimeDisplay={getReminderTimeDisplay()}
-              streakWarningEnabled={streakWarning.enabled}
-              onToggleStreakWarning={handleToggleStreakWarning}
-              showStreakTimePicker={showStreakTimePicker}
-              onRequestShowStreakTimePicker={() =>
-                setShowStreakTimePicker(true)
-              }
-              streakTimeValue={
-                new Date(
-                  new Date().setHours(
-                    streakWarning.time?.hour || 0,
-                    streakWarning.time?.minute || 0
-                  )
-                )
-              }
-              onStreakTimeChange={handleStreakTimeChange}
-              streakTimeDisplay={getStreakTimeDisplay()}
+              nudgesEnabled={nudges.enabled}
+              onToggleNudges={handleToggleNudges}
             />
 
             <SupportSection />

@@ -40,7 +40,17 @@ export function GuildIconSelector({
           >
             <GuildIcon icon={icon.id} size={28} />
 
-            {/* Selected indicator */}
+            {/* Selected indicator.
+                The tile above sets `accessible`, which groups it into one
+                element for a screen reader. That grouping is correct — it
+                should announce one control ("Select Flame icon, selected"),
+                not a tile and a loose tick — so it stays.
+                `selected-indicator-<id>` survives that grouping today
+                (checked live on iOS 18.3: it appears as a child of
+                `icon-button-<id>`), but only because of how UIKit happens to
+                flatten this subtree. Prefer the tile's own
+                `accessibilityState.selected` via `icon-button-<id>`, which
+                is a stated contract rather than a side effect. */}
             {isSelected && (
               <View
                 testID={`selected-indicator-${icon.id}`}

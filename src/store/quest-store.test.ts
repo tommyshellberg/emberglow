@@ -1,7 +1,15 @@
 // Import after mocking
+import * as Sentry from '@sentry/react-native';
+
 import QuestTimer from '@/lib/services/quest-timer';
 import { cleanupRehydratedState, useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types';
+
+jest.mock('@sentry/react-native', () => ({
+  addBreadcrumb: jest.fn(),
+  setTag: jest.fn(),
+  setUser: jest.fn(),
+}));
 
 // Mock the dependencies
 jest.mock('@/lib/services/quest-timer', () => {
@@ -122,12 +130,6 @@ jest.mock('@/api/common', () => ({
   queryClient: {
     invalidateQueries: jest.fn(),
   },
-}));
-
-// Mock notifications service
-jest.mock('@/lib/services/notifications', () => ({
-  cancelStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
-  scheduleStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Create mock for POI store
@@ -610,6 +612,97 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(mockAddXP).toHaveBeenCalledWith(100);
     });
 
+    test('does not initiate a reward-enrichment fetch for solo quests', () => {
+      // The reward-enrichment fetch only exists to populate participant
+      // rewards for cooperative quests. A solo quest has one participant and
+      // its reward is already known locally, so the fetch is pure waste — and
+      // on a locked phone its dynamic import fails (dev: "Could not load
+      // bundle"; device: suspended network). Gate it on the quest being
+      // cooperative. Observed via the synchronous "Fetching..." log that
+      // precedes the (Jest-unresolvable) dynamic import.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-solo');
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      const activeQuest = {
+        id: 'quest-1',
+        mode: 'story' as const,
+        title: 'Test Quest',
+        durationMinutes: 10,
+        reward: { xp: 100 },
+        startTime: Date.now() - 600000, // 10 minutes ago
+        status: 'active' as const,
+      };
+      useQuestStore.setState({
+        activeQuest,
+        completedQuests: [],
+        cooperativeQuestRun: null,
+        lastCompletedQuestTimestamp: null,
+      });
+
+      // Fire-and-forget, exactly like the background task's call site.
+      useQuestStore.getState().completeQuest(true);
+
+      expect(logSpy).not.toHaveBeenCalledWith(
+        '[QuestStore] Fetching quest run data to get rewards:',
+        expect.anything()
+      );
+
+      logSpy.mockRestore();
+    });
+
+    test.each([
+      {
+        label: 'mode "cooperative"',
+        quest: { mode: 'cooperative' as const, category: 'cooperative' },
+      },
+      {
+        label: 'custom quest with cooperative category',
+        quest: { mode: 'custom' as const, category: 'cooperative' },
+      },
+    ])(
+      'still initiates the reward-enrichment fetch for a $label quest',
+      async ({ quest }) => {
+        // Gate is derived from the quest, not cooperativeQuestRun state — so it
+        // must still fire here even with cooperativeQuestRun null, which is the
+        // background-task completion case where that state may be absent.
+        (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-coop');
+        const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const errorSpy = jest
+          .spyOn(console, 'error')
+          .mockImplementation(() => {});
+
+        const activeQuest = {
+          id: 'coop-1',
+          title: 'Test Coop Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 600000, // 10 minutes ago
+          status: 'active' as const,
+          ...quest,
+        };
+        useQuestStore.setState({
+          activeQuest,
+          completedQuests: [],
+          cooperativeQuestRun: null,
+          lastCompletedQuestTimestamp: null,
+        });
+
+        useQuestStore.getState().completeQuest(true);
+
+        expect(logSpy).toHaveBeenCalledWith(
+          '[QuestStore] Fetching quest run data to get rewards:',
+          'run-coop'
+        );
+
+        // Let the (Jest-unresolvable) dynamic import reject and be absorbed so
+        // its async console.error doesn't leak into the next test.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        logSpy.mockRestore();
+        errorSpy.mockRestore();
+      }
+    );
+
     test('should complete quest successfully when duration is met', async () => {
       // Arrange
       const startTime = Date.now() - 600000; // 10 minutes ago
@@ -631,10 +724,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       const { queryClient } = require('@/api/common');
-      const {
-        cancelStreakWarningNotification,
-        scheduleStreakWarningNotification,
-      } = require('@/lib/services/notifications');
 
       // Act
       const result = await await useQuestStore.getState().completeQuest();
@@ -661,11 +750,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ['user', 'details'],
       });
-      expect(cancelStreakWarningNotification).toHaveBeenCalled();
-
-      // Wait for the promise chain to complete
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(scheduleStreakWarningNotification).toHaveBeenCalledWith(true);
     });
 
     test('should complete quest with ignoreDuration flag', async () => {
@@ -727,41 +811,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
         status: 'failed',
         stopTime: expect.any(Number),
       });
-    });
-
-    test('should not update streak if quest completed on same day', async () => {
-      // Arrange - last quest completed earlier today
-      const now = new Date();
-      const earlierToday = new Date(now);
-      earlierToday.setHours(10, 0, 0, 0);
-
-      const activeQuest = {
-        id: 'quest-2',
-        mode: 'story' as const,
-        title: 'Test Quest',
-        durationMinutes: 10,
-        reward: { xp: 100 },
-        startTime: Date.now() - 600000,
-        status: 'active' as const,
-      };
-
-      useQuestStore.setState({
-        activeQuest,
-        completedQuests: [],
-        lastCompletedQuestTimestamp: earlierToday.getTime(),
-      });
-
-      const {
-        cancelStreakWarningNotification,
-        scheduleStreakWarningNotification,
-      } = require('@/lib/services/notifications');
-
-      // Act
-      await useQuestStore.getState().completeQuest();
-
-      // Assert - should not schedule new notifications
-      expect(cancelStreakWarningNotification).not.toHaveBeenCalled();
-      expect(scheduleStreakWarningNotification).not.toHaveBeenCalled();
     });
 
     test('should handle quest with no start time', async () => {
@@ -1214,43 +1263,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(getItem).toHaveBeenCalledWith('test-key');
     });
 
-    test('should handle quest completion notification scheduling', async () => {
-      const {
-        scheduleStreakWarningNotification,
-        cancelStreakWarningNotification,
-      } = require('@/lib/services/notifications');
-
-      const testQuest: Quest = {
-        id: 'test-quest',
-        mode: 'story',
-        title: 'Test Quest',
-        durationMinutes: 2,
-        startTime: Date.now() - 120000, // 2 minutes ago
-        status: 'active',
-        reward: { xp: 100 },
-        poiSlug: 'test-poi',
-      };
-
-      useQuestStore.setState({
-        activeQuest: testQuest,
-        completedQuests: [],
-        lastCompletedQuestTimestamp: null,
-      });
-
-      // Complete the quest
-      const completedQuest = await await useQuestStore
-        .getState()
-        .completeQuest();
-
-      expect(completedQuest).not.toBeNull();
-      expect(cancelStreakWarningNotification).toHaveBeenCalled();
-
-      // Wait for async operations
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(scheduleStreakWarningNotification).toHaveBeenCalled();
-    });
-
     test('should handle quest completion with missing fields', async () => {
       const incompleteQuest: Quest = {
         id: 'incomplete-quest',
@@ -1581,5 +1593,186 @@ describe('cleanupRehydratedState', () => {
     } as any;
 
     expect(() => cleanupRehydratedState(state)).not.toThrow();
+  });
+});
+
+describe('quest lifecycle breadcrumbs', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('startQuest leaves a quest.start breadcrumb with the quest id', () => {
+    const quest = {
+      id: 'quest-77',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+
+    useQuestStore.getState().startQuest(quest);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.start',
+      level: 'info',
+      data: { questId: 'quest-77', mode: 'story' },
+    });
+  });
+
+  it('prepareQuest leaves a quest.prepare breadcrumb with the quest id', () => {
+    const quest = {
+      id: 'quest-88',
+      mode: 'custom' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      category: 'personal' as const,
+    };
+
+    useQuestStore.getState().prepareQuest(quest);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.prepare',
+      level: 'info',
+      data: { questId: 'quest-88', mode: 'custom' },
+    });
+  });
+
+  it('cancelQuest leaves a quest.cancel breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-99',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now(),
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.cancel',
+      level: 'info',
+      data: { questId: 'quest-99' },
+    });
+  });
+
+  it('cancelQuest leaves a quest.cancel breadcrumb with the pending quest id when there is no active quest', () => {
+    const pendingQuest = {
+      id: 'pending-quest-88',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+    useQuestStore.setState({ activeQuest: null, pendingQuest });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.cancel',
+      level: 'info',
+      data: { questId: 'pending-quest-88' },
+    });
+  });
+
+  it('cancelQuest with no active or pending quest does not leave a quest.cancel breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null, pendingQuest: null });
+
+    useQuestStore.getState().cancelQuest();
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.cancel' })
+    );
+  });
+
+  it('failQuest leaves a quest.fail breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-42',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now(),
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest, pendingQuest: null });
+
+    useQuestStore.getState().failQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.fail',
+      level: 'info',
+      data: { questId: 'quest-42' },
+    });
+  });
+
+  it('failQuest leaves a quest.fail breadcrumb with the pending quest id when there is no active quest', () => {
+    const pendingQuest = {
+      id: 'pending-quest-88',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+    };
+    useQuestStore.setState({ activeQuest: null, pendingQuest });
+
+    useQuestStore.getState().failQuest();
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.fail',
+      level: 'info',
+      data: { questId: 'pending-quest-88' },
+    });
+  });
+
+  it('failQuest with no active or pending quest does not leave a quest.fail breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null, pendingQuest: null });
+
+    useQuestStore.getState().failQuest();
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.fail' })
+    );
+  });
+
+  it('completeQuest leaves a quest.complete breadcrumb with the active quest id', () => {
+    const activeQuest = {
+      id: 'quest-55',
+      mode: 'story' as const,
+      title: 'Test Quest',
+      durationMinutes: 10,
+      reward: { xp: 100 },
+      startTime: Date.now() - 600000,
+      status: 'active' as const,
+    };
+    useQuestStore.setState({ activeQuest, lastCompletedQuestTimestamp: null });
+
+    useQuestStore.getState().completeQuest(true);
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'quest',
+      message: 'quest.complete',
+      level: 'info',
+      data: { questId: 'quest-55', mode: 'story' },
+    });
+  });
+
+  it('completeQuest with no active quest does not leave a quest.complete breadcrumb', () => {
+    useQuestStore.setState({ activeQuest: null });
+
+    useQuestStore.getState().completeQuest(true);
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'quest.complete' })
+    );
   });
 });

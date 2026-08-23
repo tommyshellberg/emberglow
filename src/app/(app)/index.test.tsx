@@ -86,10 +86,12 @@ const mockAnnouncementState = {
   hasSeenBranchingAnnouncement: false,
   hasSeenSkillTreeAnnouncement: false,
   hasSeenGuildsAnnouncement: false,
+  hasSeenNarratorVoiceAnnouncement: false,
   lastAnnouncementShownAt: null,
   setHasSeenBranchingAnnouncement: jest.fn(),
   setHasSeenSkillTreeAnnouncement: jest.fn(),
   setHasSeenGuildsAnnouncement: jest.fn(),
+  setHasSeenNarratorVoiceAnnouncement: jest.fn(),
   markAnnouncementShown: jest.fn(),
   getAnnouncementToShow: mockGetAnnouncementToShow,
 };
@@ -165,6 +167,10 @@ jest.mock('@/lib/services/user', () => ({
   refreshPremiumStatus: jest.fn().mockResolvedValue({}),
 }));
 
+jest.mock('@/lib/invite/check-invite-match', () => ({
+  checkInviteMatch: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Import the Home component
 const Home = require('./index').default;
 
@@ -188,6 +194,17 @@ describe('Home Component - Integration Tests', () => {
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
+  });
+
+  describe('Invite attribution', () => {
+    it('runs the invite consumer on mount so a stashed code is never stranded', () => {
+      const { checkInviteMatch } = require('@/lib/invite/check-invite-match');
+
+      const { unmount } = render(<Home />);
+
+      expect(checkInviteMatch).toHaveBeenCalled();
+      unmount();
+    });
   });
 
   describe('What user SEES', () => {
@@ -405,6 +422,22 @@ describe('Home Component - Integration Tests', () => {
       // The branching sheet content is mounted (bottom-sheet pattern).
       expect(screen.getByText('Your Story Just Got Deadlier')).toBeTruthy();
       expect(screen.getByText('Restart at Branching Point')).toBeTruthy();
+
+      unmount();
+    });
+
+    it('presents the narrator voice announcement and stamps the throttle when due', () => {
+      mockGetAnnouncementToShow.mockReturnValue('narratorVoice');
+
+      const { unmount } = render(<Home />);
+      jest.advanceTimersByTime(1500);
+
+      expect(mockAnnouncementState.markAnnouncementShown).toHaveBeenCalledTimes(
+        1
+      );
+      // The narrator sheet content is mounted (bottom-sheet pattern).
+      expect(screen.getByText('Choose Who Tells Your Story')).toBeTruthy();
+      expect(screen.getByText('Choose My Narrator')).toBeTruthy();
 
       unmount();
     });

@@ -1,0 +1,440 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SCHEDULED QUESTS ("PUBLIC EVENTS") — RENDER SMOKE
+# =============================================================================
+# A scheduled quest is an event with a start time that other people can sign up
+# for. This file visits the two surfaces an account with no events can reach and
+# checks each one renders its own real content:
+#
+#   1. THE EVENTS LIST, both of its tabs — Discover and My events — each in its
+#      empty branch, which is the only branch this chain can produce.
+#   2. THE "SCHEDULE AN EVENT" FORM — every field it offers, read out of the
+#      accessibility tree and NOT filled in, plus the submit button sitting at
+#      the bottom untouched.
+#
+# NOTHING IS CREATED, SCHEDULED, JOINED OR CANCELLED. Creating an event writes a
+# row on the server that every later run of this suite would then see: the
+# Discover list would stop being empty, the empty state asserted below would be
+# replaced by an event card, and a floating `create-event-button` would appear
+# (`scheduled-quest/index.tsx:106-117`). So this file types nothing into the
+# form and never taps `create-event-submit`.
+#
+# Entry state: authenticated, on any TAB (the first command normalises to
+# home), with the Story deck card front, account with no events created and
+# none joined. Exit state: same account, home, Story card front, no server
+# write.
+#
+# -----------------------------------------------------------------------------
+# WHY THE LIST IS OPENED BY DEEP LINK AND NOT BY A TAP
+# -----------------------------------------------------------------------------
+# There is no tappable route to this screen on this account.
+# `grep -rn "/scheduled-quest" src` finds THREE navigations to it in app code,
+# and none of them is reachable here:
+#
+#   1. `cooperative-quest-menu.tsx:61` — the `Public Events` row of the
+#      cooperative-quest menu. That row is one of four in `menuOptions`, and
+#      the whole list renders only inside the menu's `hasFriends` branch
+#      (`:161-179`). This is a single-account chain with zero friends, so the
+#      list never renders; the no-friends branch (`:186-215`) offers an empty
+#      state, an Add Friends row and an info card, and no route to events.
+#   2. `join-cooperative-quest.tsx:249` — a `Browse public events` button
+#      (`testID: browse-public-events`) in that screen's no-invitations empty
+#      state. Unreachable for the same reason one step removed: the only way
+#      to `/join-cooperative-quest` is the `Join Quest` row of the SAME
+#      `menuOptions` list (`cooperative-quest-menu.tsx:54`), so it too sits
+#      behind `hasFriends`.
+#   3. `_layout.tsx:243` and `:247` — the push-notification handler. This one
+#      is NOT gated by anything in the UI, and it deserves saying plainly: a
+#      `scheduled_quest_starting_soon`, `_started` or `_cancelled` push routes
+#      to `/scheduled-quest/<id>` a second after it is opened, and a
+#      `scheduled_quest_kicked` push routes to `/scheduled-quest`. So a
+#      notification can drop a future run onto this screen FROM ANYWHERE, mid
+#      flow, with no tap from the test. It cannot fire on this chain today —
+#      the account has no event to be reminded about, kicked from or cancelled
+#      on, which is exactly the state this file preserves — but it is the way
+#      this screen could appear uninvited, and any flow that starts failing at
+#      an unrelated post-condition should check for it.
+#
+# On top of all that, the co-op menu itself is behind the RevenueCat premium
+# gate — see the long block at the top of `06-coop-ui.yaml`, which explains why
+# tapping that gate on this build raises a native alert and must not be done.
+#
+# So the deep link is the only way in. This is the same ruling Tommy gave for
+# unit L. Verified live: the link lands on the screen with home still mounted
+# underneath, so it is a navigation and not a relaunch, and home keeps its deck
+# position for the exit check at the bottom.
+#
+# COVERAGE CEILING, stated plainly: everything past the empty state is out of
+# reach from here. The event card, the event detail screen (`[id].tsx`), joining,
+# leaving, the overlap warning, and both of the form's rejection paths all need
+# either a second account or a real created event. This file covers the two
+# screens' render, and that is all it claims.
+#
+# -----------------------------------------------------------------------------
+# WHY THERE IS NO ANNOUNCEMENT-SHEET BLOCK
+# -----------------------------------------------------------------------------
+# Same reasoning as `08-guild.yaml`, and it was re-checked in source for this
+# file. The announcement gate is an effect inside the HOME screen component
+# (`(app)/index.tsx:140-189`). It runs on mount and whenever one of its
+# dependencies changes — its dependency array (`:174-189`) is the four
+# `hasSeen*` flags, the throttle stamp, the first-branch flag, the user object,
+# the completed-quest count, the available-perk count and the four modal refs.
+# The calendar is not among them, so a day boundary alone cannot present a
+# sheet.
+#
+# This file relaunches nothing and completes no quest, so it moves none of those
+# dependencies. A live hierarchy dump on home before the first run confirmed no
+# sheet was up.
+#
+# If a sheet ever IS up when this file starts, it fails loudly and immediately:
+# an announcement sheet covers home with a backdrop that does not trap focus, so
+# nothing here would reach its post-condition.
+#
+# WHICH SHEET IS NEXT IN LINE, for whoever meets it: the GUILDS one.
+# `getAnnouncementToShow` (`announcement-store.ts:118-160`) returns the first
+# UNSEEN announcement whose precondition is met, in a fixed order — branching,
+# skill tree, guilds, narrator voice (`:132-157`) — after the once-per-day cap
+# at the top of the function (`:124-130`) has let it through — that cap is
+# checked before the priority list, so on a day when any sheet has already
+# shown, nothing shows at all. The branching sheet was presented and
+# dismissed on this chain on 2026-08-10, so `hasSeenBranchingAnnouncement` is
+# permanently true and guilds is now first in that order. Dismiss it with its own
+# non-destructive button, never by coordinate.
+#
+# -----------------------------------------------------------------------------
+# WHAT IS DELIBERATELY NOT ASSERTED, AND WHY
+# -----------------------------------------------------------------------------
+# NO DATE OR CLOCK VALUE. The form pre-fills its start time to one hour from now
+# (`create.tsx:48-50`), so `event-starts-at-date` reads today's date,
+# `event-starts-at-time` reads the current time plus an hour, and the FROM/TO
+# preview reads clock times derived from it. All four change every minute. Only
+# their ids are asserted. A run on 2026-08-11 saw `8/11/2026` and `10:52 AM`;
+# those are recorded here as sightings, not as expectations.
+#
+# NO TAP ON `event-starts-at-date` OR `event-starts-at-time`. `DateTimeField`
+# renders the testID-carrying touchable only while its picker is closed
+# (`date-time-field.tsx:70-79`); pressing it swaps the whole component for a bare
+# `DateTimePicker` with NO testID (`:45-67`), and `showPicker` only flips back
+# when that picker fires `onChange`. So the moment either is tapped, the id
+# vanishes, nothing on the replacement can be named, and the way back to a clean
+# form is unproven. They are read, never pressed.
+#
+# NO POSITIVE ASSERTION ON `event-validation-error`. That id is on TWO Texts
+# (`create.tsx:170-185`) — one for the client-side check, one for the server's
+# rejection — and both can be on screen at once, so it can never be treated as
+# one element. It is only ever asserted ABSENT here, which is unambiguous, and
+# reaching either branch would need a submit.
+# =============================================================================
+
+# =============================================================================
+# NORMALISE THE ENTRY TAB
+# =============================================================================
+# This file used to deep-link immediately and simply depend on home being the
+# mounted tab — which made it depend on 08-guild's exit state. One tap removes
+# that ordering constraint: if home is already the mounted tab this is a
+# reselect and changes nothing, and if the device is on any other tab it lands
+# on home. If the tab bar is not on screen at all (a stranded tab-less route),
+# this tap fails loudly right here with a clear message, instead of the deep
+# link below half-working from an unknown place. The DECK position is still
+# inherited — the exit contract at the bottom asserts Story front, and a tab
+# tap does not move the deck.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+
+# =============================================================================
+# THE EVENTS LIST
+# =============================================================================
+# `scheduled-quests-screen` is this route's ScreenHeader id and belongs to no
+# other screen. Asserting it absent first is what turns the wait below into "it
+# appeared" rather than "it was already there".
+- assertNotVisible:
+    id: 'scheduled-quests-screen'
+- openLink: 'unquest:///scheduled-quest'
+- extendedWaitUntil:
+    visible:
+      id: 'scheduled-quests-screen'
+    timeout: 15000
+
+# A SECOND, INDEPENDENT POST-CONDITION. This is a root-level route, not a tab
+# route, so the tab bar leaves the tree while it is up — checked in a live dump.
+# A deep link that had been evicted back to home by the navigation gate would
+# leave the tab bar exactly where it was, and the header assertion alone could
+# not tell the difference.
+- assertNotVisible:
+    id: 'new-quest-tab'
+
+- assertVisible: 'Public Events'
+
+# =============================================================================
+# THE DISCOVER TAB
+# =============================================================================
+# `selected: true` is a real selector here, not decoration: both tabs set
+# `accessibilityState.selected` from the same piece of state
+# (`index.tsx:57`), so this line says WHICH tab the screen opened on rather than
+# just that both buttons exist. Proven to discriminate on this build — the same
+# assertion against the unselected tab fails.
+- assertVisible:
+    id: 'events-tab-discover'
+    text: 'Discover'
+    selected: true
+- assertVisible:
+    id: 'events-tab-mine'
+    text: 'My events'
+
+# THE EMPTY STATE'S OWN CONTENT, from `events-empty-state.tsx:13-19`. The two
+# variants share one component and one set of testIDs, so the ids alone would not
+# say which variant rendered — the headline and the sentence are what do that,
+# and Maestro matches the whole string, so the other variant's copy cannot
+# satisfy them.
+- assertVisible:
+    id: 'events-empty-state-icon'
+- assertVisible: 'No events found'
+- assertVisible: 'Nothing on the calendar yet. Start one and invite others to join.'
+- assertVisible:
+    id: 'events-empty-state-action'
+    text: 'Create event'
+
+# THIS FILE'S NO-WRITE RECEIPT, and the receipt for every run before it. The
+# floating `create-event-button` renders only when the feed is non-empty
+# (`index.tsx:106`). If it ever appears, an event exists on this account's
+# Discover feed — which means something on this chain created one, and the empty
+# branch asserted above is gone for good. Read it as an alarm, not as a
+# formality.
+- assertNotVisible:
+    id: 'create-event-button'
+
+# =============================================================================
+# THE "MY EVENTS" TAB
+# =============================================================================
+# The tab switch is local state (`index.tsx:30`), so the post-condition has to be
+# content the OTHER tab cannot produce. This headline belongs to the `mine`
+# variant alone.
+- tapOn:
+    id: 'events-tab-mine'
+- extendedWaitUntil:
+    visible: "You're not signed up for anything"
+    timeout: 10000
+- assertVisible:
+    id: 'events-tab-mine'
+    selected: true
+- assertVisible: 'Browse public events and join one, or host your own.'
+
+# The action button's label changes with the variant — `Discover events` here,
+# `Create event` on the other tab — so pairing the shared id with the label is a
+# second, independent statement that the right variant rendered.
+#
+# It is NOT tapped. Its job on this tab is to switch back to Discover
+# (`index.tsx:83-87`), which the explicit tab tap below does more directly and
+# without depending on that wiring.
+- assertVisible:
+    id: 'events-empty-state-action'
+    text: 'Discover events'
+
+# BACK TO DISCOVER, by the tab itself. The post-condition is the discover
+# variant's headline, which the tab this flow is leaving cannot render.
+- tapOn:
+    id: 'events-tab-discover'
+- extendedWaitUntil:
+    visible: 'No events found'
+    timeout: 10000
+
+# =============================================================================
+# THE "SCHEDULE AN EVENT" FORM
+# =============================================================================
+# Opened by the empty state's own button — a real user route, unlike the deep
+# link that was needed to reach the list. `create-event-form` is the form's
+# ScreenHeader id and exists on no other screen.
+- assertNotVisible:
+    id: 'create-event-form'
+- tapOn:
+    id: 'events-empty-state-action'
+- extendedWaitUntil:
+    visible:
+      id: 'create-event-form'
+    timeout: 15000
+
+# The list screen is gone, not merely covered — this is a push, and the screen
+# underneath leaves the iOS accessibility tree. A tap that had silently stayed on
+# the list would leave `scheduled-quests-screen` exactly where it was.
+- assertNotVisible:
+    id: 'scheduled-quests-screen'
+- assertVisible: 'Schedule an event'
+
+# THE TITLE AND DURATION BLOCK. These three ids are SHARED with the custom-quest
+# form (`combined-quest-input.tsx:76`, `:93`, `:113`) — the two forms are never on
+# screen together, so they stay unambiguous, and pairing them with the header
+# assertion above pins which form this is.
+#
+# `custom-quest-name-input` is asserted EMPTY, by its placeholder rather than a
+# value: `hintText` is what iOS reports for an unfilled field, and a field
+# carrying a typed title would report that title instead. So this line is also
+# the statement that this flow typed nothing.
+#
+# The duration label and `end-time` come from the same slider state. The label is
+# asserted with its text because 30 is the form's default (`create.tsx:47`) and a
+# flow that had dragged the slider would read something else. `end-time` is a
+# clock value and is asserted by id only.
+- assertVisible: 'I want to'
+- assertVisible:
+    id: 'custom-quest-name-input'
+    text: 'go for a run'
+- assertVisible:
+    id: 'custom-quest-duration-label'
+    text: 'for 30 minutes'
+- assertVisible:
+    id: 'duration-slider'
+- assertVisible:
+    id: 'end-time'
+
+# THE CATEGORY ROW. `fitness` is the form's default (`create.tsx:44`), and
+# `selected: true` is what says the row rendered a SELECTION rather than four
+# inert tiles. Nothing here taps a category — the default is what gets read.
+- assertVisible: 'What type of activity?'
+- assertVisible:
+    id: 'category-option-fitness'
+    text: 'Select Fitness'
+    selected: true
+
+# THE START-TIME FIELDS, ids only. See the block at the top of this file: their
+# text is the current date and time and changes every minute, and tapping either
+# one destroys the id it is named by.
+- assertVisible: 'Starts at'
+- assertVisible:
+    id: 'event-starts-at-date'
+- assertVisible:
+    id: 'event-starts-at-time'
+
+# THE TWO SEGMENTED CONTROLS, each read at its default — `public`
+# (`create.tsx:51`) and `10` (`:52`). `selected: true` on one option and the
+# plain presence of the other is what makes these render checks say something:
+# a control that had lost its selection state, or that had been switched by a
+# stray tap, goes red here.
+#
+# The `Max participants: 10` heading is asserted too because it is interpolated
+# from the same state (`create.tsx:145-147`) — it is the one place the chosen
+# number is printed as text.
+- assertVisible: 'Visibility'
+- assertVisible:
+    id: 'event-visibility-public'
+    text: 'Public'
+    selected: true
+- assertVisible:
+    id: 'event-visibility-friends'
+    text: 'Friends only'
+- assertVisible: 'Max participants: 10'
+- assertVisible:
+    id: 'event-max-participants-10'
+    text: '10'
+    selected: true
+- assertVisible:
+    id: 'event-max-participants-5'
+    text: '5'
+
+# The reward preview is computed, not fixed: 30 minutes x 3 XP per minute = 90,
+# where the 3 is `XP_PER_MINUTE` (`create.tsx:24`, used at `:157`). It is the
+# only line on this screen that would move if the duration slider had been
+# touched, so it is a second reading of the form's untouched state as well as a
+# render check.
+- assertVisible: 'Reward: ~90 XP for finishing'
+
+# NEITHER ERROR SLOT IS SHOWING. Both are conditional on a submit having happened
+# (`create.tsx:170-185`), so this line is the form's own receipt that nothing was
+# submitted — including by a previous run that might have left the screen in a
+# rejected state.
+- assertNotVisible:
+    id: 'event-validation-error'
+
+# =============================================================================
+# THE SUBMIT BUTTON — REACHED, READ, NEVER PRESSED
+# =============================================================================
+# Two scrolls, not one. The button sits below the fold and the title field
+# autofocuses (`combined-quest-input.tsx:83`), so the keyboard is up from the
+# moment this screen appears and eats the bottom 336px of the viewport. One
+# scroll DID reach the end on this build, but iOS scrolling carries momentum, so
+# how far one swipe travels is not fixed. The second scroll is a no-op once the
+# list is already at its end, and it costs a fraction of a second.
+- scroll
+- waitForAnimationToEnd
+- scroll
+- waitForAnimationToEnd
+
+# THE BUTTON IS ENABLED WITH A COMPLETELY EMPTY FORM, and that is pinned on
+# purpose rather than glossed over. `Button` here gets no `disabled` prop at all
+# (`create.tsx:187-193`) — only `loading` — so a user can press Create event with
+# no title at all and find out by rejection. `validateEventForm` catches it, so
+# this is a small wart rather than a bug, but it is the app as it is today.
+#
+# THIS LINE GOES RED THE DAY SOMEONE ADDS THE GUARD. That is the intent: flip it
+# to `enabled: false` on that day. Do not loosen it to hide the change.
+#
+# The button is READ AND NEVER TAPPED. One tap here with a valid form creates a
+# real event on the server and ends this chain's clean state.
+- assertVisible:
+    id: 'create-event-submit'
+    text: 'Create event'
+    enabled: true
+
+# =============================================================================
+# BACK OUT — NOTHING CREATED
+# =============================================================================
+# Out by the header's own back control; `- back` is a silently-green no-op on
+# iOS. `screen-header-back-button` is one id shared by roughly fifteen screens, so
+# each tap gets a post-condition naming something that exists only after it.
+#
+# The form's disappearance is the first check. The list's own header returning is
+# the second, and the two cannot both be satisfied by a tap that did nothing.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    notVisible:
+      id: 'create-event-form'
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'scheduled-quests-screen'
+    timeout: 15000
+
+# The list refetches when it regains focus, and for a moment it renders a
+# refresh spinner ABOVE the empty state, pushing it down the screen — seen live.
+# Nothing here depends on where that content sits, but do not add an assertion on
+# this screen's layout at this point without allowing for it.
+
+# =============================================================================
+# BACK TO HOME
+# =============================================================================
+# `home-header` exists nowhere but home, and the tab bar returning is the second
+# half — it was absent the whole time the events list was up.
+- tapOn:
+    id: 'screen-header-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+- assertVisible:
+    id: 'new-quest-tab'
+
+# THE EXIT CONTRACT the sibling coverage flows enter on. Home stayed mounted the
+# whole time, so this file never moved the deck — these three lines state where
+# it is being handed over, and would catch a deck left elsewhere by an earlier
+# flow here rather than two files later. The Story card is front when it has no
+# `Show Story card` child (that label belongs to the tap affordance a BACK card
+# wears) and the footer is on neither of the two branches that would mean a
+# different card.
+- assertNotVisible: 'Show Story card'
+- assertNotVisible:
+    id: 'create-coop-quest-button'
+- assertNotVisible:
+    id: 'create-custom-quest-button'
+
+# =============================================================================
+# END
+# =============================================================================
+# No event created, none joined, nothing typed into the form, no date picker
+# opened, no server write. Same account, same quests, same streak, still with an
+# empty Discover feed and an empty My events tab, sitting on home with the Story
+# card front.

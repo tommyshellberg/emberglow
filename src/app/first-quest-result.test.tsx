@@ -90,6 +90,20 @@ jest.mock('@/store/onboarding-store', () => ({
   },
 }));
 
+const mockAuthState = { status: 'signOut' as 'signOut' | 'signIn' };
+jest.mock('@/lib/auth', () => ({
+  useAuth: (selector: any) => selector(mockAuthState),
+}));
+
+// `storage` (the raw MMKV export) is imported transitively by unrelated
+// modules (e.g. i18n utils), so a wholesale stub breaks the module graph
+// before any test runs. Spread the real module and override only `getItem`.
+const mockStorage: Record<string, unknown> = {};
+jest.mock('@/lib/storage', () => ({
+  ...jest.requireActual('@/lib/storage'),
+  getItem: (key: string) => mockStorage[key] ?? null,
+}));
+
 jest.mock('@/store/quest-store', () => ({
   useQuestStore: jest.fn(),
 }));
@@ -104,6 +118,9 @@ const mockUseQuestStore = useQuestStore as jest.MockedFunction<
 describe('FirstQuestResultScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default to the onboarding-era case: an unauthenticated first-quest run.
+    mockAuthState.status = 'signOut';
+    for (const key of Object.keys(mockStorage)) delete mockStorage[key];
 
     mockUseOnboardingStore.mockImplementation((selector) =>
       selector(mockOnboardingStore as any)
@@ -114,6 +131,41 @@ describe('FirstQuestResultScreen', () => {
   });
 
   describe('Quest Completion Flow', () => {
+    // A character-less social account is sent back through onboarding while
+    // ALREADY signed in, so it reaches this screen authenticated. The signup
+    // prompt asks such a user to create the account they are currently using.
+    it('completes onboarding instead of prompting signup when already signed in', () => {
+      mockAuthState.status = 'signIn';
+
+      render(<FirstQuestResultScreen />);
+
+      expect(mockOnboardingStore.setCurrentStep).not.toHaveBeenCalledWith(
+        OnboardingStep.VIEWING_SIGNUP_PROMPT
+      );
+      expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+        OnboardingStep.COMPLETED
+      );
+    });
+
+    // Both arms of hasProvisionalSession's OR — either key alone is enough to
+    // mean "this is a guest", and only covering one left the other deletable.
+    it.each(['provisionalAccessToken', 'provisionalUserId'])(
+      'sends a hydrated PROVISIONAL session (signIn + %s) to the signup prompt, not COMPLETED',
+      (provisionalKey) => {
+        mockAuthState.status = 'signIn';
+        mockStorage[provisionalKey] = 'prov-value';
+
+        render(<FirstQuestResultScreen />);
+
+        expect(mockOnboardingStore.setCurrentStep).toHaveBeenCalledWith(
+          OnboardingStep.VIEWING_SIGNUP_PROMPT
+        );
+        expect(mockOnboardingStore.setCurrentStep).not.toHaveBeenCalledWith(
+          OnboardingStep.COMPLETED
+        );
+      }
+    );
+
     it('should call clearRecentCompletedQuest when Continue button is pressed', () => {
       const { getByTestId } = render(<FirstQuestResultScreen />);
 

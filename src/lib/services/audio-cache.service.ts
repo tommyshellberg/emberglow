@@ -3,7 +3,9 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { apiClient } from '@/api/common/client';
 import { provisionalApiClient } from '@/api/common/provisional-client';
 import { getToken } from '@/lib/auth/utils';
+import { posthogClient } from '@/lib/posthog';
 import { getItem, setItem } from '@/lib/storage';
+import { type NarrationPaths } from '@/utils/audio-utils';
 import {
   convertLegacyAssetToPath,
   isLegacyAssetId,
@@ -260,7 +262,8 @@ class AudioCacheService {
   }
 
   async getAudioSource(
-    audioPath: string | number
+    audioPath: string | number,
+    fallbackPath?: string
   ): Promise<{ uri: string } | null> {
     if (!audioPath) {
       return null;
@@ -349,6 +352,19 @@ class AudioCacheService {
       return { uri: memoryUri };
     }
 
+    // Female narration files are optional overlays on top of the always-
+    // present male set (see getNarrationPaths in audio-utils.ts). When a
+    // female variant is missing from S3, degrade to the male file rather
+    // than failing playback. Single-level retry: the fallback call passes
+    // no further fallback, so a failing fallback cannot recurse.
+    if (fallbackPath) {
+      console.warn(
+        `Narration file unavailable at ${actualPath}; falling back to ${fallbackPath}`
+      );
+      posthogClient.capture('narration_voice_fallback', { path: actualPath });
+      return this.getAudioSource(fallbackPath);
+    }
+
     return null;
   }
 
@@ -385,18 +401,19 @@ class AudioCacheService {
     this.saveCacheIndex();
   }
 
-  async preloadAudio(audioPaths: (string | number)[]): Promise<void> {
-    // Preload next 3 quests' audio files in the background
-    const preloadPromises = audioPaths
-      .filter((path) => typeof path === 'string') // Skip legacy asset IDs
-      .slice(0, 3)
-      .map(async (audioPath) => {
-        try {
-          await this.getAudioSource(audioPath);
-        } catch (error) {
-          console.warn(`Failed to preload audio: ${audioPath}`, error);
-        }
-      });
+  async preloadAudio(items: NarrationPaths[]): Promise<void> {
+    // Preload the next few quests' narration in the current voice. Fallback
+    // rides along so a missing female file still warms the male one.
+    const preloadPromises = items.slice(0, 3).map(async (item) => {
+      try {
+        await this.getAudioSource(
+          item.primaryPath,
+          item.fallbackPath ?? undefined
+        );
+      } catch (error) {
+        console.warn(`Failed to preload audio: ${item.primaryPath}`, error);
+      }
+    });
 
     await Promise.all(preloadPromises);
   }

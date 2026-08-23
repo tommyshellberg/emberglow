@@ -292,6 +292,7 @@ export default function AppIntroductionScreen() {
         {introStep === IntroStep.NOTIFICATIONS ? (
           <>
             <Button
+              testID="intro-allow-notifications"
               variant="primary"
               size="lg"
               fullWidth
@@ -300,6 +301,7 @@ export default function AppIntroductionScreen() {
               accessibilityLabel="Allow notifications"
             />
             <Button
+              testID="intro-skip-notifications"
               variant="ghost"
               fullWidth
               label="Not now"
@@ -310,6 +312,7 @@ export default function AppIntroductionScreen() {
           </>
         ) : (
           <Button
+            testID="intro-continue"
             variant="primary"
             size="lg"
             fullWidth

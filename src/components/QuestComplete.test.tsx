@@ -1,6 +1,10 @@
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
+import { NavigationRouteContext } from '@react-navigation/native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
@@ -352,9 +356,76 @@ describe('QuestComplete', () => {
 
       const { ScrollView } = require('react-native');
       const scrollView = UNSAFE_getByType(ScrollView);
-      expect(
-        scrollView.props.contentContainerStyle?.justifyContent
-      ).not.toBe('space-between');
+      expect(scrollView.props.contentContainerStyle?.justifyContent).not.toBe(
+        'space-between'
+      );
+    });
+  });
+
+  // The app runs edge-to-edge on Android, so content draws behind the
+  // navigation bar. This screen renders from two places and NEITHER has a
+  // visible tab bar below it to span the inset: (app)/quest/[id] inside the
+  // tab navigator with the bar hidden, and first-quest-result.tsx on the root
+  // stack. Without the inset, "Add reflection" sits under the nav bar.
+  describe('Bottom safe area', () => {
+    /** A 3-button-nav Android device. The global mock defaults every inset to
+     * 0, which would make these assertions vacuous — 0 + 24 is also the
+     * broken value — so each test must override it. */
+    const BOTTOM_INSET = 48;
+    const CONTENT_GAP = 24;
+
+    const paddingBottomOf = (el: any) =>
+      StyleSheet.flatten(el.props.style).paddingBottom;
+
+    beforeEach(() => {
+      jest.mocked(useSafeAreaInsets).mockReturnValue({
+        top: 24,
+        right: 0,
+        bottom: BOTTOM_INSET,
+        left: 0,
+      });
+    });
+
+    it('reserves the inset on a tab route that hides the tab bar', () => {
+      const { getByTestId } = render(
+        <BottomTabBarHeightContext.Provider value={104}>
+          <NavigationRouteContext.Provider
+            value={{ key: 'quest-key', name: 'quest/[id]' }}
+          >
+            <QuestComplete quest={mockStoryQuest} story="Test story" />
+          </NavigationRouteContext.Provider>
+        </BottomTabBarHeightContext.Provider>
+      );
+
+      expect(paddingBottomOf(getByTestId('quest-complete-content'))).toBe(
+        BOTTOM_INSET + CONTENT_GAP
+      );
+    });
+
+    it('reserves the inset outside the tab navigator', () => {
+      const { getByTestId } = render(
+        <QuestComplete quest={mockStoryQuest} story="Test story" />
+      );
+
+      expect(paddingBottomOf(getByTestId('quest-complete-content'))).toBe(
+        BOTTOM_INSET + CONTENT_GAP
+      );
+    });
+
+    it('omits the inset under a visible tab bar, which already spans it', () => {
+      const { getByTestId } = render(
+        <BottomTabBarHeightContext.Provider value={104}>
+          <NavigationRouteContext.Provider
+            value={{ key: 'journal-key', name: 'journal' }}
+          >
+            <QuestComplete quest={mockStoryQuest} story="Test story" />
+          </NavigationRouteContext.Provider>
+        </BottomTabBarHeightContext.Provider>
+      );
+
+      expect(paddingBottomOf(getByTestId('quest-complete-content'))).toBe(
+        CONTENT_GAP
+      );
     });
   });
 

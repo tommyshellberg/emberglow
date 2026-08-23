@@ -1,10 +1,10 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-import { signOut } from '@/lib/auth';
+import { endProvisionalSession, signOut } from '@/lib/auth';
 import { getToken } from '@/lib/auth/utils';
 import { getItem } from '@/lib/storage';
 
-import { refreshAccessToken } from '../auth';
+import { refreshAccessToken, refreshProvisionalTokens } from '../auth';
 import { getApiUrl } from './get-api-url';
 
 // Create axios instance with base configuration
@@ -51,6 +51,18 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = [];
 };
 
+// A provisional user is one who has played through onboarding but not yet
+// claimed an account. Their credentials live under different storage keys and
+// refresh through refreshProvisionalTokens (NOT refreshAccessToken, which
+// reads — and on failure clears — the full-account keys). Ordinary sign-out
+// must never fire for them: it is the path that discards an unclaimed hero.
+//
+// Local to this module deliberately: the same expression is spelled out at a
+// dozen call sites across services, and unifying those is a wider change than
+// this file. What matters here is that all sign-out paths below agree.
+const hasProvisionalCredentials = (): boolean =>
+  !!getItem('provisionalAccessToken');
+
 // Check if we should attempt token refresh
 const shouldAttemptRefresh = (): boolean => {
   const now = Date.now();
@@ -73,11 +85,18 @@ const recordRefreshAttempt = () => {
 apiClient.interceptors.request.use(
   (config) => {
     const tokenData = getToken();
-    const accessToken = tokenData?.access;
+    // A provisional user has no full-account token, but their provisional JWT
+    // authenticates the same server endpoints (a provisional user is a real
+    // User server-side). Without this fallback every account-scoped request
+    // from a provisional session went out with NO Authorization header at all,
+    // 401'd as anonymous, and burned the refresh budget — the "suddenly logged
+    // out" 401 storm on Settings/Profile. The full token wins when both exist
+    // (brief window mid-conversion, before the provisional keys are cleared).
+    const accessToken =
+      tokenData?.access ?? getItem<string>('provisionalAccessToken');
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
-    } else {
     }
 
     // Log invitation-related requests in development only
@@ -128,6 +147,26 @@ apiClient.interceptors.response.use(
           `[API Client] Exceeded max refresh attempts (${MAX_REFRESH_ATTEMPTS})`
         );
 
+        // Never escalate for a provisional user. The escalation below ends in a
+        // `cancelable: false` alert whose only button calls signOut() (see
+        // use-token-refresh-error-handler.ts), which clears the provisional
+        // keys and destroys an unclaimed hero — while the provisional token
+        // itself is still perfectly valid, often for weeks.
+        //
+        // Reaching here needs only three failing authenticated calls inside the
+        // five-minute window, and a provisional user's calls to account-scoped
+        // endpoints 401 every time, so this was reachable on an ordinary cold
+        // start. Reject with the underlying 401 and let the caller decide; the
+        // two refresh-failure branches further down already behave this way.
+        if (hasProvisionalCredentials()) {
+          if (__DEV__) {
+            console.log(
+              '[API Client] Refresh budget exhausted for a provisional user — rejecting without escalating'
+            );
+          }
+          return Promise.reject(error);
+        }
+
         // Create a custom error for the UI to handle
         const exhaustedError = new Error('TOKEN_REFRESH_EXHAUSTED');
         (exhaustedError as any).code = 'TOKEN_REFRESH_EXHAUSTED';
@@ -168,6 +207,34 @@ apiClient.interceptors.response.use(
             `[API Client] Refreshing token (attempt ${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`
           );
         }
+
+        if (hasProvisionalCredentials()) {
+          const result = await refreshProvisionalTokens();
+
+          if (result?.status === 'refreshed') {
+            const newAccessToken = result.tokens.access.token;
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            processQueue(null, newAccessToken);
+            refreshAttempts = 0;
+            return apiClient(originalRequest);
+          }
+
+          processQueue(new Error('Provisional token refresh failed'));
+
+          // 'dead' is proof (the server rejected the refresh token itself, or
+          // there was none): end the session so the resolver can route to
+          // login/signup instead of leaving a working-looking app that 401s
+          // forever. Anything else — network flake, 5xx, malformed response —
+          // is NOT proof, and the session must survive to retry later.
+          if (result?.status === 'dead') {
+            endProvisionalSession();
+          }
+
+          // Reject with the ORIGINAL 401 so callers see the request's own
+          // failure, mirroring the exhaustion branch above.
+          return Promise.reject(error);
+        }
+
         const newTokens = await refreshAccessToken();
 
         if (newTokens?.access?.token) {
@@ -194,8 +261,7 @@ apiClient.interceptors.response.use(
           processQueue(refreshError);
 
           // Check if this is a provisional user before signing out
-          const hasProvisionalToken = !!getItem('provisionalAccessToken');
-          if (!hasProvisionalToken) {
+          if (!hasProvisionalCredentials()) {
             signOut();
           } else if (__DEV__) {
             console.log(
@@ -209,8 +275,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshError as Error);
 
         // Check if this is a provisional user before signing out
-        const hasProvisionalToken = !!getItem('provisionalAccessToken');
-        if (!hasProvisionalToken) {
+        if (!hasProvisionalCredentials()) {
           signOut();
         } else if (__DEV__) {
           console.log(

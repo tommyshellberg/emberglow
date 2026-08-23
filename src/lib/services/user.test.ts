@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { apiClient } from '@/api/common/client';
+import { getAccessToken } from '@/api/token';
 import { posthogClient } from '@/lib/posthog';
 import { setItem } from '@/lib/storage';
 
@@ -14,13 +15,12 @@ import {
   rejectFriendInvitation,
   removeFriend,
   rescindInvitation,
-  sendBulkFriendInvites,
-  sendFriendInvite,
   updateUserCharacter,
 } from './user';
 
 // Mock dependencies
 jest.mock('@/api/common/client');
+jest.mock('@/api/token', () => ({ getAccessToken: jest.fn(() => null) }));
 jest.mock('@/lib/storage');
 jest.mock('uuid');
 
@@ -115,6 +115,18 @@ describe('User Service', () => {
   });
 
   describe('createProvisionalUser', () => {
+    it('refuses to mint a provisional account over an active real session', async () => {
+      // Named bug: Google-first signup → onboarding minted a SECOND server
+      // account, silently splitting quest runs across two identities.
+      (getAccessToken as jest.Mock).mockReturnValueOnce('real-access-token');
+
+      await expect(
+        createProvisionalUser({ type: 'alchemist', name: 'Tester' } as any)
+      ).rejects.toThrow('PROVISIONAL_WITH_ACTIVE_SESSION');
+
+      expect(mockApiClient.post).not.toHaveBeenCalled();
+    });
+
     it('identifies the user in PostHog with the server user id', async () => {
       mockUuidv4.mockReturnValue('test-uuid' as any);
       mockApiClient.post.mockResolvedValue({
@@ -251,64 +263,6 @@ describe('User Service', () => {
       await expect(getUserFriends()).rejects.toThrow('Failed to fetch friends');
       expect(console.error).toHaveBeenCalledWith(
         'Error fetching user friends:',
-        mockError
-      );
-    });
-  });
-
-  describe('sendFriendInvite', () => {
-    it('should send friend invitation successfully', async () => {
-      const mockResponse = {
-        message: 'Invitation sent successfully',
-        invitation: {
-          sender: 'user-123',
-          recipient: 'friend@example.com',
-          recipientUser: null,
-          status: 'pending',
-          _id: 'invite-123',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      };
-
-      mockApiClient.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await sendFriendInvite('friend@example.com');
-
-      expect(mockApiClient.post).toHaveBeenCalledWith('/users/invites', {
-        email: 'friend@example.com',
-      });
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should handle duplicate invitation error', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: { message: 'Invitation already exists' },
-        },
-      };
-      mockApiClient.post.mockRejectedValue(mockError);
-
-      await expect(sendFriendInvite('duplicate@example.com')).rejects.toEqual(
-        mockError
-      );
-      expect(console.error).toHaveBeenCalledWith(
-        'Error sending friend invitation:',
-        mockError
-      );
-    });
-
-    it('should handle invalid email format', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: { message: 'Invalid email format' },
-        },
-      };
-      mockApiClient.post.mockRejectedValue(mockError);
-
-      await expect(sendFriendInvite('invalid-email')).rejects.toEqual(
         mockError
       );
     });
@@ -585,94 +539,6 @@ describe('User Service', () => {
       mockApiClient.delete.mockRejectedValue(mockError);
 
       await expect(rescindInvitation('invite-123')).rejects.toEqual(mockError);
-    });
-  });
-
-  describe('sendBulkFriendInvites', () => {
-    it('should send bulk invitations successfully', async () => {
-      const emails = [
-        'friend1@example.com',
-        'friend2@example.com',
-        'friend3@example.com',
-      ];
-      const mockResponse = {
-        message: 'Bulk invitations processed',
-        totalSuccessful: 2,
-        totalFailed: 1,
-        successfulEmails: ['friend1@example.com', 'friend2@example.com'],
-        failedEmails: [
-          { email: 'friend3@example.com', reason: 'User already a friend' },
-        ],
-      };
-
-      mockApiClient.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await sendBulkFriendInvites(emails);
-
-      expect(mockApiClient.post).toHaveBeenCalledWith('/users/invites/bulk', {
-        emails,
-      });
-      expect(result).toEqual(mockResponse);
-      expect(result.totalSuccessful).toBe(2);
-      expect(result.totalFailed).toBe(1);
-    });
-
-    it('should handle all invitations failing', async () => {
-      const emails = ['duplicate1@example.com', 'duplicate2@example.com'];
-      const mockResponse = {
-        message: 'Bulk invitations processed',
-        totalSuccessful: 0,
-        totalFailed: 2,
-        successfulEmails: [],
-        failedEmails: [
-          {
-            email: 'duplicate1@example.com',
-            reason: 'Invitation already exists',
-          },
-          {
-            email: 'duplicate2@example.com',
-            reason: 'Invitation already exists',
-          },
-        ],
-      };
-
-      mockApiClient.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await sendBulkFriendInvites(emails);
-
-      expect(result.totalSuccessful).toBe(0);
-      expect(result.totalFailed).toBe(2);
-      expect(result.failedEmails).toHaveLength(2);
-    });
-
-    it('should handle empty email list', async () => {
-      const mockResponse = {
-        message: 'No emails provided',
-        totalSuccessful: 0,
-        totalFailed: 0,
-        successfulEmails: [],
-        failedEmails: [],
-      };
-
-      mockApiClient.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await sendBulkFriendInvites([]);
-
-      expect(result.totalSuccessful).toBe(0);
-      expect(result.totalFailed).toBe(0);
-    });
-
-    it('should handle bulk send errors', async () => {
-      const mockError = new Error('Bulk send failed');
-      mockApiClient.post.mockRejectedValue(mockError);
-
-      await expect(sendBulkFriendInvites(['test@example.com'])).rejects.toThrow(
-        'Bulk send failed'
-      );
-      expect(console.error).toHaveBeenCalledWith(
-        'Error sending bulk friend invitations:',
-        mockError
-      );
     });
   });
 

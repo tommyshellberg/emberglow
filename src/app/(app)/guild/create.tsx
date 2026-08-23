@@ -92,6 +92,7 @@ export default function CreateGuildScreen() {
     <View style={styles.screenRoot}>
       <FocusAwareStatusBar />
       <ScreenHeader
+        testID="create-guild-screen"
         title={GUILD_TITLES.CREATE_TITLE}
         showBackButton
         onBackPress={handleBack}

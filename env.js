@@ -86,6 +86,8 @@ const client = z.object({
   POSTHOG_API_KEY: z.string(),
   REVENUECAT_APPLE_API_KEY: z.string(),
   REVENUECAT_GOOGLE_API_KEY: z.string(),
+  GOOGLE_WEB_CLIENT_ID: z.string(),
+  GOOGLE_IOS_CLIENT_ID: z.string(),
 });
 
 const buildTime = z.object({
@@ -111,6 +113,8 @@ const _clientEnv = {
   POSTHOG_API_KEY: process.env.POSTHOG_API_KEY,
   REVENUECAT_APPLE_API_KEY: process.env.REVENUECAT_APPLE_API_KEY,
   REVENUECAT_GOOGLE_API_KEY: process.env.REVENUECAT_GOOGLE_API_KEY,
+  GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_WEB_CLIENT_ID,
+  GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID,
 };
 
 /**

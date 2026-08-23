@@ -59,6 +59,7 @@ export default function CustomQuestScreen() {
 
       <ScreenContainer>
         <ScreenHeader
+          testID="custom-quest-screen"
           title={SCREEN_TITLE}
           subtitle={SCREEN_SUBTITLE}
           showBackButton
@@ -87,6 +88,7 @@ export default function CustomQuestScreen() {
           <CategorySlider control={control} />
 
           <Button
+            testID="start-custom-quest-button"
             label={START_BUTTON_LABEL}
             variant="primary"
             size="lg"

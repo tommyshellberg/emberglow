@@ -32,6 +32,12 @@ export type SwitchProps = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /**
+   * Screen-reader name for the toggle. Needed when the switch sits in a
+   * `trailing` slot (e.g. a settings ListItem), where the visible row title
+   * is a sibling and so is never associated with the control.
+   */
+  accessibilityLabel?: string;
 };
 
 /** Custom ember-glow toggle — track + thumb, lights up on when checked. */
@@ -42,6 +48,7 @@ export function Switch({
   disabled = false,
   style,
   testID,
+  accessibilityLabel,
 }: SwitchProps) {
   const translateX = useSharedValue(checked ? THUMB_TRAVEL : 0);
 
@@ -66,6 +73,7 @@ export function Switch({
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked, disabled }}
       testID={testID}
       style={[styles.row, disabled && styles.disabled, style]}

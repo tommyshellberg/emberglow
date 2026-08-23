@@ -442,6 +442,7 @@ export default function AchievementsScreen() {
       <ScreenContainer>
         {/* Header */}
         <ScreenHeader
+          testID="achievements-screen"
           title="Achievements"
           subtitle={`Track your progress • ${unlockedAchievements}/${totalAchievements} Unlocked`}
           showBackButton

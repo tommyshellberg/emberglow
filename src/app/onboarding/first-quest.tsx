@@ -31,7 +31,7 @@ import {
   scrims,
   spacing,
 } from '@/theme';
-import { getQuestAudioPath } from '@/utils/audio-utils';
+import { getNarrationPaths } from '@/utils/audio-utils';
 
 // prototypes/onboarding/onboarding-screens.jsx HookScreen, lines 258-281.
 const HERO_NAME_FALLBACK = 'stranger';
@@ -123,8 +123,11 @@ export default function FirstQuestScreen() {
         );
 
         if (firstStoryQuest && firstStoryQuest.id) {
-          const audioPath = getQuestAudioPath(firstStoryQuest.id, 'vaedros');
-          await audioCacheService.preloadAudio([audioPath]);
+          const { primaryPath, fallbackPath } = getNarrationPaths(
+            firstStoryQuest.id,
+            'vaedros'
+          );
+          await audioCacheService.preloadAudio([{ primaryPath, fallbackPath }]);
         }
       } catch (error) {
         console.warn('Failed to preload first quest audio:', error);

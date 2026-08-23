@@ -8,10 +8,19 @@ module.exports = {
   resolver: 'react-native-worklets/jest/resolver.js',
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
-  // Ignore nested git worktrees (created under .worktrees/) so jest doesn't
-  // scan their duplicate test files or collide on their haste module names.
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.worktrees/'],
-  modulePathIgnorePatterns: ['<rootDir>/.worktrees/'],
+  // Ignore nested git worktrees (created under .worktrees/) and the Stryker
+  // mutation-testing sandbox (.stryker-tmp/), both of which hold whole copies
+  // of the repo. Without this jest scans their duplicate test files and
+  // collides on their haste module names.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/.worktrees/',
+    '<rootDir>/.stryker-tmp/',
+  ],
+  modulePathIgnorePatterns: [
+    '<rootDir>/.worktrees/',
+    '<rootDir>/.stryker-tmp/',
+  ],
   silent: true, // Suppress console output by default
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

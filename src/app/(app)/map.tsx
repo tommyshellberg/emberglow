@@ -39,6 +39,14 @@ export default function MapScreen() {
     [highestQuestId]
   );
 
+  // The visible title and the screen-reader label for the picture must come
+  // from the same call, so the two can never disagree. Today
+  // `getMapNameForQuest` returns "Vaedros Kingdom" for every quest that exists
+  // (the map data has a single entry); other names appear only in a Jest mock.
+  // The shared lookup is what keeps a hardcoded label from announcing the
+  // wrong place if more maps ever land.
+  const mapName = getMapNameForQuest(highestQuestId);
+
   // Get actual image dimensions
   useEffect(() => {
     if (mapImageSource) {
@@ -64,7 +72,10 @@ export default function MapScreen() {
   // Show loading state while fetching highest quest or image dimensions
   if (isLoading || !imageDimensions) {
     return (
-      <View className="flex-1 items-center justify-center bg-[rgba(61,73,78,0.92)]">
+      <View
+        testID="map-loading"
+        className="flex-1 items-center justify-center bg-[rgba(61,73,78,0.92)]"
+      >
         <FocusAwareStatusBar />
         <Text className="text-lg text-primary-300">Loading map...</Text>
       </View>
@@ -72,13 +83,13 @@ export default function MapScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[rgba(61,73,78,0.92)]">
+    <View testID="map-screen" className="flex-1 bg-[rgba(61,73,78,0.92)]">
       <FocusAwareStatusBar />
 
       {/* Map Title */}
       <View className="absolute left-4 top-10 z-10 rounded-lg bg-black/50 px-3 py-1 backdrop-blur-sm">
-        <Text className="text-xl font-bold text-white">
-          {getMapNameForQuest(highestQuestId)}
+        <Text testID="map-title" className="text-xl font-bold text-white">
+          {mapName}
         </Text>
       </View>
 
@@ -102,6 +113,10 @@ export default function MapScreen() {
         >
           <Image
             key={`map-${highestQuestId}`}
+            testID="map-image"
+            accessible={true}
+            accessibilityRole="image"
+            accessibilityLabel={`${mapName} map`}
             source={mapImageSource}
             style={{
               width: imageDimensions.width,

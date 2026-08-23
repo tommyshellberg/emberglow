@@ -1,0 +1,199 @@
+appId: com.vaedros.unquest
+---
+# =============================================================================
+# SECOND QUEST — PART 1: TAKE THE STORY BRANCH AND LOCK
+# =============================================================================
+# First flow of the authenticated phase that actually plays a quest. Entry
+# state comes from 02-signup/02-verify-authenticated.yaml: signed in as
+# ${TEST_EMAIL}, MaestroHero / alchemist / Level 2 / 100 XP / streak 1, one
+# completed quest (quest-1), sitting on the home screen.
+#
+#   1. Clear the dev-build LogBox toast off the tab bar
+#   2. Land on home and wait for the server's next-available quests
+#   3. Commit the RIGHT-HAND branch of the two-choice decision slider
+#   4. Lock the phone, which is what starts the quest
+#
+# HOW LONG THE RUNNER MUST WAIT BEFORE PART 2: 135s. Not 75s. The story quest
+# is served with `durationMinutes: 2` (quest-template.controller.js:32/259), so
+# QuestTimer fails the quest on any unlock before 120s
+# (quest-timer.ts:634/836), while the *recorded* run window is only 60s
+# (quest-run.controller.js:181 — a third, disagreeing copy of the same dev-only
+# knob, Linear SHE-28). Unlocking in the 60–120s gap yields whichever signal
+# lands first and reads as flakiness. Only a wait past 120s satisfies both
+# clocks. Confirmed on this screen: the deck card reads `2 MIN · 9 XP` and the
+# pending screen's badge reads `2 MIN OFFLINE`.
+#
+# -----------------------------------------------------------------------------
+# THE GESTURE — THIS IS THE PAN SLIDER, NOT THE HOLD SLIDER
+# -----------------------------------------------------------------------------
+# `story-option-buttons.tsx:351` renders `TwoChoiceDecision` once the server
+# offers two next quests, and `decision-slider.tsx:866` switches the detector on
+# that: `gesture={single ? holdGesture : panGesture}`. So the `longPressOn` that
+# drives every other slider in this suite (onboarding's `wake-up-button-orb`,
+# `story-start-slider-orb`) does NOTHING here — LongPress is `.enabled(false)`
+# on this instance. It has to be a drag.
+#
+# Geometry the drag must satisfy (all from decision-slider.tsx):
+#   activeOffsetX([-10, 10])  more than 10pt of horizontal travel to activate
+#   failOffsetY([-16, 16])    more than 16pt of vertical drift KILLS the gesture
+#   maxPointers(1)
+#   commit on release beyond 0.72 x TRAVEL_RADIUS(118) = MORE THAN 85pt
+#   x clamps to +/-118, so overshooting is free
+#   right = choices[1], left = choices[0]
+#
+# The element-relative form below was verified committing on device. It is
+# preferred over hardcoded coordinates for two reasons: it follows the orb if
+# the layout moves, and Maestro's directional swipe distance is demonstrably
+# screen-derived rather than element-derived (the orb is 58pt wide and 58 < 85,
+# so an element-sized swipe could not have committed). The coordinate form also
+# works and is kept here as the documented fallback if `from:` + `direction:`
+# ever changes semantics — orb centre was measured at (215, 791):
+#
+#   - swipe:
+#       start: "215,791"
+#       end: "345,791"     # 130pt of travel, y held constant
+#       duration: 400
+#
+# What does NOT work, measured on device: a 60pt swipe (`215,791` -> `275,791`)
+# reports `success` and does not commit — it clears activeOffsetX, springs back
+# under the 85pt threshold, and the app stays on home. That is the mutation
+# proof that the assertions below are load-bearing rather than decorative.
+#
+# The slider does NOT need scrolling into view. That was listed as unverified
+# for the home screen; it is answered here. The slider block sits at
+# [24,671][406,821] with the tab bar at [0,842][430,932] — fully visible, no
+# `scrollUntilVisible` required.
+# =============================================================================
+
+# =============================================================================
+# DEV BUILD ONLY — CLEAR THE LogBox TOAST OFF THE TAB BAR
+# =============================================================================
+# Home's mount effect fires refreshServerPremium() (index.tsx:326-334), which
+# errors in this environment. The resulting toast lands at [10,844][420,912]
+# and the tab bar occupies [0,842][430,932] — every tab button is underneath
+# it, and a `tapOn` on a covered button reports success while the app does not
+# move. Same block as 02-signup/02-verify-authenticated.yaml.
+#
+# Matched on LogBox's own shape rather than on the message: the toast's iOS
+# accessibility string is the count badge joined to the message, and the badge
+# renders `!` for one log and the number beyond that. A release build has no
+# LogBox at all, so nothing matches and the whole block is skipped.
+#
+# The toast's X does NOT respond to a coordinate tap; tapping the toast body
+# opens the LogBox inspector, whose "Dismiss" removes one log and closes itself
+# after the last one — hence the guarded loop.
+- runFlow:
+    when:
+      visible: '(!|\d+), .*'
+    commands:
+      - tapOn: '(!|\d+), .*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Dismiss'
+                commands:
+                  - tapOn: 'Dismiss'
+- assertNotVisible: '(!|\d+), .*'
+
+# =============================================================================
+# HOME SCREEN
+# =============================================================================
+# Explicit rather than assumed: the previous flow leaves the app on home, but
+# this file is also the entry point when phase 03 is run on its own, and the
+# tab tap makes it work from whichever tab the app happens to be on.
+- tapOn:
+    id: 'new-quest-tab'
+- extendedWaitUntil:
+    visible:
+      id: 'home-header'
+    timeout: 15000
+
+# =============================================================================
+# WAIT FOR THE TWO-CHOICE STORY DECISION
+# =============================================================================
+# `story-option-${optionA.id}-${optionB.id}` (story-option-buttons.tsx:356).
+# The ids look data-dependent and are not: `use-story-options.ts:44-49` builds
+# them as `option-${index}` over the server's next-available quests, so a
+# two-way branch is always `option-0` / `option-1` regardless of which quests
+# those are. What this anchor DOES assert is the branch shape — a one-quest
+# branch would render `story-continue-slider` instead and this wait would fail,
+# which is the right outcome because the drag below could not drive it (that
+# slider is the LongPress variant).
+#
+# Generous timeout: the options come from the server's next-available endpoint,
+# so this is a network round trip after the tab renders.
+- extendedWaitUntil:
+    visible:
+      id: 'story-option-option-0-option-1-orb'
+    timeout: 30000
+
+# The post-condition for the swipe is `lock-instructions`, which lives on the
+# pending-quest screen. NavigationGate *pushes* that screen rather than
+# replacing it, so home stays mounted underneath — asserting that the orb is
+# visible is therefore NOT proof that the pending screen is absent. This is.
+# Without it, a run that somehow started on /pending-quest would satisfy the
+# post-condition below with the gesture having done nothing at all.
+- assertNotVisible:
+    id: 'lock-instructions'
+
+# =============================================================================
+# COMMIT THE RIGHT-HAND BRANCH
+# =============================================================================
+# Right = choices[1] = the server's second next-available quest, whose
+# decisionText renders as "Look for signs of life" and which routes to
+# quest-1b, "Searching the Forest for Signs of Life".
+#
+# Deliberately the right-hand side, not the left: quest-1b's title appears
+# NOWHERE before the commit, whereas the left branch leads to "Awaken in a Dark
+# Forest" — which is already on screen as the deck card's title, so it could
+# not distinguish a committed drag from a screen that never moved. Both
+# branches pay the same reward (`calculateRewardFromDuration(3)` = 9 XP) over
+# the same 2-minute duration, so nothing downstream depends on the choice.
+- swipe:
+    from:
+      id: 'story-option-option-0-option-1-orb'
+    direction: RIGHT
+- waitForAnimationToEnd
+
+# =============================================================================
+# PENDING QUEST — THE PROOF THE DRAG COMMITTED
+# =============================================================================
+# A green `swipe` on iOS means a touch was dispatched at those coordinates, not
+# that the gesture committed — a sub-threshold swipe reports success and leaves
+# the app completely still. These two assertions are what make the step real.
+#
+# `lock-instructions` says A commit happened: onCommit -> handleStartQuest ->
+# prepareQuest -> NavigationGate pushes /pending-quest. Nothing on home carries
+# that id. The timeout allows for the 650ms COMMIT_SETTLE_MS between the visual
+# lock and onCommit firing, plus the navigation.
+- extendedWaitUntil:
+    visible:
+      id: 'lock-instructions'
+    timeout: 15000
+
+# ...and the title says the RIGHT-HAND commit happened, which is the half
+# `lock-instructions` cannot see. A left-side commit, or a spring-back followed
+# by an accidental second gesture, would land on a different quest and fail
+# here. It is a copy anchor by necessity — the pending screen threads no testID
+# through the title — and it is coupled to the server's story content, the same
+# coupling the reward assertions in part 2 already carry.
+- assertVisible: '.*Searching the Forest for Signs of Life.*'
+
+# =============================================================================
+# START THE QUEST BY LOCKING THE PHONE
+# =============================================================================
+# There is no start button: the quest begins when the native lock listener
+# fires (QuestTimer.onPhoneLocked).
+- pressKey: 'Lock'
+
+# =============================================================================
+# END OF PART 1
+# =============================================================================
+# Phone locked, quest-1b running. The runner waits 135 SECONDS before part 2.
+#
+# VERIFIED 2026-07-26: the pair ran green end to end from a freshly rebuilt
+# account chain — part 1 = 12 commands, 155s wait, part 2 = 19 commands, no
+# retries and no edits needed to get there. Mongo after the pair:
+# `level: 2, currentXP: 109`, matching §5.2 exactly.

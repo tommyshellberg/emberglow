@@ -1,3 +1,4 @@
+import { useAudioPlayer } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePostHog } from 'posthog-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -18,12 +19,18 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { getAccessToken } from '@/api/token';
 import { Button, EyebrowLabel, Input } from '@/components/emberglow';
 import { EmberProgress } from '@/components/onboarding/ember-progress';
 import { FocusAwareStatusBar, Image } from '@/components/ui';
-import { createProvisionalUser } from '@/lib/services/user';
+import { checkInviteMatch } from '@/lib/invite/check-invite-match';
+import {
+  createProvisionalUser,
+  updateUserCharacter,
+} from '@/lib/services/user';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { type Character, type CharacterType } from '@/store/types';
 import {
   colors,
@@ -327,9 +334,60 @@ export default function ChooseCharacterScreen() {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // One shared player; replace() swaps the source, which stops any clip that
+  // is still speaking — rapid swipes therefore can't queue clips.
+  const introPlayer = useAudioPlayer();
+
+  // Subscribed (unlike the getState() read in playIntroClip below) so muting
+  // mid-clip silences the voice that is speaking right now, not just the next
+  // one — the mute control is a single flag over onboarding audio, and a clip
+  // runs up to ~9 seconds.
+  const onboardingSoundEnabled = useSettingsStore(
+    (s) => s.onboardingSoundEnabled
+  );
+
+  useEffect(() => {
+    if (!onboardingSoundEnabled) {
+      introPlayer.pause();
+    }
+  }, [onboardingSoundEnabled, introPlayer]);
+
+  const playIntroClip = useCallback(
+    (characterId: string) => {
+      // One flag governs music and intro clips alike: a user who muted the
+      // onboarding music hears no character voices either. Read via
+      // getState so this callback doesn't need the value in its dependency
+      // list.
+      if (!useSettingsStore.getState().onboardingSoundEnabled) return;
+
+      const character = CHARACTERS.find((c) => c.id === characterId);
+      if (!character) return;
+      try {
+        introPlayer.replace(character.introAudio);
+        introPlayer.play();
+      } catch (error) {
+        // A sound effect must never block onboarding.
+        console.warn('Failed to play character intro clip:', error);
+      }
+    },
+    [introPlayer]
+  );
+
   useEffect(() => {
     posthog.capture('onboarding_open_choose_character_screen');
   }, [posthog]);
+
+  // On entering the selection step, voice the initially selected card, which
+  // would otherwise stay silent until a swipe. The audio session is already
+  // configured by useOnboardingMusic (Task 8) — do NOT call setAudioModeAsync
+  // here; doing so would globally override the silent-switch decision.
+  useEffect(() => {
+    if (currentStep !== CharacterStep.CHARACTER_SELECTION) return;
+    playIntroClip(selectedCharacter);
+    // Intentionally fires only on step entry, not on later selection changes
+    // (those are voiced by handleCarouselScrollEnd).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
   // Debounce the input name: update debouncedName 500ms after user stops typing.
   useEffect(() => {
@@ -357,7 +415,11 @@ export default function ChooseCharacterScreen() {
   ) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const newIndex = Math.round(offsetX / snapInterval);
-    setSelectedCharacter(CHARACTERS[newIndex].id);
+    const newId = CHARACTERS[newIndex].id;
+    if (newId !== selectedCharacter) {
+      playIntroClip(newId);
+    }
+    setSelectedCharacter(newId);
   };
 
   // Handle step progression
@@ -450,9 +512,19 @@ export default function ChooseCharacterScreen() {
       createCharacter(selected.id as CharacterType, debouncedName.trim());
       posthog.capture('onboarding_update_character_local_store_success');
 
-      // 2. Create a provisional user on the server
-      await createProvisionalUser(newCharacter as Character);
-      posthog.capture('onboarding_create_provisional_user_success');
+      // 2. Persist the hero server-side. A live real session (Google-first
+      // signup routed here via /no-hero) must PATCH its own account —
+      // minting a provisional user here would create a second identity and
+      // silently split quest data across the two (empty journal bug).
+      // createProvisionalUser enforces the same invariant with a throw.
+      if (getAccessToken()) {
+        await updateUserCharacter(newCharacter as Character);
+        posthog.capture('onboarding_update_character_server_success');
+      } else {
+        await createProvisionalUser(newCharacter as Character);
+        posthog.capture('onboarding_create_provisional_user_success');
+        void checkInviteMatch().catch(() => {});
+      }
 
       // Only proceed if both operations succeeded
       useOnboardingStore
@@ -533,6 +605,10 @@ export default function ChooseCharacterScreen() {
           )}
 
           <Button
+            // The label is step-dependent (`getButtonText()`), so it is the
+            // one control on this screen that cannot be addressed by text at
+            // all without the flow knowing which step it is on.
+            testID="character-step-continue"
             variant="primary"
             size="lg"
             fullWidth

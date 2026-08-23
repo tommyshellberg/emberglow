@@ -16,7 +16,7 @@ import { isRunningInExpoGo } from 'expo';
 import { useFonts } from 'expo-font';
 import { Stack, useNavigationContainerRef, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { AppState, type AppStateStatus, Platform, View } from 'react-native';
 import BackgroundService from 'react-native-background-actions';
 import FlashMessage from 'react-native-flash-message';
@@ -29,11 +29,12 @@ import { APIProvider } from '@/api';
 import { LazyWebSocketProvider } from '@/components/providers/lazy-websocket-provider';
 import { PostHogNavigationTracker } from '@/components/providers/posthog-navigation-tracker';
 import { PostHogProviderWrapper } from '@/components/providers/posthog-provider-wrapper';
-import { SafeAreaView, UpdateNotificationBar } from '@/components/ui';
+import { SafeAreaView } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
-import { scheduleStreakWarningNotification } from '@/lib/services/notifications';
+import { getSentryConfig } from '@/lib/sentry-config';
+import { cancelLegacyStreakWarningNotification } from '@/lib/services/notifications';
 import { usePresenceRuntime } from '@/lib/services/quest-presence-runtime';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
@@ -50,14 +51,15 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: !isRunningInExpoGo(),
 });
 
+const sentryConfig = getSentryConfig(Env.APP_ENV);
+
 const integrations =
   Env.APP_ENV === 'production'
     ? [
+        // Masking uses SDK defaults (maskAllText/Images/Vectors: true).
+        // Replays previously recorded login emails and journal content in cleartext.
         Sentry.mobileReplayIntegration({
           enableExperimentalViewRenderer: true,
-          maskAllText: false,
-          maskAllImages: false,
-          maskAllVectors: false,
         }),
         Sentry.reactNativeTracingIntegration(),
         navigationIntegration,
@@ -66,10 +68,14 @@ const integrations =
 
 Sentry.init({
   dsn: 'https://6d85dbe3783d343a049b93fa8afaf144@o4508966745997312.ingest.us.sentry.io/4508966747570176',
-  replaysSessionSampleRate: 1.0,
-  replaysOnErrorSampleRate: 1.0,
-  integrations: integrations,
-  tracesSampleRate: 1.0,
+  enabled: sentryConfig.enabled,
+  environment: Env.APP_ENV,
+  replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
+  replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
+  tracesSampleRate: sentryConfig.tracesSampleRate,
+  integrations,
+  // Known network-blip noise; extend once prod volume shows what dominates.
+  ignoreErrors: ['Network request failed', 'AbortError'],
 });
 
 // Keep the splash screen visible until we explicitly hide it
@@ -240,6 +246,11 @@ function RootLayout() {
           setTimeout(() => {
             router.push('/scheduled-quest');
           }, 1000);
+        } else if (additionalData?.type === 're_engagement') {
+          // Land users on the home tab where the active storyline's next-quest CTA lives.
+          setTimeout(() => {
+            router.replace('/(app)');
+          }, 1000);
         }
       });
 
@@ -347,13 +358,19 @@ function RootLayout() {
     // Initialize timezone sync
     const cleanupTimezoneSync = initializeTimezoneSync();
 
+    // Cancel any legacy local streak-warning alarm still scheduled on the
+    // device from a build before nudges moved server-side. Unconditional:
+    // must run on every boot, independent of streak state or the reset
+    // branch below.
+    cancelLegacyStreakWarningNotification().catch(console.error);
+
     // Check streak status on app launch
     const lastCompletedQuestTimestamp =
       useQuestStore.getState().lastCompletedQuestTimestamp;
     const characterStore = useCharacterStore.getState();
     const dailyQuestStreak = characterStore.dailyQuestStreak;
 
-    // First check if streak should be reset (24+ hours since last completion)
+    // Check if streak should be reset (24+ hours since last completion)
     if (lastCompletedQuestTimestamp && dailyQuestStreak > 0) {
       const now = Date.now();
       const hoursSinceLastCompletion =
@@ -365,27 +382,6 @@ function RootLayout() {
         console.log(
           'Streak reset: More than 24 hours since last quest completion'
         );
-        return; // No need to schedule warning if streak is already broken
-      }
-    }
-
-    // If streak is still active, check if we need to schedule a warning
-    if (dailyQuestStreak > 0) {
-      // Check if user has completed a quest today
-      const now = new Date();
-      const lastCompletionDate = lastCompletedQuestTimestamp
-        ? new Date(lastCompletedQuestTimestamp)
-        : null;
-
-      // If no quest completed today and there's an active streak, schedule warning
-      if (
-        !lastCompletionDate ||
-        lastCompletionDate.getDate() !== now.getDate() ||
-        lastCompletionDate.getMonth() !== now.getMonth() ||
-        lastCompletionDate.getFullYear() !== now.getFullYear()
-      ) {
-        // Only this part needs to be async
-        scheduleStreakWarningNotification().catch(console.error);
       }
     }
 
@@ -395,10 +391,17 @@ function RootLayout() {
     };
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
+  // Hide the splash from an effect, NOT from a layout event. expo-splash-screen
+  // 31.x (SDK 54) vetoes every draw until hideAsync() runs, and the previous
+  // trigger — GestureHandlerRootView's onLayout — never fires in release builds
+  // on Fabric, which froze 2.0.0/2.1.0 on the splash forever. Effects run after
+  // every commit, so this fires as soon as the readiness flags flip.
+  React.useEffect(() => {
     // Check all flags: hydration promise resolved, auth status is final, and fonts are loaded
     if (hydrationFinished && authStatus !== 'hydrating' && fontsLoaded) {
-      await SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch((e) => {
+        console.warn('Failed to hide splash screen:', e);
+      });
     }
   }, [hydrationFinished, authStatus, fontsLoaded]);
 
@@ -417,7 +420,7 @@ function RootLayout() {
 
   // Always render the Stack - let child layouts handle redirects
   return (
-    <Providers onLayout={onLayoutRootView}>
+    <Providers>
       <NavigationGate />
       <PostHogNavigationTracker />
       <Stack
@@ -473,6 +476,7 @@ function RootLayout() {
           name="cooperative-quest-ready"
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="no-hero" options={{ headerShown: false }} />
         <Stack.Screen
           name="scheduled-quest/index"
           options={{ headerShown: false }}
@@ -489,18 +493,13 @@ function RootLayout() {
           name="auth/magiclink/verify"
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="i/[code]" options={{ headerShown: false }} />
       </Stack>
     </Providers>
   );
 }
 
-function Providers({
-  children,
-  onLayout,
-}: {
-  children: React.ReactNode;
-  onLayout?: () => void;
-}) {
+function Providers({ children }: { children: React.ReactNode }) {
   const theme = useThemeConfig();
   return (
     <View className="flex-1 bg-background">
@@ -510,7 +509,6 @@ function Providers({
       >
         <GestureHandlerRootView
           className={theme.dark ? `dark flex-1` : undefined}
-          onLayout={onLayout}
         >
           <KeyboardProvider>
             <ThemeProvider value={theme}>
@@ -519,7 +517,6 @@ function Providers({
                   <LazyWebSocketProvider>
                     <BottomSheetModalProvider>
                       <ReducedMotionConfig mode={ReduceMotion.Never} />
-                      <UpdateNotificationBar />
                       {children}
                       <FlashMessage position="top" />
                     </BottomSheetModalProvider>

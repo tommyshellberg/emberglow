@@ -68,6 +68,11 @@ export function StatsCard({
   return (
     <View style={styles.grid}>
       <View
+        // Anchors the tile, not the digits, for the same reason as
+        // `streak-display` below: the tile sets `accessible`, so nothing
+        // inside it reaches the accessibility tree. The tile's own label
+        // (`N quests completed`) is what a flow can read.
+        testID="profile-stat-quests"
         style={styles.tile}
         accessible={true}
         accessibilityLabel={`${questCount} quests completed`}
@@ -82,6 +87,7 @@ export function StatsCard({
       </View>
 
       <View
+        testID="profile-stat-minutes"
         style={styles.tile}
         accessible={true}
         accessibilityLabel={`${minutesSaved} minutes saved`}
@@ -96,6 +102,10 @@ export function StatsCard({
       </View>
 
       <Pressable
+        // Anchors the tile, not the number: the count renders through
+        // `AnimatedNumber`, whose displayed value trails the prop during its
+        // count-up, so a testID on the digits would be read mid-animation.
+        testID="streak-display"
         style={styles.tile}
         onPress={() => router.push('/streak-celebration')}
         accessible={true}

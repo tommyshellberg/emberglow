@@ -1,78 +1,137 @@
 appId: com.vaedros.unquest
 ---
 # =============================================================================
-# ONBOARDING E2E TEST - PART 2: QUEST COMPLETION VERIFICATION
+# ONBOARDING E2E TEST - PART 2: QUEST COMPLETION AND ONBOARDING HAND-OFF
 # =============================================================================
-# This test verifies quest completion after the 10-second wait:
-#   1. Unlock phone
-#   2. Verify quest completion screen
-#   3. Check exact XP gained (50 XP)
-#   4. Verify level (Level 1)
-#   5. Complete account creation
-#   6. Verify email verification screen
+# Picks up exactly where part 1 stopped — phone locked, quest running:
+#   1. Unlock the phone, which is what makes QuestTimer settle the quest
+#   2. Verify the quest COMPLETED (not failed) and check its exact rewards
+#   3. Continue to the claim screen, verify the hero carried over at Level 2
 #
 # Prerequisites:
-#   - Part 1 must have completed successfully
-#   - Shell script must have waited 15 seconds
-#   - Quest should be completed
+#   - part 1 ran to its `pressKey: 'Lock'` and left the device locked
+#   - the runner waited out the quest duration (135s — see below)
+#
+# Anchored on testIDs wherever an anchor only has to identify a screen or a
+# control; the redesign rewrote nearly every string on these screens and
+# Maestro's text matching is case-sensitive full-string regex, so copy anchors
+# break on every visual pass. The remaining text assertions are deliberate:
+# they assert *values* (rewards, level, hero name), which is the point of the
+# flow, and no testID is threaded through `Badge` or the claim screen's hero
+# card to carry them.
+#
+# HOW LONG THE RUNNER MUST WAIT: 135s.
+# QuestTimer fails the quest when the phone is unlocked before
+# `questTemplate.durationMinutes` has elapsed (quest-timer.ts:634/836). The
+# onboarding quest's template comes from the *server's* next-available endpoint
+# (onboarding/first-quest.tsx:242 uses `questData.quests[0]`, not the local
+# AVAILABLE_QUESTS), and the server's dev override serves story quests as 2
+# minutes (quest-template.controller.js:32/259 — confirmed on device: the
+# persisted QUEST_TIMER_TEMPLATE carries `durationMinutes: 2`). So the unlock
+# must land after 120s. 135s leaves headroom for the unlock round trip.
+#
+# Do not shorten it on the grounds that the *recorded* run is only 60s. It is:
+# quest-run.controller.js:181 hardcodes `durationMinutes = 1` on the embedded
+# run in development, so Mongo holds a 60 000ms window and the server's
+# scheduler marks the run completed at 60s while the client is still counting to
+# 120s. Behaviour in that 60–120s gap is not something to rely on — one device
+# run unlocked at ~107s and showed Complete (the server's completion won), and
+# the same gap is what produced a "Quest Failed" screen for an already-completed
+# run during unit B's work. Only a wait past 120s satisfies both clocks.
 # =============================================================================
 
 # =============================================================================
-# UNLOCK PHONE AND VERIFY QUEST COMPLETION
+# UNLOCK THE PHONE
 # =============================================================================
-- pressKey: "Lock"
-
-# Swipe to unlock
-- swipe:
-    start: 50%, 80%
-    end: 50%, 20%
-    duration: 500
+# Part 1 ends with `pressKey: 'Lock'`, so this flow starts against a locked
+# device whose display has gone to sleep. A sleeping display takes one Home
+# press to wake and a second to dismiss the lock screen (there is no passcode),
+# but on an already-awake device the first press dismisses it outright — hence
+# the guard rather than two blind presses. Two blind presses would background
+# the app whenever the first one was enough.
+#
+# Both misfires of the guard are loud, not silent: if it fails to fire the
+# device stays locked, and if it fires wrongly the app drops to the springboard.
+# Either way the completion assert below finds nothing.
+- pressKey: 'Home'
+- runFlow:
+    when:
+      visible:
+        id: 'lockscreen-date-view'
+    commands:
+      - pressKey: 'Home'
 
 # =============================================================================
-# QUEST COMPLETION SCREEN - EXACT VALUE ASSERTIONS
+# QUEST COMPLETION SCREEN
+# =============================================================================
+# Unlocking is what settles the quest: QuestTimer.onPhoneUnlocked compares
+# elapsed lock time against the quest duration, then the resolver routes to
+# first-quest-result. Generous timeout — the completion round-trips to the
+# server before the screen renders.
+#
+# `quest-complete-header` is the outcome assertion, not just a screen anchor:
+# the failure branch of first-quest-result renders `FailedQuest`, which shares
+# no testID with `QuestComplete`. If the quest failed, this wait is what fails.
+- extendedWaitUntil:
+    visible:
+      id: 'quest-complete-header'
+    timeout: 45000
+
+# Exact reward values, all traceable to checked-in data — a reward or duration
+# change should fail this flow rather than pass quietly.
+#   +100 XP     quest-1's flat `reward: { xp: 100 }` (app/data/quests.ts:36).
+#               `\+` is escaped because these selectors are regexes and a
+#               leading `+` is a dangling quantifier.
+#   2 MIN       `questDuration(3)` returning 2 in dev (app/data/quests.ts:25);
+#               this screen reads the *local* template, unlike the timer above.
+#   COMPLETE    the success-tone badge. Badge uppercases its own text, so these
+#               are the strings as the accessibility tree reports them.
+- assertVisible: '\+100 XP'
+- assertVisible: '2 MIN OFFLINE'
+- assertVisible: 'COMPLETE'
+
+# =============================================================================
+# CONTINUE TO THE CLAIM SCREEN
+# =============================================================================
+# The action stack sits below the fold, under the 300pt art header and the
+# story card.
+- scrollUntilVisible:
+    element:
+      id: 'quest-actions-container'
+    direction: DOWN
+    timeout: 15000
+
+# `quest-actions-container` wraps exactly one button here ("Continue Your
+# Journey"): QuestCompleteActions suppresses the reflection button for
+# quest-1 (ONBOARDING_QUEST_ID). Should that ever change, the container's
+# centre would land between two buttons — which the assert below catches,
+# since a mis-tap cannot reach the claim screen.
+- tapOn:
+    id: 'quest-actions-container'
+- waitForAnimationToEnd
+
+# =============================================================================
+# CLAIM SCREEN — ONBOARDING COMPLETE
 # =============================================================================
 - extendedWaitUntil:
-    visible: 'Quest Complete'
-    timeout: 10000
+    visible:
+      id: 'create-account-button'
+    timeout: 15000
 
-# Verify exact XP reward
-- assertVisible:
-    text: '50'
-    below: 'XP Gained'
-
-# Verify level (should still be Level 1 after first quest)
-- assertVisible: 'Level 1'
-
-- tapOn: 'Continue'
-
-# =============================================================================
-# SIGNUP SCREEN
-# =============================================================================
-- assertVisible: 'Create Account'
-- assertVisible: 'Save your progress'
-
-# Generate unique email with timestamp
-- tapOn: 'Email'
-- inputText: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
-- tapOn: 'Create Account'
+# The hero survived the quest with the right identity and progression:
+#   MaestroHero  full-string match, so it also catches the trailing space the
+#                keyboard used to type into the name field (see part 1).
+#   LEVEL 2      quest-1's 100 XP lands exactly on level 2's boundary
+#                (level-progression totalXPRequired: L2 = 100, non-strict
+#                compare in character-store.ts:85). The hero card uppercases
+#                this line, and it also carries the character class, hence the
+#                wildcards.
+- assertVisible: 'MaestroHero'
+- assertVisible: '.*LEVEL 2.*'
 
 # =============================================================================
-# EMAIL VERIFICATION SCREEN
+# END OF PART 2
 # =============================================================================
-- assertVisible: 'Check your email'
-- assertVisible: 'test-${TEST_EMAIL_TIMESTAMP}@unquest.test'
-
-# =============================================================================
-# ONBOARDING COMPLETE
-# =============================================================================
-# Successfully completed full onboarding flow!
-#
-# User State:
-#   - Provisional user created
-#   - 1 quest completed ("Wake up")
-#   - Level 1
-#   - 50 XP gained
-#   - Day 1 streak started
-#   - Email: test-${TEST_EMAIL_TIMESTAMP}@unquest.test
-#
-# Next Step: Convert provisional user to full user via database script (part of phase 2)
+# Onboarding is done: one quest completed, hero at level 2, sitting on the
+# claim screen with signup not yet attempted. Signup is phase 2 —
+# see flows/02-signup/.

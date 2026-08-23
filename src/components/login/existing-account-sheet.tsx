@@ -1,0 +1,209 @@
+import * as React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import {
+  BottomSheet,
+  Button,
+  useEmberglowBottomSheet,
+} from '@/components/emberglow';
+import type { ExistingAccountSummary } from '@/lib/auth/social';
+import { colors, radii, spacing } from '@/theme';
+
+import { cardBody, cardMeta, cardTitle } from './text-styles';
+
+const META_SEPARATOR = ' · ';
+
+export type ExistingAccountSheetProps = {
+  /** Controlled visibility — the caller flips this; the sheet translates it
+   * into the imperative present/dismiss `@gorhom/bottom-sheet` needs. */
+  visible: boolean;
+  /** The hero the colliding account already owns, straight off the wire. */
+  account: ExistingAccountSummary;
+  /** The user accepts: sign into the older account, abandoning the hero they
+   * just created. This sheet does not act on that — it only reports it. */
+  onConfirm: () => void;
+  /** The user backs out, by the text link OR by swiping the sheet away /
+   * tapping the backdrop. All three mean the same thing: keep the new hero. */
+  onDismiss: () => void;
+};
+
+/**
+ * Renders the level/streak line as "Level 7 · 12 day streak", built only from
+ * the fields the summary actually carries.
+ *
+ * Every field is optional (see `ExistingAccountSummary`), and a missing one is
+ * NOT defaulted. Today's server always sends all three with its own fallbacks
+ * applied (`resolve-user.js`: `character?.level || 1`, `dailyQuestStreak || 0`),
+ * so the risk being handled is version skew — an older or newer server, or a
+ * client that outlives this payload shape. When that happens, inventing
+ * "Level 1" would state something about the user's account that nothing told us,
+ * and it would be indistinguishable from the server's real `|| 1`. Absent is
+ * dropped; present is shown.
+ *
+ * Returns null when there is nothing to say, so the caller can skip the line
+ * rather than render an empty row.
+ */
+function formatAccountMeta(account: ExistingAccountSummary): string | null {
+  const parts: string[] = [];
+
+  // `typeof` rather than `!== undefined`: JSON nulls are reachable in a way the
+  // TS type doesn't express, and "Level null" is a shipped-copy bug.
+  if (typeof account.level === 'number') {
+    parts.push(`Level ${account.level}`);
+  }
+
+  const streak = account.dailyQuestStreak;
+  if (typeof streak === 'number') {
+    // 0 is a legitimate value the server sends (`dailyQuestStreak || 0`), not a
+    // stand-in for "unknown" — but "0 day streak" reads like a bug.
+    parts.push(streak === 0 ? 'No streak yet' : `${streak} day streak`);
+  }
+
+  return parts.length > 0 ? parts.join(META_SEPARATOR) : null;
+}
+
+/**
+ * Confirmation sheet for the existing-account collision: the social identity
+ * the user just verified already owns a full account, and signing into it
+ * discards the provisional hero they created minutes ago. The client overwrites
+ * its local character store from the server, so without this gate the swap is
+ * invisible until after it has happened.
+ *
+ * Purely presentational: it renders the choice and reports it. The caller owns
+ * the credential replay, the analytics and the visibility state.
+ */
+export function ExistingAccountSheet({
+  visible,
+  account,
+  onConfirm,
+  onDismiss,
+}: ExistingAccountSheetProps) {
+  const { ref, present, dismiss } = useEmberglowBottomSheet();
+  const hasPresented = React.useRef(false);
+
+  // Single source of truth for present/dismiss, driven by the controlled
+  // `visible` prop (same bridge as JoinGuildModal). Every close path — the text
+  // link, a swipe, the backdrop — flips `visible` via `onDismiss` and lets this
+  // effect do the actual closing.
+  React.useEffect(() => {
+    if (visible && !hasPresented.current) {
+      present();
+      hasPresented.current = true;
+    } else if (!visible && hasPresented.current) {
+      // Cleared before `dismiss()` so `handleSheetDismiss` sees a close it
+      // should stay quiet about. Ordering only bites on the library's
+      // synchronous dismiss path (BottomSheetModal.tsx:279-289); the usual path
+      // calls back an animation later, by which time either order has run.
+      hasPresented.current = false;
+      dismiss();
+    }
+  }, [visible, present, dismiss]);
+
+  // Fires for EVERY close, not just the user's: the modal's `unmount()` calls
+  // the provided onDismiss for programmatic dismisses too
+  // (BottomSheetModal.tsx:106-133), normally one close animation later via
+  // `runOnJS`. So this flag is the only thing separating "the user swiped it
+  // away or tapped the backdrop", which the caller must hear about, from "we
+  // closed it ourselves" — which it must not, or the close that follows a
+  // successful `onConfirm` would report a user back-out a few hundred ms after
+  // the sign-in succeeded.
+  const handleSheetDismiss = React.useCallback(() => {
+    if (hasPresented.current) {
+      // Cleared here too, because this sheet is now closed and the caller
+      // answers by flipping `visible` off: left set, the effect above would
+      // fire a SECOND dismiss() at an unmounted modal. That one takes the async
+      // branch (after `unmount()` the status is INITIAL, not CLOSED), parks the
+      // status at DISMISSING and then no-ops on a null inner ref — after which
+      // `handlePortalRender` (:399-415) drops every later render and the sheet
+      // silently never opens again.
+      hasPresented.current = false;
+      onDismiss();
+    }
+  }, [onDismiss]);
+
+  const name = account.name?.trim();
+  const meta = formatAccountMeta(account);
+
+  return (
+    <BottomSheet
+      ref={ref}
+      title="You already have a hero"
+      onDismiss={handleSheetDismiss}
+    >
+      {/* An empty summary is reachable: `socialSignIn` throws with
+          `details.account ?? {}`, so a server that sent no account payload
+          would otherwise leave an empty bordered card on the sheet. */}
+      {name || meta ? (
+        <View testID="existing-account-summary" style={styles.identityCard}>
+          {name ? (
+            <Text testID="existing-account-name" style={styles.name}>
+              {name}
+            </Text>
+          ) : null}
+          {meta ? (
+            <Text testID="existing-account-meta" style={styles.meta}>
+              {meta}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      <Text style={styles.body}>
+        Signing in restores this hero. The one you just created was one quest
+        old and won't be kept.
+      </Text>
+
+      <View style={styles.actions}>
+        <Button
+          testID="existing-account-confirm"
+          // The sole action on this sheet, so it takes the one ember primary.
+          variant="primary"
+          fullWidth
+          // Never "Continue as " — a blank name is reachable straight off the
+          // wire (`character?.name || ''`), and this is the only action here.
+          label={name ? `Continue as ${name}` : 'Continue to your account'}
+          onPress={onConfirm}
+          accessibilityHint="Signs into your existing account and discards the hero you just created"
+        />
+        <Button
+          testID="existing-account-use-different"
+          variant="ghost"
+          fullWidth
+          label="Use a different account"
+          onPress={onDismiss}
+          accessibilityHint="Keeps the hero you just created and closes this sheet"
+        />
+      </View>
+    </BottomSheet>
+  );
+}
+
+const styles = StyleSheet.create({
+  identityCard: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.fill.faint,
+    borderRadius: radii.lg,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[4],
+  },
+  name: {
+    ...cardTitle,
+    textAlign: 'center',
+  },
+  meta: {
+    ...cardMeta,
+    textAlign: 'center',
+    marginTop: spacing[1],
+  },
+  body: {
+    ...cardBody,
+    textAlign: 'center',
+    marginTop: spacing[4],
+  },
+  actions: {
+    marginTop: spacing[5],
+    gap: spacing[2],
+  },
+});

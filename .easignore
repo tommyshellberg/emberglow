@@ -1,0 +1,93 @@
+# .easignore REPLACES .gitignore for EAS archive decisions — it must contain
+# everything .gitignore ignores, plus build-irrelevant extras. Keep the first
+# section in sync with .gitignore. See emberglow#365.
+
+# ── Mirrored from .gitignore ────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.pem
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+build/
+*.apk
+*.aab
+*.xcodeworkspace
+*.xcworkspace
+*.xcuserdata
+*.xcuserdatad
+*.keystore
+# debug keystore is committed and needed for debug-signed builds
+!android/app/debug.keystore
+
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*.cursorrules
+
+.env
+.env.*
+!.env.example
+
+*.tsbuildinfo
+coverage/
+.log/
+logs/
+.env.local
+
+credentials/
+credentials.json
+
+CLAUDE.md
+docs/
+.superpowers/
+.worktrees/
+.claude/tdd-guard/
+modules/**/android/.gradle/
+
+# ── Mirrored from ios/.gitignore + android/.gitignore (nested .gitignores are
+#    NOT read by EAS once a root .easignore exists) ─────────────────────────
+ios/Pods/
+android/app/.cxx/
+android/.gradle/
+DerivedData/
+*.jsbundle
+*.hprof
+local.properties
+.xcode.env.local
+
+# ── Extra exclusions: tracked in git but not needed to build ────────────────
+# Design-skill assets and reference screenshots (~23 MB)
+emberglow-design/
+
+# E2E flows, mocks, and repo tooling never touched by the EAS build
+.maestro/
+__mocks__/
+prompts/
+.github/
+.husky/
+.jest/
+.claude/
+
+# Version control metadata
+.git/

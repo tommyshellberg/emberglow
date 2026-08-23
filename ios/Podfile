@@ -24,6 +24,20 @@ prepare_react_native_project!
 target 'Emberglow' do
   use_expo_modules!
 
+  # Required by @react-native-google-signin/google-signin: its Swift pod
+  # dependency chain (AppCheckCore -> GoogleUtilities, RecaptchaInterop)
+  # doesn't define modules, so CocoaPods can't integrate them as static
+  # libraries without module maps. Scoped to just these pods (rather than a
+  # target-wide use_modular_headers!) to keep the blast radius off unrelated
+  # pods like Sentry/RevenueCat/OneSignal/Reanimated.
+  pod 'AppCheckCore', :modular_headers => true
+  # Subspec-scoped (not the bare `GoogleUtilities` pod) so CocoaPods doesn't
+  # pull in its full default_subspecs (AppDelegateSwizzler, Network, etc.) —
+  # :modular_headers applies to the whole pod target regardless of which
+  # subspec triggers it, and Environment is already required transitively.
+  pod 'GoogleUtilities/Environment', :modular_headers => true
+  pod 'RecaptchaInterop', :modular_headers => true
+
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else

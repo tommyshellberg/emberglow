@@ -14,10 +14,6 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import { useLeaderboardStats } from '@/api/stats';
 import { Button } from '@/components/emberglow';
 import {
-  ContactsImportModal,
-  type ContactsImportModalRef,
-} from '@/components/profile/contact-import';
-import {
   FocusAwareStatusBar,
   ScreenContainer,
   ScreenHeader,
@@ -39,6 +35,7 @@ import {
 import { useLeaderboardData } from '@/features/leaderboard/hooks/use-leaderboard-data';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { useProfileData } from '@/lib/hooks/use-profile-data';
+import { useInviteShare } from '@/lib/invite/use-invite-share';
 import { useCharacterStore } from '@/store/character-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useUserStore } from '@/store/user-store';
@@ -48,12 +45,11 @@ export default function LeaderboardScreen() {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<LeaderboardType>('quests');
   const [scope, setScope] = useState<ScopeType>('global');
-  const contactsModalRef = React.useRef<ContactsImportModalRef>(null);
 
   // Get user's data
   const { userEmail } = useProfileData();
-  const { friendsData, isLoadingFriends, sendBulkInvites } =
-    useFriendManagement(userEmail, contactsModalRef);
+  const { friendsData, isLoadingFriends } = useFriendManagement(userEmail);
+  const { shareInvite } = useInviteShare('leaderboard');
 
   // Get current user data from stores
   const currentUserId = useUserStore((state) => state.user?.id);
@@ -98,9 +94,9 @@ export default function LeaderboardScreen() {
   const hasFriends =
     friendsData && friendsData.friends && friendsData.friends.length > 0;
 
-  // Handle invite friends
+  // Handle invite friends: the one invite path, sharing the caller's link.
   const handleInviteFriends = () => {
-    contactsModalRef.current?.present();
+    void shareInvite();
   };
 
   // Handle retry
@@ -115,6 +111,7 @@ export default function LeaderboardScreen() {
         <FocusAwareStatusBar />
         <ScreenContainer>
           <ScreenHeader
+            testID="leaderboard-loading"
             title={STRINGS.title}
             subtitle={STRINGS.subtitle}
             showBackButton
@@ -138,6 +135,7 @@ export default function LeaderboardScreen() {
         <FocusAwareStatusBar />
         <ScreenContainer>
           <ScreenHeader
+            testID="leaderboard-error"
             title={STRINGS.title}
             subtitle={STRINGS.subtitle}
             showBackButton
@@ -175,6 +173,7 @@ export default function LeaderboardScreen() {
       <ScreenContainer>
         {/* Header */}
         <ScreenHeader
+          testID="leaderboard-screen"
           title={STRINGS.title}
           subtitle={STRINGS.subtitle}
           showBackButton
@@ -257,14 +256,6 @@ export default function LeaderboardScreen() {
           )}
         </ScrollView>
       </ScreenContainer>
-
-      {/* Invite Friend Modal */}
-      <ContactsImportModal
-        ref={contactsModalRef}
-        sendBulkInvites={sendBulkInvites}
-        friends={friendsData?.friends || []}
-        userEmail={userEmail}
-      />
     </View>
   );
 }

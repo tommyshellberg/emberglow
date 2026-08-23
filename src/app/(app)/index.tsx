@@ -15,8 +15,10 @@ import Animated, {
 import { useResetStoryline } from '@/api/quest';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import { Badge, Button } from '@/components/emberglow';
+import { InviteConfirmModal } from '@/components/invite/invite-confirm-modal';
 import { BranchingStoryAnnouncementModal } from '@/components/modals/branching-story-announcement-modal';
 import { GuildsAnnouncementModal } from '@/components/modals/guilds-announcement-modal';
+import { NarratorVoiceAnnouncementModal } from '@/components/modals/narrator-voice-announcement-modal';
 import { SkillTreeAnnouncementModal } from '@/components/modals/skill-tree-announcement-modal';
 import { PremiumPaywall } from '@/components/paywall';
 import { StreakCounter } from '@/components/StreakCounter';
@@ -45,6 +47,7 @@ import { useStoryOptions } from '@/features/home/hooks/use-story-options';
 import { useAudioPreloader } from '@/hooks/use-audio-preloader';
 import { useServerQuests } from '@/hooks/use-server-quests';
 import { usePremiumAccess } from '@/lib/hooks/use-premium-access';
+import { checkInviteMatch } from '@/lib/invite/check-invite-match';
 import QuestTimer from '@/lib/services/quest-timer';
 import { refreshPremiumStatus as refreshServerPremium } from '@/lib/services/user';
 import {
@@ -54,8 +57,141 @@ import {
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
+import type { User } from '@/store/types';
 import { useUserStore } from '@/store/user-store';
 import { shadows } from '@/theme';
+
+/**
+ * Refreshes premium entitlement once, on mount.
+ *
+ * Extracted from `Home` because that component sat at exactly the 500-line
+ * `max-lines-per-function` limit, so the next line added anywhere inside it —
+ * a `testID`, in the event — tipped it over. Lifting a self-contained effect
+ * out is a smaller change than reformatting the component, and the effect
+ * reads better named than as an anonymous block halfway down a 500-line body.
+ *
+ * The RevenueCat side is cached and offline-tolerant by the SDK. The server
+ * side is marked TEMPORARY by its original author and is a known nuisance for
+ * provisional users, who 401 on it every time and burn refresh budget doing so
+ * — see SHE-29. It stays for now because `refreshPremiumStatus` has only one
+ * other caller (the post-purchase paywall), so removing it would strand
+ * premium granted out of band. Now that it lives here, guarding it is a
+ * one-line change.
+ */
+function usePremiumRefreshOnMount(refreshPremiumStatus: () => void) {
+  useEffect(() => {
+    refreshPremiumStatus();
+
+    refreshServerPremium().catch((error) => {
+      console.error('[Home] Server premium refresh error:', error);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+/**
+ * Feature-announcement modal refs plus the once-per-day gating effect that
+ * decides which (if any) to present.
+ *
+ * Extracted from `Home` for the same reason as `usePremiumRefreshOnMount`
+ * above: the component crept past the 500-line `max-lines-per-function`
+ * limit again once the narrator-voice announcement wiring landed. This block
+ * is self-contained — it reads only what its caller passes in and returns
+ * only the four modal refs `Home` renders. Gating and the once-per-day
+ * throttle itself still live in the announcement store (see
+ * `getAnnouncementToShow`).
+ */
+function useFeatureAnnouncementSheets({
+  hasCompletedFirstBranch,
+  user,
+  completedQuestsLength,
+  availablePerksLength,
+}: {
+  hasCompletedFirstBranch: boolean;
+  user: User | null;
+  completedQuestsLength: number;
+  availablePerksLength: number;
+}) {
+  const branchingModal = useModal();
+  const skillTreeModal = useModal();
+  const guildsModal = useModal();
+  const narratorVoiceModal = useModal();
+
+  const hasSeenBranchingAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenBranchingAnnouncement
+  );
+  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenSkillTreeAnnouncement
+  );
+  const hasSeenGuildsAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenGuildsAnnouncement
+  );
+  const hasSeenNarratorVoiceAnnouncement = useAnnouncementStore(
+    (state) => state.hasSeenNarratorVoiceAnnouncement
+  );
+  const lastAnnouncementShownAt = useAnnouncementStore(
+    (state) => state.lastAnnouncementShownAt
+  );
+  const markAnnouncementShown = useAnnouncementStore(
+    (state) => state.markAnnouncementShown
+  );
+
+  // Decide which feature announcement (if any) to surface, honoring the
+  // once-per-day cap. Previously three independent effects that could stack all
+  // three sheets in one session; now a single selector-driven effect.
+  useEffect(() => {
+    const which = getAnnouncementToShow(
+      {
+        hasSeenBranchingAnnouncement,
+        hasSeenSkillTreeAnnouncement,
+        hasSeenGuildsAnnouncement,
+        hasSeenNarratorVoiceAnnouncement,
+        lastAnnouncementShownAt,
+      },
+      {
+        hasCompletedFirstBranch,
+        isRegistered: !!user && !user.isProvisional,
+        completedQuestCount: completedQuestsLength,
+        availablePerksCount: availablePerksLength,
+      }
+    );
+
+    if (!which) return;
+
+    const modalByKey = {
+      branching: branchingModal,
+      skillTree: skillTreeModal,
+      guilds: guildsModal,
+      narratorVoice: narratorVoiceModal,
+    };
+
+    // Delay slightly to let the screen settle, then present and stamp the
+    // throttle so nothing else shows today.
+    const timer = setTimeout(() => {
+      modalByKey[which].present();
+      markAnnouncementShown();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [
+    hasSeenBranchingAnnouncement,
+    hasSeenSkillTreeAnnouncement,
+    hasSeenGuildsAnnouncement,
+    hasSeenNarratorVoiceAnnouncement,
+    lastAnnouncementShownAt,
+    hasCompletedFirstBranch,
+    user,
+    completedQuestsLength,
+    availablePerksLength,
+    branchingModal,
+    skillTreeModal,
+    guildsModal,
+    narratorVoiceModal,
+    markAnnouncementShown,
+  ]);
+
+  return { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal };
+}
 
 export default function Home() {
   const activeQuest = useQuestStore((state) => state.activeQuest);
@@ -65,9 +201,20 @@ export default function Home() {
   );
   const availableQuests = useQuestStore((state) => state.availableQuests);
 
-  // Premium access state
+  // Consume any stashed invite code. Every auth path — fresh onboarding,
+  // sign-in to an existing account, Google-first signup, a guest session —
+  // lands here, so this is the one consumer a stashed code can rely on.
+  // checkInviteMatch never throws and no-ops without a stash once the
+  // once-per-install fingerprint match has run.
+  useEffect(() => {
+    void checkInviteMatch();
+  }, []);
+
+  // Premium access state — one hook instance for the whole screen (the
+  // entitlement itself is shared app-wide via the premium-access store).
   const [showPaywallModal, setShowPaywallModal] = useState(false);
-  const { handlePaywallSuccess } = usePremiumAccess();
+  const { hasPremiumAccess, handlePaywallSuccess, refreshPremiumStatus } =
+    usePremiumAccess();
 
   // Deck state with paywall reset. Item count is tied to QUEST_MODES
   // (always the 3 fixed modes), not carouselData.length, so this hook can
@@ -81,29 +228,6 @@ export default function Home() {
     },
   });
 
-  // Home-screen feature announcements. Gating + the once-per-day throttle live
-  // in the announcement store (see getAnnouncementToShow); these three refs are
-  // the sheets this screen presents.
-  const branchingModal = useModal();
-  const skillTreeModal = useModal();
-  const guildsModal = useModal();
-
-  const hasSeenBranchingAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenBranchingAnnouncement
-  );
-  const hasSeenSkillTreeAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenSkillTreeAnnouncement
-  );
-  const hasSeenGuildsAnnouncement = useAnnouncementStore(
-    (state) => state.hasSeenGuildsAnnouncement
-  );
-  const lastAnnouncementShownAt = useAnnouncementStore(
-    (state) => state.lastAnnouncementShownAt
-  );
-  const markAnnouncementShown = useAnnouncementStore(
-    (state) => state.markAnnouncementShown
-  );
-
   const completedQuests = useQuestStore((state) => state.completedQuests);
   // First branching quest (quest-1a or quest-1b) unlocks the restart offer.
   const hasCompletedFirstBranch = completedQuests.some(
@@ -113,6 +237,18 @@ export default function Home() {
   const availablePerks = useSkillTreeStore((state) =>
     state.getAvailablePerksToUnlock()
   );
+
+  // Home-screen feature announcements. Gating + the once-per-day throttle live
+  // in the announcement store (see getAnnouncementToShow); useFeatureAnnouncementSheets
+  // owns the modal refs and the selection effect, and returns the refs this
+  // screen presents.
+  const { branchingModal, skillTreeModal, guildsModal, narratorVoiceModal } =
+    useFeatureAnnouncementSheets({
+      hasCompletedFirstBranch,
+      user,
+      completedQuestsLength: completedQuests.length,
+      availablePerksLength: availablePerks.length,
+    });
 
   // Use server-driven quests
   const {
@@ -243,56 +379,6 @@ export default function Home() {
     }
   }, [activeQuest]);
 
-  // Decide which feature announcement (if any) to surface, honoring the
-  // once-per-day cap. Previously three independent effects that could stack all
-  // three sheets in one session; now a single selector-driven effect.
-  useEffect(() => {
-    const which = getAnnouncementToShow(
-      {
-        hasSeenBranchingAnnouncement,
-        hasSeenSkillTreeAnnouncement,
-        hasSeenGuildsAnnouncement,
-        lastAnnouncementShownAt,
-      },
-      {
-        hasCompletedFirstBranch,
-        isRegistered: !!user && !user.isProvisional,
-        completedQuestCount: completedQuests.length,
-        availablePerksCount: availablePerks.length,
-      }
-    );
-
-    if (!which) return;
-
-    const modalByKey = {
-      branching: branchingModal,
-      skillTree: skillTreeModal,
-      guilds: guildsModal,
-    };
-
-    // Delay slightly to let the screen settle, then present and stamp the
-    // throttle so nothing else shows today.
-    const timer = setTimeout(() => {
-      modalByKey[which].present();
-      markAnnouncementShown();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [
-    hasSeenBranchingAnnouncement,
-    hasSeenSkillTreeAnnouncement,
-    hasSeenGuildsAnnouncement,
-    lastAnnouncementShownAt,
-    hasCompletedFirstBranch,
-    user,
-    completedQuests.length,
-    availablePerks.length,
-    branchingModal,
-    skillTreeModal,
-    guildsModal,
-    markAnnouncementShown,
-  ]);
-
   // Refresh available quests when there's no active quest
   // Only use local refresh if server quests aren't being used
   useEffect(() => {
@@ -311,27 +397,7 @@ export default function Home() {
     contentTranslateY.value = withDelay(1000, withSpring(0));
   }, [contentOpacity, contentTranslateY, headerOpacity]);
 
-  // Check premium access for cooperative quests
-  const {
-    hasPremiumAccess: hasCoopAccess,
-    checkPremiumAccess: _checkPremiumAccess,
-    refreshPremiumStatus,
-  } = usePremiumAccess();
-
-  // Also get hasPremiumAccess without renaming for use in other places
-  const { hasPremiumAccess } = usePremiumAccess();
-
-  // Check premium status on mount
-  // RevenueCat SDK handles caching and offline scenarios automatically
-  useEffect(() => {
-    refreshPremiumStatus();
-
-    // TEMPORARY: Force refresh server premium status on app load for testing
-    // TODO: Remove this after testing
-    refreshServerPremium().catch((error) => {
-      console.error('[Home] Server premium refresh error:', error);
-    });
-  }, []);
+  usePremiumRefreshOnMount(refreshPremiumStatus);
 
   // Animated background style based on carousel progress
   const backgroundStyle = useAnimatedStyle(() => {
@@ -423,6 +489,7 @@ export default function Home() {
             floating over the background, so the title's flex-1 box shrinks to
             meet it instead of growing underneath it. */}
         <ScreenHeader
+          testID="home-header"
           title="Choose an Adventure"
           rightComponent={<StreakCounter size="small" />}
         />
@@ -472,6 +539,7 @@ export default function Home() {
                   style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
                   <Button
+                    testID="create-custom-quest-button"
                     label="Create Custom Quest"
                     onPress={handleStartCustomQuest}
                     variant="primary"
@@ -486,24 +554,27 @@ export default function Home() {
                 entering={FadeIn.duration(600).delay(200)}
                 className="w-full items-center px-4"
               >
-                {!hasCoopAccess && <PremiumCTATracker type="cooperative" />}
+                {!hasPremiumAccess && <PremiumCTATracker type="cooperative" />}
                 <Animated.View
                   entering={FadeInDown.duration(600).delay(400)}
                   style={[{ width: CARD_WIDTH }, shadows.card]}
                 >
-                  {!hasCoopAccess && (
+                  {!hasPremiumAccess && (
                     <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}>
                       <Badge tone="warm">Premium</Badge>
                     </View>
                   )}
                   <Button
+                    // One id for both labels: the flow should not have to
+                    // know whether the account has premium co-op access.
+                    testID="create-coop-quest-button"
                     label={
-                      hasCoopAccess
+                      hasPremiumAccess
                         ? 'Cooperative Quests'
                         : 'Unlock Cooperative Mode'
                     }
                     onPress={() => {
-                      if (hasCoopAccess) {
+                      if (hasPremiumAccess) {
                         handleCooperativeQuest();
                       } else {
                         posthog.capture('premium_upsell_cta_clicked', {
@@ -535,11 +606,8 @@ export default function Home() {
         onSuccess={async () => {
           setShowPaywallModal(false);
 
-          // Force refresh premium status
-          await refreshPremiumStatus();
-
-          // Call the hook's success handler
-          handlePaywallSuccess();
+          // Re-check entitlements and update the shared premium store
+          await handlePaywallSuccess();
 
           // Refresh quests to update premium access
           refreshAvailableQuests();
@@ -554,6 +622,12 @@ export default function Home() {
 
       {/* Guilds Announcement Modal */}
       <GuildsAnnouncementModal ref={guildsModal.ref} />
+
+      {/* Narrator Voice Announcement Modal */}
+      <NarratorVoiceAnnouncementModal ref={narratorVoiceModal.ref} />
+
+      {/* Invite confirm modal — self-hides until an invite is pending */}
+      <InviteConfirmModal />
     </View>
   );
 }

@@ -1,13 +1,10 @@
+import * as Sentry from '@sentry/react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { queryClient } from '@/api/common';
 import type { QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
-import {
-  cancelStreakWarningNotification,
-  scheduleStreakWarningNotification,
-} from '@/lib/services/notifications';
 import QuestTimer from '@/lib/services/quest-timer';
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { usePOIStore } from '@/store/poi-store';
@@ -226,6 +223,12 @@ export const useQuestStore = create<QuestState>()(
       cooperativeQuestRun: null,
       pendingInvitations: [],
       prepareQuest: (quest: LocalQuestTemplate) => {
+        Sentry.addBreadcrumb({
+          category: 'quest',
+          message: 'quest.prepare',
+          level: 'info',
+          data: { questId: quest.id, mode: quest.mode },
+        });
         const currentCooperativeQuestRun = get().cooperativeQuestRun;
         // Only clear cooperative quest data when preparing a non-cooperative quest
         // A quest is cooperative if mode is 'cooperative' OR if it's a custom quest with cooperative category
@@ -247,6 +250,12 @@ export const useQuestStore = create<QuestState>()(
       },
 
       startQuest: (quest: Quest) => {
+        Sentry.addBreadcrumb({
+          category: 'quest',
+          message: 'quest.start',
+          level: 'info',
+          data: { questId: quest.id, mode: quest.mode },
+        });
         const startedQuest = {
           ...quest,
           startTime: Date.now(),
@@ -257,6 +266,12 @@ export const useQuestStore = create<QuestState>()(
       completeQuest: async (ignoreDuration = false) => {
         const { activeQuest, lastCompletedQuestTimestamp } = get();
         if (activeQuest && activeQuest.startTime) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.complete',
+            level: 'info',
+            data: { questId: activeQuest.id, mode: activeQuest.mode },
+          });
           const completionTime = Date.now();
           const duration = (completionTime - activeQuest.startTime) / 1000;
 
@@ -279,19 +294,13 @@ export const useQuestStore = create<QuestState>()(
               // where we have access to the posthog instance
             }
 
-            // Check if this is the first quest completed today
-            const isFirstQuestOfTheDay = (() => {
-              if (!lastCompletedQuestTimestamp) return true;
-
-              const lastDate = new Date(lastCompletedQuestTimestamp);
-              const now = new Date(completionTime);
-
-              return (
-                lastDate.getDate() !== now.getDate() ||
-                lastDate.getMonth() !== now.getMonth() ||
-                lastDate.getFullYear() !== now.getFullYear()
-              );
-            })();
+            // Derived from the quest itself (not cooperativeQuestRun state) so
+            // it holds on the background-task completion path too. Mirrors
+            // prepareQuest's definition of a cooperative quest.
+            const isCooperativeQuest =
+              activeQuest.mode === 'cooperative' ||
+              (activeQuest.mode === 'custom' &&
+                activeQuest.category === 'cooperative');
 
             const characterStore = useCharacterStore.getState();
             characterStore.updateStreak(lastCompletedQuestTimestamp);
@@ -391,21 +400,14 @@ export const useQuestStore = create<QuestState>()(
               queryKey: ['next-available-quests'] as const,
             });
 
-            // If this is the first quest completed today, cancel today's warning
-            // and schedule tomorrow's warning
-            if (isFirstQuestOfTheDay) {
-              cancelStreakWarningNotification()
-                .then(() => scheduleStreakWarningNotification(true))
-                .catch((err) =>
-                  console.error('Error scheduling streak notifications:', err)
-                );
-            }
-
-            // Reward enrichment is best-effort and must stay BELOW the set()
-            // above: NavigationGate routes on recentCompletedQuest, and this
-            // fetch goes out while the phone may still be locked — it can
-            // stall long past the point the background service is torn down.
-            if (questRunId) {
+            // Reward enrichment only populates per-participant rewards, which
+            // is a cooperative-quest concern — solo quests already have their
+            // reward set locally above, so skip the fetch entirely for them.
+            // (It's also best-effort and stays BELOW the set() above:
+            // NavigationGate routes on recentCompletedQuest, and this fetch
+            // goes out while the phone may still be locked — it can stall long
+            // past the point the background service is torn down.)
+            if (questRunId && isCooperativeQuest) {
               try {
                 console.log(
                   '[QuestStore] Fetching quest run data to get rewards:',
@@ -486,6 +488,12 @@ export const useQuestStore = create<QuestState>()(
       cancelQuest: () => {
         const { activeQuest, pendingQuest, cooperativeQuestRun } = get();
         if (activeQuest || pendingQuest) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.cancel',
+            level: 'info',
+            data: { questId: (activeQuest ?? pendingQuest)?.id },
+          });
           // End any active live activity when quest is canceled
           QuestTimer.stopQuest();
           set({
@@ -509,6 +517,12 @@ export const useQuestStore = create<QuestState>()(
         const { activeQuest, pendingQuest } = get();
         const failedQuestDetails = activeQuest || pendingQuest;
         if (failedQuestDetails) {
+          Sentry.addBreadcrumb({
+            category: 'quest',
+            message: 'quest.fail',
+            level: 'info',
+            data: { questId: failedQuestDetails.id },
+          });
           QuestTimer.stopQuest();
 
           // Ensure all required fields for Quest are present

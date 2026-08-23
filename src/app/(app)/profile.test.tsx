@@ -3,8 +3,17 @@ import React from 'react';
 
 import type { Perk } from '@/api/skill-tree/types';
 import * as userService from '@/lib/services/user';
-import { cleanup, render, screen, setup, waitFor } from '@/lib/test-utils';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  setup,
+  waitFor,
+} from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
+import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 import { useSkillTreeStore } from '@/store/skill-tree-store';
 import { useUserStore } from '@/store/user-store';
@@ -28,6 +37,7 @@ jest.mock('lucide-react-native', () => ({
   TrendingUp: () => null,
   Sparkles: () => null,
   ChevronRight: () => null,
+  Share2: () => null,
 }));
 
 // Mock UI components
@@ -108,13 +118,6 @@ jest.mock('@/components/profile/friends-list', () => {
   };
 });
 
-jest.mock('@/components/profile/contact-import', () => {
-  const mockForwardRef = require('react').forwardRef;
-  return {
-    ContactsImportModal: mockForwardRef((_props: any, _ref: any) => null),
-  };
-});
-
 jest.mock('@/components/profile/delete-friend-modal', () => ({
   DeleteFriendModal: () => null,
 }));
@@ -139,7 +142,6 @@ jest.mock('@/lib/hooks/use-profile-data', () => ({
 
 jest.mock('@/lib/hooks/use-friend-management', () => ({
   useFriendManagement: jest.fn(() => ({
-    friendsData: { friends: [] },
     combinedData: [],
     isLoadingFriends: false,
     isLoadingInvitations: false,
@@ -148,26 +150,25 @@ jest.mock('@/lib/hooks/use-friend-management', () => ({
     deleteModalVisible: false,
     rescindModalVisible: false,
     invitationToRescind: null,
-    inviteError: null,
-    inviteSuccess: false,
-    formMethods: {},
-    handleInviteFriends: jest.fn(),
-    handleCloseInviteModal: jest.fn(),
     handleDeleteFriend: jest.fn(),
     handleConfirmDelete: jest.fn(),
     handleCancelDelete: jest.fn(),
     handleRescindInvitation: jest.fn(),
     handleConfirmRescind: jest.fn(),
     handleCancelRescind: jest.fn(),
-    handleSendFriendRequest: jest.fn(),
     handleAcceptInvitation: jest.fn(),
     handleRejectInvitation: jest.fn(),
     isOutgoingInvitation: jest.fn(),
     acceptMutation: { isPending: false },
     rejectMutation: { isPending: false },
     rescindMutation: { isPending: false },
-    inviteMutation: { isPending: false },
-    sendBulkInvites: jest.fn(),
+  })),
+}));
+
+jest.mock('@/lib/invite/use-invite-share', () => ({
+  useInviteShare: jest.fn(() => ({
+    shareInvite: jest.fn(),
+    isSharing: false,
   })),
 }));
 
@@ -249,6 +250,11 @@ describe('ProfileScreen', () => {
     // ActionCards (unlike other profile sub-components) isn't mocked, so it
     // renders for real and reads the Skills & Perks subtitle from here.
     useSkillTreeStore.setState({ skillTreeData: null });
+
+    // The onboarding store is NOT mocked here — the no-hero tests rely on its
+    // real forward-only guard — so reset it or those tests leak a step into
+    // whatever runs next.
+    useOnboardingStore.setState({ currentStep: OnboardingStep.COMPLETED });
   });
 
   afterEach(() => {
@@ -311,6 +317,62 @@ describe('ProfileScreen', () => {
       expect(queryByText('Profile')).not.toBeOnTheScreen();
       expect(queryByText('Leaderboard')).not.toBeOnTheScreen();
     });
+
+    // useCharacterSync restores a character asynchronously, so this component
+    // can re-render with one MORE hook than its previous render (useUserStore
+    // sits below the early return). React throws "Rendered more hooks than
+    // during the previous render" on exactly that transition.
+    it('survives a character arriving after the first render', () => {
+      useCharacterStore.setState({ character: null });
+      const { queryByTestId } = render(<ProfileScreen />);
+      expect(queryByTestId('profile-missing-character')).toBeOnTheScreen();
+
+      act(() => {
+        useCharacterStore.setState({
+          character: {
+            name: 'Tommy',
+            type: 'bard',
+            level: 1,
+            currentXP: 0,
+            xpToNextLevel: 100,
+          } as any,
+        });
+      });
+
+      expect(queryByTestId('profile-missing-character')).not.toBeOnTheScreen();
+    });
+
+    // The message alone was a dead end: it told the user to restart, which
+    // changes nothing they can see, and it left them dependent on a background
+    // effect having already fired. Give them the action directly. Setting the
+    // step (rather than navigating here) is this repo's convention — see
+    // first-quest-result.tsx — so NavigationGate stays the only mover.
+    it('offers a way out that puts the user into character creation', () => {
+      useCharacterStore.setState({ character: null });
+      useOnboardingStore.setState({ currentStep: OnboardingStep.COMPLETED });
+
+      const { getByTestId } = render(<ProfileScreen />);
+      fireEvent.press(getByTestId('profile-create-hero'));
+
+      // NOT_STARTED, and asserted on the resulting STATE rather than on a
+      // setter having been called: setCurrentStep is forward-only, so a call
+      // asking to go back is silently discarded and a spy would still report
+      // success.
+      expect(useOnboardingStore.getState().currentStep).toBe(
+        OnboardingStep.NOT_STARTED
+      );
+    });
+
+    // A character-less account rendered `return null` here, which is
+    // indistinguishable from a crash: the screen was entirely blank, and the
+    // real defect stayed invisible until the server logs were read.
+    it('explains itself instead of rendering a blank screen when the character is missing', () => {
+      useCharacterStore.setState({ character: null });
+
+      const { getByTestId } = render(<ProfileScreen />);
+
+      expect(getByTestId('profile-missing-character')).toBeOnTheScreen();
+    });
   });
 
   describe('Stats Display', () => {
@@ -356,6 +418,32 @@ describe('ProfileScreen', () => {
       render(<ProfileScreen />);
 
       expect(screen.getByTestId('streak-count')).toHaveTextContent('10');
+    });
+  });
+
+  describe('Stats freshness', () => {
+    // The stats above prefer the user store over the local quest list, and the
+    // store otherwise holds whatever the server said at sign-in. This mount
+    // call is what refreshes it (the hook writes the response into the store —
+    // see use-profile-data.test.tsx). Without this test, deleting the mount
+    // effect would leave the stale-stats bug back in place with every suite
+    // still green.
+    it('asks the server for the current user on mount', () => {
+      const mockUseProfileData = jest.requireMock(
+        '@/lib/hooks/use-profile-data'
+      ).useProfileData;
+      const fetchUserDetails = jest.fn();
+      // `mockReturnValueOnce`, not `mockReturnValue`: a lasting return value
+      // would survive `clearAllMocks` (which clears calls, not
+      // implementations) and leak into later tests in this file.
+      mockUseProfileData.mockReturnValueOnce({
+        userEmail: 'test@example.com',
+        fetchUserDetails,
+      });
+
+      render(<ProfileScreen />);
+
+      expect(fetchUserDetails).toHaveBeenCalled();
     });
   });
 
@@ -463,15 +551,15 @@ describe('ProfileScreen', () => {
   });
 
   describe('User Interactions', () => {
-    it('allows inviting friends', async () => {
-      const mockUseFriendManagement = jest.requireMock(
-        '@/lib/hooks/use-friend-management'
-      ).useFriendManagement;
-      const mockHandleInvite = jest.fn();
+    it('invites friends through the share-link flow', async () => {
+      const mockUseInviteShare = jest.requireMock(
+        '@/lib/invite/use-invite-share'
+      ).useInviteShare;
+      const mockShareInvite = jest.fn();
 
-      mockUseFriendManagement.mockReturnValue({
-        ...mockUseFriendManagement(),
-        handleInviteFriends: mockHandleInvite,
+      mockUseInviteShare.mockReturnValue({
+        shareInvite: mockShareInvite,
+        isSharing: false,
       });
 
       const { user } = setup(<ProfileScreen />);
@@ -480,8 +568,9 @@ describe('ProfileScreen', () => {
       await user.press(inviteButton);
 
       await waitFor(() => {
-        expect(mockHandleInvite).toHaveBeenCalled();
+        expect(mockShareInvite).toHaveBeenCalled();
       });
+      expect(mockUseInviteShare).toHaveBeenCalledWith('profile');
     });
 
     it('supports pull to refresh', () => {

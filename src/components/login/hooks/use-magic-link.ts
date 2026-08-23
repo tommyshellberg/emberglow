@@ -3,7 +3,16 @@ import { usePostHog } from 'posthog-react-native';
 import { useCallback, useState } from 'react';
 
 import { requestMagicLink } from '@/api/auth';
+import {
+  ProvisionalRefreshUnavailable,
+  ProvisionalSessionExpired,
+} from '@/lib/auth/provisional-session';
 
+import {
+  EMAIL_IN_USE_ERROR_MESSAGE,
+  GENERIC_SEND_ERROR_MESSAGE,
+  NETWORK_ERROR_MESSAGE,
+} from '../constants';
 import { emailSchema } from '../types';
 
 export type UseMagicLinkReturn = {
@@ -56,6 +65,34 @@ export function useMagicLink(): UseMagicLinkReturn {
         setEmailSent(true);
         onSuccess?.(email);
       } catch (err) {
+        // Not a send failure — nothing was ever sent, and nothing here is
+        // retryable. `endProvisionalSession` has already put a non-cancelable
+        // "Character Expired" alert on screen and acknowledging it wipes and
+        // resets to onboarding, so this branch deliberately sets no error copy
+        // (a second, vaguer message would only compete with the alert) and
+        // reports its own outcome instead of the catch-all `..._unknown`.
+        if (err instanceof ProvisionalSessionExpired) {
+          posthog.capture('magic_link_request_provisional_session_expired', {
+            email,
+          });
+          return;
+        }
+
+        // Deliberately NOT handled like the case above. That one is proven and
+        // final and owns an alert; this one proved nothing, left the session
+        // intact, and abandoned the conversion so the user could retry — so it
+        // is the branch that owes them a message. Reported under its own name
+        // because the send never happened: `magic_link_request_failed` would
+        // claim an attempt that was never made.
+        if (err instanceof ProvisionalRefreshUnavailable) {
+          setError(NETWORK_ERROR_MESSAGE);
+          posthog.capture(
+            'magic_link_request_provisional_refresh_unavailable',
+            { email }
+          );
+          return;
+        }
+
         posthog.capture('magic_link_request_failed', { email });
 
         if (axios.isAxiosError(err)) {
@@ -63,28 +100,24 @@ export function useMagicLink(): UseMagicLinkReturn {
             setError('Request timed out. Please try again.');
             posthog.capture('magic_link_request_failed_timeout', { email });
           } else if (!err.response) {
-            setError(
-              'Network error. Please check your connection and try again.'
-            );
+            setError(NETWORK_ERROR_MESSAGE);
             posthog.capture('magic_link_request_failed_network_error', {
               email,
             });
           } else if (err.response.status === 409) {
-            setError(
-              'This email address is already associated with an account. Please use a different email address.'
-            );
+            setError(EMAIL_IN_USE_ERROR_MESSAGE);
             posthog.capture('magic_link_request_failed_email_in_use', {
               email,
             });
           } else {
-            setError('Login link failed to send. Please try again.');
+            setError(GENERIC_SEND_ERROR_MESSAGE);
             posthog.capture('magic_link_request_failed_server_error', {
               email,
               status: err.response.status,
             });
           }
         } else {
-          setError('Login link failed to send. Please try again.');
+          setError(GENERIC_SEND_ERROR_MESSAGE);
           posthog.capture('magic_link_request_failed_unknown', { email });
         }
       } finally {

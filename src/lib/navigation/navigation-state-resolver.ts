@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/lib/auth';
+import { hasProvisionalSession } from '@/lib/auth/provisional-session';
 import { getItem } from '@/lib/storage';
 import { useCharacterStore } from '@/store/character-store';
 import { OnboardingStep, useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 export type NavigationTarget =
   | { type: 'pending-quest'; questId: string }
@@ -17,6 +19,7 @@ export type NavigationTarget =
   | { type: 'onboarding' }
   | { type: 'login' }
   | { type: 'app' }
+  | { type: 'no-hero' }
   | { type: 'loading' };
 
 export function useNavigationTarget(): NavigationTarget {
@@ -28,6 +31,7 @@ export function useNavigationTarget(): NavigationTarget {
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const setCurrentStep = useOnboardingStore((s) => s.setCurrentStep);
   const character = useCharacterStore((s) => s.character);
+  const serverUser = useUserStore((s) => s.user);
 
   // Use direct subscription for quest state including completed quests
   const [questState, setQuestState] = useState(() => {
@@ -83,40 +87,81 @@ export function useNavigationTarget(): NavigationTarget {
     shouldShowStreakCelebration,
   } = questState;
 
+  // A social signup (resolveSocialUser branch 4) mints a full, verified
+  // account with no character, so its owner never passes through onboarding.
+  // The server is the authority on that: transformUserResponse reports a null
+  // character as `type: ''` / `name: ''`, so an EMPTY string here means "this
+  // account has no hero", while `serverUser === null` means the post-sign-in
+  // fetch simply hasn't landed yet — a different state, and the one the
+  // force-complete branch below is for. Computed here (not just inside the
+  // effect) so the render's return value below can act on it synchronously.
+  //
+  // Checks both `type` and `name`, not just `type`: every user-reachable write
+  // path (createProvisionalUser, PATCH /users/me — user.validation.js) marks
+  // both fields required on the same request, so in ordinary onboarding they
+  // are never set independently. The one exception is the admin-only
+  // PATCH /users/:userId route (`manageUsers` scope), whose validation allows
+  // a partial character object and whose Mongoose update only validates the
+  // paths being $set — so a type-without-name (or vice versa) row isn't
+  // reachable from the app, but isn't impossible in the database either. This
+  // check is this account's last-line safety net, so covering that DB-only
+  // edge case costs nothing.
+  const serverAccountHasNoCharacter =
+    !!serverUser && !(serverUser.type && serverUser.name);
+
   // Synchronize onboarding state when user is signed in but onboarding appears incomplete
   useEffect(() => {
-    if (authStatus === 'signIn' && !isOnboardingComplete) {
-      // Check if user has provisional data (indicating they're a new user going through onboarding)
-      const hasProvisionalData = !!(
-        getItem('provisionalUserId') ||
-        getItem('provisionalAccessToken') ||
-        getItem('provisionalEmail')
+    if (authStatus !== 'signIn') return;
+
+    // Check if user has provisional data (indicating they're a new user going through onboarding)
+    const hasProvisionalData = !!(
+      getItem('provisionalUserId') ||
+      getItem('provisionalAccessToken') ||
+      getItem('provisionalEmail')
+    );
+    if (hasProvisionalData) return;
+
+    // The hero-less case is handled synchronously below (type: 'no-hero') so
+    // it can't flash the app before this effect runs. resetOnboarding is no
+    // longer called here: it belongs to the '/no-hero' screen's button, which
+    // fires it when the user acts rather than as a side effect of a render.
+    if (serverAccountHasNoCharacter && !character) {
+      return;
+    }
+
+    // Only from a standing start — or from the very last step. NOT_STARTED
+    // is a verified user opening a fresh install. VIEWING_SIGNUP_PROMPT is a
+    // provisional user whose signup on the claim-your-legend screen just
+    // succeeded: socialSignIn/verifyMagicLink cleared the provisional keys
+    // (so the hasProvisionalData guard above no longer returns early), and
+    // both conversion paths rely on THIS effect to finish onboarding — it is
+    // the last step, so completing from it skips nothing. Every step in
+    // between means onboarding is actively in progress (the no-hero flow runs
+    // it fully authenticated); completing those mid-flow would skip the intro
+    // and first quest the user was sent back for.
+    if (
+      !isOnboardingComplete &&
+      (currentStep === OnboardingStep.NOT_STARTED ||
+        currentStep === OnboardingStep.VIEWING_SIGNUP_PROMPT)
+    ) {
+      // User is signed in with no provisional data and no local data
+      // This indicates they're a verified user logging in on a fresh install
+      console.log(
+        '🧭 Detected verified user with no local data - marking onboarding as complete'
       );
 
-      if (!hasProvisionalData) {
-        // User is signed in with no provisional data and no local data
-        // This indicates they're a verified user logging in on a fresh install
-        console.log(
-          '🧭 Detected verified user with no local data - marking onboarding as complete'
-        );
-        console.log(
-          '🧭 Synchronizing onboarding state to COMPLETED for verified user'
-        );
-
-        // Mark onboarding as complete for verified users
-        setCurrentStep(OnboardingStep.COMPLETED);
-
-        console.log(
-          '🧭 Onboarding state synchronized successfully for verified user'
-        );
-      }
+      // Mark onboarding as complete for verified users
+      setCurrentStep(OnboardingStep.COMPLETED);
     }
   }, [
     authStatus,
     isOnboardingComplete,
+    currentStep,
     character,
+    serverUser,
     completedQuests,
     setCurrentStep,
+    serverAccountHasNoCharacter,
   ]);
 
   // Debug current state
@@ -154,12 +199,17 @@ export function useNavigationTarget(): NavigationTarget {
   // Provisional users hydrate with status 'signIn' (see auth hydrate()), so
   // authStatus alone can't identify the onboarding first-quest flow after an
   // app restart — check for a provisional session as well.
-  const hasProvisionalSession = !!(
-    getItem('provisionalUserId') || getItem('provisionalAccessToken')
-  );
+  const hasGuestSession = hasProvisionalSession();
+  // A signed-in, non-provisional user can ALSO be mid-onboarding: a social
+  // signup with no hero is routed back through it fully authenticated, and no
+  // provisional session ever exists on that path. Any started-but-unfinished
+  // step therefore counts; NOT_STARTED stays excluded so a verified user on a
+  // fresh install (force-completed by the sync effect above) isn't captured.
   const isInOnboardingFlow =
     !isOnboardingComplete &&
-    (authStatus === 'signOut' || hasProvisionalSession);
+    (authStatus === 'signOut' ||
+      hasGuestSession ||
+      currentStep !== OnboardingStep.NOT_STARTED);
 
   // Priority 1: Streak celebration (highest priority to show before quest complete)
   if (shouldShowStreakCelebration) {
@@ -243,6 +293,17 @@ export function useNavigationTarget(): NavigationTarget {
     };
   }
 
+  // Priority 2.5: Hero-less signed-in account. Checked synchronously here
+  // (not only inside the sync effect above) so a signed-in account with no
+  // server-side character never renders '/(app)' for a frame before this
+  // fires — that flash-then-correct was the original defect.
+  if (authStatus === 'signIn' && serverAccountHasNoCharacter && !character) {
+    console.log(
+      '🧭 Signed-in account has no character on the server - explaining before onboarding'
+    );
+    return { type: 'no-hero' };
+  }
+
   // Priority 3: Onboarding
   if (!isOnboardingComplete) {
     console.log(
@@ -272,7 +333,34 @@ export function useNavigationTarget(): NavigationTarget {
     return { type: 'login' };
   }
 
-  // Priority 5: Default to app
+  // Priority 5: Provisional-conversion gate. A guest session must never live
+  // in the main app: nothing ties the account to a person, so 30 days of
+  // inactivity kills the refresh token and orphans the character forever
+  // (there is no email to log back in with). Everything above this line —
+  // streak celebration, quest results, onboarding — behaves as normal; only
+  // the "default to app" outcome is replaced. Conversion clears the
+  // provisional keys, so the next pass falls through to 'app'.
+  //
+  // "The next pass" is worth being precise about, because `hasProvisionalSession`
+  // is a plain MMKV read with NO subscription behind it — clearing the keys
+  // does not by itself re-run this hook. What re-runs it is the conversion's
+  // other side effects: `completeSignIn` calls `useUserStore.setUser()` and
+  // `characterStore.updateCharacter()`, both selected on above, and
+  // NavigationGate re-renders on every `usePathname()`/`useSegments()` change.
+  //
+  // Known gap, accepted for now: if conversion SUCCEEDS but `getUserDetails()`
+  // then throws (network), `completeSignIn` swallows it and still resolves
+  // 'app' — but neither store was written, and auth `status` was already
+  // 'signIn', so on the social path nothing re-renders. The user sits on the
+  // wall holding a valid real account until they restart the app or tap again.
+  // Fixing that properly means a reactive MMKV subscription, which is a larger
+  // change than this branch should carry.
+  if (hasGuestSession) {
+    console.log('🧭 Provisional session in main app - gating to signup');
+    return { type: 'quest-completed-signup' };
+  }
+
+  // Priority 6: Default to app
   console.log('🧭 Default to app');
   return { type: 'app' };
 }

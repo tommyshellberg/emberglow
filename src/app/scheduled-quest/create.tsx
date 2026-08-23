@@ -24,13 +24,17 @@ import { scheduledQuestErrorMessage } from '@/lib/services/scheduled-quest-servi
 const XP_PER_MINUTE = 3; // display only - the server sets the authoritative reward
 
 const VISIBILITY_OPTIONS: SegmentedControlOption<'public' | 'friends'>[] = [
-  { label: 'Public', value: 'public' },
-  { label: 'Friends only', value: 'friends' },
+  { label: 'Public', value: 'public', testID: 'event-visibility-public' },
+  {
+    label: 'Friends only',
+    value: 'friends',
+    testID: 'event-visibility-friends',
+  },
 ];
 
 const MAX_PARTICIPANT_OPTIONS: SegmentedControlOption<number>[] = [
-  { label: '5', value: 5 },
-  { label: '10', value: 10 },
+  { label: '5', value: 5, testID: 'event-max-participants-5' },
+  { label: '10', value: 10, testID: 'event-max-participants-10' },
 ];
 
 export default function CreateScheduledQuest() {
@@ -80,7 +84,11 @@ export default function CreateScheduledQuest() {
   return (
     <ScreenContainer>
       <FocusAwareStatusBar />
-      <ScreenHeader title="Schedule an event" showBackButton />
+      <ScreenHeader
+        testID="create-event-form"
+        title="Schedule an event"
+        showBackButton
+      />
       {/* The title input autofocuses, so this scroller must survive an open
           keyboard on Android:
           - KeyboardAwareScrollView: KeyboardProvider runs Android
@@ -109,6 +117,7 @@ export default function CreateScheduledQuest() {
         <View className="mt-1 flex-row">
           <View className="mr-2">
             <DateTimeField
+              testID="event-starts-at-date"
               value={startsAt}
               mode="date"
               minimumDate={new Date()}
@@ -116,6 +125,7 @@ export default function CreateScheduledQuest() {
             />
           </View>
           <DateTimeField
+            testID="event-starts-at-time"
             value={startsAt}
             mode="time"
             minimumDate={new Date()}
@@ -147,16 +157,35 @@ export default function CreateScheduledQuest() {
           Reward: ~{durationMinutes * XP_PER_MINUTE} XP for finishing
         </Text>
 
+        {/* Both error slots carry the same id on purpose: a flow needs to
+            know the form was rejected, not which of the two rejected it.
+
+            They can be on screen at the same time, so a flow must not assume
+            the id matches exactly one element. `createMutation.error` stays
+            set until the next `mutate()` call, and `submit` returns before
+            `mutate()` when `validateEventForm` rejects the form. So: submit a
+            valid form, let the server reject it, then clear the title and
+            submit again - the effect above clears `validationError` only, the
+            server error is still there, and both Texts render. */}
         {validationError ? (
-          <Text className="mt-2 text-sm text-red-400">{validationError}</Text>
+          <Text
+            testID="event-validation-error"
+            className="mt-2 text-sm text-red-400"
+          >
+            {validationError}
+          </Text>
         ) : null}
         {createMutation.error ? (
-          <Text className="mt-2 text-sm text-red-400">
+          <Text
+            testID="event-validation-error"
+            className="mt-2 text-sm text-red-400"
+          >
             {scheduledQuestErrorMessage(createMutation.error)}
           </Text>
         ) : null}
 
         <Button
+          testID="create-event-submit"
           label="Create event"
           onPress={submit}
           loading={createMutation.isPending}
