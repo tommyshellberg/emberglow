@@ -13,6 +13,7 @@ import {
 } from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
+  getQuestRunStatus,
   updateAwayStatus,
   updatePhoneLockStatus,
   updateQuestRunStatus,
@@ -296,6 +297,72 @@ describe('quest-presence-runtime', () => {
 
     expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
     expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
+  describe('completion when the server disagrees (confirm rejected with a response)', () => {
+    const serverRejection = (message: string) =>
+      Object.assign(new Error(message), {
+        response: { status: 400, data: { message } },
+      });
+
+    it('commits failQuest, not completeQuest, when the server already failed the run', async () => {
+      // away:false was lost, the dead-man's-switch fired, the user watched
+      // the countdown out: confirm → 400 "Cannot confirm a quest in failed
+      // status". Treating that like "offline" awarded XP for a failed run.
+      (confirmQuestRun as jest.Mock).mockRejectedValue(
+        serverRejection('Cannot confirm a quest in failed status')
+      );
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: RUN_ID,
+        status: 'failed',
+        failureReason: 'left_app',
+      });
+      startRuntimeForActivePresenceRun();
+
+      act(() => {
+        jest.advanceTimersByTime(DURATION_MS);
+      });
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      expect(mockQuestState.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('retries the confirm once the server window closes when the client clock ran ahead', async () => {
+      // Client's scheduledEndTime is startTime + duration from a local clock
+      // set after several round-trips; the server's is its own. A confirm
+      // fired a few seconds early gets 400 "before scheduledEndTime".
+      const SKEW_MS = 5_000;
+      (confirmQuestRun as jest.Mock)
+        .mockRejectedValueOnce(
+          serverRejection(
+            'Cannot confirm a quest in active status before scheduledEndTime'
+          )
+        )
+        .mockResolvedValue({ id: RUN_ID, status: 'completed' });
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: RUN_ID,
+        status: 'active',
+        scheduledEndTime: START + DURATION_MS + SKEW_MS,
+      });
+      startRuntimeForActivePresenceRun();
+
+      act(() => {
+        jest.advanceTimersByTime(DURATION_MS);
+      });
+      await flush();
+      expect(confirmQuestRun).toHaveBeenCalledTimes(1);
+      expect(mockQuestState.completeQuest).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(SKEW_MS + 2_000);
+      });
+      await flush();
+
+      expect(confirmQuestRun).toHaveBeenCalledTimes(2);
+      expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+      expect(mockQuestState.failQuest).not.toHaveBeenCalled();
+    });
   });
 
   it('cold start rehydrates from the MMKV snapshot and re-judges (abandoned → left_app)', async () => {

@@ -30,6 +30,7 @@ import {
 } from '@/lib/services/presence-live-activity';
 import {
   confirmQuestRun,
+  getQuestRunStatus,
   updateAwayStatus,
   updatePhoneLockStatus,
   updateQuestRunStatus,
@@ -55,6 +56,9 @@ export const snapshotKey = (runId: string) => `presence-snapshot-${runId}`;
 
 // Liveness tick cadence — see manageAliveTick().
 const ALIVE_TICK_MS = 1000;
+// Slack added to the server's scheduledEndTime before retrying a confirm that
+// was rejected as "before scheduledEndTime" (client clock ahead of server).
+const CONFIRM_RETRY_SLACK_MS = 1500;
 
 /** Read-only view of the current presence session — consumed by useQuestPresence() (Task 10). */
 export interface PresenceViewState {
@@ -250,6 +254,75 @@ function reportThenCommit(
   })();
 }
 
+// An error carrying an HTTP response is the server saying something about
+// the run's state; one without (timeout, airplane mode) is just no network.
+const hasServerResponse = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'response' in error &&
+  !!(error as { response?: unknown }).response;
+
+// Completion: confirm, then commit locally — but let the SERVER's verdict
+// decide WHICH commit when it rejects the confirm with a response.
+//
+// Always confirm, whatever the machine's `source` says. When the phone was
+// locked the server normally auto-completes on lock-expiry and answers with a
+// harmless 400 — but if the locked:true PATCH was lost (radio asleep right
+// after the lock) the server never saw the lock and parks the run as
+// awaiting_confirmation with NO XP; only a confirm rescues it.
+//
+// A 4xx is NOT "offline". It means the run is in a state the server will not
+// confirm from: `failed` (the away:false disarm was lost and the dead-man's-
+// switch fired — committing a completion here awarded XP for a failed run),
+// or still `active` because the client clock ran ahead of the server's
+// scheduledEndTime (retry once when the server says the window closes).
+// Only a pure network failure falls through to the offline-fallback local
+// completion, exactly as before. Local commit ALWAYS happens — see
+// reportThenCommit for why a thrown report must never strand the run.
+async function resolveCompletion(runId: string) {
+  const store = () => useQuestStore.getState();
+  try {
+    await confirmQuestRun(runId);
+  } catch (error) {
+    if (hasServerResponse(error)) {
+      try {
+        const run = await getQuestRunStatus(runId);
+        if (run.status === 'failed') {
+          console.warn(
+            '[PresenceRuntime] server failed this run before confirm; committing fail'
+          );
+          await store().failQuest();
+          return;
+        }
+        const serverEnd = run.scheduledEndTime
+          ? new Date(run.scheduledEndTime).getTime()
+          : 0;
+        if (run.status === 'active' && serverEnd > Date.now()) {
+          // Client clock ahead of the server: wait for the server window to
+          // close, then confirm once more so the lock bonus is awarded.
+          await new Promise((r) =>
+            setTimeout(r, serverEnd - Date.now() + CONFIRM_RETRY_SLACK_MS)
+          );
+          await confirmQuestRun(runId).catch((e) =>
+            console.error('[PresenceRuntime] confirm retry failed:', e)
+          );
+        }
+      } catch (statusError) {
+        console.error(
+          '[PresenceRuntime] could not read run status after confirm rejection:',
+          statusError
+        );
+      }
+    } else {
+      console.error(
+        '[PresenceRuntime] confirm failed (no response); committing locally anyway:',
+        error
+      );
+    }
+  }
+  await store().completeQuest(true);
+}
+
 const questTitle = () => useQuestStore.getState().activeQuest?.title ?? 'Quest';
 
 const durationMinutesOf = (c: PresenceContext) =>
@@ -401,17 +474,7 @@ function runEffects(effects: PresenceEffect[]) {
         break;
       }
       case 'REPORT_COMPLETE':
-        reportThenCommit(
-          // Always confirm, whatever `source` says. When the phone was locked
-          // the server normally auto-completes on lock-expiry and answers this
-          // confirm with a harmless 400 — but if the locked:true PATCH was
-          // lost (radio asleep right after the lock) the server never saw the
-          // lock and parks the run as awaiting_confirmation with NO XP. Only
-          // a confirm rescues that run. completeQuest(true) below pulls the
-          // awarded rewards via its OWN getQuestRunStatus fetch.
-          () => confirmQuestRun(runId),
-          () => useQuestStore.getState().completeQuest(true)
-        );
+        void resolveCompletion(runId);
         break;
       case 'PERSIST_SNAPSHOT':
         persistSnapshot(runId, snapshotCtx);
