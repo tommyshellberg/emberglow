@@ -2,9 +2,9 @@
  * Quest Creation Hook
  *
  * Handles the business logic for creating and starting custom quests.
- * Includes XP calculation, API calls, error handling with Sentry, and analytics.
- * Navigation is NOT handled here: arming the quest store makes NavigationGate
- * push /pending-quest.
+ * Includes XP calculation, API calls, error handling with Sentry, and
+ * analytics. Navigation is not handled here: `startPresenceQuest` activates
+ * the quest and the resolver/NavigationGate routes to `/active-quest`.
  */
 
 import { usePostHog } from 'posthog-react-native';
@@ -12,7 +12,6 @@ import { useState } from 'react';
 
 import { log } from '@/lib/services/logger.service';
 import QuestTimer from '@/lib/services/quest-timer';
-import { useQuestStore } from '@/store/quest-store';
 import type { CustomQuestTemplate } from '@/store/types';
 
 import {
@@ -55,12 +54,10 @@ export function useQuestCreation() {
         },
       };
 
-      // Update quest store
-      useQuestStore.getState().prepareQuest(customQuest);
-
-      // Prepare quest with background timer. No navigation here: prepareQuest
-      // above arms NavigationGate, which owns the push to /pending-quest.
-      await QuestTimer.prepareQuest(customQuest);
+      // Presence runs start immediately on tap - no more waiting for phone
+      // lock. Navigation to the active-quest screen is wired by the
+      // resolver in a later task.
+      await QuestTimer.startPresenceQuest(customQuest);
 
       // Track success
       posthog.capture(ANALYTICS_EVENTS.START_QUEST_SUCCESS);

@@ -1,6 +1,10 @@
 import type { QuestParticipant } from '@/store/types';
 
-import { getCurrentUserAdjustedXP, getQuestModeLabel } from './quest-utils';
+import {
+  getCurrentUserAdjustedXP,
+  getCurrentUserRewards,
+  getQuestModeLabel,
+} from './quest-utils';
 
 describe('getCurrentUserAdjustedXP', () => {
   const baseQuest = {
@@ -64,12 +68,18 @@ describe('getCurrentUserAdjustedXP', () => {
 
   describe('when user is found in participants', () => {
     it('should return adjusted XP for first user', () => {
-      const result = getCurrentUserAdjustedXP(questWithParticipants, 'user-123');
+      const result = getCurrentUserAdjustedXP(
+        questWithParticipants,
+        'user-123'
+      );
       expect(result).toBe(21);
     });
 
     it('should return adjusted XP for second user', () => {
-      const result = getCurrentUserAdjustedXP(questWithParticipants, 'user-456');
+      const result = getCurrentUserAdjustedXP(
+        questWithParticipants,
+        'user-456'
+      );
       expect(result).toBe(18);
     });
   });
@@ -173,7 +183,10 @@ describe('getCurrentUserAdjustedXP', () => {
         ] as QuestParticipant[],
       };
 
-      const result = getCurrentUserAdjustedXP(questWithLargeMultiplier, 'user-123');
+      const result = getCurrentUserAdjustedXP(
+        questWithLargeMultiplier,
+        'user-123'
+      );
       expect(result).toBe(250);
     });
   });
@@ -202,7 +215,10 @@ describe('getCurrentUserAdjustedXP', () => {
         ] as any,
       };
 
-      const result = getCurrentUserAdjustedXP(questWithPopulatedUserId, 'user-123');
+      const result = getCurrentUserAdjustedXP(
+        questWithPopulatedUserId,
+        'user-123'
+      );
       expect(result).toBe(21);
     });
 
@@ -240,12 +256,167 @@ describe('getCurrentUserAdjustedXP', () => {
       };
 
       // Find user with string userId
-      const result1 = getCurrentUserAdjustedXP(questWithMixedUserIds, 'user-456');
+      const result1 = getCurrentUserAdjustedXP(
+        questWithMixedUserIds,
+        'user-456'
+      );
       expect(result1).toBe(18);
 
       // Find user with populated userId
-      const result2 = getCurrentUserAdjustedXP(questWithMixedUserIds, 'user-123');
+      const result2 = getCurrentUserAdjustedXP(
+        questWithMixedUserIds,
+        'user-123'
+      );
       expect(result2).toBe(21);
+    });
+  });
+});
+
+describe('getCurrentUserRewards', () => {
+  const baseQuest = {
+    reward: { xp: 15 },
+  };
+
+  describe('when participant has perks applied (legacy shape, no lockBonus)', () => {
+    it('returns reward data without a lockBonus field', () => {
+      const quest = {
+        ...baseQuest,
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 21,
+              multiplier: 1.4,
+              perksApplied: ['alchemist-household-perk'],
+            },
+          },
+        ] as QuestParticipant[],
+      };
+
+      const result = getCurrentUserRewards(quest, 'user-123');
+
+      expect(result).toEqual({
+        baseXP: 15,
+        adjustedXP: 21,
+        perksApplied: ['alchemist-household-perk'],
+        lockBonus: undefined,
+      });
+    });
+  });
+
+  describe('when participant has no perks and no lockBonus', () => {
+    it('returns null', () => {
+      const quest = {
+        ...baseQuest,
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+            },
+          },
+        ] as QuestParticipant[],
+      };
+
+      const result = getCurrentUserRewards(quest, 'user-123');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('when participant has a lockBonus but no perks (presence run)', () => {
+    it('returns reward data including the lockBonus instead of null', () => {
+      const quest = {
+        ...baseQuest,
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+              lockBonus: 12,
+            },
+          },
+        ] as QuestParticipant[],
+      };
+
+      const result = getCurrentUserRewards(quest, 'user-123');
+
+      expect(result).toEqual({
+        baseXP: 15,
+        adjustedXP: 15,
+        perksApplied: [],
+        lockBonus: 12,
+      });
+    });
+  });
+
+  describe('when participant has a lockBonus of 0 and no perks', () => {
+    it('returns null (0 is not a positive bonus)', () => {
+      const quest = {
+        ...baseQuest,
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+              lockBonus: 0,
+            },
+          },
+        ] as QuestParticipant[],
+      };
+
+      const result = getCurrentUserRewards(quest, 'user-123');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('when participant has both perks and a lockBonus', () => {
+    it('returns reward data including both', () => {
+      const quest = {
+        ...baseQuest,
+        participants: [
+          {
+            userId: 'user-123',
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 21,
+              multiplier: 1.4,
+              perksApplied: ['alchemist-household-perk'],
+              lockBonus: 5,
+            },
+          },
+        ] as QuestParticipant[],
+      };
+
+      const result = getCurrentUserRewards(quest, 'user-123');
+
+      expect(result).toEqual({
+        baseXP: 15,
+        adjustedXP: 21,
+        perksApplied: ['alchemist-household-perk'],
+        lockBonus: 5,
+      });
     });
   });
 });

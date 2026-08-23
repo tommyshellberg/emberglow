@@ -11,6 +11,7 @@ import { useUserStore } from '@/store/user-store';
 export type NavigationTarget =
   | { type: 'pending-quest'; questId: string }
   | { type: 'cooperative-pending-quest'; questId: string }
+  | { type: 'active-quest'; questId: string }
   | { type: 'quest-result'; questId: string; outcome: 'completed' | 'failed' }
   | { type: 'first-quest-result'; outcome: 'completed' | 'failed' }
   | { type: 'quest-completed-signup' }
@@ -37,6 +38,7 @@ export function useNavigationTarget(): NavigationTarget {
     const state = useQuestStore.getState();
     return {
       pendingQuest: state.pendingQuest,
+      activeQuest: state.activeQuest,
       recentCompletedQuest: state.recentCompletedQuest,
       failedQuest: state.failedQuest,
       completedQuests: state.completedQuests,
@@ -54,6 +56,7 @@ export function useNavigationTarget(): NavigationTarget {
     const unsubscribe = useQuestStore.subscribe((state) => {
       console.log('🧭 Quest store changed at', new Date().toISOString(), {
         pendingQuest: state.pendingQuest?.id || null,
+        activeQuest: state.activeQuest?.id || null,
         recentCompletedQuest: state.recentCompletedQuest?.id || null,
         failedQuest: state.failedQuest?.id || null,
         completedQuestsCount: state.completedQuests.length,
@@ -61,6 +64,7 @@ export function useNavigationTarget(): NavigationTarget {
       });
       setQuestState({
         pendingQuest: state.pendingQuest,
+        activeQuest: state.activeQuest,
         recentCompletedQuest: state.recentCompletedQuest,
         failedQuest: state.failedQuest,
         completedQuests: state.completedQuests,
@@ -76,6 +80,7 @@ export function useNavigationTarget(): NavigationTarget {
 
   const {
     pendingQuest,
+    activeQuest,
     recentCompletedQuest,
     failedQuest,
     completedQuests,
@@ -167,6 +172,7 @@ export function useNavigationTarget(): NavigationTarget {
       currentStep,
       completedQuestsCount: completedQuests?.length || 0,
       pendingQuest: pendingQuest?.id || null,
+      activeQuest: activeQuest?.id || null,
       recentCompletedQuest: recentCompletedQuest?.id || null,
       failedQuest: failedQuest?.id || null,
       shouldShowStreakCelebration,
@@ -178,6 +184,7 @@ export function useNavigationTarget(): NavigationTarget {
     currentStep,
     completedQuests,
     pendingQuest,
+    activeQuest,
     recentCompletedQuest,
     failedQuest,
     shouldShowStreakCelebration,
@@ -211,6 +218,18 @@ export function useNavigationTarget(): NavigationTarget {
   }
 
   // Priority 2: Active quest states
+
+  // Active solo PRESENCE run → the immediate active-quest screen. Cooperative runs
+  // also populate activeQuest but never carry `enforcement`, so gating on presence
+  // cleanly excludes them and keeps the coop flow byte-identical.
+  if (activeQuest && (activeQuest.enforcement ?? 'lock') === 'presence') {
+    console.log(
+      '🧭 Found active presence quest, routing to active-quest:',
+      activeQuest.id
+    );
+    return { type: 'active-quest', questId: activeQuest.id };
+  }
+
   if (pendingQuest) {
     // Check if it's a cooperative quest
     const isCooperative = pendingQuest.mode === 'cooperative';

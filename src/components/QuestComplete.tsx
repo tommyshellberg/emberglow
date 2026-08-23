@@ -100,16 +100,21 @@ export function QuestComplete({
             disableAnimations={disableEnteringAnimations}
           />
 
-          {/* Compact reward breakdown - after story, before actions */}
-          {rewardsData && perksWithBonuses.length > 0 && (
-            <View style={styles.rewardSection}>
-              <CompactRewardBreakdown
-                baseXP={rewardsData.baseXP}
-                adjustedXP={rewardsData.adjustedXP}
-                perksApplied={perksWithBonuses}
-              />
-            </View>
-          )}
+          {/* Compact reward breakdown - after story, before actions.
+              Renders when perks were applied OR a presence lock bonus was
+              earned (a presence run can earn a lock bonus with no perks). */}
+          {rewardsData &&
+            (perksWithBonuses.length > 0 ||
+              (rewardsData.lockBonus ?? 0) > 0) && (
+              <View style={styles.rewardSection}>
+                <CompactRewardBreakdown
+                  baseXP={rewardsData.baseXP}
+                  adjustedXP={rewardsData.adjustedXP}
+                  perksApplied={perksWithBonuses}
+                  lockBonus={rewardsData.lockBonus}
+                />
+              </View>
+            )}
 
           {showActionButton && (
             <View style={styles.actionsSection}>

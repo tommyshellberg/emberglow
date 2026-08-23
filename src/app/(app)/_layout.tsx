@@ -6,7 +6,6 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
-import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
 import { hidesTabBar } from '@/lib/navigation/tab-bar-routes';
 import {
   colors,
@@ -114,9 +113,6 @@ function CenterButton({
 export default function TabLayout() {
   const navigationState = useRootNavigationState();
   const insets = useSafeAreaInsets();
-
-  // Activate lock detection for the whole main app.
-  useLockStateDetection();
 
   const authStatus = useAuth((state) => state.status);
 

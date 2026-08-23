@@ -46,7 +46,11 @@ function findCurrentUserParticipant(
   quest: QuestWithReward,
   currentUserId?: string
 ): QuestParticipant | undefined {
-  if (!quest.participants || quest.participants.length === 0 || !currentUserId) {
+  if (
+    !quest.participants ||
+    quest.participants.length === 0 ||
+    !currentUserId
+  ) {
     return undefined;
   }
 
@@ -79,7 +83,10 @@ export function getCurrentUserAdjustedXP(
 
   const currentParticipant = findCurrentUserParticipant(quest, currentUserId);
 
-  console.log('[getCurrentUserAdjustedXP] Found participant:', currentParticipant);
+  console.log(
+    '[getCurrentUserAdjustedXP] Found participant:',
+    currentParticipant
+  );
 
   // Return adjusted XP if available, otherwise fall back to base XP
   if (currentParticipant?.rewards?.adjustedXP !== undefined) {
@@ -96,6 +103,7 @@ export interface QuestRewardData {
   baseXP: number;
   adjustedXP: number;
   perksApplied: string[];
+  lockBonus?: number;
 }
 
 /**
@@ -103,7 +111,8 @@ export interface QuestRewardData {
  *
  * @param quest - A quest object with reward and optional participants
  * @param currentUserId - The ID of the current user
- * @returns Full reward data if available, or null if no perks were applied
+ * @returns Full reward data if available, or null if there is nothing to
+ * display (no perks were applied and no lock bonus was earned)
  *
  * @example
  * ```typescript
@@ -121,17 +130,22 @@ export function getCurrentUserRewards(
     return null;
   }
 
-  const { baseXP, adjustedXP, perksApplied } = currentParticipant.rewards;
+  const { baseXP, adjustedXP, perksApplied, lockBonus } =
+    currentParticipant.rewards;
+  const hasPerks = !!perksApplied && perksApplied.length > 0;
+  const hasLockBonus = !!lockBonus && lockBonus > 0;
 
-  // Only return rewards if perks were actually applied
-  if (!perksApplied || perksApplied.length === 0) {
+  // Only return rewards if there's something to show: perks applied, or a
+  // presence lock bonus (a presence run may earn a lock bonus with no perks).
+  if (!hasPerks && !hasLockBonus) {
     return null;
   }
 
   return {
     baseXP,
     adjustedXP,
-    perksApplied,
+    perksApplied: perksApplied ?? [],
+    lockBonus,
   };
 }
 

@@ -3,4 +3,5 @@
 import LockStateModule from './src/LockStateModule';
 
 export default LockStateModule;
+export { setKeepAliveEnabled } from './src/LockStateModule';
 export * from './src/LockState.types';

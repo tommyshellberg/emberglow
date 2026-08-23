@@ -81,6 +81,133 @@ const removeItemForStorage = async (name: string) => {
   removeItem(name);
 };
 
+// The subset of QuestState that the rehydrate cleanup reads or writes.
+type RehydratableQuestState = Pick<
+  QuestState,
+  | 'activeQuest'
+  | 'pendingQuest'
+  | 'availableQuests'
+  | 'completedQuests'
+  | 'currentLiveActivityId'
+  | 'cooperativeQuestRun'
+>;
+
+// Extracted from onRehydrateStorage so the stale-clear guard is independently
+// testable. Mutates the passed-in state in place (matching the original inline
+// callback's behavior) and also returns it, purely so tests can assert on the
+// result — the real call site ignores the return value.
+export function cleanupRehydratedState(
+  state: RehydratableQuestState
+): RehydratableQuestState {
+  // Check for data consistency issues that might occur after app reinstall
+  const hasCompletedQuests =
+    state.completedQuests && state.completedQuests.length > 0;
+  const hasActiveQuest = state.activeQuest !== null;
+
+  // If there's an active quest but no completed quests, this is likely stale data
+  // from a previous install (since you must complete quest-1 before getting quest-1a).
+  // Exception: a server-backed presence run (has a questRunId) is legitimately
+  // in this state during onboarding's first quest — the presence runtime
+  // re-judges it on cold start, so it must survive. A presence run WITHOUT a
+  // run id can never complete and is cleared like any other debris.
+  const isServerBackedPresenceRun =
+    state.activeQuest?.enforcement === 'presence' &&
+    !!state.activeQuest.questRunId;
+  if (hasActiveQuest && !hasCompletedQuests && !isServerBackedPresenceRun) {
+    console.log('🧹 Detected inconsistent state - clearing stale quest data');
+    state.activeQuest = null;
+    state.pendingQuest = null;
+    state.currentLiveActivityId = null;
+    state.availableQuests = [];
+    return state;
+  }
+
+  // Check if pending quest is a completed cooperative quest
+  if (state.pendingQuest && state.completedQuests) {
+    const pendingQuestId = state.pendingQuest.id;
+    const isCompleted = state.completedQuests.some(
+      (q) => q.id === pendingQuestId
+    );
+
+    if (isCompleted) {
+      console.log(
+        '🧹 Detected completed quest still in pending state:',
+        pendingQuestId
+      );
+      state.pendingQuest = null;
+      state.cooperativeQuestRun = null;
+    }
+  }
+
+  // Check if there's a cooperative quest run that shows as completed
+  if (state.cooperativeQuestRun && state.pendingQuest) {
+    const cooperativeRun = state.cooperativeQuestRun;
+
+    // If the cooperative quest run shows as completed but quest is still pending
+    if (
+      (cooperativeRun.status as any) === 'success' ||
+      cooperativeRun.status === 'completed' ||
+      (cooperativeRun.scheduledEndTime &&
+        Date.now() > cooperativeRun.scheduledEndTime)
+    ) {
+      console.log(
+        '🧹 Found cooperative quest that completed but was not recorded:',
+        state.pendingQuest.id
+      );
+
+      // Add it to completed quests
+      const completedQuest = {
+        ...state.pendingQuest,
+        startTime:
+          cooperativeRun.actualStartTime ||
+          Date.now() - state.pendingQuest.durationMinutes * 60 * 1000,
+        stopTime: cooperativeRun.scheduledEndTime || Date.now(),
+        status: 'completed' as const,
+      };
+
+      // Make sure it's not already in completed quests
+      const alreadyCompleted = state.completedQuests.some(
+        (q) => q.id === completedQuest.id
+      );
+      if (!alreadyCompleted) {
+        state.completedQuests.push(completedQuest);
+      }
+
+      state.pendingQuest = null;
+      state.cooperativeQuestRun = null;
+    }
+  }
+
+  // Check if there's an active quest that should have completed/failed
+  if (state.activeQuest && state.activeQuest.startTime) {
+    const now = Date.now();
+    const questDuration = state.activeQuest.durationMinutes * 60 * 1000;
+    const questEndTime = state.activeQuest.startTime + questDuration;
+
+    // If the quest should have ended by now
+    // Presence runs legitimately outlive their window while awaiting confirmation —
+    // the presence runtime re-judges them on cold start. Only stale-clear lock-mode runs.
+    if (
+      now > questEndTime &&
+      (state.activeQuest.enforcement ?? 'lock') !== 'presence'
+    ) {
+      console.log('🧹 Cleaning up stale active quest:', state.activeQuest.id);
+      // Just clear the active quest without marking as failed
+      // This handles cases where the app was reinstalled or data is from a previous user
+      state.activeQuest = null;
+      state.currentLiveActivityId = null;
+
+      // Also clear any pending quest that might be stale
+      if (state.pendingQuest) {
+        console.log('🧹 Also clearing stale pending quest');
+        state.pendingQuest = null;
+      }
+    }
+  }
+
+  return state;
+}
+
 export const useQuestStore = create<QuestState>()(
   persist(
     (set, get) => ({
@@ -257,6 +384,15 @@ export const useQuestStore = create<QuestState>()(
               poiStore.revealLocation(activeQuest.poiSlug);
             }
 
+            // Presence runs complete from the presence runtime, not from the
+            // legacy background loop (whose exits are gated off for them), so
+            // nothing else stops the Android foreground service or clears
+            // QuestTimer.questRunId. Must run AFTER getQuestRunId() above —
+            // stopQuest nulls the id synchronously on iOS.
+            if (activeQuest.enforcement === 'presence') {
+              QuestTimer.stopQuest();
+            }
+
             characterStore.addXP(completedQuest.reward.xp);
 
             // Invalidate user details cache to force fresh data from server
@@ -394,6 +530,9 @@ export const useQuestStore = create<QuestState>()(
             level: 'info',
             data: { questId: failedQuestDetails.id },
           });
+          // Read BEFORE stopQuest: on iOS (no background service running)
+          // stopQuest nulls questRunId synchronously, before it returns.
+          const questRunId = QuestTimer.getQuestRunId() || undefined;
           QuestTimer.stopQuest();
 
           // Ensure all required fields for Quest are present
@@ -419,7 +558,7 @@ export const useQuestStore = create<QuestState>()(
             durationMinutes: failedQuestDetails.durationMinutes ?? 0,
             title: failedQuestDetails.title ?? 'Unknown Quest',
             id: questId,
-            questRunId: QuestTimer.getQuestRunId() || undefined,
+            questRunId,
             // Add any other required fields here
           };
 
@@ -771,105 +910,7 @@ export const useQuestStore = create<QuestState>()(
               error
             );
           } else if (state) {
-            // Check for data consistency issues that might occur after app reinstall
-            const hasCompletedQuests =
-              state.completedQuests && state.completedQuests.length > 0;
-            const hasActiveQuest = state.activeQuest !== null;
-
-            // If there's an active quest but no completed quests, this is likely stale data
-            // from a previous install (since you must complete quest-1 before getting quest-1a)
-            if (hasActiveQuest && !hasCompletedQuests) {
-              console.log(
-                '🧹 Detected inconsistent state - clearing stale quest data'
-              );
-              state.activeQuest = null;
-              state.pendingQuest = null;
-              state.currentLiveActivityId = null;
-              state.availableQuests = [];
-              return;
-            }
-
-            // Check if pending quest is a completed cooperative quest
-            if (state.pendingQuest && state.completedQuests) {
-              const pendingQuestId = state.pendingQuest.id;
-              const isCompleted = state.completedQuests.some(
-                (q) => q.id === pendingQuestId
-              );
-
-              if (isCompleted) {
-                console.log(
-                  '🧹 Detected completed quest still in pending state:',
-                  pendingQuestId
-                );
-                state.pendingQuest = null;
-                state.cooperativeQuestRun = null;
-              }
-            }
-
-            // Check if there's a cooperative quest run that shows as completed
-            if (state.cooperativeQuestRun && state.pendingQuest) {
-              const cooperativeRun = state.cooperativeQuestRun;
-
-              // If the cooperative quest run shows as completed but quest is still pending
-              if (
-                (cooperativeRun.status as any) === 'success' ||
-                cooperativeRun.status === 'completed' ||
-                (cooperativeRun.scheduledEndTime &&
-                  Date.now() > cooperativeRun.scheduledEndTime)
-              ) {
-                console.log(
-                  '🧹 Found cooperative quest that completed but was not recorded:',
-                  state.pendingQuest.id
-                );
-
-                // Add it to completed quests
-                const completedQuest = {
-                  ...state.pendingQuest,
-                  startTime:
-                    cooperativeRun.actualStartTime ||
-                    Date.now() - state.pendingQuest.durationMinutes * 60 * 1000,
-                  stopTime: cooperativeRun.scheduledEndTime || Date.now(),
-                  status: 'completed' as const,
-                };
-
-                // Make sure it's not already in completed quests
-                const alreadyCompleted = state.completedQuests.some(
-                  (q) => q.id === completedQuest.id
-                );
-                if (!alreadyCompleted) {
-                  state.completedQuests.push(completedQuest);
-                }
-
-                state.pendingQuest = null;
-                state.cooperativeQuestRun = null;
-              }
-            }
-
-            // Check if there's an active quest that should have completed/failed
-            if (state.activeQuest && state.activeQuest.startTime) {
-              const now = Date.now();
-              const questDuration =
-                state.activeQuest.durationMinutes * 60 * 1000;
-              const questEndTime = state.activeQuest.startTime + questDuration;
-
-              // If the quest should have ended by now
-              if (now > questEndTime) {
-                console.log(
-                  '🧹 Cleaning up stale active quest:',
-                  state.activeQuest.id
-                );
-                // Just clear the active quest without marking as failed
-                // This handles cases where the app was reinstalled or data is from a previous user
-                state.activeQuest = null;
-                state.currentLiveActivityId = null;
-
-                // Also clear any pending quest that might be stale
-                if (state.pendingQuest) {
-                  console.log('🧹 Also clearing stale pending quest');
-                  state.pendingQuest = null;
-                }
-              }
-            }
+            cleanupRehydratedState(state);
           }
         };
       },

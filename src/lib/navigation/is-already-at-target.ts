@@ -22,6 +22,7 @@ const RESOLVER_OWNED_SEGMENTS: Record<ResolverOwnedSegment, true> = {
   onboarding: true,
   'pending-quest': true,
   'cooperative-pending-quest': true,
+  'active-quest': true,
   'quest-completed-signup': true,
   'streak-celebration': true,
   'first-quest-result': true,
@@ -216,6 +217,8 @@ export function isAlreadyAtTarget(
       return segments[0] === 'pending-quest';
     case 'cooperative-pending-quest':
       return segments[0] === 'cooperative-pending-quest';
+    case 'active-quest':
+      return segments[0] === 'active-quest';
     case 'streak-celebration':
       return segments[0] === 'streak-celebration';
     case 'first-quest-result':

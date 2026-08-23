@@ -33,9 +33,9 @@ import { SafeAreaView } from '@/components/ui';
 import colors from '@/components/ui/colors';
 import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
-import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
 import { getSentryConfig } from '@/lib/sentry-config';
 import { cancelLegacyStreakWarningNotification } from '@/lib/services/notifications';
+import { usePresenceRuntime } from '@/lib/services/quest-presence-runtime';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { initializeTimezoneSync } from '@/lib/services/timezone-service';
@@ -405,8 +405,10 @@ function RootLayout() {
     }
   }, [hydrationFinished, authStatus, fontsLoaded]);
 
-  // Activate lock detection for the whole main app.
-  useLockStateDetection();
+  // Mount the presence runtime once for the whole app (single mount —
+  // previously useLockStateDetection() double-mounted here and in
+  // (app)/_layout.tsx, double-firing lock handlers).
+  usePresenceRuntime();
 
   // Handle token refresh exhaustion
   useTokenRefreshErrorHandler();
@@ -431,6 +433,10 @@ function RootLayout() {
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="pending-quest" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="active-quest"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
         <Stack.Screen
           name="cooperative-pending-quest"
           options={{ headerShown: false }}

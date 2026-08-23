@@ -2,7 +2,7 @@
 import * as Sentry from '@sentry/react-native';
 
 import QuestTimer from '@/lib/services/quest-timer';
-import { useQuestStore } from '@/store/quest-store';
+import { cleanupRehydratedState, useQuestStore } from '@/store/quest-store';
 import { type Quest } from '@/store/types';
 
 jest.mock('@sentry/react-native', () => ({
@@ -543,7 +543,72 @@ describe('QuestStore - refreshAvailableQuests', () => {
     });
   });
 
+  describe('failQuest', () => {
+    test('records the questRunId even though stopQuest nulls it synchronously (iOS path)', () => {
+      // On iOS no background service is running, so QuestTimer.stopQuest()
+      // reaches `this.questRunId = null` before its first await — i.e.
+      // synchronously, before the call returns. The id must be read first.
+      let runId: string | null = 'run-fail-1';
+      (QuestTimer.getQuestRunId as jest.Mock).mockImplementation(() => runId);
+      (QuestTimer.stopQuest as jest.Mock).mockImplementation(() => {
+        runId = null;
+        return Promise.resolve();
+      });
+      useQuestStore.setState({
+        activeQuest: {
+          id: 'quest-1',
+          mode: 'story' as const,
+          title: 'Presence Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 60_000,
+          status: 'active' as const,
+          enforcement: 'presence' as const,
+          questRunId: 'run-fail-1',
+        },
+        failedQuests: [],
+      });
+
+      useQuestStore.getState().failQuest();
+
+      expect(useQuestStore.getState().failedQuest?.questRunId).toBe(
+        'run-fail-1'
+      );
+      (QuestTimer.stopQuest as jest.Mock).mockReset();
+      (QuestTimer.getQuestRunId as jest.Mock).mockImplementation(() => null);
+    });
+  });
+
   describe('completeQuest', () => {
+    test('a presence run stops the QuestTimer on completion, after reading its run id', async () => {
+      // The legacy background loop's own exits are gated off for presence
+      // runs, so nothing else stops the Android foreground service or clears
+      // QuestTimer.questRunId when a presence quest completes.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-123');
+      useQuestStore.setState({
+        activeQuest: {
+          id: 'quest-1',
+          mode: 'story' as const,
+          title: 'Presence Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 600000,
+          status: 'active' as const,
+          enforcement: 'presence' as const,
+          questRunId: 'run-123',
+        },
+        completedQuests: [],
+        lastCompletedQuestTimestamp: null,
+      });
+
+      await useQuestStore.getState().completeQuest(true);
+
+      expect(QuestTimer.stopQuest).toHaveBeenCalledTimes(1);
+      expect(useQuestStore.getState().recentCompletedQuest?.questRunId).toBe(
+        'run-123'
+      );
+    });
+
     test('arms recentCompletedQuest synchronously, before any reward fetching', () => {
       // Captured on device 2026-07-16: the background task completes a quest
       // while the phone is locked, and the rewards fetch goes out on a network
@@ -1497,6 +1562,112 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(state.availableQuests.length).toBe(1);
       expect(state.availableQuests[0].id).toBe('quest-1');
     });
+  });
+});
+
+describe('cleanupRehydratedState', () => {
+  // These fixtures seed a non-empty completedQuests array so the state passes
+  // the earlier "inconsistent state after reinstall" guard (which unconditionally
+  // clears activeQuest when there are no completedQuests at all) and actually
+  // exercises the duration-elapsed stale-clear guard under test.
+  const priorCompletedQuest = { id: 'prior-quest', status: 'completed' } as any;
+
+  it('keeps a server-backed presence run on the FIRST quest (no completed quests yet) so cold start can re-judge it', () => {
+    // Onboarding's first quest is a presence run. Killing and relaunching
+    // the app mid-quest used to trip the "active quest but nothing
+    // completed = reinstall debris" guard and wipe it while the server run
+    // kept ticking.
+    const state = {
+      activeQuest: {
+        id: 'quest-1',
+        mode: 'story',
+        durationMinutes: 5,
+        startTime: Date.now() - 60_000,
+        status: 'active',
+        enforcement: 'presence',
+        questRunId: 'run-first',
+      },
+      completedQuests: [],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    expect(cleaned.activeQuest?.questRunId).toBe('run-first');
+  });
+
+  it('still clears a first-quest presence run that has no questRunId (unmanageable)', () => {
+    const state = {
+      activeQuest: {
+        id: 'quest-1',
+        mode: 'story',
+        durationMinutes: 5,
+        startTime: Date.now() - 60_000,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [],
+    } as any;
+
+    expect(cleanupRehydratedState(state).activeQuest).toBeNull();
+  });
+
+  it('does not stale-clear a presence activeQuest after its duration elapses', () => {
+    const longAgoStart = Date.now() - 60 * 60 * 1000; // 60 min ago
+    const state = {
+      activeQuest: {
+        id: 'q1',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: longAgoStart,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    // Presence runs survive rehydrate stale-clear; the presence runtime
+    // re-judges them on cold start instead of the store wall-clock guard.
+    expect(cleaned.activeQuest).not.toBeNull();
+  });
+
+  it('still stale-clears a lock-mode activeQuest after its duration elapses', () => {
+    const longAgoStart = Date.now() - 60 * 60 * 1000;
+    const state = {
+      activeQuest: {
+        id: 'q2',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: longAgoStart,
+        status: 'active',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    expect(cleaned.activeQuest).toBeNull();
+  });
+
+  it('does not throw reaching the presence guard on a sparse state (no pendingQuest/cooperativeQuestRun)', () => {
+    // Seed completedQuests to clear the earlier reinstall guard so execution
+    // actually reaches the presence-guarded stale-clear, then omit
+    // pendingQuest and cooperativeQuestRun to prove the guard tolerates a
+    // sparse object shape.
+    const state = {
+      activeQuest: {
+        id: 'q3',
+        mode: 'custom',
+        durationMinutes: 30,
+        startTime: Date.now() - 60 * 60 * 1000,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [priorCompletedQuest],
+    } as any;
+
+    expect(() => cleanupRehydratedState(state)).not.toThrow();
   });
 });
 

@@ -82,7 +82,6 @@ function isCompleteStoryQuest(
 }
 
 export default function FirstQuestScreen() {
-  const prepareQuest = useQuestStore((state) => state.prepareQuest);
   const setServerAvailableQuests = useQuestStore(
     (state) => state.setServerAvailableQuests
   );
@@ -258,20 +257,19 @@ export default function FirstQuestScreen() {
           poiSlug: firstStoryQuest.poiSlug ?? '',
         };
 
-        // Prepare the quest in the store
+        // Presence runs start immediately on tap - no more waiting for phone
+        // lock. Wrap in try/catch to prevent errors from blocking the tap.
         posthog.capture('onboarding_prepare_first_quest');
-        prepareQuest(clientQuest);
-
-        // Prepare the quest timer - wrap in try/catch to prevent errors
         try {
-          await QuestTimer.prepareQuest(clientQuest);
+          await QuestTimer.startPresenceQuest(clientQuest);
           posthog.capture('onboarding_success_start_first_quest');
         } catch (error) {
-          console.error('Error preparing quest timer:', error);
-          // Continue with navigation even if timer setup fails
+          console.error('Error starting presence quest:', error);
         }
 
-        // Router will automatically navigate to pending-quest via the useEffect above
+        // Navigation to the active-quest screen is owned by the resolver /
+        // NavigationGate: startPresenceQuest activates the quest directly and
+        // the gate routes on the resulting activeQuest state.
       } else {
         posthog.capture('onboarding_error_no_story_quest_found');
       }

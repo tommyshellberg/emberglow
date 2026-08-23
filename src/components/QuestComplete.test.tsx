@@ -1,12 +1,13 @@
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { NavigationRouteContext } from '@react-navigation/native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useQuestStore } from '@/store/quest-store';
+import { useUserStore } from '@/store/user-store';
 
 import type { QuestWithMode } from './quest-complete/types';
 import { QuestComplete } from './QuestComplete';
@@ -425,6 +426,98 @@ describe('QuestComplete', () => {
       expect(paddingBottomOf(getByTestId('quest-complete-content'))).toBe(
         CONTENT_GAP
       );
+    });
+  });
+
+  describe('Reward Breakdown (lock bonus)', () => {
+    const currentUserId = 'user-123';
+
+    beforeEach(() => {
+      useUserStore.setState({
+        user: { id: currentUserId, email: 'test@example.com' } as any,
+      });
+    });
+
+    afterEach(() => {
+      useUserStore.setState({ user: null });
+    });
+
+    it('shows a "+N lock bonus" line for a completed presence run with rewards.lockBonus > 0', () => {
+      const presenceQuest: QuestWithMode = {
+        ...mockStoryQuest,
+        participants: [
+          {
+            userId: currentUserId,
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+              lockBonus: 12,
+            },
+          },
+        ],
+      };
+
+      render(<QuestComplete quest={presenceQuest} story="Test story" />);
+
+      expect(screen.getByLabelText('Reward breakdown')).toBeTruthy();
+      expect(screen.getByText('Lock bonus')).toBeTruthy();
+      expect(screen.getByText('+12')).toBeTruthy();
+    });
+
+    it('shows no lock-bonus line and no breakdown for a watched completion with lockBonus 0/absent and no perks', () => {
+      const watchedQuest: QuestWithMode = {
+        ...mockStoryQuest,
+        participants: [
+          {
+            userId: currentUserId,
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+              lockBonus: 0,
+            },
+          },
+        ],
+      };
+
+      render(<QuestComplete quest={watchedQuest} story="Test story" />);
+
+      expect(screen.queryByText(/lock bonus/i)).toBeNull();
+      expect(screen.queryByLabelText('Reward breakdown')).toBeNull();
+    });
+
+    it('still shows the reward breakdown for a presence run with a lock bonus but no perks (widened guard)', () => {
+      const presenceQuestNoPerks: QuestWithMode = {
+        ...mockStoryQuest,
+        participants: [
+          {
+            userId: currentUserId,
+            ready: true,
+            status: 'completed',
+            rewards: {
+              baseXP: 15,
+              adjustedXP: 15,
+              multiplier: 1,
+              perksApplied: [],
+              lockBonus: 8,
+            },
+          },
+        ],
+      };
+
+      render(<QuestComplete quest={presenceQuestNoPerks} story="Test story" />);
+
+      // The breakdown container renders even though there are no perks,
+      // because the widened guard checks for a positive lock bonus too.
+      expect(screen.getByLabelText('Reward breakdown')).toBeTruthy();
+      expect(screen.getByText('Lock bonus')).toBeTruthy();
     });
   });
 });

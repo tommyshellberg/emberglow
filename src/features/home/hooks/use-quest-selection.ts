@@ -1,12 +1,15 @@
 import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import { useCallback } from 'react';
+import { Alert } from 'react-native';
 
 import { type QuestOption, type QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
 import QuestTimer from '@/lib/services/quest-timer';
-import { useQuestStore } from '@/store/quest-store';
-import { type LocalQuestTemplate } from '@/store/types';
+import {
+  type CustomQuestTemplate,
+  type StoryQuestTemplate,
+} from '@/store/types';
 
 // The server-provided quest shape (matches the API's QuestTemplate, which
 // already carries the story-specific fields like poiSlug/story/recap/options
@@ -24,7 +27,31 @@ export function useQuestSelection({
 }: UseQuestSelectionProps) {
   const router = useRouter();
   const posthog = usePostHog();
-  const prepareQuest = useQuestStore((state) => state.prepareQuest);
+
+  // startPresenceQuest refuses to start without a server run (a presence run
+  // with no questRunId can never complete). The tap handlers discard this
+  // promise, so the failure must be shown here or the user sees nothing.
+  const startPresenceQuestOrAlert = useCallback(
+    async (template: StoryQuestTemplate | CustomQuestTemplate) => {
+      try {
+        await QuestTimer.startPresenceQuest(template);
+        posthog.capture('success_start_quest');
+      } catch (error) {
+        console.error(
+          '[useQuestSelection] QuestTimer.startPresenceQuest failed:',
+          error
+        );
+        posthog.capture('start_quest_failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        Alert.alert(
+          "Couldn't start the quest",
+          'Check your connection and try again.'
+        );
+      }
+    },
+    [posthog]
+  );
 
   const handleQuestOptionSelect = useCallback(
     async (nextQuestId: string | null) => {
@@ -59,20 +86,15 @@ export function useQuestSelection({
         };
 
         posthog.capture('trigger_start_quest');
-        prepareQuest(clientQuest as LocalQuestTemplate);
 
-        try {
-          // No navigation here: prepareQuest above arms NavigationGate, which
-          // has already pushed /pending-quest by the time this await resolves.
-          await QuestTimer.prepareQuest(clientQuest as LocalQuestTemplate);
-          posthog.capture('success_start_quest');
-        } catch (error) {
-          console.error(
-            '[useQuestSelection] QuestTimer.prepareQuest failed:',
-            error
-          );
-          throw error;
-        }
+        // Presence runs start immediately on tap - no more waiting for phone
+        // lock. Navigation to the active-quest screen is wired by the
+        // resolver in a later task.
+        // Solo runs only: mode is forced to 'story' | 'custom' above, so the
+        // cooperative arm of LocalQuestTemplate is excluded by construction.
+        await startPresenceQuestOrAlert(
+          clientQuest as StoryQuestTemplate | CustomQuestTemplate
+        );
       } else {
         // Fallback to local quest data
         const localQuest = AVAILABLE_QUESTS.find(
@@ -81,14 +103,11 @@ export function useQuestSelection({
 
         if (localQuest) {
           posthog.capture('trigger_start_quest');
-          // As above: prepareQuest arms NavigationGate, which owns the push.
-          prepareQuest(localQuest);
-          await QuestTimer.prepareQuest(localQuest);
-          posthog.capture('success_start_quest');
+          await startPresenceQuestOrAlert(localQuest);
         }
       }
     },
-    [serverQuests, serverOptions, prepareQuest, posthog]
+    [serverQuests, serverOptions, posthog, startPresenceQuestOrAlert]
   );
 
   const handleStartCustomQuest = useCallback(() => {

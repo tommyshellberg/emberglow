@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
@@ -11,7 +12,7 @@ jest.mock('expo-router', () => {
 });
 jest.mock('@/lib/services/quest-timer', () => ({
   __esModule: true,
-  default: { prepareQuest: jest.fn().mockResolvedValue(undefined) },
+  default: { startPresenceQuest: jest.fn().mockResolvedValue(undefined) },
 }));
 jest.mock('posthog-react-native', () => ({
   usePostHog: () => ({ capture: jest.fn() }),
@@ -33,24 +34,47 @@ describe('useQuestSelection', () => {
     useQuestStore.setState({ pendingQuest: null } as any);
   });
 
-  it('arms the quest in the store', async () => {
+  it('starts the presence quest immediately without arming pendingQuest', async () => {
+    // Presence runs skip the pending stage: startPresenceQuest activates the
+    // quest directly, and the resolver routes on activeQuest instead.
     const { result } = renderHook(() =>
       useQuestSelection({ serverQuests: [serverQuest], serverOptions: [] })
     );
 
     await act(() => result.current.handleQuestOptionSelect('quest-6'));
 
-    expect(useQuestStore.getState().pendingQuest?.id).toBe('quest-6');
-    expect(QuestTimer.prepareQuest).toHaveBeenCalled();
+    expect(QuestTimer.startPresenceQuest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'quest-6' })
+    );
+    expect(useQuestStore.getState().pendingQuest).toBeNull();
   });
 
-  it('leaves pending-quest navigation to NavigationGate', async () => {
-    // Arming the store IS the navigation: the resolver turns a pendingQuest
-    // into target 'pending-quest' and the root NavigationGate pushes it. That
-    // happens the moment prepareQuest() lands — a whole POST /quest-runs before
-    // this hook's await resolves. Pushing here as well stacks a second,
-    // identical pending-quest screen on top of the first, which is what the
-    // double-navigation on the orb press actually was.
+  it('tells the user when the quest cannot start (offline) instead of failing silently', async () => {
+    // The tap handler discards the promise, so a rethrow here would be an
+    // unhandled rejection the user never sees.
+    (QuestTimer.startPresenceQuest as jest.Mock).mockRejectedValueOnce(
+      new Error('Network Error')
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const { result } = renderHook(() =>
+      useQuestSelection({ serverQuests: [serverQuest], serverOptions: [] })
+    );
+
+    await act(() => result.current.handleQuestOptionSelect('quest-6'));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Couldn't start the quest",
+      'Check your connection and try again.'
+    );
+    expect(useQuestStore.getState().activeQuest).toBeFalsy();
+  });
+
+  it('leaves quest navigation to NavigationGate', async () => {
+    // Starting the run IS the navigation: startPresenceQuest activates the
+    // quest, the resolver turns that activeQuest into target 'active-quest',
+    // and the root NavigationGate performs the route. Pushing here as well
+    // would stack a second, identical screen on top of the first, which is
+    // what the double-navigation on the orb press actually was.
     const { result } = renderHook(() =>
       useQuestSelection({ serverQuests: [serverQuest], serverOptions: [] })
     );
@@ -58,7 +82,7 @@ describe('useQuestSelection', () => {
     await act(() => result.current.handleQuestOptionSelect('quest-6'));
 
     const { __push } = jest.requireMock('expo-router');
-    expect(__push).not.toHaveBeenCalledWith('/pending-quest');
+    expect(__push).not.toHaveBeenCalled();
   });
 
   it('still owns navigation the gate does not derive from quest state', async () => {

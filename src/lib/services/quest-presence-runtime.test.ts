@@ -1,0 +1,783 @@
+import { act, renderHook } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
+
+import addLockListener, { setKeepAliveEnabled } from '@/../modules/lock-state';
+import {
+  cancelPresenceWarningNotification,
+  schedulePresenceWarningNotification,
+} from '@/lib/services/notifications';
+import {
+  flipLiveActivityToFailed,
+  flipLiveActivityToGrace,
+  revertLiveActivityToActive,
+} from '@/lib/services/presence-live-activity';
+import {
+  confirmQuestRun,
+  getQuestRunStatus,
+  updateAwayStatus,
+  updatePhoneLockStatus,
+  updateQuestRunStatus,
+} from '@/lib/services/quest-run-service';
+import QuestTimer from '@/lib/services/quest-timer';
+import { getItem, removeItem, setItem } from '@/lib/storage';
+import { useQuestStore } from '@/store/quest-store';
+
+import { snapshotKey, usePresenceRuntime } from './quest-presence-runtime';
+
+jest.mock('@/../modules/lock-state', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({ remove: jest.fn() })),
+  setKeepAliveEnabled: jest.fn(),
+}));
+
+jest.mock('@/lib/services/quest-run-service', () => ({
+  updatePhoneLockStatus: jest.fn().mockResolvedValue({}),
+  updateQuestRunStatus: jest.fn().mockResolvedValue({}),
+  confirmQuestRun: jest.fn().mockResolvedValue({}),
+  getQuestRunStatus: jest.fn().mockResolvedValue({}),
+  updateAwayStatus: jest.fn().mockResolvedValue({ status: 'active' }),
+}));
+
+jest.mock('@/lib/services/presence-live-activity', () => ({
+  flipLiveActivityToGrace: jest.fn(),
+  revertLiveActivityToActive: jest.fn(),
+  flipLiveActivityToFailed: jest.fn(),
+}));
+
+jest.mock('@/lib/services/notifications', () => ({
+  schedulePresenceWarningNotification: jest.fn().mockResolvedValue(true),
+  cancelPresenceWarningNotification: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('@/lib/storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+}));
+
+jest.mock('@/lib/services/quest-timer', () => ({
+  __esModule: true,
+  default: {
+    onPhoneLocked: jest.fn().mockResolvedValue(undefined),
+    onPhoneUnlocked: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock('@/store/quest-store', () => ({
+  useQuestStore: {
+    getState: jest.fn(),
+    subscribe: jest.fn(() => jest.fn()),
+  },
+}));
+
+const RUN_ID = 'run-1';
+const START = 1_000_000;
+const DURATION_MIN = 30;
+const DURATION_MS = DURATION_MIN * 60_000;
+const END = START + DURATION_MS;
+const LIVE_ACTIVITY_ID = 'live-activity-1';
+
+// Captured by monkey-patching AppState.addEventListener directly (the same
+// technique src/lib/services/timezone-service.test.ts uses) — reliable
+// because the runtime module and this test share the same imported AppState
+// object reference, unlike jest.doMock('react-native', ...) which only
+// affects modules required *after* the mock is registered.
+let appStateListener: ((status: AppStateStatus) => void) | undefined;
+
+// Captured store-subscription callback (the runtime's evaluateStoreState),
+// invoked to simulate a mid-run store transition.
+let storeSubscriber: (() => void) | undefined;
+
+let mockQuestState: any;
+
+function baseActiveQuest(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'quest-1',
+    questRunId: RUN_ID,
+    enforcement: 'presence',
+    startTime: START,
+    durationMinutes: DURATION_MIN,
+    title: 'Test quest',
+    mode: 'custom',
+    category: 'focus',
+    reward: { xp: 10 },
+    status: 'active',
+    ...overrides,
+  };
+}
+
+function setQuestState(overrides: Record<string, unknown> = {}) {
+  mockQuestState = {
+    activeQuest: null,
+    cooperativeQuestRun: null,
+    currentLiveActivityId: LIVE_ACTIVITY_ID,
+    failQuest: jest.fn(),
+    completeQuest: jest.fn().mockResolvedValue(null),
+    ...overrides,
+  };
+  (useQuestStore.getState as jest.Mock).mockReturnValue(mockQuestState);
+}
+
+describe('quest-presence-runtime', () => {
+  let hook: ReturnType<typeof renderHook> | undefined;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(START);
+
+    appStateListener = undefined;
+    AppState.addEventListener = jest.fn((event, listener) => {
+      if (event === 'change') {
+        appStateListener = listener as (status: AppStateStatus) => void;
+      }
+      return { remove: jest.fn() };
+    }) as any;
+
+    (getItem as jest.Mock).mockReturnValue(null);
+    // clearAllMocks() wipes call history only, not implementations — reset
+    // the default resolution every test so a prior test's mockRejectedValue
+    // (offline scenarios) can't bleed into a later test that needs the ack.
+    (updateAwayStatus as jest.Mock).mockResolvedValue({ status: 'active' });
+    // Same reason: the serialization test replaces this implementation with a
+    // hand-released deferred; a later test's schedule must resolve again or
+    // the warning chain wedges and cancels queued behind it never run.
+    (schedulePresenceWarningNotification as jest.Mock).mockResolvedValue(true);
+    storeSubscriber = undefined;
+    (useQuestStore.subscribe as jest.Mock).mockImplementation((cb) => {
+      storeSubscriber = cb as () => void;
+      return jest.fn();
+    });
+    hook = undefined;
+    setQuestState();
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    jest.useRealTimers();
+  });
+
+  function mountRuntime() {
+    hook = renderHook(() => usePresenceRuntime());
+  }
+
+  function startRuntimeForActivePresenceRun(
+    overrides: Record<string, unknown> = {}
+  ) {
+    setQuestState({ activeQuest: baseActiveQuest(overrides) });
+    mountRuntime();
+  }
+
+  function fireLockEvent(kind: 'LOCKED' | 'UNLOCKED') {
+    const calls = (addLockListener as jest.Mock).mock.calls.filter(
+      (c) => c[0] === kind
+    );
+    const callback = calls[calls.length - 1]?.[1];
+    act(() => {
+      callback?.();
+    });
+  }
+
+  function fireAppState(status: AppStateStatus) {
+    act(() => {
+      appStateListener?.(status);
+    });
+  }
+
+  // Update the mocked store, then invoke the runtime's captured store
+  // subscription (evaluateStoreState) — simulates a mid-run store transition.
+  function transitionStore(overrides: Record<string, unknown>) {
+    setQuestState(overrides);
+    act(() => {
+      storeSubscriber?.();
+    });
+  }
+
+  async function flush() {
+    await act(async () => {
+      for (let i = 0; i < 6; i += 1) {
+        await Promise.resolve();
+      }
+    });
+  }
+
+  it('SCREEN_LOCKED event PATCHes lock:true and persists the snapshot', async () => {
+    startRuntimeForActivePresenceRun();
+
+    fireLockEvent('LOCKED');
+    await flush();
+
+    expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+      RUN_ID,
+      true,
+      LIVE_ACTIVITY_ID
+    );
+    expect(setItem).toHaveBeenCalledWith(
+      snapshotKey(RUN_ID),
+      expect.objectContaining({ state: 'LOCKED' })
+    );
+  });
+
+  it('grace expiry with the away report acked: server owns the fail — no status PATCH, local commit only', async () => {
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    act(() => {
+      jest.advanceTimersByTime(12_000); // debounce fires, away:true acked
+    });
+    await flush();
+    act(() => {
+      jest.advanceTimersByTime(38_000); // 50s total → grace deadline
+    });
+    await flush();
+
+    expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    expect(mockQuestState.failQuest).toHaveBeenCalled();
+    expect(flipLiveActivityToFailed).not.toHaveBeenCalled(); // server pushes the failed tile
+  });
+
+  it('grace expiry with the away report unreachable (offline): fallback fail + local failed tile', async () => {
+    (updateAwayStatus as jest.Mock).mockRejectedValue(new Error('offline'));
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    act(() => {
+      jest.advanceTimersByTime(50_000);
+    });
+    await flush();
+
+    expect(updateQuestRunStatus).toHaveBeenCalledWith(
+      RUN_ID,
+      'failed',
+      null,
+      undefined,
+      'left_app'
+    );
+    expect(mockQuestState.failQuest).toHaveBeenCalled();
+    expect(flipLiveActivityToFailed).toHaveBeenCalledWith({
+      activityId: LIVE_ACTIVITY_ID,
+      title: 'Test quest',
+      durationMinutes: DURATION_MIN,
+    });
+  });
+
+  it('returning within grace cancels the timer and warning, no fail', async () => {
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    act(() => {
+      jest.advanceTimersByTime(10_000);
+    });
+    fireAppState('active');
+    act(() => {
+      jest.advanceTimersByTime(50_000);
+    });
+    await flush();
+
+    expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    expect(cancelPresenceWarningNotification).toHaveBeenCalled();
+  });
+
+  it('TIMER_COMPLETE while foregrounded confirms via /confirm (watched)', async () => {
+    startRuntimeForActivePresenceRun();
+
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS);
+    });
+    await flush();
+
+    expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
+    expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
+  it('TIMER_COMPLETE while LOCKED still confirms via /confirm (a lost locked:true PATCH must not strand the run)', async () => {
+    startRuntimeForActivePresenceRun();
+    fireLockEvent('LOCKED');
+
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS);
+    });
+    await flush();
+
+    expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
+    expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
+  it('serializes warning-notification effects so a cancel cannot be overtaken by a still-pending schedule', async () => {
+    // Lock-button press: AppState goes background → SCHEDULE starts (it
+    // awaits areNotificationsEnabled before scheduling). The protected-data
+    // lock signal lands ~shortly after → CANCEL. If CANCEL runs while
+    // SCHEDULE is still pending, the schedule lands last and the user who
+    // locked correctly gets "Your hero is in danger!" 12s later.
+    let releaseSchedule!: () => void;
+    (schedulePresenceWarningNotification as jest.Mock).mockImplementation(
+      () => new Promise<boolean>((r) => (releaseSchedule = () => r(true)))
+    );
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    fireLockEvent('LOCKED');
+    await flush();
+
+    // Schedule is still pending — cancel must be queued behind it, not run.
+    expect(cancelPresenceWarningNotification).not.toHaveBeenCalled();
+
+    releaseSchedule();
+    await flush();
+
+    expect(cancelPresenceWarningNotification).toHaveBeenCalled();
+  });
+
+  describe('completion when the server disagrees (confirm rejected with a response)', () => {
+    const serverRejection = (message: string) =>
+      Object.assign(new Error(message), {
+        response: { status: 400, data: { message } },
+      });
+
+    it('commits failQuest, not completeQuest, when the server already failed the run', async () => {
+      // away:false was lost, the dead-man's-switch fired, the user watched
+      // the countdown out: confirm → 400 "Cannot confirm a quest in failed
+      // status". Treating that like "offline" awarded XP for a failed run.
+      (confirmQuestRun as jest.Mock).mockRejectedValue(
+        serverRejection('Cannot confirm a quest in failed status')
+      );
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: RUN_ID,
+        status: 'failed',
+        failureReason: 'left_app',
+      });
+      startRuntimeForActivePresenceRun();
+
+      act(() => {
+        jest.advanceTimersByTime(DURATION_MS);
+      });
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      expect(mockQuestState.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('retries the confirm once the server window closes when the client clock ran ahead', async () => {
+      // Client's scheduledEndTime is startTime + duration from a local clock
+      // set after several round-trips; the server's is its own. A confirm
+      // fired a few seconds early gets 400 "before scheduledEndTime".
+      const SKEW_MS = 5_000;
+      (confirmQuestRun as jest.Mock)
+        .mockRejectedValueOnce(
+          serverRejection(
+            'Cannot confirm a quest in active status before scheduledEndTime'
+          )
+        )
+        .mockResolvedValue({ id: RUN_ID, status: 'completed' });
+      (getQuestRunStatus as jest.Mock).mockResolvedValue({
+        id: RUN_ID,
+        status: 'active',
+        scheduledEndTime: START + DURATION_MS + SKEW_MS,
+      });
+      startRuntimeForActivePresenceRun();
+
+      act(() => {
+        jest.advanceTimersByTime(DURATION_MS);
+      });
+      await flush();
+      expect(confirmQuestRun).toHaveBeenCalledTimes(1);
+      expect(mockQuestState.completeQuest).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(SKEW_MS + 2_000);
+      });
+      await flush();
+
+      expect(confirmQuestRun).toHaveBeenCalledTimes(2);
+      expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+      expect(mockQuestState.failQuest).not.toHaveBeenCalled();
+    });
+  });
+
+  it('cold start rehydrates from the MMKV snapshot and re-judges (abandoned → left_app)', async () => {
+    (getItem as jest.Mock).mockReturnValue({
+      state: 'IN_APP',
+      enteredAt: START,
+      lockedMs: 0,
+      lastAliveAt: START + 2 * 60_000,
+    });
+    jest.setSystemTime(END + 60_000);
+
+    startRuntimeForActivePresenceRun();
+    await flush();
+
+    expect(updateQuestRunStatus).toHaveBeenCalledWith(
+      RUN_ID,
+      'failed',
+      null,
+      undefined,
+      'left_app'
+    );
+  });
+
+  it('an active COOPERATIVE run routes lock/unlock to the legacy QuestTimer handlers, not the machine', async () => {
+    setQuestState({
+      activeQuest: baseActiveQuest({
+        enforcement: undefined,
+        category: 'cooperative',
+      }),
+      cooperativeQuestRun: { id: RUN_ID },
+    });
+    mountRuntime();
+
+    fireLockEvent('LOCKED');
+    await flush();
+
+    expect(QuestTimer.onPhoneLocked).toHaveBeenCalled();
+    expect(updatePhoneLockStatus).not.toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      expect.anything()
+    );
+
+    fireLockEvent('UNLOCKED');
+    await flush();
+
+    expect(QuestTimer.onPhoneUnlocked).toHaveBeenCalled();
+  });
+
+  it('ignores lock/unlock and AppState signals when there is no active run', async () => {
+    mountRuntime();
+
+    fireLockEvent('LOCKED');
+    fireAppState('background');
+    await flush();
+
+    expect(updatePhoneLockStatus).not.toHaveBeenCalled();
+    expect(QuestTimer.onPhoneLocked).not.toHaveBeenCalled();
+  });
+
+  // --- CRITICAL 1 regression: a rejected network report must NOT block the
+  // local store mutation, or the run is stranded forever. ---
+
+  it('REPORT_FAIL still calls failQuest() locally even if the network report rejects', async () => {
+    (updateQuestRunStatus as jest.Mock).mockRejectedValue(new Error('offline'));
+    (updateAwayStatus as jest.Mock).mockRejectedValue(new Error('offline'));
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    act(() => {
+      jest.advanceTimersByTime(50_000);
+    });
+    await flush();
+
+    expect(updateQuestRunStatus).toHaveBeenCalled();
+    expect(mockQuestState.failQuest).toHaveBeenCalled();
+  });
+
+  it('REPORT_COMPLETE still calls completeQuest() locally even if confirm rejects', async () => {
+    (confirmQuestRun as jest.Mock).mockRejectedValue(new Error('offline'));
+    startRuntimeForActivePresenceRun();
+
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS);
+    });
+    await flush();
+
+    expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
+    expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
+  // --- IMPORTANT 3 store-subscription lifecycle. ---
+
+  it('a mid-run store transition to no presence run cleanly ends the session (timers cleared, warning + snapshot dropped)', async () => {
+    startRuntimeForActivePresenceRun();
+
+    // Go AWAY so a grace timer is armed and a warning is scheduled.
+    fireAppState('background');
+    await flush();
+    (updateQuestRunStatus as jest.Mock).mockClear();
+
+    // Store's activeQuest clears (e.g. cancelQuest()) → session must end.
+    transitionStore({ activeQuest: null });
+    await flush();
+
+    expect(cancelPresenceWarningNotification).toHaveBeenCalled();
+    expect(removeItem).toHaveBeenCalledWith(snapshotKey(RUN_ID));
+
+    // Grace timer was cleared: advancing past it must NOT report a failure.
+    act(() => {
+      jest.advanceTimersByTime(50_000);
+    });
+    await flush();
+    expect(updateQuestRunStatus).not.toHaveBeenCalled();
+  });
+
+  it('a different presence run replacing the tracked one starts fresh with no cross-talk from the old timers', async () => {
+    startRuntimeForActivePresenceRun();
+
+    // Replace run-1 with a longer run-2 (double duration) before run-1's end.
+    transitionStore({
+      activeQuest: baseActiveQuest({
+        questRunId: 'run-2',
+        startTime: START,
+        durationMinutes: DURATION_MIN * 2,
+      }),
+    });
+    await flush();
+
+    // Advance past run-1's original end (30m) but before run-2's end (60m):
+    // run-1's completion timer must have been cleared — nothing completes.
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS + 60_000);
+    });
+    await flush();
+    expect(confirmQuestRun).not.toHaveBeenCalled();
+
+    // Reaching run-2's end fires ITS completion, for run-2 only.
+    act(() => {
+      jest.advanceTimersByTime(DURATION_MS);
+    });
+    await flush();
+    expect(confirmQuestRun).toHaveBeenCalledTimes(1);
+    expect(confirmQuestRun).toHaveBeenCalledWith('run-2');
+  });
+
+  describe('iOS keep-alive window', () => {
+    it('enables the native keep-alive hold when a presence session starts', () => {
+      startRuntimeForActivePresenceRun();
+
+      expect(setKeepAliveEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('disables the native keep-alive hold when the session ends', () => {
+      startRuntimeForActivePresenceRun();
+      (setKeepAliveEnabled as jest.Mock).mockClear();
+
+      transitionStore({ activeQuest: null });
+
+      expect(setKeepAliveEnabled).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('debounced away report (realtime-fail)', () => {
+    it('a sustained background fires flip + away:true (with liveActivityID) after 3s', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      expect(updateAwayStatus).not.toHaveBeenCalled(); // debounce pending
+
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
+      await flush();
+
+      expect(flipLiveActivityToGrace).toHaveBeenCalledWith({
+        activityId: LIVE_ACTIVITY_ID,
+        title: 'Test quest',
+        durationMinutes: DURATION_MIN,
+        graceEndsAt: START + 12_000 + 30_000, // fire time + VISIBLE_GRACE_MS
+      });
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+    });
+
+    it('the ack is recorded and persisted (snapshot awayReported:true)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
+      await flush();
+
+      expect(setItem).toHaveBeenCalledWith(
+        snapshotKey(RUN_ID),
+        expect.objectContaining({ state: 'AWAY', awayReported: true })
+      );
+    });
+
+    it("a sustained 'inactive' (phone call, Control Center) is not leaving: no report, no fail", async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('inactive');
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+      expect(useQuestStore.getState().failQuest).not.toHaveBeenCalled();
+    });
+
+    it('an instant switch-back inside the debounce sends and flips nothing', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(2_000);
+      });
+      fireAppState('active');
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+    });
+
+    it('a lock inside the debounce cancels the report and is handled immediately', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(1_000);
+      });
+      fireLockEvent('LOCKED');
+      await flush();
+
+      // Lock (the good path) was not delayed by the away debounce…
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      // …and the away report never fired.
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+    });
+
+    it('returning after the report fired reverts the tile and disarms (away:true then away:false)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
+      await flush();
+      fireAppState('active');
+      await flush();
+
+      expect(revertLiveActivityToActive).toHaveBeenCalledWith({
+        activityId: LIVE_ACTIVITY_ID,
+        title: 'Test quest',
+        durationMinutes: DURATION_MIN,
+        startedAt: START,
+      });
+      const awayFlags = (updateAwayStatus as jest.Mock).mock.calls.map(
+        (c) => c[1]
+      );
+      expect(awayFlags).toEqual([true, false]); // call order (the chain's race-serialization is by construction, not tested here)
+      expect(updateQuestRunStatus).not.toHaveBeenCalled(); // no fail — rescued
+    });
+
+    it('locking after the report fired also disarms (lock rescue)', async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
+      await flush();
+      fireLockEvent('LOCKED');
+      await flush();
+
+      expect(updatePhoneLockStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        true,
+        LIVE_ACTIVITY_ID
+      );
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        false,
+        LIVE_ACTIVITY_ID
+      );
+      expect(revertLiveActivityToActive).toHaveBeenCalled();
+    });
+
+    it('an away:false response carrying a failed run fails locally (server won the ~39s cross)', async () => {
+      (updateAwayStatus as jest.Mock)
+        .mockResolvedValueOnce({ status: 'active' }) // away:true ack
+        .mockResolvedValueOnce({ status: 'failed' }); // disarm lost the race
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('background');
+      act(() => {
+        jest.advanceTimersByTime(12_000);
+      });
+      await flush();
+      fireAppState('active');
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      // The client itself sent no fail — the server owned it.
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cold start (realtime-fail)', () => {
+    it('relaunch mid-AWAY within the window disarms the server and reverts the tile', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 20_000,
+        lockedMs: 0,
+        lastAliveAt: START - 20_000,
+        awayReported: true,
+      });
+      // now = START → 20s into the 40s window: resume, don't fail.
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(updateAwayStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        false,
+        LIVE_ACTIVITY_ID
+      );
+      expect(revertLiveActivityToActive).toHaveBeenCalled();
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
+    });
+
+    it('relaunch mid-AWAY past the window with the report acked: suppressed fail (server owned it)', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 60_000,
+        lockedMs: 0,
+        lastAliveAt: START - 60_000,
+        awayReported: true,
+      });
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+      expect(updateQuestRunStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToFailed).not.toHaveBeenCalled();
+      expect(updateAwayStatus).not.toHaveBeenCalled(); // terminal — no disarm
+    });
+
+    it('relaunch mid-AWAY past the window with a legacy snapshot: offline fallback fail', async () => {
+      (getItem as jest.Mock).mockReturnValue({
+        state: 'AWAY',
+        enteredAt: START - 60_000,
+        lockedMs: 0,
+        lastAliveAt: START - 60_000,
+      });
+      startRuntimeForActivePresenceRun();
+      await flush();
+
+      expect(updateQuestRunStatus).toHaveBeenCalledWith(
+        RUN_ID,
+        'failed',
+        null,
+        undefined,
+        'left_app'
+      );
+      expect(mockQuestState.failQuest).toHaveBeenCalled();
+    });
+  });
+});

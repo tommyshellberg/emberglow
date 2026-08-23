@@ -131,9 +131,8 @@ jest.mock('nativewind', () => ({
   useColorScheme: jest.fn(() => ({ colorScheme: 'light' })),
 }));
 
-jest.mock('@/lib/hooks/useLockStateDetection', () => ({
-  __esModule: true,
-  default: jest.fn(),
+jest.mock('@/lib/services/quest-presence-runtime', () => ({
+  usePresenceRuntime: jest.fn(),
 }));
 
 jest.mock('@/lib/services/notifications', () => ({
