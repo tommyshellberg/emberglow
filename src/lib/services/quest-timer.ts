@@ -369,18 +369,22 @@ export default class QuestTimer {
       await clearAllNotifications();
     }
 
-    let questRunId: string | null = null;
-
+    // Unlike prepareQuest (lock mode, where the local timer owns completion),
+    // a presence run cannot run without a server run: the presence runtime
+    // refuses to manage a run with no questRunId, the legacy loop never
+    // completes presence runs, and the resolver would pin the user on an
+    // empty active-quest screen. So a server failure here must abort the
+    // start and reach the caller, which shows the error.
+    let questRunId: string;
     try {
       const questRun = await createQuestRun(questTemplate);
       questRunId = questRun.id;
       this.questRunId = questRun.id;
-
       await beginQuestRun(questRun.id);
     } catch (error) {
       console.error('[QuestTimer] Failed to start presence quest run:', error);
-      // Continue anyway - the quest can still run locally, mirroring
-      // prepareQuest's tolerance of server failures.
+      this.questRunId = null;
+      throw error;
     }
 
     this.questTemplate = questTemplate;
@@ -461,7 +465,7 @@ export default class QuestTimer {
 
     useQuestStore.getState().startQuest({
       ...questTemplate,
-      questRunId: questRunId ?? undefined,
+      questRunId,
       enforcement: 'presence',
       startTime: Date.now(),
       status: 'active',

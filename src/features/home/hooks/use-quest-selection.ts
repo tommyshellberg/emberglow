@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { usePostHog } from 'posthog-react-native';
 import { useCallback } from 'react';
+import { Alert } from 'react-native';
 
 import { type QuestOption, type QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
@@ -26,6 +27,31 @@ export function useQuestSelection({
 }: UseQuestSelectionProps) {
   const router = useRouter();
   const posthog = usePostHog();
+
+  // startPresenceQuest refuses to start without a server run (a presence run
+  // with no questRunId can never complete). The tap handlers discard this
+  // promise, so the failure must be shown here or the user sees nothing.
+  const startPresenceQuestOrAlert = useCallback(
+    async (template: StoryQuestTemplate | CustomQuestTemplate) => {
+      try {
+        await QuestTimer.startPresenceQuest(template);
+        posthog.capture('success_start_quest');
+      } catch (error) {
+        console.error(
+          '[useQuestSelection] QuestTimer.startPresenceQuest failed:',
+          error
+        );
+        posthog.capture('start_quest_failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        Alert.alert(
+          "Couldn't start the quest",
+          'Check your connection and try again.'
+        );
+      }
+    },
+    [posthog]
+  );
 
   const handleQuestOptionSelect = useCallback(
     async (nextQuestId: string | null) => {
@@ -61,23 +87,14 @@ export function useQuestSelection({
 
         posthog.capture('trigger_start_quest');
 
-        try {
-          // Presence runs start immediately on tap - no more waiting for phone
-          // lock. Navigation to the active-quest screen is wired by the
-          // resolver in a later task.
-          // Solo runs only: mode is forced to 'story' | 'custom' above, so the
-          // cooperative arm of LocalQuestTemplate is excluded by construction.
-          await QuestTimer.startPresenceQuest(
-            clientQuest as StoryQuestTemplate | CustomQuestTemplate
-          );
-          posthog.capture('success_start_quest');
-        } catch (error) {
-          console.error(
-            '[useQuestSelection] QuestTimer.startPresenceQuest failed:',
-            error
-          );
-          throw error;
-        }
+        // Presence runs start immediately on tap - no more waiting for phone
+        // lock. Navigation to the active-quest screen is wired by the
+        // resolver in a later task.
+        // Solo runs only: mode is forced to 'story' | 'custom' above, so the
+        // cooperative arm of LocalQuestTemplate is excluded by construction.
+        await startPresenceQuestOrAlert(
+          clientQuest as StoryQuestTemplate | CustomQuestTemplate
+        );
       } else {
         // Fallback to local quest data
         const localQuest = AVAILABLE_QUESTS.find(
@@ -86,12 +103,11 @@ export function useQuestSelection({
 
         if (localQuest) {
           posthog.capture('trigger_start_quest');
-          await QuestTimer.startPresenceQuest(localQuest);
-          posthog.capture('success_start_quest');
+          await startPresenceQuestOrAlert(localQuest);
         }
       }
     },
-    [serverQuests, serverOptions, posthog]
+    [serverQuests, serverOptions, posthog, startPresenceQuestOrAlert]
   );
 
   const handleStartCustomQuest = useCallback(() => {

@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import QuestTimer from '@/lib/services/quest-timer';
 import { useQuestStore } from '@/store/quest-store';
@@ -46,6 +47,26 @@ describe('useQuestSelection', () => {
       expect.objectContaining({ id: 'quest-6' })
     );
     expect(useQuestStore.getState().pendingQuest).toBeNull();
+  });
+
+  it('tells the user when the quest cannot start (offline) instead of failing silently', async () => {
+    // The tap handler discards the promise, so a rethrow here would be an
+    // unhandled rejection the user never sees.
+    (QuestTimer.startPresenceQuest as jest.Mock).mockRejectedValueOnce(
+      new Error('Network Error')
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const { result } = renderHook(() =>
+      useQuestSelection({ serverQuests: [serverQuest], serverOptions: [] })
+    );
+
+    await act(() => result.current.handleQuestOptionSelect('quest-6'));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Couldn't start the quest",
+      'Check your connection and try again.'
+    );
+    expect(useQuestStore.getState().activeQuest).toBeFalsy();
   });
 
   it('leaves quest navigation to NavigationGate', async () => {

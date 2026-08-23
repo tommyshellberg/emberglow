@@ -545,6 +545,21 @@ describe('QuestTimer', () => {
       store.activeQuest = { id: 'test-quest-id', startTime: 0 };
     });
 
+    it('rejects and starts nothing locally when the server run cannot be created (offline start)', async () => {
+      // A presence run without a questRunId is unmanageable: the runtime
+      // refuses it, the legacy loop never completes it, and the resolver pins
+      // the user on an empty active-quest screen until they reinstall.
+      (createQuestRun as jest.Mock).mockRejectedValue(new Error('offline'));
+
+      await expect(
+        QuestTimer.startPresenceQuest(mockQuestTemplate)
+      ).rejects.toThrow('offline');
+
+      expect(useQuestStore.getState().startQuest).not.toHaveBeenCalled();
+      const BackgroundService = require('react-native-background-actions');
+      expect(BackgroundService.start).not.toHaveBeenCalled();
+    });
+
     it('creates the run, begins it, and starts the local active quest', async () => {
       (createQuestRun as jest.Mock).mockResolvedValue({
         id: 'run1',
