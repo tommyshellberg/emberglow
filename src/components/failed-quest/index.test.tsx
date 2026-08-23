@@ -130,6 +130,9 @@ describe('FailedQuest story outcome', () => {
     fireEvent.press(screen.getByText('Try Again'));
     expect(onRetry).toHaveBeenCalled();
     expect(screen.queryByText(/The story moves on/)).toBeNull();
+    expect(mockUseNextAvailableQuests).toHaveBeenCalledWith({
+      enabled: true,
+    });
   });
 
   it('shows the consequence and Continue when the story has moved on', () => {
@@ -179,5 +182,8 @@ describe('FailedQuest story outcome', () => {
       />
     );
     expect(screen.getByText('Try Again')).toBeOnTheScreen();
+    expect(mockUseNextAvailableQuests).toHaveBeenCalledWith({
+      enabled: false,
+    });
   });
 });
