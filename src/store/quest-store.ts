@@ -105,8 +105,15 @@ export function cleanupRehydratedState(
   const hasActiveQuest = state.activeQuest !== null;
 
   // If there's an active quest but no completed quests, this is likely stale data
-  // from a previous install (since you must complete quest-1 before getting quest-1a)
-  if (hasActiveQuest && !hasCompletedQuests) {
+  // from a previous install (since you must complete quest-1 before getting quest-1a).
+  // Exception: a server-backed presence run (has a questRunId) is legitimately
+  // in this state during onboarding's first quest — the presence runtime
+  // re-judges it on cold start, so it must survive. A presence run WITHOUT a
+  // run id can never complete and is cleared like any other debris.
+  const isServerBackedPresenceRun =
+    state.activeQuest?.enforcement === 'presence' &&
+    !!state.activeQuest.questRunId;
+  if (hasActiveQuest && !hasCompletedQuests && !isServerBackedPresenceRun) {
     console.log('🧹 Detected inconsistent state - clearing stale quest data');
     state.activeQuest = null;
     state.pendingQuest = null;

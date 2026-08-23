@@ -1536,6 +1536,45 @@ describe('cleanupRehydratedState', () => {
   // exercises the duration-elapsed stale-clear guard under test.
   const priorCompletedQuest = { id: 'prior-quest', status: 'completed' } as any;
 
+  it('keeps a server-backed presence run on the FIRST quest (no completed quests yet) so cold start can re-judge it', () => {
+    // Onboarding's first quest is a presence run. Killing and relaunching
+    // the app mid-quest used to trip the "active quest but nothing
+    // completed = reinstall debris" guard and wipe it while the server run
+    // kept ticking.
+    const state = {
+      activeQuest: {
+        id: 'quest-1',
+        mode: 'story',
+        durationMinutes: 5,
+        startTime: Date.now() - 60_000,
+        status: 'active',
+        enforcement: 'presence',
+        questRunId: 'run-first',
+      },
+      completedQuests: [],
+    } as any;
+
+    const cleaned = cleanupRehydratedState(state);
+
+    expect(cleaned.activeQuest?.questRunId).toBe('run-first');
+  });
+
+  it('still clears a first-quest presence run that has no questRunId (unmanageable)', () => {
+    const state = {
+      activeQuest: {
+        id: 'quest-1',
+        mode: 'story',
+        durationMinutes: 5,
+        startTime: Date.now() - 60_000,
+        status: 'active',
+        enforcement: 'presence',
+      },
+      completedQuests: [],
+    } as any;
+
+    expect(cleanupRehydratedState(state).activeQuest).toBeNull();
+  });
+
   it('does not stale-clear a presence activeQuest after its duration elapses', () => {
     const longAgoStart = Date.now() - 60 * 60 * 1000; // 60 min ago
     const state = {
