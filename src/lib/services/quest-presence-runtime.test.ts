@@ -139,6 +139,10 @@ describe('quest-presence-runtime', () => {
     // the default resolution every test so a prior test's mockRejectedValue
     // (offline scenarios) can't bleed into a later test that needs the ack.
     (updateAwayStatus as jest.Mock).mockResolvedValue({ status: 'active' });
+    // Same reason: the serialization test replaces this implementation with a
+    // hand-released deferred; a later test's schedule must resolve again or
+    // the warning chain wedges and cancels queued behind it never run.
+    (schedulePresenceWarningNotification as jest.Mock).mockResolvedValue(true);
     storeSubscriber = undefined;
     (useQuestStore.subscribe as jest.Mock).mockImplementation((cb) => {
       storeSubscriber = cb as () => void;
@@ -297,6 +301,31 @@ describe('quest-presence-runtime', () => {
 
     expect(confirmQuestRun).toHaveBeenCalledWith(RUN_ID);
     expect(mockQuestState.completeQuest).toHaveBeenCalledWith(true);
+  });
+
+  it('serializes warning-notification effects so a cancel cannot be overtaken by a still-pending schedule', async () => {
+    // Lock-button press: AppState goes background → SCHEDULE starts (it
+    // awaits areNotificationsEnabled before scheduling). The protected-data
+    // lock signal lands ~shortly after → CANCEL. If CANCEL runs while
+    // SCHEDULE is still pending, the schedule lands last and the user who
+    // locked correctly gets "Your hero is in danger!" 12s later.
+    let releaseSchedule!: () => void;
+    (schedulePresenceWarningNotification as jest.Mock).mockImplementation(
+      () => new Promise<boolean>((r) => (releaseSchedule = () => r(true)))
+    );
+    startRuntimeForActivePresenceRun();
+
+    fireAppState('background');
+    fireLockEvent('LOCKED');
+    await flush();
+
+    // Schedule is still pending — cancel must be queued behind it, not run.
+    expect(cancelPresenceWarningNotification).not.toHaveBeenCalled();
+
+    releaseSchedule();
+    await flush();
+
+    expect(cancelPresenceWarningNotification).toHaveBeenCalled();
   });
 
   describe('completion when the server disagrees (confirm rejected with a response)', () => {

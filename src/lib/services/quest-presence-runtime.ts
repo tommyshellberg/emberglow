@@ -92,6 +92,13 @@ let awayReportFired = false;
 // Serializes away-status PATCHes: a fast leave→return must not let the
 // away:false overtake the away:true on the wire.
 let awayPatchChain: Promise<unknown> = Promise.resolve();
+// Warning-notification effects are serialized for the same reason as the
+// away PATCHes: SCHEDULE awaits areNotificationsEnabled() before it
+// schedules, so an unserialized CANCEL issued moments later (lock signal
+// arriving after the background event) could complete first and the stale
+// schedule would land last — a user who locked correctly would still get
+// "Your hero is in danger!".
+let warningChain: Promise<unknown> = Promise.resolve();
 
 const viewListeners = new Set<ViewListener>();
 
@@ -421,11 +428,17 @@ function runEffects(effects: PresenceEffect[]) {
       case 'CANCEL_GRACE_DEADLINE':
         clearGraceTimer();
         break;
-      case 'SCHEDULE_WARNING_NOTIFICATION':
-        safe(() => schedulePresenceWarningNotification(effect.delayMs));
+      case 'SCHEDULE_WARNING_NOTIFICATION': {
+        const { delayMs } = effect;
+        warningChain = warningChain.then(() =>
+          safe(() => schedulePresenceWarningNotification(delayMs))
+        );
         break;
+      }
       case 'CANCEL_WARNING_NOTIFICATION':
-        safe(() => cancelPresenceWarningNotification());
+        warningChain = warningChain.then(() =>
+          safe(() => cancelPresenceWarningNotification())
+        );
         break;
       case 'SCHEDULE_AWAY_REPORT':
         armAwayReport(runId, effect.delayMs);
@@ -578,8 +591,11 @@ function endSession() {
   if (endedRunId) {
     // A run canceled/failed OUTSIDE the machine (e.g. cancelQuest() while AWAY)
     // never emitted CANCEL_WARNING_NOTIFICATION, so the scheduled "hero in
-    // danger" warning would fire minutes later for a dead run — cancel it here.
-    safe(() => cancelPresenceWarningNotification());
+    // danger" warning would fire minutes later for a dead run — cancel it here
+    // (on the chain, so it cannot be overtaken by a still-pending schedule).
+    warningChain = warningChain.then(() =>
+      safe(() => cancelPresenceWarningNotification())
+    );
     // Drop the ended run's snapshot so MMKV doesn't accumulate one dead
     // snapshot per finished run forever.
     safeSync(() => removeItem(snapshotKey(endedRunId)));
