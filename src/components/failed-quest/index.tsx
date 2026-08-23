@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -34,20 +34,73 @@ const RISE_DISTANCE = 20;
 const CONSEQUENCE_LINE =
   'The story moves on. What you couldn’t finish will follow you.';
 
+// How long we wait for the server to say whether the story still offers this
+// quest. The query retries 3x behind a 30s timeout, and the onboarding version
+// of this screen has no back button, so a bad connection would otherwise pin a
+// new user to a spinner for about two minutes.
+const DECIDE_TIMEOUT_MS = 5000;
+
+// The height of the primary CTA (Button's default `md` size). The spinner sits
+// in the same slot, so it reserves the same height and the layout does not jump
+// when the button replaces it.
+const BUTTON_SLOT_HEIGHT = 48;
+
+/**
+ * What this screen offers the player.
+ * - `deciding`: we are still asking the server; show a spinner, nothing else.
+ * - `retry`: the failed quest is still on offer (or we could not find out).
+ * - `moved-on`: the story replaced this quest; only Continue is left.
+ */
+type Outcome = 'deciding' | 'retry' | 'moved-on';
+
 export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
   const isStory = quest.mode === 'story';
-  const { data, isFetching, refetch } = useNextAvailableQuests({
-    enabled: isStory,
-  });
+  const { refetch } = useNextAvailableQuests({ enabled: isStory });
+  // The answer is resolved once, into local state. Reading the shared query's
+  // live `data`/`isFetching` instead would let a later refetch elsewhere in the
+  // app swap this screen's button while the player is looking at it.
+  const [outcome, setOutcome] = useState<Outcome>(
+    isStory ? 'deciding' : 'retry'
+  );
+
   useEffect(() => {
-    // The server marks the run failed before this screen mounts; fetch
-    // fresh options so the button reflects whether the story kept or moved
-    // past this quest.
-    if (isStory) refetch();
-  }, [isStory, refetch]);
-  const stillOffered =
-    !isStory || (data?.quests ?? []).some((q) => q.customId === quest.id);
-  const deciding = isStory && (data === undefined || isFetching);
+    if (!isStory) return;
+    // The server marks the run failed before this screen mounts, so ask again
+    // for fresh options: they say whether the story kept or replaced this quest.
+    let settled = false;
+    const settle = (next: Outcome) => {
+      if (settled) return;
+      settled = true;
+      setOutcome(next);
+    };
+    const timer = setTimeout(() => {
+      // No answer in time. We do not know that the story moved on, so offer
+      // the retry rather than telling the player something that may be false.
+      settle('retry');
+    }, DECIDE_TIMEOUT_MS);
+    refetch()
+      .then(({ data }) => {
+        clearTimeout(timer);
+        const offered = data?.quests;
+        // No data means the request failed. Again: we do not know, so retry.
+        settle(
+          offered === undefined || offered.some((q) => q.customId === quest.id)
+            ? 'retry'
+            : 'moved-on'
+        );
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        settle('retry');
+      });
+    return () => {
+      settled = true;
+      clearTimeout(timer);
+    };
+  }, [isStory, refetch, quest.id]);
+
+  const deciding = outcome === 'deciding';
+  const stillOffered = outcome === 'retry';
 
   // Create animated values for header, message, and button animations
   const headerAnim = useSharedValue(0);
@@ -115,13 +168,15 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
 
         {/* Message Section */}
         <Animated.View style={[styles.message, messageAnimatedStyle]}>
-          {isStory && !deciding && !stillOffered && (
+          {outcome === 'moved-on' && (
             <Text style={styles.messagePrimary}>{CONSEQUENCE_LINE}</Text>
           )}
           <Text style={styles.messagePrimary}>
             It's okay to fail – every setback teaches you a lesson.
           </Text>
-          {(!isStory || stillOffered) && (
+          {/* Nothing that depends on the answer renders while we are still
+              deciding, so no line flashes and then changes. */}
+          {outcome === 'retry' && (
             <>
               <Text style={styles.messageSecondary}>
                 Resist unlocking out of boredom.
@@ -136,10 +191,13 @@ export function FailedQuest({ quest, onRetry }: FailedQuestProps) {
         {/* Button Section */}
         <Animated.View style={[styles.buttonRow, buttonAnimatedStyle]}>
           {deciding ? (
-            <ActivityIndicator
-              testID="failed-quest-loading"
-              color={colors.text.primary}
-            />
+            <View style={styles.buttonSlot}>
+              <ActivityIndicator
+                testID="failed-quest-loading"
+                accessibilityLabel="Checking what happens next"
+                color={colors.text.primary}
+              />
+            </View>
           ) : (
             <Button
               label={stillOffered ? 'Try Again' : 'Continue'}
@@ -202,6 +260,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.text.secondary,
     marginBottom: spacing[4],
+  },
+  buttonSlot: {
+    // Same height as the primary CTA that replaces it, so the layout holds.
+    height: BUTTON_SLOT_HEIGHT,
+    justifyContent: 'center',
   },
   buttonRow: {
     // Full-width CTA pinned at the bottom, matching screenPadding's side
