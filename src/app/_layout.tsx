@@ -35,7 +35,7 @@ import { hydrateAuth, loadSelectedTheme, useAuth } from '@/lib';
 import { useTokenRefreshErrorHandler } from '@/lib/hooks/use-token-refresh-error-handler';
 import useLockStateDetection from '@/lib/hooks/useLockStateDetection';
 import { getSentryConfig } from '@/lib/sentry-config';
-import { scheduleStreakWarningNotification } from '@/lib/services/notifications';
+import { cancelLegacyStreakWarningNotification } from '@/lib/services/notifications';
 import { getQuestRunStatus } from '@/lib/services/quest-run-service';
 import { revenueCatService } from '@/lib/services/revenuecat-service';
 import { initializeTimezoneSync } from '@/lib/services/timezone-service';
@@ -246,6 +246,11 @@ function RootLayout() {
           setTimeout(() => {
             router.push('/scheduled-quest');
           }, 1000);
+        } else if (additionalData?.type === 're_engagement') {
+          // Land users on the home tab where the active storyline's next-quest CTA lives.
+          setTimeout(() => {
+            router.replace('/(app)');
+          }, 1000);
         }
       });
 
@@ -353,13 +358,19 @@ function RootLayout() {
     // Initialize timezone sync
     const cleanupTimezoneSync = initializeTimezoneSync();
 
+    // Cancel any legacy local streak-warning alarm still scheduled on the
+    // device from a build before nudges moved server-side. Unconditional:
+    // must run on every boot, independent of streak state or the reset
+    // branch below.
+    cancelLegacyStreakWarningNotification().catch(console.error);
+
     // Check streak status on app launch
     const lastCompletedQuestTimestamp =
       useQuestStore.getState().lastCompletedQuestTimestamp;
     const characterStore = useCharacterStore.getState();
     const dailyQuestStreak = characterStore.dailyQuestStreak;
 
-    // First check if streak should be reset (24+ hours since last completion)
+    // Check if streak should be reset (24+ hours since last completion)
     if (lastCompletedQuestTimestamp && dailyQuestStreak > 0) {
       const now = Date.now();
       const hoursSinceLastCompletion =
@@ -371,27 +382,6 @@ function RootLayout() {
         console.log(
           'Streak reset: More than 24 hours since last quest completion'
         );
-        return; // No need to schedule warning if streak is already broken
-      }
-    }
-
-    // If streak is still active, check if we need to schedule a warning
-    if (dailyQuestStreak > 0) {
-      // Check if user has completed a quest today
-      const now = new Date();
-      const lastCompletionDate = lastCompletedQuestTimestamp
-        ? new Date(lastCompletedQuestTimestamp)
-        : null;
-
-      // If no quest completed today and there's an active streak, schedule warning
-      if (
-        !lastCompletionDate ||
-        lastCompletionDate.getDate() !== now.getDate() ||
-        lastCompletionDate.getMonth() !== now.getMonth() ||
-        lastCompletionDate.getFullYear() !== now.getFullYear()
-      ) {
-        // Only this part needs to be async
-        scheduleStreakWarningNotification().catch(console.error);
       }
     }
 

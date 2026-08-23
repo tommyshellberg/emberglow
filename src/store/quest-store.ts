@@ -5,10 +5,6 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { queryClient } from '@/api/common';
 import type { QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
-import {
-  cancelStreakWarningNotification,
-  scheduleStreakWarningNotification,
-} from '@/lib/services/notifications';
 import QuestTimer from '@/lib/services/quest-timer';
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { usePOIStore } from '@/store/poi-store';
@@ -186,20 +182,6 @@ export const useQuestStore = create<QuestState>()(
               (activeQuest.mode === 'custom' &&
                 activeQuest.category === 'cooperative');
 
-            // Check if this is the first quest completed today
-            const isFirstQuestOfTheDay = (() => {
-              if (!lastCompletedQuestTimestamp) return true;
-
-              const lastDate = new Date(lastCompletedQuestTimestamp);
-              const now = new Date(completionTime);
-
-              return (
-                lastDate.getDate() !== now.getDate() ||
-                lastDate.getMonth() !== now.getMonth() ||
-                lastDate.getFullYear() !== now.getFullYear()
-              );
-            })();
-
             const characterStore = useCharacterStore.getState();
             characterStore.updateStreak(lastCompletedQuestTimestamp);
 
@@ -288,16 +270,6 @@ export const useQuestStore = create<QuestState>()(
             queryClient.invalidateQueries({
               queryKey: ['next-available-quests'] as const,
             });
-
-            // If this is the first quest completed today, cancel today's warning
-            // and schedule tomorrow's warning
-            if (isFirstQuestOfTheDay) {
-              cancelStreakWarningNotification()
-                .then(() => scheduleStreakWarningNotification(true))
-                .catch((err) =>
-                  console.error('Error scheduling streak notifications:', err)
-                );
-            }
 
             // Reward enrichment only populates per-participant rewards, which
             // is a cooperative-quest concern — solo quests already have their

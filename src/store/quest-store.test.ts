@@ -132,12 +132,6 @@ jest.mock('@/api/common', () => ({
   },
 }));
 
-// Mock notifications service
-jest.mock('@/lib/services/notifications', () => ({
-  cancelStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
-  scheduleStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
-}));
-
 // Create mock for POI store
 const mockRevealLocation = jest.fn();
 
@@ -701,10 +695,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       });
 
       const { queryClient } = require('@/api/common');
-      const {
-        cancelStreakWarningNotification,
-        scheduleStreakWarningNotification,
-      } = require('@/lib/services/notifications');
 
       // Act
       const result = await await useQuestStore.getState().completeQuest();
@@ -731,11 +721,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ['user', 'details'],
       });
-      expect(cancelStreakWarningNotification).toHaveBeenCalled();
-
-      // Wait for the promise chain to complete
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(scheduleStreakWarningNotification).toHaveBeenCalledWith(true);
     });
 
     test('should complete quest with ignoreDuration flag', async () => {
@@ -797,41 +782,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
         status: 'failed',
         stopTime: expect.any(Number),
       });
-    });
-
-    test('should not update streak if quest completed on same day', async () => {
-      // Arrange - last quest completed earlier today
-      const now = new Date();
-      const earlierToday = new Date(now);
-      earlierToday.setHours(10, 0, 0, 0);
-
-      const activeQuest = {
-        id: 'quest-2',
-        mode: 'story' as const,
-        title: 'Test Quest',
-        durationMinutes: 10,
-        reward: { xp: 100 },
-        startTime: Date.now() - 600000,
-        status: 'active' as const,
-      };
-
-      useQuestStore.setState({
-        activeQuest,
-        completedQuests: [],
-        lastCompletedQuestTimestamp: earlierToday.getTime(),
-      });
-
-      const {
-        cancelStreakWarningNotification,
-        scheduleStreakWarningNotification,
-      } = require('@/lib/services/notifications');
-
-      // Act
-      await useQuestStore.getState().completeQuest();
-
-      // Assert - should not schedule new notifications
-      expect(cancelStreakWarningNotification).not.toHaveBeenCalled();
-      expect(scheduleStreakWarningNotification).not.toHaveBeenCalled();
     });
 
     test('should handle quest with no start time', async () => {
@@ -1282,43 +1232,6 @@ describe('QuestStore - refreshAvailableQuests', () => {
       const value = getItem('test-key');
       expect(value).toBe('test-value');
       expect(getItem).toHaveBeenCalledWith('test-key');
-    });
-
-    test('should handle quest completion notification scheduling', async () => {
-      const {
-        scheduleStreakWarningNotification,
-        cancelStreakWarningNotification,
-      } = require('@/lib/services/notifications');
-
-      const testQuest: Quest = {
-        id: 'test-quest',
-        mode: 'story',
-        title: 'Test Quest',
-        durationMinutes: 2,
-        startTime: Date.now() - 120000, // 2 minutes ago
-        status: 'active',
-        reward: { xp: 100 },
-        poiSlug: 'test-poi',
-      };
-
-      useQuestStore.setState({
-        activeQuest: testQuest,
-        completedQuests: [],
-        lastCompletedQuestTimestamp: null,
-      });
-
-      // Complete the quest
-      const completedQuest = await await useQuestStore
-        .getState()
-        .completeQuest();
-
-      expect(completedQuest).not.toBeNull();
-      expect(cancelStreakWarningNotification).toHaveBeenCalled();
-
-      // Wait for async operations
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(scheduleStreakWarningNotification).toHaveBeenCalled();
     });
 
     test('should handle quest completion with missing fields', async () => {

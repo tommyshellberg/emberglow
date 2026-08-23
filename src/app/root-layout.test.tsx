@@ -27,6 +27,7 @@ jest.mock('@sentry/react-native', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 
 // Simple mock for expo-router
 jest.mock('expo-router', () => {
@@ -37,6 +38,7 @@ jest.mock('expo-router', () => {
     Stack,
     useRouter: () => ({
       push: mockPush,
+      replace: mockReplace,
     }),
     useNavigationContainerRef: jest.fn(() => ({
       current: null,
@@ -135,7 +137,7 @@ jest.mock('@/lib/hooks/useLockStateDetection', () => ({
 }));
 
 jest.mock('@/lib/services/notifications', () => ({
-  scheduleStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
+  cancelLegacyStreakWarningNotification: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('@/lib/services/quest-run-service', () => ({
@@ -265,6 +267,7 @@ describe('RootLayout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPush.mockClear();
+    mockReplace.mockClear();
     Platform.OS = 'ios';
   });
 
@@ -352,36 +355,19 @@ describe('RootLayout', () => {
     });
   });
 
-  it('should schedule streak warning notification when user has active streak', async () => {
+  it('cancels the legacy local streak warning on boot and never schedules one', async () => {
     const {
-      scheduleStreakWarningNotification,
+      cancelLegacyStreakWarningNotification,
     } = require('@/lib/services/notifications');
     const { useCharacterStore } = require('@/store/character-store');
     const { useQuestStore } = require('@/store/quest-store');
 
-    // Mock user with active streak but no quest today
     useCharacterStore.getState.mockReturnValue({
       dailyQuestStreak: 3,
       resetStreak: jest.fn(),
     });
-
-    // Mock last quest completion from yesterday (but less than 24 hours ago)
-    // Use yesterday at 11:59 PM to ensure it's:
-    // 1. On a different calendar day (yesterday)
-    // 2. Less than 24 hours ago (unless test runs between midnight-12:01 AM)
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(23, 59, 59, 999); // Yesterday at 11:59:59 PM
-
-    // Safety check: if somehow this is >= 24 hours ago, use exactly 20 hours ago
-    const hoursSince = (Date.now() - yesterday.getTime()) / (1000 * 60 * 60);
-    const lastCompletedTimestamp =
-      hoursSince >= 24
-        ? Date.now() - 20 * 60 * 60 * 1000 // 20 hours ago
-        : yesterday.getTime();
-
     useQuestStore.getState.mockReturnValue({
-      lastCompletedQuestTimestamp: lastCompletedTimestamp,
+      lastCompletedQuestTimestamp: Date.now() - 20 * 60 * 60 * 1000,
       cooperativeQuestRun: null,
       activeQuest: null,
       failQuest: jest.fn(),
@@ -390,11 +376,17 @@ describe('RootLayout', () => {
     render(<RootLayout />);
 
     await waitFor(() => {
-      expect(scheduleStreakWarningNotification).toHaveBeenCalled();
+      expect(cancelLegacyStreakWarningNotification).toHaveBeenCalledTimes(1);
     });
   });
 
   it('should reset streak when more than 24 hours since last completion', async () => {
+    const {
+      cancelLegacyStreakWarningNotification,
+    } = require('@/lib/services/notifications');
+    const {
+      initializeTimezoneSync,
+    } = require('@/lib/services/timezone-service');
     const { useCharacterStore } = require('@/store/character-store');
     const { useQuestStore } = require('@/store/quest-store');
     const mockResetStreak = jest.fn();
@@ -413,10 +405,45 @@ describe('RootLayout', () => {
       failQuest: jest.fn(),
     });
 
-    render(<RootLayout />);
+    const renderResult = render(<RootLayout />);
 
     await waitFor(() => {
       expect(mockResetStreak).toHaveBeenCalled();
+    });
+
+    // The legacy local alarm must be cancelled even on the streak-reset path,
+    // since it's an unconditional boot-time cleanup, not part of the streak logic.
+    expect(cancelLegacyStreakWarningNotification).toHaveBeenCalledTimes(1);
+
+    // The streak-reset branch must not bail out before the effect returns its
+    // cleanup function, or the timezone-sync listener is never torn down.
+    const cleanupTimezoneSync = initializeTimezoneSync.mock.results[0].value;
+    renderResult.unmount();
+    expect(cleanupTimezoneSync).toHaveBeenCalled();
+  });
+
+  it('cancels the legacy local streak warning on boot even with no active streak', async () => {
+    const {
+      cancelLegacyStreakWarningNotification,
+    } = require('@/lib/services/notifications');
+    const { useCharacterStore } = require('@/store/character-store');
+    const { useQuestStore } = require('@/store/quest-store');
+
+    useCharacterStore.getState.mockReturnValue({
+      dailyQuestStreak: 0,
+      resetStreak: jest.fn(),
+    });
+    useQuestStore.getState.mockReturnValue({
+      lastCompletedQuestTimestamp: null,
+      cooperativeQuestRun: null,
+      activeQuest: null,
+      failQuest: jest.fn(),
+    });
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(cancelLegacyStreakWarningNotification).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -645,6 +672,53 @@ describe('RootLayout', () => {
     await waitFor(() => {
       expect(mockFailQuest).toHaveBeenCalled();
     });
+  });
+
+  it('should handle re-engagement notification click by navigating to home tab', async () => {
+    // Use fake timers since there's a setTimeout in the handler
+    jest.useFakeTimers();
+
+    const { OneSignal } = require('react-native-onesignal');
+
+    render(<RootLayout />);
+
+    // Wait for OneSignal to be initialized
+    await waitFor(() => {
+      expect(OneSignal.Notifications.addEventListener).toHaveBeenCalledWith(
+        'click',
+        expect.any(Function)
+      );
+    });
+
+    // Get the click handler
+    const clickHandler = (
+      OneSignal.Notifications.addEventListener as jest.Mock
+    ).mock.calls.find((call) => call[0] === 'click')[1];
+
+    // Simulate re-engagement notification click
+    const mockEvent = {
+      notification: {
+        additionalData: {
+          type: 're_engagement',
+          phase: 'day3',
+          screen: 'home',
+          storylineSlug: 'vaedros',
+        },
+      },
+    };
+
+    clickHandler(mockEvent);
+
+    // Fast-forward time by 1 second (the setTimeout delay in the code)
+    jest.advanceTimersByTime(1000);
+
+    // Should navigate to the home tab using replace (not push)
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/(app)');
+    });
+
+    // Restore real timers
+    jest.useRealTimers();
   });
 
   it('should handle foreground notifications', async () => {

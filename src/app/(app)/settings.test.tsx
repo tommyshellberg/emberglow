@@ -1,5 +1,7 @@
+import { OneSignal } from 'react-native-onesignal';
+
 import { posthogClient } from '@/lib/posthog';
-import { fireEvent, render, waitFor } from '@/lib/test-utils';
+import { fireEvent, render, screen, waitFor } from '@/lib/test-utils';
 import { useCharacterStore } from '@/store/character-store';
 import { useSettingsStore } from '@/store/settings-store';
 
@@ -87,13 +89,15 @@ jest.mock('@/lib', () => ({
 }));
 
 // Mock all notification services to return simple promises
+const mockRequestPermissions = jest.fn().mockResolvedValue(true);
+const mockAreNotificationsEnabled = jest.fn().mockResolvedValue(true);
 jest.mock('@/lib/services/notifications', () => ({
-  areNotificationsEnabled: jest.fn().mockResolvedValue(true),
+  areNotificationsEnabled: (...args: unknown[]) =>
+    mockAreNotificationsEnabled(...args),
   cancelDailyReminderNotification: jest.fn().mockResolvedValue(true),
-  cancelStreakWarningNotification: jest.fn().mockResolvedValue(true),
-  requestNotificationPermissions: jest.fn().mockResolvedValue(true),
+  requestNotificationPermissions: (...args: unknown[]) =>
+    mockRequestPermissions(...args),
   scheduleDailyReminderNotification: jest.fn().mockResolvedValue(true),
-  scheduleStreakWarningNotification: jest.fn().mockResolvedValue(true),
 }));
 
 // Mock user service
@@ -105,18 +109,64 @@ jest.mock('@/lib/services/user', () => ({
 // Mock the stores used in Settings. Backed by a real (non-persisted)
 // zustand store rather than a static jest.fn() so that setState/getState
 // and selector-based subscriptions (used by the narrator voice row) behave
-// like production: the row re-renders when the store changes.
+// like production: the row re-renders when the store changes. `nudges` in
+// particular must re-render on change so tests can observe the resulting
+// server-sync effect.
 jest.mock('@/store/settings-store', () => {
   const { create } = require('zustand');
   const useSettingsStore = create((set: any) => ({
     dailyReminder: { enabled: false, time: null },
-    streakWarning: { enabled: false, time: null },
+    nudges: { enabled: true },
     setDailyReminder: (reminder: any) => set({ dailyReminder: reminder }),
-    setStreakWarning: (streakWarning: any) => set({ streakWarning }),
+    setNudges: (nudges: any) => set({ nudges }),
     narratorVoice: null,
     setNarratorVoice: (voice: any) => set({ narratorVoice: voice }),
   }));
   return { useSettingsStore };
+});
+
+// Mock the notification-settings hook so tests control what "server data"
+// looks like on load and can observe outbound PATCH calls directly. This
+// mirrors TanStack Query's real timing: `settings` is `undefined` and
+// `isLoading` is `true` on the very first render, then resolves
+// asynchronously (next microtask) to whatever the test set
+// `mockNotificationSettingsData` to. That gap between mount and load is
+// exactly the window where the nudges-send effect must not fire.
+const mockUpdateSettings = jest.fn();
+let mockNotificationSettingsData: unknown;
+
+jest.mock('@/hooks/use-notification-settings', () => {
+  const { useEffect, useState } = require('react');
+  return {
+    useNotificationSettings: () => {
+      const [state, setState] = useState({
+        settings: undefined,
+        isLoading: true,
+      });
+
+      useEffect(() => {
+        let cancelled = false;
+        Promise.resolve().then(() => {
+          if (!cancelled) {
+            setState({
+              settings: mockNotificationSettingsData,
+              isLoading: false,
+            });
+          }
+        });
+        return () => {
+          cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+
+      return {
+        settings: state.settings,
+        updateSettings: mockUpdateSettings,
+        isLoading: state.isLoading,
+      };
+    },
+  };
 });
 
 jest.mock('@/store/user-store', () => ({
@@ -167,6 +217,17 @@ jest.mock('react-native-onesignal', () => ({
     Notifications: {
       requestPermission: jest.fn(),
       hasPermission: jest.fn(() => Promise.resolve(true)),
+      getPermissionAsync: jest.fn(() => Promise.resolve(true)),
+    },
+    User: {
+      getOnesignalId: jest.fn(() => Promise.resolve('onesignal-id')),
+      getExternalId: jest.fn(() => Promise.resolve('external-id')),
+      pushSubscription: {
+        optOut: jest.fn(),
+        getOptedInAsync: jest.fn(() => Promise.resolve(true)),
+        getIdAsync: jest.fn(() => Promise.resolve('subscription-id')),
+        getTokenAsync: jest.fn(() => Promise.resolve('push-token')),
+      },
     },
   },
 }));
@@ -272,9 +333,7 @@ describe('Settings Screen', () => {
 
     it('confirms before wiping when a guest chooses Start Over', async () => {
       const { Alert } = require('react-native');
-      const alertSpy = jest
-        .spyOn(Alert, 'alert')
-        .mockImplementation(() => {});
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
       const { wipeGuestSession } = require('@/lib/auth');
 
       const { getByText } = render(<Settings />);
@@ -364,5 +423,129 @@ describe('Settings Screen', () => {
 
     expect(useSettingsStore.getState().narratorVoice).toBe('female');
     expect(await findByText('Female')).toBeOnTheScreen();
+  });
+});
+
+describe('Nudges toggle', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+    useSettingsStore.setState({ nudges: { enabled: true } });
+    mockUpdateSettings.mockClear();
+    mockNotificationSettingsData = undefined;
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('renders the Nudges row with its description', async () => {
+    render(<Settings />);
+    expect(await screen.findByText('Nudges')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        'Streak warnings and occasional reminders to pick your journey back up.'
+      )
+    ).toBeOnTheScreen();
+  });
+
+  it('does not render a Streak Warning row or its time picker', async () => {
+    render(<Settings />);
+    await screen.findByText('Nudges');
+    expect(screen.queryByText('Streak Warning')).toBeNull();
+    expect(screen.queryByText(/Streak Warning time/i)).toBeNull();
+  });
+
+  it('shows the consolidated Nudges description', async () => {
+    render(<Settings />);
+    expect(
+      await screen.findByText(
+        'Streak warnings and occasional reminders to pick your journey back up.'
+      )
+    ).toBeOnTheScreen();
+  });
+
+  it('sends only nudges to the server when toggled, never streakWarning', async () => {
+    render(<Settings />);
+    const toggle = await screen.findByLabelText('Nudges');
+    fireEvent(toggle, 'onChange', false);
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalled());
+    for (const [arg] of mockUpdateSettings.mock.calls) {
+      expect(arg).not.toHaveProperty('streakWarning');
+    }
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      nudges: { enabled: false },
+    });
+  });
+
+  it('sends { nudges: { enabled: false } } to the server when toggled off', async () => {
+    render(<Settings />);
+    const toggle = await screen.findByLabelText('Nudges');
+    fireEvent.press(toggle);
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        nudges: { enabled: false },
+      })
+    );
+  });
+
+  it('does not sync nudges to server before settings have loaded', async () => {
+    // Server has the user opted OUT (e.g. a reinstall where the local store
+    // defaults back to enabled: true). If the send-effect fires before this
+    // resolves, it PATCHes the local default and clobbers the real opt-out.
+    mockNotificationSettingsData = { nudges: { enabled: false } };
+
+    render(<Settings />);
+    await screen.findByLabelText('Nudges');
+
+    // Give the async load + sync effects a chance to run; nothing should be
+    // sent because the user never touched the toggle.
+    await waitFor(() => {
+      expect(
+        mockUpdateSettings.mock.calls.some(
+          ([payload]) => payload && 'nudges' in payload
+        )
+      ).toBe(false);
+    });
+  });
+});
+
+describe('master notifications toggle × OneSignal subscription', () => {
+  beforeEach(() => {
+    global.__DEV__ = false;
+    mockRequestPermissions.mockClear();
+    mockAreNotificationsEnabled.mockResolvedValue(true);
+    (OneSignal.User.pushSubscription.optOut as jest.Mock).mockClear();
+  });
+
+  afterEach(() => {
+    global.__DEV__ = true;
+  });
+
+  it('calls pushSubscription.optOut() when toggled off', async () => {
+    render(<Settings />);
+    // The switch starts on (areNotificationsEnabled resolves true), so one
+    // press is the "disable" transition.
+    const master = await screen.findByLabelText('Notifications');
+    await waitFor(() =>
+      expect(master.props.accessibilityState.checked).toBe(true)
+    );
+    fireEvent.press(master);
+    await waitFor(() =>
+      expect(OneSignal.User.pushSubscription.optOut).toHaveBeenCalled()
+    );
+  });
+
+  it('does NOT call optOut() when toggled on', async () => {
+    // Start from the off position so one press is the "enable" transition.
+    mockAreNotificationsEnabled.mockResolvedValue(false);
+
+    render(<Settings />);
+    const master = await screen.findByLabelText('Notifications');
+    await waitFor(() =>
+      expect(master.props.accessibilityState.checked).toBe(false)
+    );
+    fireEvent.press(master);
+    await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
+    expect(OneSignal.User.pushSubscription.optOut).not.toHaveBeenCalled();
   });
 });
