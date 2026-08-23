@@ -486,6 +486,20 @@ describe('quest-presence-runtime', () => {
       );
     });
 
+    it("a sustained 'inactive' (phone call, Control Center) is not leaving: no report, no fail", async () => {
+      startRuntimeForActivePresenceRun();
+
+      fireAppState('inactive');
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      await flush();
+
+      expect(updateAwayStatus).not.toHaveBeenCalled();
+      expect(flipLiveActivityToGrace).not.toHaveBeenCalled();
+      expect(useQuestStore.getState().failQuest).not.toHaveBeenCalled();
+    });
+
     it('an instant switch-back inside the debounce sends and flips nothing', async () => {
       startRuntimeForActivePresenceRun();
 

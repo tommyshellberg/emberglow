@@ -569,9 +569,13 @@ function handleRawSignal(signal: RawSignal) {
         dispatch({ type: 'SCREEN_UNLOCKED' });
         break;
       case 'APP_STATE':
-        dispatch({
-          type: signal.status === 'active' ? 'APP_ACTIVE' : 'APP_BACKGROUND',
-        });
+        // Only 'background' means the user left. iOS reports 'inactive' for
+        // an incoming call banner, Control Center, the app switcher, Siri and
+        // permission dialogs — the user is still in the app, so those must
+        // not start the away clock.
+        if (signal.status === 'active') dispatch({ type: 'APP_ACTIVE' });
+        else if (signal.status === 'background')
+          dispatch({ type: 'APP_BACKGROUND' });
         break;
     }
     return;
