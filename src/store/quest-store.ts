@@ -530,6 +530,9 @@ export const useQuestStore = create<QuestState>()(
             level: 'info',
             data: { questId: failedQuestDetails.id },
           });
+          // Read BEFORE stopQuest: on iOS (no background service running)
+          // stopQuest nulls questRunId synchronously, before it returns.
+          const questRunId = QuestTimer.getQuestRunId() || undefined;
           QuestTimer.stopQuest();
 
           // Ensure all required fields for Quest are present
@@ -555,7 +558,7 @@ export const useQuestStore = create<QuestState>()(
             durationMinutes: failedQuestDetails.durationMinutes ?? 0,
             title: failedQuestDetails.title ?? 'Unknown Quest',
             id: questId,
-            questRunId: QuestTimer.getQuestRunId() || undefined,
+            questRunId,
             // Add any other required fields here
           };
 

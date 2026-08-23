@@ -543,6 +543,42 @@ describe('QuestStore - refreshAvailableQuests', () => {
     });
   });
 
+  describe('failQuest', () => {
+    test('records the questRunId even though stopQuest nulls it synchronously (iOS path)', () => {
+      // On iOS no background service is running, so QuestTimer.stopQuest()
+      // reaches `this.questRunId = null` before its first await — i.e.
+      // synchronously, before the call returns. The id must be read first.
+      let runId: string | null = 'run-fail-1';
+      (QuestTimer.getQuestRunId as jest.Mock).mockImplementation(() => runId);
+      (QuestTimer.stopQuest as jest.Mock).mockImplementation(() => {
+        runId = null;
+        return Promise.resolve();
+      });
+      useQuestStore.setState({
+        activeQuest: {
+          id: 'quest-1',
+          mode: 'story' as const,
+          title: 'Presence Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 60_000,
+          status: 'active' as const,
+          enforcement: 'presence' as const,
+          questRunId: 'run-fail-1',
+        },
+        failedQuests: [],
+      });
+
+      useQuestStore.getState().failQuest();
+
+      expect(useQuestStore.getState().failedQuest?.questRunId).toBe(
+        'run-fail-1'
+      );
+      (QuestTimer.stopQuest as jest.Mock).mockReset();
+      (QuestTimer.getQuestRunId as jest.Mock).mockImplementation(() => null);
+    });
+  });
+
   describe('completeQuest', () => {
     test('a presence run stops the QuestTimer on completion, after reading its run id', async () => {
       // The legacy background loop's own exits are gated off for presence
