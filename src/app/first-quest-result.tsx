@@ -123,6 +123,9 @@ export default function FirstQuestResultScreen() {
         <FocusAwareStatusBar />
         <FailedQuest
           quest={failedQuestForDisplay}
+          // Restarting quest-1 assumes the server tags it `# retry_on_fail`, so
+          // FailedQuest always shows "Try Again" here. If that tag ever changes,
+          // this handler has to change with it.
           onRetry={() => {
             resetFailedQuest(); // Clear the failed state
             router.replace('/onboarding/first-quest'); // Go to app entry, should re-trigger onboarding to first quest
