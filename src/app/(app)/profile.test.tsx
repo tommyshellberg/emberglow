@@ -132,6 +132,19 @@ jest.mock('@/features/guilds/components/guilds-section', () => ({
   GuildsSection: () => null,
 }));
 
+// Keeps the profile suite isolated from chart internals — matches how it
+// mocks other sub-components.
+jest.mock('@/features/stats/components/weekly-activity-card', () => {
+  const RN = jest.requireActual('react-native');
+  return {
+    WeeklyActivityCard: ({ onPress }: any) => (
+      <RN.Pressable testID="weekly-activity-card" onPress={onPress}>
+        <RN.Text>weekly-activity-card</RN.Text>
+      </RN.Pressable>
+    ),
+  };
+});
+
 // Mock hooks
 jest.mock('@/lib/hooks/use-profile-data', () => ({
   useProfileData: jest.fn(() => ({
@@ -479,6 +492,13 @@ describe('ProfileScreen', () => {
       await waitFor(() => {
         expect(mockRouterPush).toHaveBeenCalledWith('/skill-tree');
       });
+    });
+
+    it('navigates to /stats when the weekly activity card is pressed', async () => {
+      // Uses the same store setup as the surrounding passing tests (beforeEach).
+      render(<ProfileScreen />);
+      fireEvent.press(await screen.findByTestId('weekly-activity-card'));
+      expect(mockRouterPush).toHaveBeenCalledWith('/stats');
     });
   });
 

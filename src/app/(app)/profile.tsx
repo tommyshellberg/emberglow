@@ -19,6 +19,7 @@ import {
 import { GuildsSection } from '@/features/guilds/components/guilds-section';
 import { ActionCards } from '@/features/profile/components/profile-components';
 import { useCharacterSync } from '@/features/profile/hooks/profile-hooks';
+import { WeeklyActivityCard } from '@/features/stats/components/weekly-activity-card';
 import { useFriendManagement } from '@/lib/hooks/use-friend-management';
 import { useProfileData } from '@/lib/hooks/use-profile-data';
 import { useInviteShare } from '@/lib/invite/use-invite-share';
@@ -157,6 +158,9 @@ export default function ProfileScreen() {
             minutesSaved={totalMinutesOffPhone}
             streakCount={streakCount}
           />
+
+          {/* Last 7 days activity — tap for full stats */}
+          <WeeklyActivityCard onPress={() => router.push('/stats')} />
 
           {/* Links: Skills & Perks, Leaderboard, Achievements */}
           <ActionCards

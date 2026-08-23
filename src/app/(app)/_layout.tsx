@@ -262,6 +262,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="stats"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="quest-discovery"
         options={{
           href: null,
