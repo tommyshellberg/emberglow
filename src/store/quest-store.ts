@@ -368,6 +368,15 @@ export const useQuestStore = create<QuestState>()(
               poiStore.revealLocation(activeQuest.poiSlug);
             }
 
+            // Presence runs complete from the presence runtime, not from the
+            // legacy background loop (whose exits are gated off for them), so
+            // nothing else stops the Android foreground service or clears
+            // QuestTimer.questRunId. Must run AFTER getQuestRunId() above —
+            // stopQuest nulls the id synchronously on iOS.
+            if (activeQuest.enforcement === 'presence') {
+              QuestTimer.stopQuest();
+            }
+
             characterStore.addXP(completedQuest.reward.xp);
 
             // Invalidate user details cache to force fresh data from server

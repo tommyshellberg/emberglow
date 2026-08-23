@@ -542,6 +542,35 @@ describe('QuestStore - refreshAvailableQuests', () => {
   });
 
   describe('completeQuest', () => {
+    test('a presence run stops the QuestTimer on completion, after reading its run id', async () => {
+      // The legacy background loop's own exits are gated off for presence
+      // runs, so nothing else stops the Android foreground service or clears
+      // QuestTimer.questRunId when a presence quest completes.
+      (QuestTimer.getQuestRunId as jest.Mock).mockReturnValueOnce('run-123');
+      useQuestStore.setState({
+        activeQuest: {
+          id: 'quest-1',
+          mode: 'story' as const,
+          title: 'Presence Quest',
+          durationMinutes: 10,
+          reward: { xp: 100 },
+          startTime: Date.now() - 600000,
+          status: 'active' as const,
+          enforcement: 'presence' as const,
+          questRunId: 'run-123',
+        },
+        completedQuests: [],
+        lastCompletedQuestTimestamp: null,
+      });
+
+      await useQuestStore.getState().completeQuest(true);
+
+      expect(QuestTimer.stopQuest).toHaveBeenCalledTimes(1);
+      expect(useQuestStore.getState().recentCompletedQuest?.questRunId).toBe(
+        'run-123'
+      );
+    });
+
     test('arms recentCompletedQuest synchronously, before any reward fetching', () => {
       // Captured on device 2026-07-16: the background task completes a quest
       // while the phone is locked, and the rewards fetch goes out on a network
