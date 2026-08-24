@@ -79,14 +79,16 @@ function handleEmailContact() {
 
 const openStoreListing = async () => {
   posthogClient.capture('rate_app_settings_tapped');
-  if (Platform.OS === 'ios') {
-    Linking.openURL(APP_STORE_REVIEW_URL);
-    return;
-  }
   try {
-    await Linking.openURL(PLAY_STORE_URL);
+    if (Platform.OS === 'ios') {
+      await Linking.openURL(APP_STORE_REVIEW_URL);
+    } else {
+      await Linking.openURL(PLAY_STORE_URL);
+    }
   } catch {
-    // market:// fails on devices without the Play Store — fall back to web.
+    // On iOS: App Store blocked by Screen Time restrictions or other issues.
+    // On Android: market:// fails on devices without the Play Store.
+    // Fall back to web URL.
     Linking.openURL(PLAY_STORE_WEB_URL);
   }
 };
