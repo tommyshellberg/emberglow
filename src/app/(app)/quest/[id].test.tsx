@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 
 import { useQuestReflection } from '@/api/quest-reflection';
+import { REVIEW_PROMPT_DELAY_MS } from '@/features/quest/constants/quest-details.constants';
 import {
   cleanup,
   render,
@@ -13,6 +14,7 @@ import {
   userEvent,
   waitFor,
 } from '@/lib/test-utils';
+import { maybeRequestStoreReview } from '@/lib/review-prompt';
 import { useOnboardingStore } from '@/store/onboarding-store';
 import { useQuestStore } from '@/store/quest-store';
 
@@ -37,6 +39,10 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/api/quest-reflection', () => ({
   useQuestReflection: jest.fn(),
+}));
+
+jest.mock('@/lib/review-prompt', () => ({
+  maybeRequestStoreReview: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('@expo/vector-icons', () => ({
@@ -981,6 +987,92 @@ describe('AppQuestDetailsScreen', () => {
 
       // Should show default completion text
       expect(screen.getByText('Generic Quest')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Automatic store review prompt', () => {
+    const mockMaybeRequest = jest.mocked(maybeRequestStoreReview);
+
+    const setStoreState = (state: {
+      recentCompletedQuest: typeof mockCompletedQuest | null;
+      failedQuest: typeof mockFailedQuest | null;
+    }) => {
+      mockUseQuestStore.mockImplementation((selector: any) => {
+        const fullState = {
+          completedQuests: [],
+          failedQuests: [],
+          resetFailedQuest: jest.fn(),
+          clearRecentCompletedQuest: jest.fn(),
+          ...state,
+        };
+        return typeof selector === 'function' ? selector(fullState) : fullState;
+      });
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockMaybeRequest.mockClear();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('requests a review after the delay on a fresh successful completion', () => {
+      mockUseLocalSearchParams.mockReturnValue({ id: 'quest-123' });
+      setStoreState({
+        recentCompletedQuest: mockCompletedQuest,
+        failedQuest: null,
+      });
+
+      render(<AppQuestDetailsScreen />);
+      expect(mockMaybeRequest).not.toHaveBeenCalled(); // not before the delay
+
+      jest.advanceTimersByTime(REVIEW_PROMPT_DELAY_MS);
+      expect(mockMaybeRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not request a review on the failed-quest path', () => {
+      mockUseLocalSearchParams.mockReturnValue({ id: 'quest-456' });
+      setStoreState({
+        recentCompletedQuest: null,
+        failedQuest: mockFailedQuest,
+      });
+
+      render(<AppQuestDetailsScreen />);
+      jest.advanceTimersByTime(REVIEW_PROMPT_DELAY_MS);
+
+      expect(mockMaybeRequest).not.toHaveBeenCalled();
+    });
+
+    it('does not request a review when opened from the journal', () => {
+      mockUseLocalSearchParams.mockReturnValue({
+        id: 'quest-123',
+        from: 'journal',
+      });
+      setStoreState({
+        recentCompletedQuest: mockCompletedQuest,
+        failedQuest: null,
+      });
+
+      render(<AppQuestDetailsScreen />);
+      jest.advanceTimersByTime(REVIEW_PROMPT_DELAY_MS);
+
+      expect(mockMaybeRequest).not.toHaveBeenCalled();
+    });
+
+    it('cancels the pending request when the screen unmounts early', () => {
+      mockUseLocalSearchParams.mockReturnValue({ id: 'quest-123' });
+      setStoreState({
+        recentCompletedQuest: mockCompletedQuest,
+        failedQuest: null,
+      });
+
+      const { unmount } = render(<AppQuestDetailsScreen />);
+      unmount();
+      jest.advanceTimersByTime(REVIEW_PROMPT_DELAY_MS);
+
+      expect(mockMaybeRequest).not.toHaveBeenCalled();
     });
   });
 });
