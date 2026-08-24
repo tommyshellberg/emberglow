@@ -420,3 +420,9 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
   statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },
 }));
+
+// Mock expo-store-review for requesting app reviews
+jest.mock('expo-store-review', () => ({
+  hasAction: jest.fn().mockResolvedValue(true),
+  requestReview: jest.fn().mockResolvedValue(undefined),
+}));
