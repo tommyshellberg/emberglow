@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react-native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef } from 'react';
+import { AppState, Platform } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import {
   Easing,
@@ -47,6 +48,8 @@ interface UseStreakAnimationReturn {
   buttonsOpacity: SharedValue<number>;
   buttonsTranslateY: SharedValue<number>;
   playAnimations: () => void;
+  /** Stop a pending safety-net check; call when the screen loses focus. */
+  cancelSafetyNet: () => void;
 }
 
 const RISE_DISTANCE = 14;
@@ -55,7 +58,16 @@ const RISE_DISTANCE = 14;
  * How long after the buttons' rise SHOULD have finished before the JS-side
  * safety net stops waiting and reveals them itself.
  */
-const BUTTONS_FALLBACK_GRACE_MS = 1000;
+export const SAFETY_NET_GRACE_MS = 1000;
+
+/**
+ * After the app resumes, how long to give the UI thread to draw a frame
+ * before judging the animation. Reanimated animations are timestamp-driven
+ * and jump to completion on the first frame after resume; the JS timer that
+ * runs the check can fire before that frame, so checking immediately would
+ * call a healthy animation dead.
+ */
+export const SAFETY_NET_RESUME_SETTLE_MS = 500;
 
 /**
  * Custom hook to manage all animations for the streak celebration screen:
@@ -88,17 +100,83 @@ export function useStreakAnimation(
   const litCount = streakDays.filter((day) => day.isCompleted).length;
   const countTarget = Math.max(streak, 1);
 
-  const buttonsFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+  const safetyNetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
   );
-  useEffect(
-    () => () => {
-      if (buttonsFallbackTimer.current) {
-        clearTimeout(buttonsFallbackTimer.current);
+  const safetyNetResume = useRef<{ remove: () => void } | undefined>(undefined);
+
+  const cancelSafetyNet = useCallback(() => {
+    clearTimeout(safetyNetTimer.current);
+    safetyNetTimer.current = undefined;
+    safetyNetResume.current?.remove();
+    safetyNetResume.current = undefined;
+  }, []);
+
+  useEffect(() => cancelSafetyNet, [cancelSafetyNet]);
+
+  /** Every value at the end of the choreography, in one step. */
+  const snapToFinalState = useCallback(() => {
+    discOpacity.value = 1;
+    discScale.value = 1;
+    count.value = countTarget;
+    titleOpacity.value = 1;
+    titleTranslateY.value = 0;
+    weekRowOpacity.value = 1;
+    weekRowTranslateY.value = 0;
+    streakDays.forEach((day, index) => {
+      dayLitProgress[index].value = day.isCompleted ? 1 : 0;
+      dayScale[index].value = 1;
+    });
+    buttonsOpacity.value = 1;
+    buttonsTranslateY.value = 0;
+    // Same reasoning as playAnimations' deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streakDays, countTarget]);
+
+  const checkSafetyNet = useCallback(() => {
+    safetyNetTimer.current = undefined;
+    if (buttonsOpacity.value >= 1) return;
+
+    Sentry.captureMessage(
+      'streak-celebration: buttons never became visible, safety net fired',
+      {
+        level: 'warning',
+        extra: {
+          buttonsOpacity: buttonsOpacity.value,
+          appState: AppState.currentState,
+          platform: Platform.OS,
+          streak,
+          countTarget,
+          litCount,
+        },
       }
-    },
-    []
-  );
+    );
+    snapToFinalState();
+    // buttonsOpacity is a stable ref; see playAnimations' deps note.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapToFinalState, streak, countTarget, litCount]);
+
+  /**
+   * Run the check now if the app is on screen. If it is not, animation
+   * frames may have stopped (Android) or be about to catch up in one go
+   * (iOS), so wait for the app to become active and give it a frame first.
+   */
+  const runSafetyNet = useCallback(() => {
+    safetyNetTimer.current = undefined;
+    if (AppState.currentState === 'active') {
+      checkSafetyNet();
+      return;
+    }
+    safetyNetResume.current = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      safetyNetResume.current?.remove();
+      safetyNetResume.current = undefined;
+      safetyNetTimer.current = setTimeout(
+        checkSafetyNet,
+        SAFETY_NET_RESUME_SETTLE_MS
+      );
+    });
+  }, [checkSafetyNet]);
 
   const playAnimations = useCallback(() => {
     // Reset all animation values first.
@@ -221,34 +299,20 @@ export function useStreakAnimation(
       withTiming(0, { duration: durations.base, easing: EMBER_EASE })
     );
 
-    // 7 - Safety net. The buttons are the only way off this screen, and
-    // until here their visibility rests entirely on a ~3s chain of UI-thread
+    // 7 - Safety net. Until here everything on this screen — and above all
+    // the buttons, its only exit — rests on a ~3s chain of UI-thread
     // animations started at focus. In production that chain has failed to
     // deliver (buttons never appeared; only an app restart fixed it — seen
     // repeatedly around quests completed with the phone away / poor
     // network, Aug 2026). The trigger is not reproducible on the simulator,
     // so rather than guess at it: once the rise should be over, if the
-    // buttons still aren't visible, reveal them from the JS side and report
-    // it so the real frequency shows up in Sentry.
-    if (buttonsFallbackTimer.current) {
-      clearTimeout(buttonsFallbackTimer.current);
-    }
-    buttonsFallbackTimer.current = setTimeout(
-      () => {
-        buttonsFallbackTimer.current = null;
-        if (buttonsOpacity.value >= 1) return;
-
-        Sentry.captureMessage(
-          'streak-celebration: buttons never became visible, safety net fired',
-          {
-            level: 'warning',
-            extra: { buttonsOpacity: buttonsOpacity.value, streak, litCount },
-          }
-        );
-        buttonsOpacity.value = 1;
-        buttonsTranslateY.value = 0;
-      },
-      buttonsDelay + durations.base + BUTTONS_FALLBACK_GRACE_MS
+    // buttons still aren't visible, snap the whole celebration to its final
+    // state from the JS side and report it so the real frequency and
+    // conditions show up in Sentry.
+    cancelSafetyNet();
+    safetyNetTimer.current = setTimeout(
+      runSafetyNet,
+      buttonsDelay + durations.base + SAFETY_NET_GRACE_MS
     );
     // Deliberately omit day-circle values from deps: they're stable refs
     // (created once via useSharedValue) whose .value is mutated, not
@@ -256,7 +320,14 @@ export function useStreakAnimation(
     // both unnecessary and (for the array itself) impossible to satisfy
     // exhaustive-deps cleanly since the array length is derived from props.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streakDays, streak, litCount, countTarget]);
+  }, [
+    streakDays,
+    streak,
+    litCount,
+    countTarget,
+    cancelSafetyNet,
+    runSafetyNet,
+  ]);
 
   return {
     discOpacity,
@@ -271,5 +342,6 @@ export function useStreakAnimation(
     buttonsOpacity,
     buttonsTranslateY,
     playAnimations,
+    cancelSafetyNet,
   };
 }
