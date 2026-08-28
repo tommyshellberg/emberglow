@@ -141,6 +141,7 @@ export default function StreakCelebrationScreen() {
     buttonsOpacity,
     buttonsTranslateY,
     playAnimations,
+    cancelSafetyNet,
   } = useStreakAnimation(streakDays, dailyQuestStreak);
 
   // The count-up number is driven off the UI thread; bridge it back to a
@@ -186,7 +187,10 @@ export default function StreakCelebrationScreen() {
       // Mark that the streak celebration was shown when accessing this screen.
       markStreakCelebrationShown();
       playAnimations();
-    }, [playAnimations, markStreakCelebrationShown])
+      // This screen stays mounted (blurred) when something is pushed over
+      // it, so the safety net must stop on blur, not only on unmount.
+      return cancelSafetyNet;
+    }, [playAnimations, markStreakCelebrationShown, cancelSafetyNet])
   );
 
   const handleShare = async () => {
