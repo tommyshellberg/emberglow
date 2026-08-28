@@ -1,5 +1,6 @@
+import * as Sentry from '@sentry/react-native';
 import * as Haptics from 'expo-haptics';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 import {
   Easing,
@@ -51,6 +52,12 @@ interface UseStreakAnimationReturn {
 const RISE_DISTANCE = 14;
 
 /**
+ * How long after the buttons' rise SHOULD have finished before the JS-side
+ * safety net stops waiting and reveals them itself.
+ */
+const BUTTONS_FALLBACK_GRACE_MS = 1000;
+
+/**
  * Custom hook to manage all animations for the streak celebration screen:
  * counter disc pop-in -> count-up -> title rise -> week row rise -> day
  * ignition (staggered, haptic per day) -> buttons rise.
@@ -80,6 +87,18 @@ export function useStreakAnimation(
 
   const litCount = streakDays.filter((day) => day.isCompleted).length;
   const countTarget = Math.max(streak, 1);
+
+  const buttonsFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  useEffect(
+    () => () => {
+      if (buttonsFallbackTimer.current) {
+        clearTimeout(buttonsFallbackTimer.current);
+      }
+    },
+    []
+  );
 
   const playAnimations = useCallback(() => {
     // Reset all animation values first.
@@ -200,6 +219,36 @@ export function useStreakAnimation(
     buttonsTranslateY.value = withDelay(
       buttonsDelay,
       withTiming(0, { duration: durations.base, easing: EMBER_EASE })
+    );
+
+    // 7 - Safety net. The buttons are the only way off this screen, and
+    // until here their visibility rests entirely on a ~3s chain of UI-thread
+    // animations started at focus. In production that chain has failed to
+    // deliver (buttons never appeared; only an app restart fixed it — seen
+    // repeatedly around quests completed with the phone away / poor
+    // network, Aug 2026). The trigger is not reproducible on the simulator,
+    // so rather than guess at it: once the rise should be over, if the
+    // buttons still aren't visible, reveal them from the JS side and report
+    // it so the real frequency shows up in Sentry.
+    if (buttonsFallbackTimer.current) {
+      clearTimeout(buttonsFallbackTimer.current);
+    }
+    buttonsFallbackTimer.current = setTimeout(
+      () => {
+        buttonsFallbackTimer.current = null;
+        if (buttonsOpacity.value >= 1) return;
+
+        Sentry.captureMessage(
+          'streak-celebration: buttons never became visible, safety net fired',
+          {
+            level: 'warning',
+            extra: { buttonsOpacity: buttonsOpacity.value, streak, litCount },
+          }
+        );
+        buttonsOpacity.value = 1;
+        buttonsTranslateY.value = 0;
+      },
+      buttonsDelay + durations.base + BUTTONS_FALLBACK_GRACE_MS
     );
     // Deliberately omit day-circle values from deps: they're stable refs
     // (created once via useSharedValue) whose .value is mutated, not
