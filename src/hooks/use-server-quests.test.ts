@@ -11,11 +11,13 @@ jest.mock('@/api/quest', () => ({
 
 // Mock the stores
 const mockSetServerAvailableQuests = jest.fn();
+let mockCompletedQuests: any[] = [];
 jest.mock('@/store/quest-store', () => ({
   useQuestStore: jest.fn((selector) =>
     selector({
       activeQuest: null,
       pendingQuest: null,
+      completedQuests: mockCompletedQuests,
       setServerAvailableQuests: mockSetServerAvailableQuests,
     })
   ),
@@ -46,6 +48,69 @@ const createWrapper = () => {
 describe('useServerQuests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCompletedQuests = [];
+  });
+
+  it('tells the query which story quest was completed most recently', () => {
+    // Deliberately not in completion order: the answer (quest-1a) is neither
+    // the first nor the last story entry, a custom quest and a FAILED story
+    // quest finished later, so "take first/last entry" would both be wrong.
+    mockCompletedQuests = [
+      { id: 'quest-1', mode: 'story', status: 'completed', stopTime: 100 },
+      { id: 'custom-1', mode: 'custom', status: 'completed', stopTime: 300 },
+      { id: 'quest-1a', mode: 'story', status: 'completed', stopTime: 200 },
+      { id: 'quest-2', mode: 'story', status: 'failed', stopTime: 400 },
+      { id: 'quest-0', mode: 'story', status: 'completed', stopTime: 50 },
+    ];
+    useNextAvailableQuests.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+    });
+
+    renderHook(() => useServerQuests(), { wrapper: createWrapper() });
+
+    expect(useNextAvailableQuests).toHaveBeenCalledWith(
+      expect.objectContaining({ lastCompletedQuestId: 'quest-1a' })
+    );
+  });
+
+  it('updates the completed quest id when another story quest finishes', () => {
+    mockCompletedQuests = [
+      { id: 'quest-1', mode: 'story', status: 'completed', stopTime: 100 },
+    ];
+    useNextAvailableQuests.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+    });
+    const { rerender } = renderHook(() => useServerQuests(), {
+      wrapper: createWrapper(),
+    });
+
+    mockCompletedQuests = [
+      ...mockCompletedQuests,
+      { id: 'quest-1a', mode: 'story', status: 'completed', stopTime: 200 },
+    ];
+    rerender({});
+
+    expect(useNextAvailableQuests).toHaveBeenLastCalledWith(
+      expect.objectContaining({ lastCompletedQuestId: 'quest-1a' })
+    );
+  });
+
+  it('passes no completed quest id before any story quest is completed', () => {
+    useNextAvailableQuests.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+    });
+
+    renderHook(() => useServerQuests(), { wrapper: createWrapper() });
+
+    expect(useNextAvailableQuests).toHaveBeenCalledWith(
+      expect.objectContaining({ lastCompletedQuestId: undefined })
+    );
   });
 
   it('should return empty options when no data', () => {
@@ -234,6 +299,7 @@ describe('useServerQuests', () => {
       selector({
         activeQuest: { id: 'active-quest' },
         pendingQuest: null,
+        completedQuests: [],
         setServerAvailableQuests: mockSetServerAvailableQuests,
       })
     );

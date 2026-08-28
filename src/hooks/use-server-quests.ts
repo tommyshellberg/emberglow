@@ -14,6 +14,21 @@ export const useServerQuests = () => {
   );
   const activeQuest = useQuestStore((state) => state.activeQuest);
   const pendingQuest = useQuestStore((state) => state.pendingQuest);
+  const completedQuests = useQuestStore((state) => state.completedQuests);
+
+  // The story quest finished most recently on this device. The query uses it
+  // to notice when the server has not yet recorded that completion and keep
+  // refetching until it has.
+  const lastCompletedQuestId = useMemo(() => {
+    let latest: { id: string; stopTime?: number } | undefined;
+    for (const quest of completedQuests) {
+      if (quest.mode !== 'story' || quest.status !== 'completed') continue;
+      if (!latest || (quest.stopTime ?? 0) >= (latest.stopTime ?? 0)) {
+        latest = quest;
+      }
+    }
+    return latest?.id;
+  }, [completedQuests]);
 
   // Only fetch when user is authenticated and no quest is active/pending
   const shouldFetch = !!user && !activeQuest && !pendingQuest;
@@ -22,6 +37,7 @@ export const useServerQuests = () => {
     enabled: shouldFetch,
     storylineId: 'vaedros',
     includeOptions: true,
+    lastCompletedQuestId,
   });
 
   // Sync server data to local store when it changes
