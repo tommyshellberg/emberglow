@@ -36,3 +36,8 @@ export const APP_HOME_ROUTE = '/(app)' as const;
 
 // Reflection Navigation Params
 export const REFLECTION_PARAM_FROM_VALUE = 'quest-detail' as const;
+
+// Store Review Prompt
+/** Delay before the automatic store-review prompt, so the OS sheet never
+ * stomps the XP/celebration animation on the quest-complete screen. */
+export const REVIEW_PROMPT_DELAY_MS = 2000;

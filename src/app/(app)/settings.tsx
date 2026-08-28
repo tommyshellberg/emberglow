@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text as RNText,
@@ -64,12 +65,33 @@ const CONTACT_EMAIL = 'hello@emberglowapp.com';
 const SUB_ROW_INDENT = 56;
 const ICON_SIZE = 20;
 const CHEVRON_SIZE = 18;
+const APP_STORE_REVIEW_URL =
+  'https://apps.apple.com/app/id6744365788?action=write-review';
+const PLAY_STORE_URL = 'market://details?id=com.vaedros.unquest';
+const PLAY_STORE_WEB_URL =
+  'https://play.google.com/store/apps/details?id=com.vaedros.unquest';
 
 // Pure helper — doesn't depend on component state, so it lives at module
 // scope rather than being recreated on every render.
 function handleEmailContact() {
   Linking.openURL(`mailto:${CONTACT_EMAIL}`);
 }
+
+const openStoreListing = async () => {
+  posthogClient.capture('rate_app_settings_tapped');
+  try {
+    if (Platform.OS === 'ios') {
+      await Linking.openURL(APP_STORE_REVIEW_URL);
+    } else {
+      await Linking.openURL(PLAY_STORE_URL);
+    }
+  } catch {
+    // On iOS: App Store blocked by Screen Time restrictions or other issues.
+    // On Android: market:// fails on devices without the Play Store.
+    // Fall back to web URL.
+    Linking.openURL(PLAY_STORE_WEB_URL);
+  }
+};
 
 type AccountSectionProps = {
   user: User | null;
@@ -416,6 +438,22 @@ function LegalSection() {
       </EyebrowLabel>
 
       <View style={styles.card}>
+        <ListItem
+          leading={
+            <Feather name="star" size={ICON_SIZE} color={colors.text.accent} />
+          }
+          title="Rate Emberglow"
+          subtitle="Leave a review on the store"
+          trailing={
+            <Feather
+              name="chevron-right"
+              size={CHEVRON_SIZE}
+              color={colors.text.muted}
+            />
+          }
+          onPress={openStoreListing}
+        />
+        <View style={styles.divider} />
         <ListItem
           leading={
             <Feather

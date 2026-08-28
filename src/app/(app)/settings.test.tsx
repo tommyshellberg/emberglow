@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import { OneSignal } from 'react-native-onesignal';
 
 import { posthogClient } from '@/lib/posthog';
@@ -547,5 +548,28 @@ describe('master notifications toggle × OneSignal subscription', () => {
     fireEvent.press(master);
     await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
     expect(OneSignal.User.pushSubscription.optOut).not.toHaveBeenCalled();
+  });
+});
+
+describe('Rate Emberglow row', () => {
+  it('opens the App Store write-review page and fires analytics on iOS', async () => {
+    const openSpy = jest
+      .spyOn(Linking, 'openURL')
+      .mockResolvedValue(true as never);
+    const captureSpy = jest
+      .spyOn(posthogClient, 'capture')
+      .mockImplementation();
+
+    render(<Settings />);
+    fireEvent.press(await screen.findByText('Rate Emberglow'));
+
+    // Platform.OS is 'ios' under Jest by default.
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://apps.apple.com/app/id6744365788?action=write-review'
+    );
+    expect(captureSpy).toHaveBeenCalledWith('rate_app_settings_tapped');
+
+    openSpy.mockRestore();
+    captureSpy.mockRestore();
   });
 });

@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, ChevronUp, Notebook } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -25,8 +25,10 @@ import {
   QUEST_NOT_FOUND_MESSAGE,
   REFLECTION_ADDED_BADGE_TEXT,
   REFLECTION_HEADER_TEXT,
+  REVIEW_PROMPT_DELAY_MS,
   SCREEN_TITLE,
 } from '@/features/quest/constants/quest-details.constants';
+import { maybeRequestStoreReview } from '@/lib/review-prompt';
 import { useQuestStore } from '@/store/quest-store';
 import {
   colors as emberColors,
@@ -55,6 +57,19 @@ export default function AppQuestDetailsScreen() {
   const clearRecentCompletedQuest = useQuestStore(
     (state) => state.clearRecentCompletedQuest
   );
+
+  // Automatic store-review ask: fresh successful completion only — never the
+  // failed path, never a journal revisit. The helper itself enforces the
+  // >=3-quests + 90-day-cooldown gate.
+  const isFreshCompletion =
+    recentCompletedQuest?.id === id && from !== 'journal';
+  useEffect(() => {
+    if (!isFreshCompletion) return;
+    const timer = setTimeout(() => {
+      void maybeRequestStoreReview();
+    }, REVIEW_PROMPT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isFreshCompletion]);
 
   const [isReflectionExpanded, setIsReflectionExpanded] = useState(false);
 
