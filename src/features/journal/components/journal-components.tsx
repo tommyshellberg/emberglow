@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { router } from 'expo-router';
 import {
   Feather as FeatherIcon,
+  Hourglass,
   Notebook,
   Scroll,
   Users,
@@ -204,12 +205,14 @@ const MODE_ICON: Record<TransformedQuest['mode'], typeof Scroll> = {
   story: Scroll,
   custom: FeatherIcon,
   cooperative: Users,
+  holdout: Hourglass,
 };
 
 const MODE_LABEL: Record<TransformedQuest['mode'], string> = {
   story: 'Story',
   custom: 'Custom',
   cooperative: 'Co-op',
+  holdout: 'Hold Out',
 };
 
 interface QuestListItemProps {
