@@ -229,6 +229,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="holdout-quest"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="reminder-setup"
         options={{
           href: null,
