@@ -1,10 +1,14 @@
+import { HOLDOUT_MIN_MINUTES } from '@/app/utils/quest-utils';
+
 export const SCREEN_TITLE = 'Hold Out';
+export const SCREEN_EYEBROW = 'No time limit';
 export const SCREEN_SUBTITLE =
-  'No time limit. Keep your phone locked as long as you can - unlock any time after 10 minutes to collect your reward.';
+  'Lock your phone and see how long you can last. The longer you hold, the bigger the reward.';
+// Two deliberate lines (the rule, then the stake) so neither ever wraps.
+export const UNLOCK_RULE = `Unlock after ${HOLDOUT_MIN_MINUTES} minutes to collect your reward.`;
+export const UNLOCK_STAKE = 'Any earlier and the quest fails.';
 export const START_BUTTON_LABEL = 'Start Holding Out';
 export const DEFAULT_CATEGORY = 'other';
-export const RATE_EXPLAINER =
-  'Earn 3 XP per minute for the first hour, then 1 XP per minute - up to 4 hours (360 XP).';
 export const ANALYTICS_EVENTS = {
   OPEN_SCREEN: 'open_holdout_quest_screen',
   START_QUEST_TRIGGER: 'trigger_start_holdout_quest',
