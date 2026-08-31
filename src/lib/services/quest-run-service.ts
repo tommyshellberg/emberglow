@@ -4,6 +4,7 @@ import { getItem } from '@/lib/storage';
 import {
   type CooperativeQuestTemplate,
   type CustomQuestTemplate,
+  type HoldoutQuestTemplate,
   type LocalQuestTemplate,
   type StoryQuestTemplate,
 } from '@/store/types';
@@ -50,11 +51,14 @@ interface QuestParticipant {
 }
 
 const generateQuestRunBodyCustom = (
-  questTemplate: CustomQuestTemplate | CooperativeQuestTemplate
+  questTemplate:
+    | CustomQuestTemplate
+    | CooperativeQuestTemplate
+    | HoldoutQuestTemplate
 ) => {
   // @TODO: For now, leave out the questTemplateId as the server doesn't have the template documents added yet.
   // Remove both id and inviteeIds from the quest object
-  const { id: _id, inviteeIds, ...rest } = questTemplate;
+  const { id: _id, inviteeIds, ...rest } = questTemplate as CustomQuestTemplate;
 
   // Build the request body, defaulting mode if it's missing.
   // (Mutating `rest.mode` in place doesn't type-check: `rest` spans two
@@ -127,7 +131,10 @@ export async function createQuestRun(
     mode === 'story'
       ? generateQuestRunBodyStory(questTemplate as StoryQuestTemplate)
       : generateQuestRunBodyCustom(
-          questTemplate as CustomQuestTemplate | CooperativeQuestTemplate
+          questTemplate as
+            | CustomQuestTemplate
+            | CooperativeQuestTemplate
+            | HoldoutQuestTemplate
         );
 
   console.log(

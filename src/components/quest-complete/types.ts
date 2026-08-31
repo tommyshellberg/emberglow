@@ -2,7 +2,7 @@ import type { Quest, StoryQuestTemplate } from '@/store/types';
 
 export type QuestWithMode = Quest & {
   heroName?: string;
-  mode?: 'story' | 'custom' | 'cooperative';
+  mode?: 'story' | 'custom' | 'cooperative' | 'holdout';
 };
 
 export type QuestCompleteProps = {
