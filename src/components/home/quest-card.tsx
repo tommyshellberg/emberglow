@@ -40,7 +40,7 @@ const imageMap: Record<HomeQuestMode, ImageSourcePropType> = {
   cooperative: require('@/../assets/images/background/coop-quest-background-alt.jpg'),
   // Reuses the custom background — no new asset in v1; a dedicated image
   // can land later.
-  holdout: require('@/../assets/images/background/custom-quest-background-alt.jpg'),
+  holdout: require('@/../assets/images/background/pending-quest-bg-alt-4.jpg'),
 };
 
 const COMPLETION_MESSAGE =
