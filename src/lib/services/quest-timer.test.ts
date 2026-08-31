@@ -902,7 +902,7 @@ describe('QuestTimer', () => {
           title: 'Quest Complete',
           description: 'Congratulations on finishing your quest!',
         },
-        { durationMinutes: 15, status: 'completed' }
+        { durationMinutes: 15, mode: 'story', status: 'completed' }
       );
     });
 
@@ -1116,7 +1116,7 @@ describe('QuestTimer', () => {
       expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
         activityId,
         { title: 'Quest Failed', description: 'Try again next time' },
-        { durationMinutes: 15, status: 'failed' }
+        { durationMinutes: 15, mode: 'story', status: 'failed' }
       );
     });
   });
@@ -1367,7 +1367,7 @@ describe('QuestTimer', () => {
           title: 'Quest Ready',
           description: 'Lock your phone to begin your quest',
         },
-        { durationMinutes: 15, status: 'pending' }
+        { durationMinutes: 15, mode: 'story', status: 'pending' }
       );
     });
 
@@ -1391,7 +1391,12 @@ describe('QuestTimer', () => {
       expect(OneSignal.LiveActivities.startDefault).toHaveBeenLastCalledWith(
         preparedId,
         { title: 'Test Quest', description: 'Focus on your quest' },
-        { durationMinutes: 15, status: 'active' }
+        {
+          durationMinutes: 15,
+          mode: 'story',
+          startedAt: Math.floor(Date.now() / 1000),
+          status: 'active',
+        }
       );
     });
 
@@ -1659,7 +1664,7 @@ describe('QuestTimer', () => {
           title: 'Quest Complete',
           description: 'Congratulations on finishing your quest!',
         },
-        { durationMinutes: 15, status: 'completed' }
+        { durationMinutes: 15, mode: 'story', status: 'completed' }
       );
       // Teardown, or the service keeps running after the quest is over.
       expect(BackgroundService.stop).toHaveBeenCalled();
@@ -1866,6 +1871,21 @@ describe('QuestTimer', () => {
       await QuestTimer.onPhoneUnlocked();
 
       expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the 120-minute display window and holdout mode on the card', async () => {
+      // durationMinutes on a holdout template is the fail threshold, not a
+      // quest length; the lock-screen card must show the display window.
+      await QuestTimer.prepareQuest(holdoutTemplate);
+
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        expect.any(String),
+        {
+          title: 'Quest Ready',
+          description: 'Lock your phone to begin your quest',
+        },
+        { durationMinutes: 120, mode: 'holdout', status: 'pending' }
+      );
     });
 
     it('converts a holdout quest that was stuck in the pending state', async () => {

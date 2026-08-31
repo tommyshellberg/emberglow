@@ -8,7 +8,8 @@ import { v4 as uuidv4 } from 'uuid'; // Use uuid for unique IDs
 import {
   calculateHoldoutXP,
   clampHoldoutMinutes,
-  HOLDOUT_CAP_MINUTES,
+  HOLDOUT_DISPLAY_WINDOW_MINUTES,
+  HOLDOUT_MIN_MINUTES,
 } from '@/app/utils/quest-utils';
 import {
   areNotificationsEnabled,
@@ -66,13 +67,13 @@ export default class QuestTimer {
   private static questRunId: string | null = null;
 
   // What lock-screen surfaces (Live Activity, Android notification) display
-  // as the quest length. Hold-out templates carry their 10-minute minimum in
-  // durationMinutes; showing "10 min" on the lock screen would read as a
-  // countdown to completion, so show the 4-hour cap instead. Known v1
-  // limitation: the iOS widget still renders it as a fixed window.
+  // as the quest length. Hold-out templates carry their fail-threshold
+  // minimum in durationMinutes; showing that on the lock screen would read
+  // as a countdown to completion, so show the 120-minute display window
+  // instead. Display-only: the XP curve still runs to its 240-minute cap.
   private static displayDurationMinutes(template: LocalQuestTemplate): number {
     return template.mode === 'holdout'
-      ? HOLDOUT_CAP_MINUTES
+      ? HOLDOUT_DISPLAY_WINDOW_MINUTES
       : template.durationMinutes;
   }
 
@@ -281,6 +282,7 @@ export default class QuestTimer {
         };
         const pendingContent = {
           durationMinutes: this.displayDurationMinutes(questTemplate),
+          mode: questTemplate.mode,
           status: 'pending', // Using status instead of pending boolean
         };
         OneSignal.LiveActivities.startDefault(
@@ -383,6 +385,10 @@ export default class QuestTimer {
         };
         const updatedContent = {
           durationMinutes: this.displayDurationMinutes(this.questTemplate),
+          mode: this.questTemplate.mode,
+          // Epoch seconds. Lets the widget anchor its timer and progress bar
+          // to the real start time instead of restarting them on each update.
+          startedAt: Math.floor((this.questStartTime ?? Date.now()) / 1000),
           status: 'active', // Using status='active' instead of pending=false
         };
         console.log(
@@ -576,7 +582,7 @@ export default class QuestTimer {
             taskTitle: `Quest in progress: ${this.questTemplate.title}`,
             taskDesc:
               this.questTemplate.mode === 'holdout'
-                ? 'Hold out as long as you can - unlock any time after 10 minutes to collect your reward'
+                ? `Hold out as long as you can - unlock any time after ${HOLDOUT_MIN_MINUTES} minutes to collect your reward`
                 : `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
             progressBar: {
               max: 100,
@@ -832,6 +838,7 @@ export default class QuestTimer {
             };
             const completedContent = {
               durationMinutes: this.questTemplate.durationMinutes,
+              mode: this.questTemplate.mode,
               status: 'completed',
             };
             OneSignal.LiveActivities.startDefault(
@@ -866,6 +873,7 @@ export default class QuestTimer {
               };
               const failedContent = {
                 durationMinutes: this.questTemplate.durationMinutes,
+                mode: this.questTemplate.mode,
                 status: 'failed', // Set status to failed instead of ending activity
               };
               OneSignal.LiveActivities.startDefault(
@@ -1109,6 +1117,7 @@ export default class QuestTimer {
             };
             const completionContent = {
               durationMinutes: this.displayDurationMinutes(this.questTemplate),
+              mode: this.questTemplate.mode,
               status: 'completed', // Use status instead of boolean flags
             };
             console.log(
