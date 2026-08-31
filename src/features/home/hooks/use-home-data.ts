@@ -173,6 +173,18 @@ export function useHomeData({
       isPremium: false,
     });
 
+    // Hold Out card (open-ended - no duration, reward scales with time)
+    data.push({
+      id: 'holdout',
+      mode: 'holdout',
+      title: 'Hold Out',
+      subtitle: 'No Time Limit',
+      recap:
+        'Lock your phone and hold out as long as you can. The longer you last, the bigger the reward.',
+      duration: 0,
+      xp: 0,
+    });
+
     return data;
   }, [
     serverQuests,

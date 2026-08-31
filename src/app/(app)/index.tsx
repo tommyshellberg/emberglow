@@ -302,6 +302,7 @@ export default function Home() {
     handleQuestOptionSelect,
     handleStartCustomQuest,
     handleCooperativeQuest,
+    handleStartHoldoutQuest,
   } = useQuestSelection({
     serverQuests,
     serverOptions,
@@ -401,11 +402,12 @@ export default function Home() {
 
   // Animated background style based on carousel progress
   const backgroundStyle = useAnimatedStyle(() => {
-    const inputRange = [0, 1, 2]; // Always have 3 modes now
+    const inputRange = [0, 1, 2, 3]; // One stop per QUEST_MODES entry
     const outputRange = [
       QUEST_MODES[0].color,
       QUEST_MODES[1].color,
       QUEST_MODES[2].color,
+      QUEST_MODES[3].color,
     ];
 
     const backgroundColor = interpolateColor(
@@ -585,6 +587,26 @@ export default function Home() {
                         setShowPaywallModal(true);
                       }
                     }}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                  />
+                </Animated.View>
+              </Animated.View>
+            ) : activeIndex === 3 ? (
+              // Show start holdout quest button for holdout mode
+              <Animated.View
+                entering={FadeIn.duration(600).delay(200)}
+                className="w-full items-center px-4"
+              >
+                <Animated.View
+                  entering={FadeInDown.duration(600).delay(400)}
+                  style={[{ width: CARD_WIDTH }, shadows.card]}
+                >
+                  <Button
+                    testID="start-holdout-quest-button"
+                    label="Start Holding Out"
+                    onPress={handleStartHoldoutQuest}
                     variant="primary"
                     size="lg"
                     fullWidth

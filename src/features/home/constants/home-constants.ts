@@ -32,6 +32,7 @@ export const QUEST_MODES = [
   { id: 'story', name: 'Story', color: 'rgba(217, 73, 40, 0.20)' },
   { id: 'custom', name: 'Custom', color: 'rgba(247, 164, 75, 0.16)' },
   { id: 'cooperative', name: 'Co-op', color: 'rgba(44, 69, 107, 0.38)' },
+  { id: 'holdout', name: 'Hold Out', color: 'rgba(96, 108, 56, 0.28)' },
 ] as const;
 
 // Animation timings (milliseconds)

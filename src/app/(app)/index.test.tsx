@@ -18,7 +18,7 @@
  */
 import React from 'react';
 
-import { render, screen } from '@/lib/test-utils';
+import { fireEvent, render, screen } from '@/lib/test-utils';
 import type { AnnouncementKey } from '@/store/announcement-store';
 
 // Mock the router
@@ -438,6 +438,30 @@ describe('Home Component - Integration Tests', () => {
       // The narrator sheet content is mounted (bottom-sheet pattern).
       expect(screen.getByText('Choose Who Tells Your Story')).toBeTruthy();
       expect(screen.getByText('Choose My Narrator')).toBeTruthy();
+
+      unmount();
+    });
+  });
+
+  describe('Holdout mode', () => {
+    it('navigates to /holdout-quest when the user starts a hold-out quest', () => {
+      mockGetAnnouncementToShow.mockReturnValue(null);
+
+      const { unmount } = render(<Home />);
+
+      // Advance the deck from story (0) to holdout (3) by pressing each
+      // back card in turn, same as swiping — pressing any non-front card
+      // calls onAdvance(1). Each back card exposes a "Show <label> card"
+      // button (see quest-deck.tsx), same idiom as quest-deck.test.tsx.
+      fireEvent.press(screen.getByRole('button', { name: 'Show Custom card' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Show Co-op card' }));
+      fireEvent.press(
+        screen.getByRole('button', { name: 'Show Hold Out card' })
+      );
+
+      fireEvent.press(screen.getByText('Start Holding Out'));
+
+      expect(mockPush).toHaveBeenCalledWith('/holdout-quest');
 
       unmount();
     });

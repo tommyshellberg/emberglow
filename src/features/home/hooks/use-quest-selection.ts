@@ -102,6 +102,17 @@ export function useQuestSelection({
     }
   }, [router]);
 
+  const handleStartHoldoutQuest = useCallback(() => {
+    try {
+      router.push('/holdout-quest');
+    } catch (error) {
+      console.error(
+        '[useQuestSelection] Error navigating to holdout quest:',
+        error
+      );
+    }
+  }, [router]);
+
   const handleCooperativeQuest = useCallback(() => {
     try {
       posthog.capture('cooperative_quest_card_clicked');
@@ -118,5 +129,6 @@ export function useQuestSelection({
     handleQuestOptionSelect,
     handleStartCustomQuest,
     handleCooperativeQuest,
+    handleStartHoldoutQuest,
   };
 }

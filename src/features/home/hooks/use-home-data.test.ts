@@ -32,7 +32,7 @@ describe('useHomeData', () => {
         })
       );
 
-      expect(result.current.carouselData).toHaveLength(3); // story, custom, coop
+      expect(result.current.carouselData).toHaveLength(4); // story, custom, coop, holdout
       expect(result.current.carouselData[0]).toMatchObject({
         id: 'story',
         mode: 'story',
@@ -135,6 +135,24 @@ describe('useHomeData', () => {
       expect(coopCard?.title).toBe('Cooperative Quest');
       expect(coopCard?.mode).toBe('cooperative');
       expect(coopCard?.isPremium).toBe(false);
+    });
+
+    it('includes the holdout card as the fourth mode', () => {
+      const { result } = renderHook(() =>
+        useHomeData({
+          serverQuests: [],
+          availableQuests: [],
+          storyOptions: [],
+          completedQuests: [],
+          isLoadingQuests: false,
+        })
+      );
+
+      const modes = result.current.carouselData.map((c) => c.mode);
+      expect(modes).toEqual(['story', 'custom', 'cooperative', 'holdout']);
+      const holdout = result.current.carouselData[3];
+      expect(holdout.title).toBe('Hold Out');
+      expect(holdout.duration).toBe(0);
     });
   });
 

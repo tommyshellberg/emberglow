@@ -1,4 +1,10 @@
-import { BookOpen, Feather, Layers, Users } from 'lucide-react-native';
+import {
+  BookOpen,
+  Feather,
+  Hourglass,
+  Layers,
+  Users,
+} from 'lucide-react-native';
 import * as React from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -51,6 +57,7 @@ const MODE_META: Record<
   story: { label: 'Story', Icon: BookOpen },
   custom: { label: 'Custom', Icon: Feather },
   cooperative: { label: 'Co-op', Icon: Users },
+  holdout: { label: 'Hold Out', Icon: Hourglass },
 };
 
 // Front card rests at the bottom of the (taller) deck container so the back

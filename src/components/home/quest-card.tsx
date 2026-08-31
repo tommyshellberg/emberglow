@@ -17,7 +17,7 @@ import {
   withAlpha,
 } from '@/theme';
 
-export type HomeQuestMode = 'story' | 'custom' | 'cooperative';
+export type HomeQuestMode = 'story' | 'custom' | 'cooperative' | 'holdout';
 
 export interface QuestCardProps {
   mode: HomeQuestMode;
@@ -38,6 +38,9 @@ const imageMap: Record<HomeQuestMode, ImageSourcePropType> = {
   story: require('@/../assets/images/background/card-background-alt.jpg'),
   custom: require('@/../assets/images/background/custom-quest-background-alt.jpg'),
   cooperative: require('@/../assets/images/background/coop-quest-background-alt.jpg'),
+  // Reuses the custom background — no new asset in v1; a dedicated image
+  // can land later.
+  holdout: require('@/../assets/images/background/custom-quest-background-alt.jpg'),
 };
 
 const COMPLETION_MESSAGE =
@@ -126,7 +129,12 @@ export default function QuestCard({
         <View style={styles.content}>
           <EyebrowLabel>{subtitle}</EyebrowLabel>
           <Text style={styles.title}>{cardTitle}</Text>
-          <Text style={styles.meta}>{`${duration} min · ${xp} XP`}</Text>
+          {mode !== 'holdout' && (
+            <Text style={styles.meta}>{`${duration} min · ${xp} XP`}</Text>
+          )}
+          {mode === 'holdout' && (
+            <Text style={styles.meta}>{'3 XP/min'}</Text>
+          )}
           <Text style={styles.description} numberOfLines={3}>
             {cardDescription}
           </Text>
