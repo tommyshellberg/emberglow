@@ -68,12 +68,17 @@ import {
   clampHoldoutMinutes,
   HOLDOUT_CAP_MINUTES,
   HOLDOUT_MIN_MINUTES,
+  HOLDOUT_MIN_MINUTES_DEV,
+  HOLDOUT_MIN_MINUTES_PROD,
 } from '../quest-utils';
 
 describe('holdout curve', () => {
   it('exposes the spec constants', () => {
-    expect(HOLDOUT_MIN_MINUTES).toBe(10);
+    expect(HOLDOUT_MIN_MINUTES_PROD).toBe(10);
     expect(HOLDOUT_CAP_MINUTES).toBe(240);
+    // Jest runs with __DEV__ = true, so the active minimum is the dev value.
+    expect(HOLDOUT_MIN_MINUTES_DEV).toBe(2);
+    expect(HOLDOUT_MIN_MINUTES).toBe(HOLDOUT_MIN_MINUTES_DEV);
   });
 
   it('pays 3 XP/min through minute 60, then 1 XP/min through 240', () => {
