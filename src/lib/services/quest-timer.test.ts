@@ -1808,4 +1808,61 @@ describe('QuestTimer', () => {
       expect(BackgroundService.stop).toHaveBeenCalled();
     });
   });
+
+  describe('holdout quests', () => {
+    const holdoutTemplate = {
+      id: 'holdout-1',
+      mode: 'holdout' as const,
+      title: 'Hold Out',
+      durationMinutes: 10,
+      category: 'other',
+      reward: { xp: 0 },
+    };
+
+    it('does not auto-complete when the 10-minute minimum elapses while locked', async () => {
+      mockQuestStore.activeQuest = { id: 'holdout-1', startTime: 0 };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      // Drive exactly one iteration of the background loop, the same way
+      // "reports elapsed progress on the Android notification" does above.
+      let iterations = 0;
+      BackgroundService.isRunning.mockImplementation(() => iterations++ < 1);
+
+      const running = backgroundTask(taskDataFor(10));
+      await jest.advanceTimersByTimeAsync(9000); // the loop's update interval
+      await running;
+
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+      expect(mockQuestStore.recentCompletedQuest).toBeNull();
+    });
+
+    it('completes on unlock after the minimum', async () => {
+      // Regression guard: this is the existing onPhoneUnlocked completion
+      // path, unchanged by this task. `completeQuest` is a mocked store
+      // action (it does not itself populate recentCompletedQuest), so —
+      // matching how the rest of this file asserts completion — check that
+      // it was invoked, not the resulting store field.
+      mockQuestStore.activeQuest = { id: 'holdout-1', startTime: 0 };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.completeQuest).toHaveBeenCalledWith(true);
+    });
+
+    it('fails on unlock before the minimum', async () => {
+      // Regression guard: existing onPhoneUnlocked failure path, unchanged.
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(5 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+    });
+  });
 });

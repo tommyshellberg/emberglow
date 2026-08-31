@@ -5,6 +5,7 @@ import BackgroundService from 'react-native-background-actions';
 import { OneSignal } from 'react-native-onesignal';
 import { v4 as uuidv4 } from 'uuid'; // Use uuid for unique IDs
 
+import { HOLDOUT_CAP_MINUTES } from '@/app/utils/quest-utils';
 import {
   areNotificationsEnabled,
   clearAllNotifications,
@@ -59,6 +60,17 @@ export default class QuestTimer {
   private static oneSignalActivityId: string | null = null;
   // Add quest run ID to track the server-side quest run
   private static questRunId: string | null = null;
+
+  // What lock-screen surfaces (Live Activity, Android notification) display
+  // as the quest length. Hold-out templates carry their 10-minute minimum in
+  // durationMinutes; showing "10 min" on the lock screen would read as a
+  // countdown to completion, so show the 4-hour cap instead. Known v1
+  // limitation: the iOS widget still renders it as a fixed window.
+  private static displayDurationMinutes(template: LocalQuestTemplate): number {
+    return template.mode === 'holdout'
+      ? HOLDOUT_CAP_MINUTES
+      : template.durationMinutes;
+  }
 
   // Helper methods to persist quest data
   private static async saveQuestData() {
@@ -264,7 +276,7 @@ export default class QuestTimer {
           description: pendingTaskDesc,
         };
         const pendingContent = {
-          durationMinutes: questTemplate.durationMinutes,
+          durationMinutes: this.displayDurationMinutes(questTemplate),
           status: 'pending', // Using status instead of pending boolean
         };
         OneSignal.LiveActivities.startDefault(
@@ -320,7 +332,7 @@ export default class QuestTimer {
         indeterminate: true,
       },
       parameters: {
-        questDuration: questTemplate.durationMinutes * 60 * 1000,
+        questDuration: this.displayDurationMinutes(questTemplate) * 60 * 1000,
         questTitle: questTemplate.title,
         questDescription:
           ('recap' in questTemplate
@@ -366,7 +378,7 @@ export default class QuestTimer {
               : 'Focus on your quest',
         };
         const updatedContent = {
-          durationMinutes: this.questTemplate.durationMinutes,
+          durationMinutes: this.displayDurationMinutes(this.questTemplate),
           status: 'active', // Using status='active' instead of pending=false
         };
         console.log(
@@ -558,7 +570,10 @@ export default class QuestTimer {
         try {
           await BackgroundService.updateNotification({
             taskTitle: `Quest in progress: ${this.questTemplate.title}`,
-            taskDesc: `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
+            taskDesc:
+              this.questTemplate.mode === 'holdout'
+                ? 'Hold out as long as you can - unlock any time after 10 minutes to collect your reward'
+                : `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
             progressBar: {
               max: 100,
               value: 0,
@@ -1053,7 +1068,14 @@ export default class QuestTimer {
         });
 
         // Check if quest is complete
-        if (elapsedTime >= questDuration) {
+        // Timed quests complete themselves the moment the duration elapses
+        // while locked. Hold-out quests are open-ended: durationMinutes is
+        // their 10-minute MINIMUM, so completing here would end the run at
+        // minute 10. They finalize only in onPhoneUnlocked.
+        if (
+          this.questTemplate?.mode !== 'holdout' &&
+          elapsedTime >= questDuration
+        ) {
           console.log(
             'Quest completed in background task:',
             this.questTemplate?.id || 'unknown'
@@ -1066,7 +1088,7 @@ export default class QuestTimer {
               description: 'Congratulations on finishing your quest!',
             };
             const completionContent = {
-              durationMinutes: this.questTemplate.durationMinutes,
+              durationMinutes: this.displayDurationMinutes(this.questTemplate),
               status: 'completed', // Use status instead of boolean flags
             };
             console.log(
