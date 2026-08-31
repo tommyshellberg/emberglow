@@ -5,7 +5,11 @@ import BackgroundService from 'react-native-background-actions';
 import { OneSignal } from 'react-native-onesignal';
 import { v4 as uuidv4 } from 'uuid'; // Use uuid for unique IDs
 
-import { HOLDOUT_CAP_MINUTES } from '@/app/utils/quest-utils';
+import {
+  calculateHoldoutXP,
+  clampHoldoutMinutes,
+  HOLDOUT_CAP_MINUTES,
+} from '@/app/utils/quest-utils';
 import {
   areNotificationsEnabled,
   clearAllNotifications,
@@ -726,6 +730,22 @@ export default class QuestTimer {
             status: 'completed' as const,
             questRunId: this.questRunId || undefined,
           };
+
+          // Hold-out quests: same curve conversion as the main completeQuest
+          // path in quest-store.ts. This recovery branch builds the
+          // completed quest straight from pendingQuest, which still carries
+          // the placeholder durationMinutes/reward.xp set at prepareQuest
+          // time — without this, a holdout quest recovered here would
+          // complete at durationMinutes: 10 / reward.xp: 0 regardless of
+          // how long the phone was actually locked.
+          if (pendingQuest.mode === 'holdout') {
+            const elapsedMinutes = elapsedTime / 60000;
+            completedQuest.durationMinutes =
+              clampHoldoutMinutes(elapsedMinutes);
+            completedQuest.reward = {
+              xp: calculateHoldoutXP(elapsedMinutes),
+            };
+          }
 
           // Update the store state
           questStore.reset();

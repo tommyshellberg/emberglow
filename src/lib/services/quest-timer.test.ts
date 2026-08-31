@@ -1867,5 +1867,40 @@ describe('QuestTimer', () => {
 
       expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
     });
+
+    it('converts a holdout quest that was stuck in the pending state', async () => {
+      // Same bug as the timed-quest "stuck in pending" arm above: the store
+      // never transitioned to active, so the active-quest branch cannot
+      // fire and this one builds the completed quest straight from
+      // pendingQuest. For holdout that means it skipped the curve
+      // conversion the main completeQuest path applies, and the user got
+      // durationMinutes: 10 / reward.xp: 0 no matter how long they were
+      // actually locked out.
+      questStoreMockModule.useQuestStore.__mockStore.pendingQuest = {
+        id: 'holdout-1',
+        mode: 'holdout',
+        durationMinutes: 10,
+        reward: { xp: 0 },
+      };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(90 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeQuest: null,
+          pendingQuest: null,
+          recentCompletedQuest: expect.objectContaining({
+            id: 'holdout-1',
+            status: 'completed',
+            durationMinutes: 90,
+            reward: { xp: 210 },
+          }),
+        })
+      );
+      expect(mockCharacterStore.addXP).toHaveBeenCalledWith(210);
+    });
   });
 });
