@@ -148,6 +148,8 @@ export function getQuestModeLabel(mode: string | undefined): string {
       return 'Custom Quest';
     case 'cooperative':
       return 'Cooperative Quest';
+    case 'holdout':
+      return 'Hold Out';
     default:
       return 'Quest';
   }

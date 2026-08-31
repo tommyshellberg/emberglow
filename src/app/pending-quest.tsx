@@ -75,7 +75,7 @@ export default function PendingQuestScreen() {
         }
       : undefined,
     participantIds: userId ? [userId] : [],
-    enabled: !!pendingQuest && !!userId,
+    enabled: !!pendingQuest && !!userId && pendingQuest.mode !== 'holdout',
   });
 
   // Use animation hook for all screen animations
@@ -116,6 +116,8 @@ export default function PendingQuestScreen() {
   // is suppressed. Every other pending screen keeps it. The onboarding flow
   // (first-quest.tsx) sets the quest's `id` to this stable template id.
   const isOnboardingQuest = pendingQuest.id === ONBOARDING_QUEST_ID;
+
+  const isHoldout = pendingQuest.mode === 'holdout';
 
   return (
     <View style={styles.flex}>
@@ -168,8 +170,17 @@ export default function PendingQuestScreen() {
           <EyebrowLabel>{getQuestModeLabel(pendingQuest.mode)}</EyebrowLabel>
           <Text style={styles.title}>{pendingQuest.title}</Text>
           <View style={styles.badgeRow}>
-            <Badge tone="warm">{`+${xp} XP`}</Badge>
-            <Badge tone="neutral">{`${pendingQuest.durationMinutes} min offline`}</Badge>
+            {isHoldout ? (
+              <>
+                <Badge tone="warm">3 XP per min</Badge>
+                <Badge tone="neutral">No time limit</Badge>
+              </>
+            ) : (
+              <>
+                <Badge tone="warm">{`+${xp} XP`}</Badge>
+                <Badge tone="neutral">{`${pendingQuest.durationMinutes} min offline`}</Badge>
+              </>
+            )}
             {thirdBadgeLabel ? (
               <Badge tone="neutral">{thirdBadgeLabel}</Badge>
             ) : null}
