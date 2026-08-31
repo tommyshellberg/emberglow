@@ -75,6 +75,14 @@ describe('getCompletionStory', () => {
     expect(getCompletionStory(quest())).toBe(getCompletionStory(quest()));
   });
 
+  it('has at least one story for every picker category', () => {
+    for (const category of PICKER_CATEGORY_IDS) {
+      expect(
+        AVAILABLE_CUSTOM_QUEST_STORIES.some((s) => s.category === category)
+      ).toBe(true);
+    }
+  });
+
   it('tags every pool story with a picker category id', () => {
     // 'Reading' and capitalized tags matched nothing the picker can produce.
     const tags = [

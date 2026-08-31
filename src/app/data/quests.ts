@@ -1060,4 +1060,214 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
       'The quest tested more than just willpower—it tested trust. You and your ally held each other accountable, neither willing to be the one who faltered. When success finally came, it tasted sweeter for having been earned together. True friendship, you learned, means lifting each other to greater heights.',
     category: 'social',
   },
+  {
+    id: 'W4Kt7RnQ2xLd',
+    title: 'The Ledger of Thorncross',
+    story:
+      "The guild's ledger had broken three clerks before it reached your table, its columns crooked with years of careless hands. You worked by lamplight, tracing each debt to its root, until the numbers finally stood in clean ranks. When the guildmaster read the last page, he said nothing, only pressed his seal beside your work. In Vaedros, order is rarer than gold, and you had made some.",
+    category: 'work',
+  },
+  {
+    id: 'W9Pj3MvT6bRs',
+    title: 'The Hundredth Nail',
+    story:
+      'The smith gave you a barrel of bent nails and a cold anvil, the kind of task given to test patience rather than skill. You straightened them one by one, the hammer falling in a rhythm that slowly became your own. By the hundredth, your strikes rang true without thought. The smith took the barrel back with a grunt that, from him, counted as a wage.',
+    category: 'work',
+  },
+  {
+    id: 'W2Bx8LqF5nTk',
+    title: 'The Granary Count',
+    story:
+      'Winter was coming, and the granary tally had to hold or the village would not. You counted sacks in the cold until dust coated your throat and the figures blurred, then counted them again. The steward checked your numbers twice and found nothing to correct. No songs are sung for a true count, but people eat because of one.',
+    category: 'work',
+  },
+  {
+    id: 'W7Rd4KsN9vQm',
+    title: "The Courier's Round",
+    story:
+      'Twelve sealed letters, twelve doors, and a city that swallows careless couriers whole. You learned the alleys as you went, trading a shortcut for a soaking under a broken gutter, and delivered the last letter before the tower bell struck. One recipient, a grey-eyed widow, studied you a moment too long before closing her door. Some rounds pay in coin; that one paid in questions.',
+    category: 'work',
+  },
+  {
+    id: 'W5Tn6QvB3xJp',
+    title: 'The Night Shift',
+    story:
+      'You took the watch nobody wanted, the hours when the braziers burn low and the mind invents footsteps. Twice you walked the wall to prove the sounds were wind, and twice you were right. Dawn came grey and slow, and the relief guard found you upright at your post. Nothing happened, which is the whole point of a watch, and harder than it sounds.',
+    category: 'work',
+  },
+  {
+    id: 'W8Gm2XwR7cLf',
+    title: "The Dockmaster's Manifest",
+    story:
+      'Rain hammered the quay while you checked crates against a manifest gone soft at the edges. A merchant tried to wave two barrels past your count; you made him wait while you opened both. Salt fish, as declared, and an apology muttered into his collar. The dockmaster kept your tally sheet as a model for the next hire.',
+    category: 'work',
+  },
+  {
+    id: 'C3Vh9NqK4mWt',
+    title: 'The Unfinished Mural',
+    story:
+      "The chapel wall had stood half-painted since its last artist left for the border and never came back. You mixed their abandoned pigments, matched a stranger's brushwork, and gave the painted procession the road it had been waiting years to walk. An old woman lit a candle beneath it and wept. You never learned for whom.",
+    category: 'creative',
+  },
+  {
+    id: 'C6Jd2RwP8sXn',
+    title: "The Luthier's Brace",
+    story:
+      "A lute is mostly empty space and one thin brace of spruce, carved until it is nearly nothing. You shaved wood in whispers, testing the tap-tone after every pass, stopping the moment it rang. The luthier strung the body and played a chord that hung in the workshop like weather. 'That,' she said, 'is the sound of knowing when to stop.'",
+    category: 'creative',
+  },
+  {
+    id: 'C9Fm5TkQ2vBd',
+    title: 'The Ballad at the Hearth',
+    story:
+      'The tavern wanted a new verse for an old tune, something true enough to sting. You worked the lines in your head while the fire burned down, cutting every word that only decorated. When you finally sang it, the room went quiet in the right places. A drover bought you ale and asked whose story it was; you let him believe it was his.',
+    category: 'creative',
+  },
+  {
+    id: 'C4Xw7BnL6qRj',
+    title: "The Cartographer's Margin",
+    story:
+      "The map's roads were drawn, but its margins were bare, and a bare map sells for half. You inked serpents in the unknown seas of the border marshes and a compass rose wound with thorn-briar, steady-handed through the afternoon. The cartographer held it to the light and found no tremor in your lines. Somewhere, a traveler will trust that map because it is beautiful.",
+    category: 'creative',
+  },
+  {
+    id: 'C7Qs3MvH9kTb',
+    title: "The Potter's Wheel",
+    story:
+      'The clay fought you all morning, collapsing twice, wobbling off center a third time. You wet your hands, slowed your breath, and let the wheel teach you instead. The bowl that finally rose was plain and slightly uneven, and it was yours. The potter set it on the shelf with the good work, not the seconds.',
+    category: 'creative',
+  },
+  {
+    id: 'C2Ln8KpF5wYv',
+    title: 'The Festival Mask',
+    story:
+      'Every year the village burns one mask to close the harvest, and this year the carving fell to you. You worked the pale wood into a face that was neither smiling nor sad, the way the old ones are. At the fire, the elder held it up and the crowd went still before the cheer. It burned in a minute; the making of it will stay with you longer.',
+    category: 'creative',
+  },
+  {
+    id: 'H5Rt2QnV8mKd',
+    title: 'The Cold Hearth',
+    story:
+      "A winter's worth of ash had gone grey and solid in the hearth, and the chimney breathed poorly for it. You hauled out bucket after bucket, swept the flue soot until your arms ached, and laid fresh kindling on clean stone. The first new fire caught on a single spark. The whole room seemed to sit up straighter in its light.",
+    category: 'household',
+  },
+  {
+    id: 'H8Wn4JvB2xPt',
+    title: 'Mending the Shutter',
+    story:
+      'The shutter had banged through three storms, and the frame was starting to split from its hinges. You planed the swollen edge, reset the iron, and drove the screws home before the sky in the west turned the color of slate. That night the wind came hunting and found nothing loose to take. You slept through it, which was the reward.',
+    category: 'household',
+  },
+  {
+    id: 'H3Km9TqL6vFs',
+    title: 'The Root Cellar',
+    story:
+      'The cellar had become a place things were thrown rather than kept. You sorted the sound apples from the soft, racked the jars by season, and found, behind everything, a crock of honey your household had given up for lost. Order, you learned, returns what chaos borrows. The cellar door closes properly now, on darkness that is arranged.',
+    category: 'household',
+  },
+  {
+    id: 'H7Bd5XwN4qJm',
+    title: 'The Well Rope',
+    story:
+      'The old rope was down to its last honest strands, and everyone had agreed to worry about it later. You spliced the new line in the cold morning, whipped the ends, and tested it with your full weight before trusting it with the bucket. Water came up sweet and sure. Nobody noticed, which is how you know the work was done in time.',
+    category: 'household',
+  },
+  {
+    id: 'H2Vp8LsQ7nRw',
+    title: 'Washing Day',
+    story:
+      'You carried the linen to the river while the mist was still on it, and beat the week out of every sheet against the smooth stones. The cold water bit your hands; the work warmed them back. By midday the line in the yard was full of sails, and the whole house smelled of river and sun. Small labors, done wholly, feel larger than they are.',
+    category: 'household',
+  },
+  {
+    id: 'H9Qf3MnK5tXb',
+    title: 'The Leaking Roof',
+    story:
+      'The drip had marked its territory on the floorboards, patient as a tax collector. You climbed up with new thatch under one arm and the wind arguing with the other, and worked the bad patch out bundle by bundle. The rain returned that evening to find the way barred. It drummed on the roof all night, and not one drop got past you.',
+    category: 'household',
+  },
+  {
+    id: 'O4Jn7RvT2wQk',
+    title: 'The Boundary Stones',
+    story:
+      'The old field markers had leaned and sunk until no one could say where one holding ended and the next began. You walked the whole line, righting each stone, cutting back the briars that had swallowed two of them. At the far corner you found initials chiseled by some hand a century gone. You stood the stone straight for them as much as for anyone living.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O8Ts3KwB6nLv',
+    title: 'The Orchard Row',
+    story:
+      'The orchard had gone shaggy, its best branches strangled by their neighbors. You pruned through the morning, reading each tree before you cut, leaving the wounds clean. The rows looked bare when you finished, almost punished. But the old grower nodded at the open crowns and said the fruit would come heavier for it, and that you would see.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O2Wm6QpF9xRd',
+    title: 'Tracks After Rain',
+    story:
+      "The rain had wiped the forest clean and written fresh news on it overnight. You followed a stag's track up the ridge, reading where it had paused, where it had startled, where it had stood a long while facing the valley. You never saw the animal itself. It did not matter; by the time you turned home, you could think like it.",
+    category: 'outdoors',
+  },
+  {
+    id: 'O6Bv9XnH3kTs',
+    title: 'The High Meadow',
+    story:
+      'The path to the high meadow is not long, but it is honest, and it collects its toll in breath. You climbed through pine shadow into open grass where the wind moved like a hand over the whole hillside. Below, the village was small enough to cover with your thumb. You came down slower than you went up, carrying something the meadow gave you.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O9Kd2LwQ7vMn',
+    title: 'The Firewood Line',
+    story:
+      'The woodpile had to outlast the winter, and winter in Vaedros keeps its own ledger. You split rounds until your shoulders burned, stacking the cords tight and bark-up against the rain. The pile grew into a wall, then into a promise. Cold is coming; it will find this house armored.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O3Xp5TnJ8qBw',
+    title: 'The River Ford',
+    story:
+      'Spring had rearranged the river, and the old crossing was a rumor with a current. You waded the shallows with a staff, feeling for the new gravel bar, marking the safe line with stacked stones on either bank. A carter watched you work, then brought his wagon over dry-axled where you pointed. The river will move again, but for now it has rules.',
+    category: 'outdoors',
+  },
+  {
+    id: 'T7Fn4QvK9mWd',
+    title: 'The Unmarked Door',
+    story:
+      'The task had no name anyone would put in writing, only an address and a knock to use. You did what was asked, carefully, and left the unmarked door as you found it. On the walk home the city seemed unchanged, though you knew one small thing in it now stood mended. Some work is like a stitch on the inside of a garment: unseen, and holding.',
+    category: 'other',
+  },
+  {
+    id: 'T2Rw8BnL5xQs',
+    title: 'The Waiting Stone',
+    story:
+      'You had given your word to be at the waiting stone by midday, and the road did its best to make a liar of you. A thrown shoe, a flooded lane, a shepherd whose flock owned the bridge for a quarter hour. You arrived with the sun still short of its height. The one who met you there checked the sky, then looked at you differently than before.',
+    category: 'other',
+  },
+  {
+    id: 'T9Km3XvP6nJf',
+    title: 'A Debt Repaid',
+    story:
+      "The borrowed thing had sat in your keeping long enough to start feeling like yours, which is how debts go bad. You carried it back across town and put it in its owner's hands with thanks and no excuses. The lightness you walked home with weighed nothing and was worth carrying. An old woman on the corner nodded as you passed, as if she kept accounts.",
+    category: 'other',
+  },
+  {
+    id: 'T5Qd7MwB2vRn',
+    title: 'The List of Small Things',
+    story:
+      'None of the tasks deserved its own errand: a latch, a letter, a name to remember, a jar to return. Together they had formed a small army at your back, and today you turned and faced it. One by one the little duties fell, until by dusk the list was only paper. No single line of it mattered; the clean slate mattered like a full meal.',
+    category: 'other',
+  },
+  {
+    id: 'T8Vs2LnQ4kXm',
+    title: "The Stranger's Parcel",
+    story:
+      'The parcel was light, tightly wrapped, and none of your business, which you respected. You carried it through two districts and a checkpoint where a bored guard weighed you with his eyes, and delivered it into hands that trembled slightly taking it. Whatever it was, it was wanted the way water is wanted. You walked away without asking, and that was the service.',
+    category: 'other',
+  },
+  {
+    id: 'T4Bn9KwF7qLp',
+    title: 'The Hour Before the Bell',
+    story:
+      'You rose in the dark to finish what the day would otherwise devour, working while the street outside still belonged to cats and bakers. By the time the tower bell woke everyone else, the thing was done and cooling like bread. The day arrived with its usual demands and found you already ahead of it. Hours taken from sleep are expensive; some purchases are worth it.',
+    category: 'other',
+  },
 ];
