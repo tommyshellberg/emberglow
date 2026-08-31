@@ -1680,3 +1680,55 @@ describe('quest lifecycle breadcrumbs', () => {
     );
   });
 });
+
+describe('completeQuest - holdout mode', () => {
+  const holdoutActive = {
+    id: 'holdout-1',
+    mode: 'holdout' as const,
+    title: 'Hold Out',
+    durationMinutes: 10,
+    category: 'other',
+    reward: { xp: 0 },
+    startTime: 0, // set per-test
+    status: 'active' as const,
+  };
+
+  it('rewards actual locked time at 90 minutes (210 XP)', async () => {
+    useQuestStore.setState({
+      activeQuest: { ...holdoutActive, startTime: Date.now() - 90 * 60 * 1000 },
+    });
+    const completed = await useQuestStore.getState().completeQuest(true);
+    expect(completed?.durationMinutes).toBe(90);
+    expect(completed?.reward.xp).toBe(210);
+  });
+
+  it('caps at 240 minutes / 360 XP', async () => {
+    useQuestStore.setState({
+      activeQuest: {
+        ...holdoutActive,
+        startTime: Date.now() - 300 * 60 * 1000,
+      },
+    });
+    const completed = await useQuestStore.getState().completeQuest(true);
+    expect(completed?.durationMinutes).toBe(240);
+    expect(completed?.reward.xp).toBe(360);
+  });
+
+  it('leaves non-holdout quests untouched', async () => {
+    useQuestStore.setState({
+      activeQuest: {
+        id: 'custom-1',
+        mode: 'custom' as const,
+        title: 'Read',
+        durationMinutes: 30,
+        category: 'learning',
+        reward: { xp: 90 },
+        startTime: Date.now() - 31 * 60 * 1000,
+        status: 'active' as const,
+      },
+    });
+    const completed = await useQuestStore.getState().completeQuest(true);
+    expect(completed?.durationMinutes).toBe(30);
+    expect(completed?.reward.xp).toBe(90);
+  });
+});
