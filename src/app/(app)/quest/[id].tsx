@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 
 import { useQuestReflection } from '@/api/quest-reflection';
-import { AVAILABLE_CUSTOM_QUEST_STORIES } from '@/app/data/quests';
 import { Badge } from '@/components/emberglow';
 import { FailedQuest } from '@/components/failed-quest';
 import { QuestComplete } from '@/components/QuestComplete';
@@ -29,6 +28,7 @@ import {
   SCREEN_TITLE,
 } from '@/features/quest/constants/quest-details.constants';
 import { maybeRequestStoreReview } from '@/lib/review-prompt';
+import { getCompletionStory } from '@/lib/utils/completion-story';
 import { useQuestStore } from '@/store/quest-store';
 import {
   colors as emberColors,
@@ -197,26 +197,11 @@ export default function AppQuestDetailsScreen() {
     );
   }
 
-  const getQuestCompletionText = () => {
-    if (quest.mode === 'story' && 'story' in quest && quest.story) {
-      return quest.story;
-    }
-    if (quest.mode === 'custom' && 'category' in quest && quest.category) {
-      const matchingStories = AVAILABLE_CUSTOM_QUEST_STORIES.filter(
-        (storyItem) =>
-          storyItem.category.toLowerCase() === quest.category?.toLowerCase()
-      );
-      if (matchingStories.length > 0) {
-        const questIdHash =
-          quest.id
-            .split('')
-            .reduce((a: number, b: string) => a + b.charCodeAt(0), 0) %
-          matchingStories.length;
-        return matchingStories[questIdHash].story;
-      }
-    }
-    return DEFAULT_QUEST_STORY;
-  };
+  // One shared lookup with the completion flow (getCompletionStory), so the
+  // journal detail can no longer disagree with the post-quest screen. The
+  // default only survives for cooperative quests.
+  const getQuestCompletionText = () =>
+    getCompletionStory(quest) ?? DEFAULT_QUEST_STORY;
 
   if (quest.status === 'completed' && quest.stopTime) {
     // Check if quest has a reflection (either from server or local)

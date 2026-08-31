@@ -820,14 +820,14 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Summit's Watchful Eye",
     story:
       "The climb was brutal, each step carving fire into your legs, but at last, you reached the summit. Below, the kingdom sprawled beneath a sky streaked with gold, the distant towers of Vaedros barely piercing the mist. As you caught your breath, a falcon landed beside you, a message tied to its leg—someone had been watching your ascent. Strength wasn't just about endurance; it was about proving, even to unseen eyes, that you could endure.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'P3XvL9KqJ2mN',
     title: 'The Forgotten Tome',
     story:
       'Deep in the ruins of an old monastery, you pried open a dust-choked chest, its wood crumbling under your touch. Inside lay a single book, bound in cracked leather, its pages whispering as they turned. The words were ancient, yet they unraveled a mystery you had never considered—a secret history of Vaedros, lost to time. You left the ruins wiser, the weight of knowledge sitting heavier on your shoulders than any sword.',
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'Z5GhT8MlQ2nV',
@@ -841,35 +841,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Stranger's Wager",
     story:
       'At the edge of the market, a hooded traveler challenged you to a game of wit and chance. Coins flashed, dice rolled, and laughter filled the air as the two of you traded victories back and forth. In the end, you left with no gold but something better—an ally who would remember your name when the time came. Sometimes, a shared moment meant more than the weight of a purse.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'K2XvT8LQ3MnP',
     title: "The Master's Challenge",
     story:
       "The old swordsman watched as you struggled through the intricate movements of the blade, your form raw but determined. He said nothing, only nodding once when your footwork finally landed true. 'Not bad,' he muttered, tossing you a battered silver coin, the mark of his approval. The lesson was over, but the real learning had just begun.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'M8KXvT9QLJ3P',
     title: "The Hunter's Path",
     story:
       "A dense thicket barred your path, but beyond it lay the perfect vantage point over the valley below. Every step tested your endurance, each fallen branch and uneven rock another obstacle. Finally, at the ridge's peak, you spotted a stag, standing tall against the dawn. Not all victories end with a hunt—some end with quiet admiration.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'J2LXPQ9VMK7T',
     title: 'The Candlelit Study',
     story:
       "By flickering candlelight, you poured over ancient scripts, your eyes straining to decipher the faded ink. Hours passed, but then—a revelation. A single sentence, overlooked by generations, hinted at a forgotten passage beneath Vaedros's great halls. Knowledge, you realized, is sometimes more powerful than any sword.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'T7NQX9VPK3LM',
     title: 'The Secret Passage',
     story:
       "Beneath the ruined chapel, you discovered a hidden tunnel, its walls lined with ancient inscriptions. Each carving spoke of a different path, a different choice. You traced a hand over the words, sensing the weight of the past pressing against your fingertips. Some knowledge wasn't found—it was remembered.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'LQ9XP7VKM3NT',
@@ -883,14 +883,14 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Forgotten Laughter',
     story:
       'The night began with wary glances and hushed words, but somewhere between shared stories and stolen drinks, the tension melted away. Laughter filled the air, binding strangers together under flickering lantern light. You had come for information, but left with something better—a moment that reminded you what it meant to be human. Not all quests were meant to be won; some were meant to be lived.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'Q9XPV7NMLK3T',
     title: 'The Unfinished Manuscript',
     story:
       "In the deepest vault of the scholar's tower, you found a manuscript missing its final page. The last words trailed off mid-sentence, a mystery unsolved. The librarian sighed, shaking his head. 'Perhaps,' he mused, 'some things are meant to be finished by those who come after.'",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'K3XL9T7VPQMN',
@@ -904,35 +904,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Stormrunner',
     story:
       "Thunder rumbled overhead as you sprinted through the open plains, rain pelting your skin like needles. Every step drove you forward, muscles screaming but refusing to falter. The storm didn't break you—it forged you, pushing you beyond your limits. When you finally reached shelter, you weren't the same person who had started the run.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Q7VPX9NMLK3T',
     title: "The Astronomer's Gift",
     story:
       "An old stargazer invited you to sit beside him atop the temple steps, pointing to the constellations above. 'These stories are older than kingdoms,' he mused, tracing one with his finger. You followed his lead, connecting the stars into shapes that felt both familiar and brand new. Some lessons weren't written in books—they were written across the sky.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'K7XPQ9NMLVT3',
     title: 'The Hidden Library',
     story:
       'Beneath the floorboards of an abandoned study, you discovered a trapdoor. Below, dust-covered books sat untouched by time, their spines glinting under torchlight. You reached for one at random, its title unreadable from age. Whatever knowledge lay within, it had waited centuries for someone like you.',
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'A8NX7LKQ3VPZ',
     title: 'The Endless Stair',
     story:
       "You found an ancient stairway carved into the cliffs, each step weathered by centuries of wind. With aching legs, you climbed higher and higher, the world shrinking below. At the summit, a lone stone marked the spot where countless others had stood before you. You pressed a hand to its surface, knowing you'd joined a long lineage of those who refused to turn back.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Z5KX9NQLV7MP',
     title: "The Scholar's Gamble",
     story:
       "A nervous apprentice dared you to answer a riddle his master had left unsolved. The question twisted your thoughts, each word leading deeper into the puzzle's depths. Then, with a sudden clarity, the answer emerged, simple as sunlight breaking through fog. The apprentice gasped, and from the shadows, the master finally smiled.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'X9P7VQLK3MNT',
@@ -946,21 +946,21 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Stranger's Cup",
     story:
       'A weary traveler shared his last bottle of wine with you, despite having nothing else to his name. The two of you talked long into the night, trading tales of lost battles and foolish dreams. When dawn arrived, he left without a word, but a single silver coin sat beside the empty bottle. No message, no name—just proof that kindness asked for nothing in return.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'Q8NXP7VKL3MT',
     title: "The Librarian's Test",
     story:
       "Deep within the archive, a scholar pointed you to a wall of unmarked tomes. 'Find the truth,' he said, and left you alone among the towering shelves. Hours passed before your fingers traced a spine that hummed with quiet importance. As you opened the book, you realized—some knowledge chooses its seeker.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'P9X7QVK3NMLT',
     title: 'The Shadow Sprint',
     story:
       "A challenge was whispered through the alleys—a race through the darkened streets before the town's bells rang. You ran, dodging barrels and leaping over broken carts, laughter and adrenaline carrying you forward. At the final stretch, you pushed harder, collapsing at the finish just as the bells tolled. Victory was sweet, but the thrill of the run was sweeter.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'K3X9NVQL7MPT',
@@ -974,35 +974,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Market Gambit',
     story:
       "A fast-talking merchant challenged you to a game of dice, promising a reward greater than gold. You played cautiously, watching his every move, reading the flicker in his eyes. On the final roll, luck favored you, and he grinned, pushing a small, wrapped bundle across the table. Inside, a simple wooden token bore the mark of someone important—you just didn't know who.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'N7XVP9QK3LMT',
     title: 'The Forgotten Cipher',
     story:
       'A crumbling note led you to the ruins of a watchtower, its stones whispering of long-dead sentries. Carved into the wall was a cipher no one had cracked for a hundred years. With careful thought and a patient mind, the symbols unraveled beneath your fingertips. As the last piece fell into place, you understood—the message had been waiting for you.',
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'M8X7VPQK9NLT',
     title: 'The Midnight Trail',
     story:
       'A hidden path through the forest revealed itself under the silver glow of the moon. You followed it, stepping carefully, guided only by instinct and the hush of the wind. At its end, an ancient oak bore carvings older than Vaedros itself, marking the journey of those who walked before. You added your own mark—proof that you, too, had made the climb.',
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Q9X7VPMLK3NT',
     title: 'The Book of Whispers',
     story:
       "Buried beneath forgotten scrolls, you found a book with no title. The pages rustled as if they had been waiting, words shifting under your gaze. You traced a line with your finger, and the ink darkened, the letters rearranging to reveal a story you somehow already knew. Some books don't just tell history—they remember it.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'K7X9VPQLM3NT',
     title: 'The Firelit Gathering',
     story:
       'A flickering bonfire welcomed wanderers and outcasts alike, their faces painted in the warm glow. You hesitated at the edge of the circle, but a stranger clapped your back, handing you a drink. The night stretched long, filled with songs and stories, and for once, you felt like you belonged. When the embers faded, so did the strangers—but their laughter stayed with you.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'L3X7VPQ9KMNT',
@@ -1016,48 +1016,48 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Master's Puzzle",
     story:
       "A dying craftsman handed you a wooden box, its surface covered in intricate carvings. 'Solve it,' he rasped, closing his eyes for the last time. Days passed as you worked the puzzle, twisting, shifting, listening for its hidden logic. When it finally clicked open, a single note lay inside: 'You were always worthy.'",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'X7K9VPQLM3NT',
     title: "The Duelist's Bet",
     story:
       "A masked duelist stood in the town square, offering a prize to any who could best him. You accepted, blades clashing under the watchful eyes of a growing crowd. Though his skill far outmatched yours, he pulled back at the last moment, nodding in approval. 'One day,' he said, sheathing his sword. 'You'll win.'",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'S3X7VPQLM9NT',
     title: 'United in Purpose',
     story:
       'You and your companion stood side by side, the challenge before you seeming less daunting with an ally at your shoulder. As the minutes passed in focused silence, you felt the strength that comes from shared purpose. When it was done, you exchanged knowing glances—some victories are sweeter when shared.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S9V7XPQLM3NT',
     title: 'The Pact of Focus',
     story:
       'Together, you and your friend made a silent pact, setting aside the distractions of the world. The challenge tested not just your individual resolve, but your trust in one another. When the final moment arrived, you both emerged stronger, bound by the shared experience of mutual discipline.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S7X9VPQLM3NT',
     title: 'Stronger Together',
     story:
       "What began as a simple challenge became a testament to friendship. Through moments of doubt, you drew strength from knowing someone else was facing the same trial. In the end, the real reward wasn't completing the quest—it was proving that together, you could overcome anything.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S3X9VPLQM7NT',
     title: 'The Silent Alliance',
     story:
       "No words were needed between you and your companion. The quest demanded focus, and you both delivered, each drawing motivation from the other's determination. As the challenge concluded, you realized that some bonds are forged not through conversation, but through shared trials.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S9X7VLPQM3NT',
     title: 'Bonds of Discipline',
     story:
       'The quest tested more than just willpower—it tested trust. You and your ally held each other accountable, neither willing to be the one who faltered. When success finally came, it tasted sweeter for having been earned together. True friendship, you learned, means lifting each other to greater heights.',
-    category: 'Social',
+    category: 'social',
   },
 ];

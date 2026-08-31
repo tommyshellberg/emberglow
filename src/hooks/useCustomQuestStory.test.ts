@@ -104,6 +104,24 @@ describe('useCustomQuestStory', () => {
     });
   });
 
+  describe('holdout quests', () => {
+    it('should return a category-matched story for holdout quests', () => {
+      const quest: QuestWithMode = {
+        id: 'holdout-quest-1',
+        mode: 'holdout',
+        category: 'fitness',
+        title: 'Hold Out',
+        durationMinutes: 10,
+        reward: { xp: 0 },
+        status: 'pending',
+      };
+
+      const { result } = renderHook(() => useCustomQuestStory(quest));
+      expect(result.current).toBeTruthy();
+      expect(typeof result.current).toBe('string');
+    });
+  });
+
   describe('case insensitivity', () => {
     it('should match category case-insensitively', () => {
       const quest: QuestWithMode = {
