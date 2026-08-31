@@ -1834,8 +1834,11 @@ describe('QuestTimer', () => {
       await jest.advanceTimersByTimeAsync(9000); // the loop's update interval
       await running;
 
+      // completeQuest/failQuest are bare jest.fn() mocks that never write to
+      // recentCompletedQuest on the shared mock store, so asserting on that
+      // field would pass whether or not the guard actually held — this is
+      // the one assertion that does the real work.
       expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
-      expect(mockQuestStore.recentCompletedQuest).toBeNull();
     });
 
     it('completes on unlock after the minimum', async () => {
