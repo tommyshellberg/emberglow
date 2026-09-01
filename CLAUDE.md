@@ -169,6 +169,18 @@ Environment variables are managed through `.env.{environment}` files:
 - Client vars exposed via `@env` import
 - Build-time vars used in `app.config.ts`
 
+## Adding Expo packages
+
+- **Install Expo packages with `npx expo install <pkg>`, never `pnpm add <pkg>`.**
+  `pnpm add` takes npm's `latest` tag, which for `expo-*` packages can be a
+  release from a newer SDK line. That package will not link (its podspec may
+  require a newer iOS) or will not compile against this SDK's
+  `expo-modules-core`, and nothing fails until the app crashes at runtime
+  (2.3.0 shipped `expo-store-review@57` into an SDK 54 app this way).
+- `pnpm run deps:check` (`expo install --check`, part of `check-all`) must be
+  green before committing a dependency change. Deliberate off-SDK pins go in
+  `expo.install.exclude` in `package.json` with a reason in the commit message.
+
 ## Code Conventions
 
 - **File naming**: kebab-case for all files
