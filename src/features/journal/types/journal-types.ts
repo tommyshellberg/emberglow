@@ -34,7 +34,7 @@ export interface TransformedQuest {
   questRunId: string;
   customId?: string;
   title: string;
-  mode: 'story' | 'custom' | 'cooperative';
+  mode: 'story' | 'custom' | 'cooperative' | 'holdout';
   durationMinutes: number;
   reward: {
     xp: number;

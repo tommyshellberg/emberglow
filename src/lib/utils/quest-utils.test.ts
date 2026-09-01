@@ -267,4 +267,8 @@ describe('getQuestModeLabel', () => {
     expect(getQuestModeLabel(undefined)).toBe('Quest');
     expect(getQuestModeLabel('something-else')).toBe('Quest');
   });
+
+  it('labels holdout mode', () => {
+    expect(getQuestModeLabel('holdout')).toBe('Hold Out');
+  });
 });

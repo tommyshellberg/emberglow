@@ -118,6 +118,21 @@ describe('QuestCard (home mode card)', () => {
     expect(screen.queryByText('Story progress')).not.toBeOnTheScreen();
   });
 
+  it('shows the literal "3 XP/min" for the holdout card instead of a zero-value meta line', () => {
+    render(<QuestCard {...baseProps} mode="holdout" duration={0} xp={0} />);
+
+    expect(screen.getByText('3 XP/min')).toBeOnTheScreen();
+    expect(screen.queryByText(/0 min/)).not.toBeOnTheScreen();
+    expect(screen.queryByText('0 min · 0 XP')).not.toBeOnTheScreen();
+  });
+
+  it('still shows the duration/XP meta line for a non-holdout mode', () => {
+    render(<QuestCard {...baseProps} mode="custom" duration={5} xp={15} />);
+
+    expect(screen.getByText('5 min · 15 XP')).toBeOnTheScreen();
+    expect(screen.queryByText('3 XP/min')).not.toBeOnTheScreen();
+  });
+
   it('shows sentence-case "Quest complete" and the completion message when isCompleted', () => {
     render(<QuestCard {...baseProps} isCompleted progress={1} />);
 

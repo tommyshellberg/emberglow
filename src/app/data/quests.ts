@@ -820,14 +820,14 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Summit's Watchful Eye",
     story:
       "The climb was brutal, each step carving fire into your legs, but at last, you reached the summit. Below, the kingdom sprawled beneath a sky streaked with gold, the distant towers of Vaedros barely piercing the mist. As you caught your breath, a falcon landed beside you, a message tied to its leg—someone had been watching your ascent. Strength wasn't just about endurance; it was about proving, even to unseen eyes, that you could endure.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'P3XvL9KqJ2mN',
     title: 'The Forgotten Tome',
     story:
       'Deep in the ruins of an old monastery, you pried open a dust-choked chest, its wood crumbling under your touch. Inside lay a single book, bound in cracked leather, its pages whispering as they turned. The words were ancient, yet they unraveled a mystery you had never considered—a secret history of Vaedros, lost to time. You left the ruins wiser, the weight of knowledge sitting heavier on your shoulders than any sword.',
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'Z5GhT8MlQ2nV',
@@ -841,35 +841,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Stranger's Wager",
     story:
       'At the edge of the market, a hooded traveler challenged you to a game of wit and chance. Coins flashed, dice rolled, and laughter filled the air as the two of you traded victories back and forth. In the end, you left with no gold but something better—an ally who would remember your name when the time came. Sometimes, a shared moment meant more than the weight of a purse.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'K2XvT8LQ3MnP',
     title: "The Master's Challenge",
     story:
       "The old swordsman watched as you struggled through the intricate movements of the blade, your form raw but determined. He said nothing, only nodding once when your footwork finally landed true. 'Not bad,' he muttered, tossing you a battered silver coin, the mark of his approval. The lesson was over, but the real learning had just begun.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'M8KXvT9QLJ3P',
     title: "The Hunter's Path",
     story:
       "A dense thicket barred your path, but beyond it lay the perfect vantage point over the valley below. Every step tested your endurance, each fallen branch and uneven rock another obstacle. Finally, at the ridge's peak, you spotted a stag, standing tall against the dawn. Not all victories end with a hunt—some end with quiet admiration.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'J2LXPQ9VMK7T',
     title: 'The Candlelit Study',
     story:
       "By flickering candlelight, you poured over ancient scripts, your eyes straining to decipher the faded ink. Hours passed, but then—a revelation. A single sentence, overlooked by generations, hinted at a forgotten passage beneath Vaedros's great halls. Knowledge, you realized, is sometimes more powerful than any sword.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'T7NQX9VPK3LM',
     title: 'The Secret Passage',
     story:
       "Beneath the ruined chapel, you discovered a hidden tunnel, its walls lined with ancient inscriptions. Each carving spoke of a different path, a different choice. You traced a hand over the words, sensing the weight of the past pressing against your fingertips. Some knowledge wasn't found—it was remembered.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'LQ9XP7VKM3NT',
@@ -883,14 +883,14 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Forgotten Laughter',
     story:
       'The night began with wary glances and hushed words, but somewhere between shared stories and stolen drinks, the tension melted away. Laughter filled the air, binding strangers together under flickering lantern light. You had come for information, but left with something better—a moment that reminded you what it meant to be human. Not all quests were meant to be won; some were meant to be lived.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'Q9XPV7NMLK3T',
     title: 'The Unfinished Manuscript',
     story:
       "In the deepest vault of the scholar's tower, you found a manuscript missing its final page. The last words trailed off mid-sentence, a mystery unsolved. The librarian sighed, shaking his head. 'Perhaps,' he mused, 'some things are meant to be finished by those who come after.'",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'K3XL9T7VPQMN',
@@ -904,35 +904,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Stormrunner',
     story:
       "Thunder rumbled overhead as you sprinted through the open plains, rain pelting your skin like needles. Every step drove you forward, muscles screaming but refusing to falter. The storm didn't break you—it forged you, pushing you beyond your limits. When you finally reached shelter, you weren't the same person who had started the run.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Q7VPX9NMLK3T',
     title: "The Astronomer's Gift",
     story:
       "An old stargazer invited you to sit beside him atop the temple steps, pointing to the constellations above. 'These stories are older than kingdoms,' he mused, tracing one with his finger. You followed his lead, connecting the stars into shapes that felt both familiar and brand new. Some lessons weren't written in books—they were written across the sky.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'K7XPQ9NMLVT3',
     title: 'The Hidden Library',
     story:
       'Beneath the floorboards of an abandoned study, you discovered a trapdoor. Below, dust-covered books sat untouched by time, their spines glinting under torchlight. You reached for one at random, its title unreadable from age. Whatever knowledge lay within, it had waited centuries for someone like you.',
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'A8NX7LKQ3VPZ',
     title: 'The Endless Stair',
     story:
       "You found an ancient stairway carved into the cliffs, each step weathered by centuries of wind. With aching legs, you climbed higher and higher, the world shrinking below. At the summit, a lone stone marked the spot where countless others had stood before you. You pressed a hand to its surface, knowing you'd joined a long lineage of those who refused to turn back.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Z5KX9NQLV7MP',
     title: "The Scholar's Gamble",
     story:
       "A nervous apprentice dared you to answer a riddle his master had left unsolved. The question twisted your thoughts, each word leading deeper into the puzzle's depths. Then, with a sudden clarity, the answer emerged, simple as sunlight breaking through fog. The apprentice gasped, and from the shadows, the master finally smiled.",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'X9P7VQLK3MNT',
@@ -946,21 +946,21 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Stranger's Cup",
     story:
       'A weary traveler shared his last bottle of wine with you, despite having nothing else to his name. The two of you talked long into the night, trading tales of lost battles and foolish dreams. When dawn arrived, he left without a word, but a single silver coin sat beside the empty bottle. No message, no name—just proof that kindness asked for nothing in return.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'Q8NXP7VKL3MT',
     title: "The Librarian's Test",
     story:
       "Deep within the archive, a scholar pointed you to a wall of unmarked tomes. 'Find the truth,' he said, and left you alone among the towering shelves. Hours passed before your fingers traced a spine that hummed with quiet importance. As you opened the book, you realized—some knowledge chooses its seeker.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'P9X7QVK3NMLT',
     title: 'The Shadow Sprint',
     story:
       "A challenge was whispered through the alleys—a race through the darkened streets before the town's bells rang. You ran, dodging barrels and leaping over broken carts, laughter and adrenaline carrying you forward. At the final stretch, you pushed harder, collapsing at the finish just as the bells tolled. Victory was sweet, but the thrill of the run was sweeter.",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'K3X9NVQL7MPT',
@@ -974,35 +974,35 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: 'The Market Gambit',
     story:
       "A fast-talking merchant challenged you to a game of dice, promising a reward greater than gold. You played cautiously, watching his every move, reading the flicker in his eyes. On the final roll, luck favored you, and he grinned, pushing a small, wrapped bundle across the table. Inside, a simple wooden token bore the mark of someone important—you just didn't know who.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'N7XVP9QK3LMT',
     title: 'The Forgotten Cipher',
     story:
       'A crumbling note led you to the ruins of a watchtower, its stones whispering of long-dead sentries. Carved into the wall was a cipher no one had cracked for a hundred years. With careful thought and a patient mind, the symbols unraveled beneath your fingertips. As the last piece fell into place, you understood—the message had been waiting for you.',
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'M8X7VPQK9NLT',
     title: 'The Midnight Trail',
     story:
       'A hidden path through the forest revealed itself under the silver glow of the moon. You followed it, stepping carefully, guided only by instinct and the hush of the wind. At its end, an ancient oak bore carvings older than Vaedros itself, marking the journey of those who walked before. You added your own mark—proof that you, too, had made the climb.',
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'Q9X7VPMLK3NT',
     title: 'The Book of Whispers',
     story:
       "Buried beneath forgotten scrolls, you found a book with no title. The pages rustled as if they had been waiting, words shifting under your gaze. You traced a line with your finger, and the ink darkened, the letters rearranging to reveal a story you somehow already knew. Some books don't just tell history—they remember it.",
-    category: 'Reading',
+    category: 'learning',
   },
   {
     id: 'K7X9VPQLM3NT',
     title: 'The Firelit Gathering',
     story:
       'A flickering bonfire welcomed wanderers and outcasts alike, their faces painted in the warm glow. You hesitated at the edge of the circle, but a stranger clapped your back, handing you a drink. The night stretched long, filled with songs and stories, and for once, you felt like you belonged. When the embers faded, so did the strangers—but their laughter stayed with you.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'L3X7VPQ9KMNT',
@@ -1016,48 +1016,258 @@ export const AVAILABLE_CUSTOM_QUEST_STORIES = [
     title: "The Master's Puzzle",
     story:
       "A dying craftsman handed you a wooden box, its surface covered in intricate carvings. 'Solve it,' he rasped, closing his eyes for the last time. Days passed as you worked the puzzle, twisting, shifting, listening for its hidden logic. When it finally clicked open, a single note lay inside: 'You were always worthy.'",
-    category: 'Learning',
+    category: 'learning',
   },
   {
     id: 'X7K9VPQLM3NT',
     title: "The Duelist's Bet",
     story:
       "A masked duelist stood in the town square, offering a prize to any who could best him. You accepted, blades clashing under the watchful eyes of a growing crowd. Though his skill far outmatched yours, he pulled back at the last moment, nodding in approval. 'One day,' he said, sheathing his sword. 'You'll win.'",
-    category: 'Fitness',
+    category: 'fitness',
   },
   {
     id: 'S3X7VPQLM9NT',
     title: 'United in Purpose',
     story:
       'You and your companion stood side by side, the challenge before you seeming less daunting with an ally at your shoulder. As the minutes passed in focused silence, you felt the strength that comes from shared purpose. When it was done, you exchanged knowing glances—some victories are sweeter when shared.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S9V7XPQLM3NT',
     title: 'The Pact of Focus',
     story:
       'Together, you and your friend made a silent pact, setting aside the distractions of the world. The challenge tested not just your individual resolve, but your trust in one another. When the final moment arrived, you both emerged stronger, bound by the shared experience of mutual discipline.',
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S7X9VPQLM3NT',
     title: 'Stronger Together',
     story:
       "What began as a simple challenge became a testament to friendship. Through moments of doubt, you drew strength from knowing someone else was facing the same trial. In the end, the real reward wasn't completing the quest—it was proving that together, you could overcome anything.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S3X9VPLQM7NT',
     title: 'The Silent Alliance',
     story:
       "No words were needed between you and your companion. The quest demanded focus, and you both delivered, each drawing motivation from the other's determination. As the challenge concluded, you realized that some bonds are forged not through conversation, but through shared trials.",
-    category: 'Social',
+    category: 'social',
   },
   {
     id: 'S9X7VLPQM3NT',
     title: 'Bonds of Discipline',
     story:
       'The quest tested more than just willpower—it tested trust. You and your ally held each other accountable, neither willing to be the one who faltered. When success finally came, it tasted sweeter for having been earned together. True friendship, you learned, means lifting each other to greater heights.',
-    category: 'Social',
+    category: 'social',
+  },
+  {
+    id: 'W4Kt7RnQ2xLd',
+    title: 'The Ledger of Thorncross',
+    story:
+      "The guild's ledger had broken three clerks before it reached your table, its columns crooked with years of careless hands. You worked by lamplight, tracing each debt to its root, until the numbers finally stood in clean ranks. When the guildmaster read the last page, he said nothing, only pressed his seal beside your work. In Vaedros, order is rarer than gold, and you had made some.",
+    category: 'work',
+  },
+  {
+    id: 'W9Pj3MvT6bRs',
+    title: 'The Hundredth Nail',
+    story:
+      'The smith gave you a barrel of bent nails and a cold anvil, the kind of task given to test patience rather than skill. You straightened them one by one, the hammer falling in a rhythm that slowly became your own. By the hundredth, your strikes rang true without thought. The smith took the barrel back with a grunt that, from him, counted as a wage.',
+    category: 'work',
+  },
+  {
+    id: 'W2Bx8LqF5nTk',
+    title: 'The Granary Count',
+    story:
+      'Winter was coming, and the granary tally had to hold or the village would not. You counted sacks in the cold until dust coated your throat and the figures blurred, then counted them again. The steward checked your numbers twice and found nothing to correct. No songs are sung for a true count, but people eat because of one.',
+    category: 'work',
+  },
+  {
+    id: 'W7Rd4KsN9vQm',
+    title: "The Courier's Round",
+    story:
+      'Twelve sealed letters, twelve doors, and a city that swallows careless couriers whole. You learned the alleys as you went, trading a shortcut for a soaking under a broken gutter, and delivered the last letter before the tower bell struck. One recipient, a grey-eyed widow, studied you a moment too long before closing her door. Some rounds pay in coin; that one paid in questions.',
+    category: 'work',
+  },
+  {
+    id: 'W5Tn6QvB3xJp',
+    title: 'The Night Shift',
+    story:
+      'You took the watch nobody wanted, the hours when the braziers burn low and the mind invents footsteps. Twice you walked the wall to prove the sounds were wind, and twice you were right. Dawn came grey and slow, and the relief guard found you upright at your post. Nothing happened, which is the whole point of a watch, and harder than it sounds.',
+    category: 'work',
+  },
+  {
+    id: 'W8Gm2XwR7cLf',
+    title: "The Dockmaster's Manifest",
+    story:
+      'Rain hammered the quay while you checked crates against a manifest gone soft at the edges. A merchant tried to wave two barrels past your count; you made him wait while you opened both. Salt fish, as declared, and an apology muttered into his collar. The dockmaster kept your tally sheet as a model for the next hire.',
+    category: 'work',
+  },
+  {
+    id: 'C3Vh9NqK4mWt',
+    title: 'The Unfinished Mural',
+    story:
+      "The chapel wall had stood half-painted since its last artist left for the border and never came back. You mixed their abandoned pigments, matched a stranger's brushwork, and gave the painted procession the road it had been waiting years to walk. An old woman lit a candle beneath it and wept. You never learned for whom.",
+    category: 'creative',
+  },
+  {
+    id: 'C6Jd2RwP8sXn',
+    title: "The Luthier's Brace",
+    story:
+      "A lute is mostly empty space and one thin brace of spruce, carved until it is nearly nothing. You shaved wood in whispers, testing the tap-tone after every pass, stopping the moment it rang. The luthier strung the body and played a chord that hung in the workshop like weather. 'That,' she said, 'is the sound of knowing when to stop.'",
+    category: 'creative',
+  },
+  {
+    id: 'C9Fm5TkQ2vBd',
+    title: 'The Ballad at the Hearth',
+    story:
+      'The tavern wanted a new verse for an old tune, something true enough to sting. You worked the lines in your head while the fire burned down, cutting every word that only decorated. When you finally sang it, the room went quiet in the right places. A drover bought you ale and asked whose story it was; you let him believe it was his.',
+    category: 'creative',
+  },
+  {
+    id: 'C4Xw7BnL6qRj',
+    title: "The Cartographer's Margin",
+    story:
+      "The map's roads were drawn, but its margins were bare, and a bare map sells for half. You inked serpents in the unknown seas of the border marshes and a compass rose wound with thorn-briar, steady-handed through the afternoon. The cartographer held it to the light and found no tremor in your lines. Somewhere, a traveler will trust that map because it is beautiful.",
+    category: 'creative',
+  },
+  {
+    id: 'C7Qs3MvH9kTb',
+    title: "The Potter's Wheel",
+    story:
+      'The clay fought you all morning, collapsing twice, wobbling off center a third time. You wet your hands, slowed your breath, and let the wheel teach you instead. The bowl that finally rose was plain and slightly uneven, and it was yours. The potter set it on the shelf with the good work, not the seconds.',
+    category: 'creative',
+  },
+  {
+    id: 'C2Ln8KpF5wYv',
+    title: 'The Festival Mask',
+    story:
+      'Every year the village burns one mask to close the harvest, and this year the carving fell to you. You worked the pale wood into a face that was neither smiling nor sad, the way the old ones are. At the fire, the elder held it up and the crowd went still before the cheer. It burned in a minute; the making of it will stay with you longer.',
+    category: 'creative',
+  },
+  {
+    id: 'H5Rt2QnV8mKd',
+    title: 'The Cold Hearth',
+    story:
+      "A winter's worth of ash had gone grey and solid in the hearth, and the chimney breathed poorly for it. You hauled out bucket after bucket, swept the flue soot until your arms ached, and laid fresh kindling on clean stone. The first new fire caught on a single spark. The whole room seemed to sit up straighter in its light.",
+    category: 'household',
+  },
+  {
+    id: 'H8Wn4JvB2xPt',
+    title: 'Mending the Shutter',
+    story:
+      'The shutter had banged through three storms, and the frame was starting to split from its hinges. You planed the swollen edge, reset the iron, and drove the screws home before the sky in the west turned the color of slate. That night the wind came hunting and found nothing loose to take. You slept through it, which was the reward.',
+    category: 'household',
+  },
+  {
+    id: 'H3Km9TqL6vFs',
+    title: 'The Root Cellar',
+    story:
+      'The cellar had become a place things were thrown rather than kept. You sorted the sound apples from the soft, racked the jars by season, and found, behind everything, a crock of honey your household had given up for lost. Order, you learned, returns what chaos borrows. The cellar door closes properly now, on darkness that is arranged.',
+    category: 'household',
+  },
+  {
+    id: 'H7Bd5XwN4qJm',
+    title: 'The Well Rope',
+    story:
+      'The old rope was down to its last honest strands, and everyone had agreed to worry about it later. You spliced the new line in the cold morning, whipped the ends, and tested it with your full weight before trusting it with the bucket. Water came up sweet and sure. Nobody noticed, which is how you know the work was done in time.',
+    category: 'household',
+  },
+  {
+    id: 'H2Vp8LsQ7nRw',
+    title: 'Washing Day',
+    story:
+      'You carried the linen to the river while the mist was still on it, and beat the week out of every sheet against the smooth stones. The cold water bit your hands; the work warmed them back. By midday the line in the yard was full of sails, and the whole house smelled of river and sun. Small labors, done wholly, feel larger than they are.',
+    category: 'household',
+  },
+  {
+    id: 'H9Qf3MnK5tXb',
+    title: 'The Leaking Roof',
+    story:
+      'The drip had marked its territory on the floorboards, patient as a tax collector. You climbed up with new thatch under one arm and the wind arguing with the other, and worked the bad patch out bundle by bundle. The rain returned that evening to find the way barred. It drummed on the roof all night, and not one drop got past you.',
+    category: 'household',
+  },
+  {
+    id: 'O4Jn7RvT2wQk',
+    title: 'The Boundary Stones',
+    story:
+      'The old field markers had leaned and sunk until no one could say where one holding ended and the next began. You walked the whole line, righting each stone, cutting back the briars that had swallowed two of them. At the far corner you found initials chiseled by some hand a century gone. You stood the stone straight for them as much as for anyone living.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O8Ts3KwB6nLv',
+    title: 'The Orchard Row',
+    story:
+      'The orchard had gone shaggy, its best branches strangled by their neighbors. You pruned through the morning, reading each tree before you cut, leaving the wounds clean. The rows looked bare when you finished, almost punished. But the old grower nodded at the open crowns and said the fruit would come heavier for it, and that you would see.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O2Wm6QpF9xRd',
+    title: 'Tracks After Rain',
+    story:
+      "The rain had wiped the forest clean and written fresh news on it overnight. You followed a stag's track up the ridge, reading where it had paused, where it had startled, where it had stood a long while facing the valley. You never saw the animal itself. It did not matter; by the time you turned home, you could think like it.",
+    category: 'outdoors',
+  },
+  {
+    id: 'O6Bv9XnH3kTs',
+    title: 'The High Meadow',
+    story:
+      'The path to the high meadow is not long, but it is honest, and it collects its toll in breath. You climbed through pine shadow into open grass where the wind moved like a hand over the whole hillside. Below, the village was small enough to cover with your thumb. You came down slower than you went up, carrying something the meadow gave you.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O9Kd2LwQ7vMn',
+    title: 'The Firewood Line',
+    story:
+      'The woodpile had to outlast the winter, and winter in Vaedros keeps its own ledger. You split rounds until your shoulders burned, stacking the cords tight and bark-up against the rain. The pile grew into a wall, then into a promise. Cold is coming; it will find this house armored.',
+    category: 'outdoors',
+  },
+  {
+    id: 'O3Xp5TnJ8qBw',
+    title: 'The River Ford',
+    story:
+      'Spring had rearranged the river, and the old crossing was a rumor with a current. You waded the shallows with a staff, feeling for the new gravel bar, marking the safe line with stacked stones on either bank. A carter watched you work, then brought his wagon over dry-axled where you pointed. The river will move again, but for now it has rules.',
+    category: 'outdoors',
+  },
+  {
+    id: 'T7Fn4QvK9mWd',
+    title: 'The Unmarked Door',
+    story:
+      'The task had no name anyone would put in writing, only an address and a knock to use. You did what was asked, carefully, and left the unmarked door as you found it. On the walk home the city seemed unchanged, though you knew one small thing in it now stood mended. Some work is like a stitch on the inside of a garment: unseen, and holding.',
+    category: 'other',
+  },
+  {
+    id: 'T2Rw8BnL5xQs',
+    title: 'The Waiting Stone',
+    story:
+      'You had given your word to be at the waiting stone by midday, and the road did its best to make a liar of you. A thrown shoe, a flooded lane, a shepherd whose flock owned the bridge for a quarter hour. You arrived with the sun still short of its height. The one who met you there checked the sky, then looked at you differently than before.',
+    category: 'other',
+  },
+  {
+    id: 'T9Km3XvP6nJf',
+    title: 'A Debt Repaid',
+    story:
+      "The borrowed thing had sat in your keeping long enough to start feeling like yours, which is how debts go bad. You carried it back across town and put it in its owner's hands with thanks and no excuses. The lightness you walked home with weighed nothing and was worth carrying. An old woman on the corner nodded as you passed, as if she kept accounts.",
+    category: 'other',
+  },
+  {
+    id: 'T5Qd7MwB2vRn',
+    title: 'The List of Small Things',
+    story:
+      'None of the tasks deserved its own errand: a latch, a letter, a name to remember, a jar to return. Together they had formed a small army at your back, and today you turned and faced it. One by one the little duties fell, until by dusk the list was only paper. No single line of it mattered; the clean slate mattered like a full meal.',
+    category: 'other',
+  },
+  {
+    id: 'T8Vs2LnQ4kXm',
+    title: "The Stranger's Parcel",
+    story:
+      'The parcel was light, tightly wrapped, and none of your business, which you respected. You carried it through two districts and a checkpoint where a bored guard weighed you with his eyes, and delivered it into hands that trembled slightly taking it. Whatever it was, it was wanted the way water is wanted. You walked away without asking, and that was the service.',
+    category: 'other',
+  },
+  {
+    id: 'T4Bn9KwF7qLp',
+    title: 'The Hour Before the Bell',
+    story:
+      'You rose in the dark to finish what the day would otherwise devour, working while the street outside still belonged to cats and bakers. By the time the tower bell woke everyone else, the thing was done and cooling like bread. The day arrived with its usual demands and found you already ahead of it. Hours taken from sleep are expensive; some purchases are worth it.',
+    category: 'other',
   },
 ];

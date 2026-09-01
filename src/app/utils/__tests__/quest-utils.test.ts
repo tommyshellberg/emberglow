@@ -62,3 +62,37 @@ describe('Quest Utilities', () => {
     });
   });
 });
+
+import {
+  calculateHoldoutXP,
+  clampHoldoutMinutes,
+  HOLDOUT_CAP_MINUTES,
+  HOLDOUT_MIN_MINUTES,
+  HOLDOUT_MIN_MINUTES_DEV,
+  HOLDOUT_MIN_MINUTES_PROD,
+} from '../quest-utils';
+
+describe('holdout curve', () => {
+  it('exposes the spec constants', () => {
+    expect(HOLDOUT_MIN_MINUTES_PROD).toBe(10);
+    expect(HOLDOUT_CAP_MINUTES).toBe(240);
+    // Jest runs with __DEV__ = true, so the active minimum is the dev value.
+    expect(HOLDOUT_MIN_MINUTES_DEV).toBe(2);
+    expect(HOLDOUT_MIN_MINUTES).toBe(HOLDOUT_MIN_MINUTES_DEV);
+  });
+
+  it('pays 3 XP/min through minute 60, then 1 XP/min through 240', () => {
+    expect(calculateHoldoutXP(10)).toBe(30);
+    expect(calculateHoldoutXP(60)).toBe(180);
+    expect(calculateHoldoutXP(61)).toBe(181);
+    expect(calculateHoldoutXP(90)).toBe(210);
+    expect(calculateHoldoutXP(240)).toBe(360);
+  });
+
+  it('caps at 240 minutes and floors fractions', () => {
+    expect(calculateHoldoutXP(1000)).toBe(360);
+    expect(calculateHoldoutXP(10.9)).toBe(30);
+    expect(clampHoldoutMinutes(90.7)).toBe(90);
+    expect(clampHoldoutMinutes(500)).toBe(240);
+  });
+});

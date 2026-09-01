@@ -902,7 +902,7 @@ describe('QuestTimer', () => {
           title: 'Quest Complete',
           description: 'Congratulations on finishing your quest!',
         },
-        { durationMinutes: 15, status: 'completed' }
+        { durationMinutes: 15, mode: 'story', status: 'completed' }
       );
     });
 
@@ -1116,7 +1116,7 @@ describe('QuestTimer', () => {
       expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
         activityId,
         { title: 'Quest Failed', description: 'Try again next time' },
-        { durationMinutes: 15, status: 'failed' }
+        { durationMinutes: 15, mode: 'story', status: 'failed' }
       );
     });
   });
@@ -1367,7 +1367,7 @@ describe('QuestTimer', () => {
           title: 'Quest Ready',
           description: 'Lock your phone to begin your quest',
         },
-        { durationMinutes: 15, status: 'pending' }
+        { durationMinutes: 15, mode: 'story', status: 'pending' }
       );
     });
 
@@ -1391,7 +1391,12 @@ describe('QuestTimer', () => {
       expect(OneSignal.LiveActivities.startDefault).toHaveBeenLastCalledWith(
         preparedId,
         { title: 'Test Quest', description: 'Focus on your quest' },
-        { durationMinutes: 15, status: 'active' }
+        {
+          durationMinutes: 15,
+          mode: 'story',
+          startedAt: Math.floor(Date.now() / 1000),
+          status: 'active',
+        }
       );
     });
 
@@ -1659,7 +1664,7 @@ describe('QuestTimer', () => {
           title: 'Quest Complete',
           description: 'Congratulations on finishing your quest!',
         },
-        { durationMinutes: 15, status: 'completed' }
+        { durationMinutes: 15, mode: 'story', status: 'completed' }
       );
       // Teardown, or the service keeps running after the quest is over.
       expect(BackgroundService.stop).toHaveBeenCalled();
@@ -1806,6 +1811,116 @@ describe('QuestTimer', () => {
       );
       expect(mockQuestStore.failQuest).toHaveBeenCalled();
       expect(BackgroundService.stop).toHaveBeenCalled();
+    });
+  });
+
+  describe('holdout quests', () => {
+    const holdoutTemplate = {
+      id: 'holdout-1',
+      mode: 'holdout' as const,
+      title: 'Hold Out',
+      durationMinutes: 10,
+      category: 'other',
+      reward: { xp: 0 },
+    };
+
+    it('does not auto-complete when the 10-minute minimum elapses while locked', async () => {
+      mockQuestStore.activeQuest = { id: 'holdout-1', startTime: 0 };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      const backgroundTask = capturedBackgroundTask();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+      // Drive exactly one iteration of the background loop, the same way
+      // "reports elapsed progress on the Android notification" does above.
+      let iterations = 0;
+      BackgroundService.isRunning.mockImplementation(() => iterations++ < 1);
+
+      const running = backgroundTask(taskDataFor(10));
+      await jest.advanceTimersByTimeAsync(9000); // the loop's update interval
+      await running;
+
+      // completeQuest/failQuest are bare jest.fn() mocks that never write to
+      // recentCompletedQuest on the shared mock store, so asserting on that
+      // field would pass whether or not the guard actually held — this is
+      // the one assertion that does the real work.
+      expect(mockQuestStore.completeQuest).not.toHaveBeenCalled();
+    });
+
+    it('completes on unlock after the minimum', async () => {
+      // Regression guard: this is the existing onPhoneUnlocked completion
+      // path, unchanged by this task. `completeQuest` is a mocked store
+      // action (it does not itself populate recentCompletedQuest), so —
+      // matching how the rest of this file asserts completion — check that
+      // it was invoked, not the resulting store field.
+      mockQuestStore.activeQuest = { id: 'holdout-1', startTime: 0 };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(15 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.completeQuest).toHaveBeenCalledWith(true);
+    });
+
+    it('fails on unlock before the minimum', async () => {
+      // Regression guard: existing onPhoneUnlocked failure path, unchanged.
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(5 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockQuestStore.failQuest).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the 120-minute display window and holdout mode on the card', async () => {
+      // durationMinutes on a holdout template is the fail threshold, not a
+      // quest length; the lock-screen card must show the display window.
+      await QuestTimer.prepareQuest(holdoutTemplate);
+
+      expect(OneSignal.LiveActivities.startDefault).toHaveBeenCalledWith(
+        expect.any(String),
+        {
+          title: 'Quest Ready',
+          description: 'Lock your phone to begin your quest',
+        },
+        { durationMinutes: 120, mode: 'holdout', status: 'pending' }
+      );
+    });
+
+    it('converts a holdout quest that was stuck in the pending state', async () => {
+      // Same bug as the timed-quest "stuck in pending" arm above: the store
+      // never transitioned to active, so the active-quest branch cannot
+      // fire and this one builds the completed quest straight from
+      // pendingQuest. For holdout that means it skipped the curve
+      // conversion the main completeQuest path applies, and the user got
+      // durationMinutes: 10 / reward.xp: 0 no matter how long they were
+      // actually locked out.
+      questStoreMockModule.useQuestStore.__mockStore.pendingQuest = {
+        id: 'holdout-1',
+        mode: 'holdout',
+        durationMinutes: 10,
+        reward: { xp: 0 },
+      };
+      await QuestTimer.prepareQuest(holdoutTemplate);
+      await QuestTimer.onPhoneLocked();
+      jest.advanceTimersByTime(90 * 60 * 1000);
+
+      await QuestTimer.onPhoneUnlocked();
+
+      expect(mockSetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeQuest: null,
+          pendingQuest: null,
+          recentCompletedQuest: expect.objectContaining({
+            id: 'holdout-1',
+            status: 'completed',
+            durationMinutes: 90,
+            reward: { xp: 210 },
+          }),
+        })
+      );
+      expect(mockCharacterStore.addXP).toHaveBeenCalledWith(210);
     });
   });
 });

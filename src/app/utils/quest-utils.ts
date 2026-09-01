@@ -27,3 +27,41 @@ export const getQuestDuration = (questNumber: number): number => {
 
   return 0;
 };
+
+/**
+ * Hold Out mode reward curve - client-side mirror of the server's
+ * `src/utils/holdout-curve.js`. Used only for optimistic local display and
+ * local XP grant; the server computes the persisted reward from its own
+ * timestamps. Keep the constants identical to the server file.
+ * 3 XP/min for minutes 1-60, 1 XP/min for 61-240, nothing past 240
+ * (max 360 XP - equal to the 120-minute story finale).
+ */
+// Production fail threshold - keep identical to the server's
+// holdout-curve.js. __DEV__ builds drop it to 2 minutes so a full hold-out
+// run can be tested in minutes (the dev server mirrors this override).
+export const HOLDOUT_MIN_MINUTES_PROD = 10;
+export const HOLDOUT_MIN_MINUTES_DEV = 2;
+export const HOLDOUT_MIN_MINUTES = __DEV__
+  ? HOLDOUT_MIN_MINUTES_DEV
+  : HOLDOUT_MIN_MINUTES_PROD;
+export const HOLDOUT_FULL_RATE_MINUTES = 60;
+export const HOLDOUT_FULL_RATE_XP_PER_MIN = 3;
+export const HOLDOUT_REDUCED_RATE_XP_PER_MIN = 1;
+export const HOLDOUT_CAP_MINUTES = 240;
+// Display-only: how long the lock-screen progress bar takes to fill during a
+// hold-out. Shorter than the 240-minute XP cap so visible progress comes
+// faster; it does not affect rewards.
+export const HOLDOUT_DISPLAY_WINDOW_MINUTES = 120;
+
+export const clampHoldoutMinutes = (minutes: number): number =>
+  Math.min(Math.max(Math.floor(minutes), 0), HOLDOUT_CAP_MINUTES);
+
+export const calculateHoldoutXP = (minutes: number): number => {
+  const counted = clampHoldoutMinutes(minutes);
+  const fullRateMinutes = Math.min(counted, HOLDOUT_FULL_RATE_MINUTES);
+  const reducedRateMinutes = Math.max(counted - HOLDOUT_FULL_RATE_MINUTES, 0);
+  return (
+    fullRateMinutes * HOLDOUT_FULL_RATE_XP_PER_MIN +
+    reducedRateMinutes * HOLDOUT_REDUCED_RATE_XP_PER_MIN
+  );
+};

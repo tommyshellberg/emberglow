@@ -5,6 +5,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { queryClient } from '@/api/common';
 import type { QuestTemplate } from '@/api/quest/types';
 import { AVAILABLE_QUESTS } from '@/app/data/quests';
+import {
+  calculateHoldoutXP,
+  clampHoldoutMinutes,
+} from '@/app/utils/quest-utils';
 import QuestTimer from '@/lib/services/quest-timer';
 import { getItem, removeItem, setItem } from '@/lib/storage';
 import { usePOIStore } from '@/store/poi-store';
@@ -166,6 +170,21 @@ export const useQuestStore = create<QuestState>()(
               status: 'completed' as const,
               questRunId: questRunId || undefined,
             };
+
+            // Hold-out quests: the reward is unknowable until unlock. Convert
+            // actual elapsed time into the curve reward now, so every
+            // downstream reader (journal, result screen, addXP below) sees
+            // actuals. Optimistic local mirror - the server computed the
+            // authoritative value from its own timestamps when the unlock
+            // report landed.
+            if (activeQuest.mode === 'holdout') {
+              const elapsedMinutes = duration / 60; // `duration` is seconds
+              completedQuest.durationMinutes =
+                clampHoldoutMinutes(elapsedMinutes);
+              completedQuest.reward = {
+                xp: calculateHoldoutXP(elapsedMinutes),
+              };
+            }
 
             // Track cooperative quest success
             const cooperativeQuestRun = get().cooperativeQuestRun;

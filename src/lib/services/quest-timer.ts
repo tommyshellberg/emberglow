@@ -6,6 +6,12 @@ import { OneSignal } from 'react-native-onesignal';
 import { v4 as uuidv4 } from 'uuid'; // Use uuid for unique IDs
 
 import {
+  calculateHoldoutXP,
+  clampHoldoutMinutes,
+  HOLDOUT_DISPLAY_WINDOW_MINUTES,
+  HOLDOUT_MIN_MINUTES,
+} from '@/app/utils/quest-utils';
+import {
   areNotificationsEnabled,
   clearAllNotifications,
   scheduleQuestCompletionNotification,
@@ -59,6 +65,17 @@ export default class QuestTimer {
   private static oneSignalActivityId: string | null = null;
   // Add quest run ID to track the server-side quest run
   private static questRunId: string | null = null;
+
+  // What lock-screen surfaces (Live Activity, Android notification) display
+  // as the quest length. Hold-out templates carry their fail-threshold
+  // minimum in durationMinutes; showing that on the lock screen would read
+  // as a countdown to completion, so show the 120-minute display window
+  // instead. Display-only: the XP curve still runs to its 240-minute cap.
+  private static displayDurationMinutes(template: LocalQuestTemplate): number {
+    return template.mode === 'holdout'
+      ? HOLDOUT_DISPLAY_WINDOW_MINUTES
+      : template.durationMinutes;
+  }
 
   // Helper methods to persist quest data
   private static async saveQuestData() {
@@ -264,7 +281,8 @@ export default class QuestTimer {
           description: pendingTaskDesc,
         };
         const pendingContent = {
-          durationMinutes: questTemplate.durationMinutes,
+          durationMinutes: this.displayDurationMinutes(questTemplate),
+          mode: questTemplate.mode,
           status: 'pending', // Using status instead of pending boolean
         };
         OneSignal.LiveActivities.startDefault(
@@ -320,7 +338,7 @@ export default class QuestTimer {
         indeterminate: true,
       },
       parameters: {
-        questDuration: questTemplate.durationMinutes * 60 * 1000,
+        questDuration: this.displayDurationMinutes(questTemplate) * 60 * 1000,
         questTitle: questTemplate.title,
         questDescription:
           ('recap' in questTemplate
@@ -366,7 +384,11 @@ export default class QuestTimer {
               : 'Focus on your quest',
         };
         const updatedContent = {
-          durationMinutes: this.questTemplate.durationMinutes,
+          durationMinutes: this.displayDurationMinutes(this.questTemplate),
+          mode: this.questTemplate.mode,
+          // Epoch seconds. Lets the widget anchor its timer and progress bar
+          // to the real start time instead of restarting them on each update.
+          startedAt: Math.floor((this.questStartTime ?? Date.now()) / 1000),
           status: 'active', // Using status='active' instead of pending=false
         };
         console.log(
@@ -558,7 +580,10 @@ export default class QuestTimer {
         try {
           await BackgroundService.updateNotification({
             taskTitle: `Quest in progress: ${this.questTemplate.title}`,
-            taskDesc: `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
+            taskDesc:
+              this.questTemplate.mode === 'holdout'
+                ? `Hold out as long as you can - unlock any time after ${HOLDOUT_MIN_MINUTES} minutes to collect your reward`
+                : `Keep your phone locked for ${this.questTemplate.durationMinutes} minutes to complete the quest`,
             progressBar: {
               max: 100,
               value: 0,
@@ -712,6 +737,22 @@ export default class QuestTimer {
             questRunId: this.questRunId || undefined,
           };
 
+          // Hold-out quests: same curve conversion as the main completeQuest
+          // path in quest-store.ts. This recovery branch builds the
+          // completed quest straight from pendingQuest, which still carries
+          // the placeholder durationMinutes/reward.xp set at prepareQuest
+          // time — without this, a holdout quest recovered here would
+          // complete at durationMinutes: 10 / reward.xp: 0 regardless of
+          // how long the phone was actually locked.
+          if (pendingQuest.mode === 'holdout') {
+            const elapsedMinutes = elapsedTime / 60000;
+            completedQuest.durationMinutes =
+              clampHoldoutMinutes(elapsedMinutes);
+            completedQuest.reward = {
+              xp: calculateHoldoutXP(elapsedMinutes),
+            };
+          }
+
           // Update the store state
           questStore.reset();
           useQuestStore.setState({
@@ -797,6 +838,7 @@ export default class QuestTimer {
             };
             const completedContent = {
               durationMinutes: this.questTemplate.durationMinutes,
+              mode: this.questTemplate.mode,
               status: 'completed',
             };
             OneSignal.LiveActivities.startDefault(
@@ -831,6 +873,7 @@ export default class QuestTimer {
               };
               const failedContent = {
                 durationMinutes: this.questTemplate.durationMinutes,
+                mode: this.questTemplate.mode,
                 status: 'failed', // Set status to failed instead of ending activity
               };
               OneSignal.LiveActivities.startDefault(
@@ -1053,7 +1096,14 @@ export default class QuestTimer {
         });
 
         // Check if quest is complete
-        if (elapsedTime >= questDuration) {
+        // Timed quests complete themselves the moment the duration elapses
+        // while locked. Hold-out quests are open-ended: durationMinutes is
+        // their 10-minute MINIMUM, so completing here would end the run at
+        // minute 10. They finalize only in onPhoneUnlocked.
+        if (
+          this.questTemplate?.mode !== 'holdout' &&
+          elapsedTime >= questDuration
+        ) {
           console.log(
             'Quest completed in background task:',
             this.questTemplate?.id || 'unknown'
@@ -1066,7 +1116,8 @@ export default class QuestTimer {
               description: 'Congratulations on finishing your quest!',
             };
             const completionContent = {
-              durationMinutes: this.questTemplate.durationMinutes,
+              durationMinutes: this.displayDurationMinutes(this.questTemplate),
+              mode: this.questTemplate.mode,
               status: 'completed', // Use status instead of boolean flags
             };
             console.log(

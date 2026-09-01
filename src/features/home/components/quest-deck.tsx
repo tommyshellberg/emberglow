@@ -1,4 +1,10 @@
-import { BookOpen, Feather, Layers, Users } from 'lucide-react-native';
+import {
+  BookOpen,
+  Feather,
+  Hourglass,
+  Layers,
+  Users,
+} from 'lucide-react-native';
 import * as React from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -51,6 +57,7 @@ const MODE_META: Record<
   story: { label: 'Story', Icon: BookOpen },
   custom: { label: 'Custom', Icon: Feather },
   cooperative: { label: 'Co-op', Icon: Users },
+  holdout: { label: 'Hold Out', Icon: Hourglass },
 };
 
 // Front card rests at the bottom of the (taller) deck container so the back
@@ -58,10 +65,11 @@ const MODE_META: Record<
 const CARD_TOP = DECK_HEIGHT - CARD_HEIGHT;
 
 /**
- * The Play screen's stacked mode deck (story / custom / cooperative) — a
+ * The Play screen's stacked mode deck (story / custom / co-op / hold out)
+ * — a
  * card-deck picker per the play-screen handoff, replacing a horizontal
- * carousel. Back cards peek 16/32pt above the front card, labeled with a
- * strip across their exposed edge; tapping any back card or swiping the
+ * carousel. Back cards each peek DECK_PEEK_OFFSET pt above the card in
+ * front, labeled with a strip across their exposed edge; tapping any back card or swiping the
  * deck advances to the next mode.
  *
  * Uses `PanResponder` rather than `react-native-gesture-handler`'s
@@ -160,7 +168,7 @@ function DeckCard({
     // translate must come FIRST in the transform array: a later transform
     // operates in the earlier one's coordinate space, so translating after
     // the scale would shrink the offset by the scale factor and leave the
-    // rearmost card ~5pt short of its 32pt peek.
+    // rearmost card ~5pt short of its full peek.
     const translateY = -DECK_PEEK_OFFSET * o - (CARD_HEIGHT * (1 - scale)) / 2;
     // Only the rearmost card dims (0.55); every other order stays fully
     // opaque, including mid-stack peekers on decks deeper than 3.

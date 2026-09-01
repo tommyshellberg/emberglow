@@ -81,25 +81,60 @@ enum QuestActivityStatus {
 // MARK: - Payload model
 
 struct QuestActivityModel {
+    /// Hold-out runs have no fixed end; the count-up clock stops here.
+    /// Mirrors the server's 12-hour HOLDOUT_MAX_RUN_MS safety net.
+    static let holdoutClockCapSeconds: TimeInterval = 12 * 60 * 60
+
     let status: QuestActivityStatus
     let questTitle: String
     let durationMinutes: Int
+    let isHoldout: Bool
+    /// Window the progress bar fills over (durationMinutes long).
     let timerRange: ClosedRange<Date>
+    /// Range the count-up clock runs over. For hold-out it outlives the
+    /// progress window, so the clock keeps counting after the bar is full.
+    let clockRange: ClosedRange<Date>
 
     init(context: ActivityViewContext<DefaultLiveActivityAttributes>) {
         let parsedStatus = QuestActivityStatus(rawString: context.state.data["status"]?.asString())
         let minutes = context.state.data["durationMinutes"]?.asInt() ?? 0
         status = parsedStatus
         durationMinutes = minutes
+        isHoldout = context.state.data["mode"]?.asString() == "holdout"
         questTitle = context.attributes.data["title"]?.asString() ?? "Quest"
-        // Known issue (spec, Non-Goals): the payload has no startedAt, so the
-        // timer range restarts on every update. Behavior unchanged by the reskin.
-        let start = Date()
+        // Anchor to the payload's startedAt (epoch seconds) when present so
+        // updates no longer restart the timers. Older payloads carry no
+        // startedAt; those fall back to the render-time anchor as before.
+        let start: Date
+        if parsedStatus == .active, let startedAt = context.state.data["startedAt"]?.asInt() {
+            start = Date(timeIntervalSince1970: TimeInterval(startedAt))
+        } else {
+            start = Date()
+        }
         let end = parsedStatus == .active
             ? start.addingTimeInterval(TimeInterval(minutes * 60))
             : start
         timerRange = start ... end
+        clockRange = parsedStatus == .active && isHoldout
+            ? start ... start.addingTimeInterval(Self.holdoutClockCapSeconds)
+            : timerRange
     }
+
+    /// Hold-out is an endurance run, not a countdown: while it's live, the
+    /// ember (flame) replaces the hourglass and the copy stays open-ended.
+    var symbol: String {
+        isHoldout && status == .active ? "flame" : status.sfSymbol
+    }
+
+    var bodyCopy: String {
+        if isHoldout, status == .active {
+            return "Keep your phone locked as long as you can."
+        }
+        return status.bodyCopy(durationMinutes: durationMinutes)
+    }
+
+    /// Whether to show the live count-up clock (the hold-out scoreboard).
+    var showsHoldClock: Bool { isHoldout && status == .active }
 }
 
 // MARK: - Progress bar
@@ -153,7 +188,7 @@ struct QuestLockScreenView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: model.status.sfSymbol)
+            Image(systemName: model.symbol)
                 .font(.system(size: 34, weight: .light))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(model.status.accent)
@@ -171,13 +206,29 @@ struct QuestLockScreenView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
-                Text(model.status.bodyCopy(durationMinutes: model.durationMinutes))
+                Text(model.bodyCopy)
                     .font(.system(size: 13))
                     .foregroundStyle(EmberglowTheme.bone.opacity(0.72))
                     .lineLimit(2)
 
                 QuestProgressBar(status: model.status, timerRange: model.timerRange)
                     .padding(.top, 4)
+            }
+
+            if model.showsHoldClock {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(timerInterval: model.clockRange, countsDown: false)
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.7)
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(EmberglowTheme.sandy)
+                        .frame(width: 62)
+                    Text("HELD")
+                        .font(.system(size: 9, weight: .semibold))
+                        .kerning(2)
+                        .foregroundStyle(EmberglowTheme.bone.opacity(0.55))
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -198,7 +249,7 @@ struct liveactivitiesLiveActivity: Widget {
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: model.status.sfSymbol)
+                    Image(systemName: model.symbol)
                         .font(.system(size: 24, weight: .light))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(model.status.accent)
@@ -218,14 +269,14 @@ struct liveactivitiesLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if model.status == .active {
-                        Text(timerInterval: model.timerRange, countsDown: false, showsHours: false)
+                        Text(timerInterval: model.clockRange, countsDown: false, showsHours: false)
                             .font(.caption)
                             .monospacedDigit()
                             .bold()
-                            .foregroundStyle(EmberglowTheme.bone)
+                            .foregroundStyle(model.isHoldout ? EmberglowTheme.sandy : EmberglowTheme.bone)
                             .frame(width: 45)
                     } else {
-                        Image(systemName: model.status.sfSymbol)
+                        Image(systemName: model.symbol)
                             .font(.system(size: 16, weight: .light))
                             .foregroundStyle(model.status.accent)
                             .frame(width: 45)
@@ -242,13 +293,13 @@ struct liveactivitiesLiveActivity: Widget {
                     .frame(width: 24, height: 24)
             } compactTrailing: {
                 if model.status == .active {
-                    Text(timerInterval: model.timerRange, countsDown: false, showsHours: false)
+                    Text(timerInterval: model.clockRange, countsDown: false, showsHours: false)
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(EmberglowTheme.bone)
                         .frame(width: 40)
                 } else {
-                    Image(systemName: model.status.sfSymbol)
+                    Image(systemName: model.symbol)
                         .font(.system(size: 14, weight: .light))
                         .foregroundStyle(model.status.accent)
                 }

@@ -43,12 +43,18 @@ export interface CooperativeQuestTemplate extends BaseQuestTemplate {
   inviteeIds?: string[];
 }
 
+export interface HoldoutQuestTemplate extends BaseQuestTemplate {
+  mode: 'holdout';
+  category: string;
+}
+
 // Renamed (not `QuestTemplate`) to avoid colliding with the unrelated
 // server-fetched `QuestTemplate` exported from '@/api/quest/types'.
 export type LocalQuestTemplate =
   | StoryQuestTemplate
   | CustomQuestTemplate
-  | CooperativeQuestTemplate;
+  | CooperativeQuestTemplate
+  | HoldoutQuestTemplate;
 
 export type QuestStatus = 'active' | 'completed' | 'failed' | 'cancelled';
 

@@ -15,13 +15,18 @@ const DECK_SIDE_PADDING = 20;
 export const CARD_WIDTH = screenWidth - DECK_SIDE_PADDING * 2;
 // The deck's cards are fixed-height full-bleed art cards per the
 // play-screen handoff (design 380/350 ≈ 1.086), not content-sized — the
-// deck container itself is taller (DECK_HEIGHT) so the two back cards can
-// peek 16/32pt above the front card's top edge ("The deck mechanic").
+// deck container itself is taller (DECK_HEIGHT) so the back cards can
+// peek above the front card's top edge ("The deck mechanic").
 export const CARD_HEIGHT = 380;
-export const DECK_HEIGHT = 412;
 
 // Deck peek/scale/opacity mechanics ("The deck mechanic" in the handoff).
-export const DECK_PEEK_OFFSET = 16; // px each back card peeks above the one in front of it
+// Peek widened from the handoff's 16pt: each back card's label strip
+// (icon + text + 6pt vertical padding, ~26pt tall) is now fully exposed, so
+// the mode names read clearly and the strip is a comfortable tap target.
+export const DECK_PEEK_OFFSET = 26; // px each back card peeks above the one in front of it
+// Tall enough for the three back cards (four modes) to peek above the front
+// card without clipping.
+export const DECK_HEIGHT = CARD_HEIGHT + 3 * DECK_PEEK_OFFSET;
 export const DECK_SCALE_STEP = 0.05; // scale reduction per step back
 export const DECK_REARMOST_OPACITY = 0.55;
 export const DECK_SWIPE_THRESHOLD = 40; // px horizontal drag to advance
@@ -32,6 +37,7 @@ export const QUEST_MODES = [
   { id: 'story', name: 'Story', color: 'rgba(217, 73, 40, 0.20)' },
   { id: 'custom', name: 'Custom', color: 'rgba(247, 164, 75, 0.16)' },
   { id: 'cooperative', name: 'Co-op', color: 'rgba(44, 69, 107, 0.38)' },
+  { id: 'holdout', name: 'Hold Out', color: 'rgba(96, 108, 56, 0.28)' },
 ] as const;
 
 // Animation timings (milliseconds)

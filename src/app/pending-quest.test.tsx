@@ -76,6 +76,14 @@ describe('PendingQuestScreen', () => {
     reward: { xp: 50 },
   };
 
+  const mockHoldoutQuest = {
+    id: 'holdout-1',
+    title: 'Hold Out',
+    durationMinutes: 0,
+    mode: 'holdout' as const,
+    reward: { xp: 0 },
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -213,6 +221,19 @@ describe('PendingQuestScreen', () => {
 
       expect(queryByText('Vaedros')).toBeNull();
       expect(queryByText('fitness')).toBeNull();
+    });
+
+    it('shows "3 XP per min" and "No time limit" for holdout quests instead of XP/duration badges', () => {
+      useQuestStore.setState({
+        pendingQuest: mockHoldoutQuest,
+        cancelQuest: jest.fn(),
+      });
+
+      const { getByText, queryByText } = render(<PendingQuestScreen />);
+
+      expect(getByText('No time limit')).toBeTruthy();
+      expect(getByText('3 XP per min')).toBeTruthy();
+      expect(queryByText(/min offline/)).toBeNull();
     });
   });
 

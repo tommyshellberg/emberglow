@@ -5,7 +5,7 @@ import { type QuestOption } from '@/api/quest/types';
  */
 export interface CarouselItem {
   id: string;
-  mode: 'story' | 'custom' | 'cooperative';
+  mode: 'story' | 'custom' | 'cooperative' | 'holdout';
   title: string;
   subtitle: string;
   recap: string;
@@ -83,4 +83,5 @@ export interface QuestSelection {
   handleQuestOptionSelect: (nextQuestId: string | null) => Promise<void>;
   handleStartCustomQuest: () => void;
   handleCooperativeQuest: () => void;
+  handleStartHoldoutQuest: () => void;
 }
